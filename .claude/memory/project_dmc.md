@@ -7,6 +7,72 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ FAMILY-1 round 15 (2026-07-03): dual-parity address on shifted bodies (+27, 4276/5401 = 79.2%) — commit 9c2fa6c
+The pos~16 class (rep Staring_at_the_Ceiling) + most remaining Psych858o
+early/deep partials = ONE extract bug: the Psych858o sub-family is the
++1-SHIFTED dataflow body (whole player shifted +1; JT entries chain via out-
+of-region stubs $1937/$194A — NOTE the play JT entry $1003→$194A→$1086 is a
+plain JMP, NOT a phase wrapper). The $40 dual-effect GLOBAL half-rate parity
+(canon $1019, INC/LDA/AND#1/STA at $14B1-9; odd frames run the slide path =
+freq from held base + JMP $1619 BYPASSING the wave step; even frames run the
+wave step) lives at $101A there — extract read base+0x19 = the member's D417
+SHADOW → wrong slide_phase seed → every dual-effect voice's wave/arp advance
+on the wrong parity (first chord tone 2 frames instead of 1, div @22). FIX:
+`dataflow.locate` gains a `dual_parity` _CANON_STATE entry (signature-located)
+→ `cfg.dual_parity_addr`; post-init capture + engine_model fallback use it.
+Canon route pinned by identity compare = untouched. 59-member sweep: **+27
+FULL, 0 regr** (32 FULL total incl. 5 prior), deep honest re-localizations for
+the rest. DIAGNOSIS LESSONS: (1) memwatch at canon addrs on a shifted member
+reads garbage — re-derive shift FIRST (bit again; round-11 warning); (2) the
+reloc-normalized body diff vs canon bin (walk canon instrs, allow operand+delta
+in [$1000,$1900)) is the fast way to find ALL code patches in a variant —
+found "no code diffs" here, proving the divergence was DATA/seed, not code;
+(3) "values right, schedule off-by-phase at song start" = suspect a GLOBAL
+parity/counter leftover read at the wrong address.
+
+## ✅ FAMILY-1 round 14 (2026-07-03): $D418 play-vector wrapper (+6, 4249/5401 = 78.7%) — commit efbf639
+The D418-pos~0 early class (Bernds_Tune/Theme/Last_One/Snatch_of_Fury/
+Funk-a-Duck/Kingdom — PVCF/Zyron/Signor): the PSID play vector points at
+`LDA #imm / STA $D418 / JMP base+3` — a constant vol|mode assertion on EVERY
+play() call before the canon body (imm $3F/$1F; the value = last-note-init
+$D418 & $7F for Bernds but it's just a CONSTANT from the wrapper). The factory
+found the canon JT at load and never looked at what the play vector executes.
+Factory `_d418_play_wrapper` probe (shape + JMP target==base+3) → param
+`d418_every_play`; composer prepends a `playd418` vector wrapper OUTSIDE the
+play_repeat/play_phases dispatch. Census: exactly 6 carriers, all partial.
+6/6 FULL, regression green. Class residue: Super_Seven = a CONDITIONAL
+game-mute wrapper (LDA flag/BNE/JMP base+3, diverges on SUB 1); Scratch_It =
+play JT entry points at $82F0 (relocated play body) — both separate causes.
+METHOD: when flat pos-0 diverges with a shifted-by-one context, count the
+missing register's writes per side; a constant-per-play surplus = look at the
+PSID play VECTOR, not the play body.
+
+## ✅ FAMILY-1 round 13 (2026-07-03): hard-restart-patch variant (+23, 4243/5401 = 78.6%) — commit 193bbbc
+The V1/V2/V3-PWLO early sub-classes ((2,24)+(2,16)+(9,24)+(16,*) etc., rep
+Headache orig $40 vs mine $4F) = ONE PLAYER VARIANT (The_Syndrom/Tragic_Error/
+Gaston, 24 members, all partial, 0 FULL carriers = provably 0-regression):
+canon player with two note-init wedges. (a) `JMP base+$262` at base+$257 skips
+the PW step-base load ($175F stays 0 forever → step = phase nibble only) AND
+the PW phase/direction reset (both persist across notes). (b) $1230 JSRs the
+base+$25A wedge: parks SR at base+$40, feeds #$99 to sub_184B whose first STA
+is retargeted at the hard-restart primer's ctrl-write OPCODE (base+$7FB SMC:
+$99=STA → TEST written / $B9=LDA → skipped); the pulse-reset path's $1262
+wedge then writes $B9 — net: the NEXT hard restart writes $D404=$08 iff the
+last note-init instrument has the $04 no-pulse-reset flag. Initial toggle =
+file-image opcode at $17FB (differs per member — Headache $B9, Atlantis $99).
+IMPL: factory `_hr_patch_probe` (base-relative byte probe after canon/dataflow
+build) → params `hr_patch`/`hr_test_init`; composer gates fe_ni (hr_arm/
+hr_disarm on a global `hrtest` var) + ev_n_hard TEST write; canon emit
+byte-identical when off. **23/24 FULL** (Mountys_Escape re-localizes 24→24802
+deep V1-freq-hi, separate cause); full regression green; mass-written; DB
+refreshed. Artifacts: tmp/f1_hrpatch_members.json, f1_hrpatch_verify.jsonl.
+METHOD: memwatch-on-write showed runtime $175F=0 vs file-image instr+6=$F0 +
+taint_source proved $1901 static ⇒ the READ site must differ ⇒ dumped the
+operand → found the JMP wedge. ⚠️ PROCESS: a timed-out `git stash && build &&
+git stash pop` compound left the fix STASHED — the first regression+mass-write
+ran on HEAD (bad builds written as FULL); caught via `git status` before
+commit, re-done clean. Don't put stash pop behind a long build in one Bash call.
+
 ## 🔬 FAMILY-1 round 12 (2026-07-03): pos~8 class probed — writelog phase observer PARKED (0 FULL)
 The V1flo pos~8 class (15, tmp/f1_v1flo8.json: Real_Hardcore/Domination_Bakery/
 Compotune...) = MORE C18 wrappers, but py65 can't drive most (Real_Hardcore idles
