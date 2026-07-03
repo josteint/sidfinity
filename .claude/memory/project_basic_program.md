@@ -570,6 +570,19 @@ real per-note write, e.g. master-vol re-asserted — the Devils_Galop idiom); le
 sections-as-patterns (68 sectioned order-conflicts; design recorded above), reader asymmetries (missing_sig 34 +
 grid_collision 27), honest residue (94 interleaved orders, pure_global 10, $D419+ init writers 13).
 
+**✅ NF LEGIBILITY ROUND (2026-07-03, user-driven): ADAPTIVE SIGNATURE COARSENESS (199→220 NF, median 2 decls).**
+User: "too many incomprehensible parameters" — God_Save had 9 flag-soup keys, 5 mapping to the SAME order (the
+changed-byte distinction was noise for a tune that always pokes both bytes). FIX: the writer picks the MINIMAL flag
+subset ({bytes,tie,norel,ins}, coarsest-first NF.SIG_SUBSETS ladder) with a conflict-free sig→order map; keys use
+readable kind words (note/glide/setup, globals vol/fcut/fres) + only the needed flags → God_Save = 4 keys
+(`bp_order_v1_note_norel__v2_setup: "v1_flo v1_fhi / v2_ctrl"`). READER LOOKUP MUST BE FINEST-FIRST (keys with
+flags outside the writer's subset were never stored → no false hits; coarse-first FALSE-HITS the plain branch of a
+refined pair — hit as a real bug: probe misalignment → init_state_diff). BONUS +21 NF (fewer distinct sigs = fewer
+reader missing-sig mismatches). LEDGER: C21 recorded (trichotomy-verdict alignment = CONSULT MISS — verify_cycle
+_trichotomy_compare already existed when _compare_music was written; factor-candidate 2×). GOTCHA (cost ~30 min):
+In_Your_Head "regression" was a WRONG TEST DUR (songlength=10s → batch window 15s; probing at 34.7s legitimately
+blows the pitch alphabet) — use the DB songlength for any per-tune probe.
+
 **(superseded plan note)** The user flagged the params block as
 anti-ML (packed ints) — review confirmed it is representation-principle §3 FAILURE MODE B (the USF carrying a
 per-tune engine program; "complete but unlearnable"). DERIVABILITY CENSUS (tmp/bp_census_derivable.py, 277 FULLs):

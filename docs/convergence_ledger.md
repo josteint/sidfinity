@@ -80,6 +80,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | per-frame WRITE-ORDER differs · orig batches note-on writes (SR/AD/CTRL) separately from wave-step writes (freq/PW/CTRL) or uses a different voice interleave · rebuild emits a different order · NOT a wholesale composer rewrite — PARAMETRIZE the composer's EMISSION order (precedent: FC `nextvoice_write_order`) | C16 | logged |
 | HETEROGENEOUS per-step write shapes in a trace-lift · one superset order can't embed all steps (conflicting reg orders / intra-step dups / sections) · cluster steps by EXACT write shape → K positional templates + per-step template id | C17 | logged |
 | play-vector WRAPPER with per-call PHASE behaviour · slow-tempo / multispeed-effects cycler · every Nth call runs the full play, others run effects-only / register-refresh / nothing · wrapper shapes vary (SMC, DEC+dual-JMP, parity AND) — OBSERVE entry-point reachability under py65, don't parse | C18 | logged |
+| TRICHOTOMY VERDICT alignment · rebuild emits its OWN init (universal reset+priming) so streams differ by an init prefix · Check A end-of-init state + aligned play-stream compare · TWO implementations exist: `verify_cycle._trichotomy_compare` (FC, shift recovery) + `usf_roundtrip._compare_music/_split_aligned` (basic_program, known-init-length + probe search) — CONSULT MISS, factor at Move 1 | C21 | factor-candidate (2×) |
 | hand-patched player WEDGE inside the canon body · SMC opcode toggle · JMP over canonical loads · runtime state ≠ static file byte · fingerprint + census carriers · reproduce semantics behind a factory-probed param | C19 | logged |
 | stale-FULL palimpsest · recorded 'full' the current code can't reproduce · hides members from residue censuses · verify the STORED build first, then USF-diff/param-bisect to attribute · never mass-write with code that didn't produce the verdict | C20 | canonicalized |
 
@@ -751,7 +752,40 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   LESSON: when a write model lands in params, ask FIRST whether rows + a few
   named order knobs derive it — the census (`tmp/bp_census_derivable.py` /
   `_rowaware.py`) made the call quantitative (79-82% derivable) before any
-  code was written.
+  code was written. **LEGIBILITY refinements (2026-07-03, user-driven):**
+  (a) ADAPTIVE SIGNATURE COARSENESS — the writer picks the MINIMAL flag subset
+  ({bytes, tie, norel, ins}, coarsest-first SIG_SUBSETS ladder) whose
+  sig→order map is conflict-free, so keys carry only the distinctions a tune
+  needs (God_Save: 9 flag-soup keys → 4 readable `v1_note_norel__v2_setup`
+  keys); the reader looks up FINEST-first (keys with flags outside the
+  writer's subset were never stored → no false hits; coarse-first WOULD
+  false-hit the plain branch of a refined pair — caught as a real bug).
+  (b) the NF global track records WRITTEN fields, not just changed (an
+  unchanged re-poke is a real per-note write — the master-vol-per-note idiom).
+
+### C21 — Trichotomy-verdict alignment (rebuild emits its own init)
+- **The problem class:** under the init trichotomy the rebuild's init writes are
+  a universal reset + typed priming, structurally different from the original's
+  init sequence — so a flat prefix compare diverges at write 0. The verdict must
+  (A) check the end-of-init chip STATE matches and (B) compare the PLAY streams
+  after aligning past both inits.
+- **Two implementations now exist (recorded as a CONSULT MISS, 2026-07-03):**
+  `pipelines/hubbard/verify_cycle._trichotomy_compare` (FC universal_reset:
+  recovers the alignment as a stream SHIFT d, then Check A + aligned compare +
+  close-length tolerance) and `pipelines/basic_program/usf_roundtrip.
+  _compare_music` + `_split_aligned` (the rebuild's init length is KNOWN from
+  the typed model, and the orig's split point is found by locating the
+  rebuild's first 8 music writes in the orig stream — needed because a
+  gate-on-based split misfires when init PRIMES a gate/freq seed, and the
+  BASIC "init" is a minutes-long setup phase rather than a fixed-length
+  prefix). The basic_program variant was written WITHOUT consulting this
+  ledger; whether shift-recovery could have served is unassessed. Move-1
+  factor-candidate: one shared trichotomy verdict with pluggable alignment
+  (shift-recovery | known-length + probe).
+- **Status:** factor-candidate (2×).
+- **Consumers:** FC standard (`compare_instruction_stream(mode='trichotomy')`),
+  basic_program NF stage 2+.
+
 
 ### C18 — Play-vector wrapper with per-call PHASE behaviour
 - **Canonical:** when a member's play vector is a WRAPPER that behaves

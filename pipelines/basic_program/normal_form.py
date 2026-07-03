@@ -39,6 +39,53 @@ def decl_to_regs(decl):
             [TOK_REG[t] for t in r.split()] if r.strip() else [])
 
 
+# Signature refinement features, coarsest-first preference. The writer picks
+# the FIRST subset whose sig->order map is conflict-free, so keys carry only
+# the flags a tune actually needs (a tune that always pokes both freq bytes
+# gets plain `v1_note`; one whose releases differ gets `v1_note_norel`; ...).
+# Flag markers are unique strings, so a reader lookup that generates a key
+# under any subset either misses or hits the exact stored declaration.
+SIG_SUBSETS = [frozenset(), frozenset({'norel'}), frozenset({'tie'}),
+               frozenset({'bytes'}), frozenset({'ins'}),
+               frozenset({'tie', 'norel'}), frozenset({'norel', 'bytes'}),
+               frozenset({'tie', 'bytes'}), frozenset({'norel', 'ins'}),
+               frozenset({'tie', 'ins'}), frozenset({'bytes', 'ins'}),
+               frozenset({'tie', 'norel', 'bytes'}),
+               frozenset({'tie', 'norel', 'ins'}),
+               frozenset({'norel', 'bytes', 'ins'}),
+               frozenset({'tie', 'bytes', 'ins'}),
+               frozenset({'tie', 'norel', 'bytes', 'ins'})]
+
+
+def step_sig_at(ctx, subset):
+    """Signature refined by an explicit FLAG SUBSET (see SIG_SUBSETS)."""
+    parts = []
+    for vc in (1, 2, 3):
+        e = ctx.get(vc)
+        if not e:
+            continue
+        if e['kind'] == 'glide':
+            t = 'glide'
+        elif e['kind'] == 'timbre':
+            t = 'setup'
+        else:
+            t = 'note'
+            if 'bytes' in subset:
+                b = ('h' if e.get('hi_ch') else '') + ('l' if e.get('lo_ch') else '')
+                t += '_' + (b or 'rp')                 # rp = same-pitch re-poke
+            if 'tie' in subset and e.get('tie'):
+                t += '_tie'
+            if 'norel' in subset and e.get('no_rel'):
+                t += '_norel'
+            if 'ins' in subset and e.get('instr_ch'):
+                t += '_ins'
+        parts.append(f'v{vc}_{t}')
+    g = ctx.get('globals') or ()
+    for r in g:
+        parts.append({0x16: 'fcut', 0x17: 'fres', 0x18: 'vol'}.get(r, f'g{r:02x}'))
+    return '__'.join(parts) or 'none'
+
+
 def step_sig(ctx):
     """Event-type signature of one step, from reader-visible facts.
 

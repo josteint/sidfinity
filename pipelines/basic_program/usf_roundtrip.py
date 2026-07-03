@@ -292,7 +292,7 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
     # median delta as the last step's fallback (its real duration is the loop wrap)
     deltas = [steps[k+1]['on_frame'] - steps[k]['on_frame'] for k in range(len(steps)-1)]
     med = sorted(deltas)[len(deltas)//2] if deltas else 1
-    nf_gregs = None; nf_decls = {}; nf_events = {vc: [] for vc in voices}
+    nf_gregs = None; nf_decls = {}; nf_events = {vc: [] for vc in voices}; nf_steps_ctx = []
     if nf:
         # NF precheck: every global write must coincide with a global-track CHANGE
         # (a re-poked unchanged global is invisible to the reader -> conflict), and
@@ -428,15 +428,26 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
             if not ctx and nf_gregs[kk]:
                 raise ValueError('nf_pure_global')     # pure-global step: no row anchor
             ctx['globals'] = nf_gregs[kk]
-            sig = NF.step_sig(ctx)
             a_regs = tuple(r for r, v in s['attack'])
             r_regs = tuple(r for r, v in (s['release'] or []))
             if any(r not in NF.REG_TOK for r in a_regs + r_regs):
                 raise ValueError('nf_unknown_reg')
-            dc = NF.regs_to_decl(a_regs, r_regs)
-            if nf_decls.setdefault(sig, dc) != dc:
-                raise ValueError('nf_order_conflict')  # same event type, different order
+            nf_steps_ctx.append((ctx, NF.regs_to_decl(a_regs, r_regs)))
     if nf:
+        # Pick the COARSEST signature detail level with a conflict-free
+        # sig -> order map (adaptive refinement: flag soup only when needed).
+        from pipelines.basic_program import normal_form as NF
+        for _sub in NF.SIG_SUBSETS:
+            nf_decls = {}
+            ok2 = True
+            for _ctx, _dc in nf_steps_ctx:
+                _sig = NF.step_sig_at(_ctx, _sub)
+                if nf_decls.setdefault(_sig, _dc) != _dc:
+                    ok2 = False; break
+            if ok2:
+                break
+        if not ok2:
+            raise ValueError('nf_order_conflict')      # conflicted even at full detail
         # ---- STAGE 3: true tracker rows from the event streams ----
         # Per voice: note rows (duration = sounding hold; a glide head's duration
         # = the tick span; releaseless/legato notes span to the next event), at
@@ -822,10 +833,16 @@ def usf_to_model(usf):
                     if getattr(ge2, fld) is not None:
                         run_g[fld] = getattr(ge2, fld)
             ctx['globals'] = tuple(sorted(gr))
-            sig = NF.step_sig(ctx)
-            dc = nf_decls.get(sig)
+            dc = None
+            # FINEST-first: a key containing flags outside the writer's subset was
+            # never stored (no false hits); coarse-first could hit the wrong branch
+            # of a refined pair (a norel step's coarse key = the plain declaration).
+            for _sub in reversed(NF.SIG_SUBSETS):
+                dc = nf_decls.get(NF.step_sig_at(ctx, _sub))
+                if dc is not None:
+                    break
             if dc is None:
-                raise ValueError('nf_missing_sig:' + sig)
+                raise ValueError('nf_missing_sig:' + NF.step_sig_at(ctx, NF.SIG_SUBSETS[-1]))
             a_regs, r_regs = NF.decl_to_regs(dc)
 
             def _val(reg, release):
@@ -905,10 +922,16 @@ def usf_to_model(usf):
                 if ge2.res is not None or ge2.route is not None: gr.append(0x17)
                 if ge2.cutoff is not None: gr.append(0x16)
             ctx['globals'] = tuple(sorted(gr))
-            sig = NF.step_sig(ctx)
-            dc = nf_decls.get(sig)
+            dc = None
+            # FINEST-first: a key containing flags outside the writer's subset was
+            # never stored (no false hits); coarse-first could hit the wrong branch
+            # of a refined pair (a norel step's coarse key = the plain declaration).
+            for _sub in reversed(NF.SIG_SUBSETS):
+                dc = nf_decls.get(NF.step_sig_at(ctx, _sub))
+                if dc is not None:
+                    break
             if dc is None:
-                raise ValueError('nf_missing_sig:' + sig)
+                raise ValueError('nf_missing_sig:' + NF.step_sig_at(ctx, NF.SIG_SUBSETS[-1]))
             a_regs, r_regs = NF.decl_to_regs(dc)
             a_ent = [(rg, NF.entry_kind(rg), None,
                       (REG_VOICE.get(rg) if rg < 0x15 else None)) for rg in a_regs]
