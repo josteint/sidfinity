@@ -81,6 +81,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | HETEROGENEOUS per-step write shapes in a trace-lift · one superset order can't embed all steps (conflicting reg orders / intra-step dups / sections) · cluster steps by EXACT write shape → K positional templates + per-step template id | C17 | logged |
 | play-vector WRAPPER with per-call PHASE behaviour · slow-tempo / multispeed-effects cycler · every Nth call runs the full play, others run effects-only / register-refresh / nothing · wrapper shapes vary (SMC, DEC+dual-JMP, parity AND) — OBSERVE entry-point reachability under py65, don't parse | C18 | logged |
 | hand-patched player WEDGE inside the canon body · SMC opcode toggle · JMP over canonical loads · runtime state ≠ static file byte · fingerprint + census carriers · reproduce semantics behind a factory-probed param | C19 | logged |
+| stale-FULL palimpsest · recorded 'full' the current code can't reproduce · hides members from residue censuses · verify the STORED build first, then USF-diff/param-bisect to attribute · never mass-write with code that didn't produce the verdict | C20 | canonicalized |
 
 ---
 
@@ -302,6 +303,12 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   same byte sequence. This is what the original packer does (programs share).
 - **Status:** canonicalized ≥2× (DMC v4 wave pool 2026-06-25; DMC v5 wave pool
   2026-07-01).
+- **Sibling instance (capacity of a COMPOSER-side stream index, 2026-07-03):**
+  when the overflowing index is the composer's OWN runtime cursor (not a pooled
+  table) — e.g. the DMC track stream growing past 255 bytes once entries went
+  2→3 bytes — dedup doesn't apply; WIDEN the cursor to a 16-bit running pointer
+  and emit jump targets as assembler label arithmetic (`.byt $FF, <(lbl+n*3),
+  >(lbl+n*3)`). Audit every 8-bit index whenever a stride/record grows.
 - **Boundary:** dedup is pure packing (zero write-stream change) ONLY when the
   pool layout is position-INDEPENDENT — i.e. the loop marker is RELATIVE (V4's
   `$90 + n - loop`, identical bytes at any position). When the marker encodes an
@@ -802,3 +809,33 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   case: a wrapper with NO phase behaviour — probe the PSID play vector's
   target shape whenever a member's play ≠ base+3 OR the JT entry target ≠ the
   canon play body.
+
+### C20 — Stale-FULL palimpsest (a 'full' row the CURRENT code cannot reproduce)
+- **Canonical:** a member's recorded FULL status was earned by an OLDER
+  code/verdict combination; the stored artifacts may even still match the orig,
+  but re-extracting + rebuilding with CURRENT code yields a partial. The row is
+  a PALIMPSEST — it hides the member from every residue census (it never
+  appears in a partial cluster) and silently mis-scopes regression claims.
+  Occurrences: 0ldsk00l_endtheme (round 9, pre-otrk partial recorded full),
+  Happy_Hour (round 16 — exposed the >85-entry track-capacity latent), Yo_Raps
+  (stored build diverged at write 0!), Brendas_Got_a_Baby_Mix (round 17 —
+  exposed the $175C off-table gap). CANONICAL HANDLING:
+  1. When ANY currently-FULL member fails a re-verify, FIRST verify its STORED
+     build against the orig. Stored-matches + fresh-fails = a CURRENT-CODE
+     latent regression (bisect: USF-diff old vs fresh USF → param-strip bisect
+     → divergence-context read); stored-fails = the row was stale — re-bucket
+     honestly (tally goes DOWN) and treat the member as a fresh diagnosis.
+  2. Attribute before blaming the newest change: the USF diff exonerates or
+     convicts extract-side changes in one step.
+  3. Periodically re-verify FULL slices with current code (the round-16 727
+     sweep found 2 palimpsests); a full-family closeout batch is the complete
+     cure.
+- **Companion discipline (verify/build code-mismatch):** NEVER mass-write
+  artifacts with code that did not produce the verify verdict being trusted —
+  a batch's workers import modules at start, so a mid-batch code change (or a
+  stashed/popped tree, or committing between verify and write) silently writes
+  UNVERIFIED builds recorded as FULL. Re-verify status-changed members with
+  the CURRENT tree before mass-writing them.
+- **Status:** canonicalized (4 occurrences, 2026-07-02/03, DMC family-1).
+- **Consumers:** DMC family-1 rounds 9/16/17 handling; the round-16 sweep
+  runner `tmp/f1_round16_sweeps.py` (re-verify → then rewrite).
