@@ -495,6 +495,41 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     # stall at each tie boundary).
     rest_effects = str(usf.params.fields.get('rest_effects', 'run'))
     rest_jmp = 'wavestep' if rest_effects == 'skip' else 'run_effects'
+    # hard-restart-patch variant (The_Syndrom / Tragic_Error / Gaston): a
+    # canon player with two note-init wedges. $1230 JSRs $125A, which parks
+    # the SR byte and passes #$99 to sub_184B, whose first STA now targets
+    # $17FB — the OPCODE of the hard-restart primer's ctrl write (SMC).
+    # $99 = STA $D404,y (TEST bit written); the pulse-reset path's $1262
+    # wedge then rewrites it to $B9 = LDA $D404,y (TEST write skipped). Net
+    # per note-init: the NEXT hard restart writes the $08 TEST bit iff the
+    # instrument has the $04 no-pulse-reset flag. The $1257 JMP $1262 that
+    # feeds the wedge also skips loading the PW step base ($175F stays 0
+    # forever) and the PW phase/direction reset (both persist across
+    # notes). hr_test_init = the file-image opcode at $17FB ($99 -> 1),
+    # i.e. the toggle state before the first note-init.
+    hr_patch = str(usf.params.fields.get('hr_patch', '0')) == '1'
+    hr_test_init = int(usf.params.fields.get('hr_test_init', 1)) & 1
+    if hr_patch:
+        hr_test_write = ('        lda hrtest\n'
+                         '        beq hr_notest\n'
+                         '        lda #$08\n'
+                         '        sta $d404,y                  ; TEST (gated)\n'
+                         'hr_notest:\n')
+        hr_arm = ('        lda #$01\n'
+                  '        sta hrtest                   ; $125A wedge ($99)\n')
+        hr_disarm = ('        lda #$00\n'
+                     '        sta hrtest                   ; $1262 wedge ($B9)\n')
+        pw_base_reset = ''
+        hr_test_var = f'hrtest:   .byt ${hr_test_init:02X}\n'
+    else:
+        hr_test_write = ('        lda #$08\n'
+                         '        sta $d404,y                  ; TEST bit\n')
+        hr_arm = hr_disarm = hr_test_var = ''
+        pw_base_reset = ('        lda ipwbase,y\n'
+                         '        sta cpwbase,x\n'
+                         '        lda #$00\n'
+                         '        sta pwphase,x\n'
+                         '        sta pwdir,x\n')
     # CIA multispeed: when the original drives play() via a CIA1 timer
     # (PSID speed bit set), the rebuild programs the SAME timer A latch
     # so libsidplayfp calls OUR play() at the identical rate. 0 = VBI.
@@ -1010,9 +1045,7 @@ ev_n_hard:
         sta slal,x
         sta slah,x
         ldy sidoff,x
-        lda #$08
-        sta $d404,y                  ; TEST bit
-{hard_restart_adsr}        lda #$FF
+{hr_test_write}{hard_restart_adsr}        lda #$FF
         sta gatemask,x
         sta pend,x
         jsr peekend
@@ -1073,21 +1106,16 @@ ni_sr:
         ldy sidoff,x
         sta $d405,y                  ; AD
         ldy cinst,x
-        lda iflag,y
+{hr_arm}        lda iflag,y
         and #$04                     ; keep-running pulse?
         bne ni_filter
-        lda ipwinit,y
+{hr_disarm}        lda ipwinit,y
         sta pwh,x
         lda ipwmin,y
         sta cpwmin,x
         lda ipwmax,y
         sta cpwmax,x
-        lda ipwbase,y
-        sta cpwbase,x
-        lda #$00
-        sta pwphase,x
-        sta pwdir,x
-ni_filter:
+{pw_base_reset}ni_filter:
         lda iflag,y
         and #$20                     ; filter instrument?
         bne ni_f_on
@@ -1490,6 +1518,7 @@ cpwmax:   .dsb 3, 0
 cpwbase:  .dsb 3, 0
 pwphase:  .dsb 3, 0
 pwdir:    .dsb 3, 0
+{hr_test_var}
 vibdir:   .dsb 3, 0
 vibctr:   .dsb 3, 0
 rampctr:  .dsb 3, 0

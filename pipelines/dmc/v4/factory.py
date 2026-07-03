@@ -615,6 +615,27 @@ def _cymbal_burst_byte(path: str):
     return m.group(1)[0] if m else None
 
 
+def _hr_patch_probe(path: str, base: int):
+    """Hard-restart-patch variant probe (The_Syndrom / Tragic_Error /
+    Gaston, 24 members): note-init has `JMP base+$262` at base+$257 (skips
+    the PW step-base load + phase/direction reset) and the base+$25A wedge
+    parks SR at base+$40 then feeds #$99 to sub_184B, whose first STA is
+    retargeted at the hard-restart primer's ctrl-write OPCODE (base+$7FB,
+    SMC: $99 = STA -> TEST written, $B9 = LDA -> TEST skipped; toggled per
+    note-init by the instrument's $04 flag). Returns the initial toggle
+    (1 iff the file-image opcode is $99) or None when not this variant."""
+    mem, _ = _load(path)
+    b = base
+    wedge = bytes((0x8D, (b + 0x40) & 0xFF, (b + 0x40) >> 8, 0xA9, 0x99))
+    if (mem[b + 0x257] == 0x4C
+            and mem[b + 0x258] | (mem[b + 0x259] << 8) == b + 0x262
+            and bytes(mem[b + 0x25A:b + 0x25F]) == wedge
+            and mem[b + 0x84B] == 0x8D
+            and mem[b + 0x84C] | (mem[b + 0x84D] << 8) == b + 0x7FB):
+        return 1 if mem[b + 0x7FB] == 0x99 else 0
+    return None
+
+
 def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     """Primary canonical-layout build; on a moved-layout rejection, fall back
     to the layout-independent dataflow extractor (pipelines.dmc.v4.dataflow).
@@ -635,6 +656,10 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     cb = _cymbal_burst_byte(os.path.join(hvsc_root, sid_path))
     if cb is not None and cb != 0xFF:
         cfg.extra_params['cymbal_burst'] = cb
+    hr = _hr_patch_probe(os.path.join(hvsc_root, sid_path), cfg.base)
+    if hr is not None:
+        cfg.extra_params['hr_patch'] = 1
+        cfg.extra_params['hr_test_init'] = hr
     return cfg
 
 
