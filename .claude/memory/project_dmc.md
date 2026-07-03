@@ -7,6 +7,36 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 21 (2026-07-04): full closeout (authoritative count + palimpsest cure) + cpwmax/cpwmin swap → family-1 4710/5401 (87.2%), family-2 2413/2889 (83.5%) — commits 09f8034/d1636b1
+1. **Typed-init cleanup (09f8034):** durrel priming moved from `durrel_init*`
+   params → typed `InitVoice.dur_reload` (§4.5 engine-state priming; the params
+   form was the "cite hr_test_init to defend the easy choice" drift-tell caught
+   on a principle re-read). 46 builds byte-identical; 136 stale-params USFs
+   rewritten; on-disk verify + full regression green.
+2. **Full family-1 closeout re-verify (5401, tier-2 milestone):** authoritative
+   **4698 FULL** (net +3 vs the merged file: 10 gains, 7 stale-FULL palimpsests
+   exposed). Palimpsest attribution via a git worktree at the round-18 commit
+   (dc61b47) + build+verify — all 7 diverge IDENTICALLY under the pre-session
+   tree ⇒ this session introduced ZERO regressions; the 7 predate round 18.
+   Adopted the closeout jsonl as the family-1 merged truth.
+3. **cpwmax/cpwmin off-table var-name SWAP (d1636b1, +13 FULL f1+f2, 0 regr):**
+   the pos~74-81 V2/V3 freqhi cluster (~25 members). ROOT CAUSE: the composer's
+   `cpwmin`/`cpwmax` vars hold PW bound A / bound B (extract min_hi=bound_a,
+   max_hi=bound_b) — self-consistent for the PWM sweep so members were FULL, but
+   the off-table redirect mapped orig $1756 (bound A) → var cpwmax (holds bound
+   B = A EOR $0F) → mine=$0B where orig=$04. TELL = a cluster whose (orig,mine)
+   values are EOR-$0F complements. Fix = swap the two map entries to point each
+   orig ADDRESS at the var holding its VALUE. +12 f1 (incl. the Flyt/Yoko
+   palimpsest cluster) / +1 f2; 40+2 exposed FULLs hold; full regression green.
+   The redirect asm is emitted for EVERY member so all 7123 FULL builds were
+   byte-rewritten (write-stream-neutral for the previously-FULL ones).
+SESSION 2026-07-03/04 TOTAL: family-1 4570→4710 (+140), family-2 2294→2413
+(+119) = +259 FULL. NEXT: the residue is now the DEEP freq tail (>=4k, ~250,
+heterogeneous per-member off-table sonification / state-evolution — no clean
+lever) + notectr/sectpos (~14, otrk-playbook, scoping in tmp/notectr_scoping.md)
++ CIA-census-blind 56 (need per-IRQ event alignment in f1_deep_census.py) +
+the remaining EOR-complement / small-value freqhi mid-clusters (per-member).
+
 ## ✅ ROUND 20 (2026-07-03): family-2 recovery sweep +118 (2412/2889 = 83.5%) + durrel redirect row +26 → family-1 4695/5401 (86.9%) — commit b4e486a
 1. **Family-2 recovery sweep (user-directed):** the rounds-18/19 SHARED-code
    fixes swept over family-2's 595 non-FULL → **+118 FULL (115 ex-partial +
