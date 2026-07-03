@@ -174,6 +174,7 @@ class GlobalEvent:
 
       `dyn`    — master volume 0-15 ($D418 low nibble) = dynamics.
       `cutoff` — filter cutoff hi byte ($D416).
+      `cutoff_lo` — filter cutoff lo bits ($D415, low 3 bits used by the SID).
       `res`    — filter resonance 0-15 ($D417 high nibble).
       `mode`   — filter mode bits 0-15 ($D418 high nibble: LP/BP/HP/3off).
       `route`  — filter routing 0-15 ($D417 low nibble: which voices filtered).
@@ -181,6 +182,7 @@ class GlobalEvent:
     step: int
     dyn: Optional[int] = None
     cutoff: Optional[int] = None
+    cutoff_lo: Optional[int] = None
     res: Optional[int] = None
     mode: Optional[int] = None
     route: Optional[int] = None

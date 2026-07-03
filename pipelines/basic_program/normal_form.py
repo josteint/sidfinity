@@ -22,7 +22,7 @@ for _vc, _b in ((1, 0), (2, 7), (3, 14)):
     for _o, _nm in ((0, 'flo'), (1, 'fhi'), (2, 'pwlo'), (3, 'pwhi'),
                     (4, 'ctrl'), (5, 'ad'), (6, 'sr')):
         REG_TOK[_b + _o] = f'v{_vc}_{_nm}'
-REG_TOK[0x15] = 'flt_lo'; REG_TOK[0x16] = 'flt_hi'
+REG_TOK[0x15] = 'flt_lo'; REG_TOK[0x16] = 'flt_hi'  # $D415 rides the global track (cutoff_lo)
 REG_TOK[0x17] = 'flt_res'; REG_TOK[0x18] = 'vol'
 TOK_REG = {v: k for k, v in REG_TOK.items()}
 
@@ -82,7 +82,7 @@ def step_sig_at(ctx, subset):
         parts.append(f'v{vc}_{t}')
     g = ctx.get('globals') or ()
     for r in g:
-        parts.append({0x16: 'fcut', 0x17: 'fres', 0x18: 'vol'}.get(r, f'g{r:02x}'))
+        parts.append({0x15: 'fcutlo', 0x16: 'fcut', 0x17: 'fres', 0x18: 'vol'}.get(r, f'g{r:02x}'))
     return '__'.join(parts) or 'none'
 
 

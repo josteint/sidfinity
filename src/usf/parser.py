@@ -516,6 +516,7 @@ class _T(Transformer):
     # ----- global automation track -----
     def g_dyn(self, items):    return ('dyn', int(items[0]))
     def g_cutoff(self, items): return ('cutoff', int(items[0]))
+    def g_cutoff_lo(self, items): return ('cutoff_lo', int(items[0]))
     def g_res(self, items):    return ('res', int(items[0]))
     def g_mode(self, items):   return ('mode', int(items[0]))
     def g_route(self, items):  return ('route', int(items[0]))

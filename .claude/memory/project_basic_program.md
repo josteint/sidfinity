@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 455/486 (93.6%) FULL; NORMAL FORM COMPLETE stages 1-4 (189 NF: params = bp + loop_to + order decls ONLY; 266 legacy); mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 458/486 (94.2%) FULL; NORMAL FORM (226 NF, median 2 readable decls); mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -582,6 +582,18 @@ reader missing-sig mismatches). LEDGER: C21 recorded (trichotomy-verdict alignme
 _trichotomy_compare already existed when _compare_music was written; factor-candidate 2×). GOTCHA (cost ~30 min):
 In_Your_Head "regression" was a WRONG TEST DUR (songlength=10s → batch window 15s; probing at 34.7s legitimately
 blows the pitch alphabet) — use the DB songlength for any per-tune probe.
+
+**✅ CHEAP WINS (2026-07-03): 455→458 FULL (94.2%), NF 220→226.** (1) Retrospectacles: $D415 (cutoff LO) joined the
+global track as GlobalEvent.cutoff_lo (typed schema completion deferred since the track's creation; grammar/types/
+writer/parser + writer/reader plumbing + NF sig token fcutlo) + 'not_clean' added to the multi-retry triggers (the
+chain never reached the now-working legacy-multi encoding). (2) Beisikki: BEYOND-WINDOW FINITENESS PROBE — under
+detect_song_end, capture dur+5s; no new writes ⟹ the tune is FINITE (play once, keep ALL steps incl. a final
+iteration whose release differs). The song ended 8 frames before the window edge — no in-window threshold could see
+it. (3) Crac_Mur: TIMING-AWARE LOOP PERIOD — sigs repeat every P steps but the FRAME wrap ALTERNATES (218/278: the
+BASIC program takes different-length paths on alternate passes); grow the period to the smallest multiple (≤4×)
+whose onset timing also repeats, with ±2 frame jitter tolerance. FULL 1557/1557 exact. (4) C_Prog_09 = honest
+residue (a keypress-gated one-tone sound demo; 30 of 33 writes are a pre-gate fade; segments to 0 steps).
+Single-step minimum relaxed for the multi path (<1) while legacy keeps <2.
 
 **(superseded plan note)** The user flagged the params block as
 anti-ML (packed ints) — review confirmed it is representation-principle §3 FAILURE MODE B (the USF carrying a

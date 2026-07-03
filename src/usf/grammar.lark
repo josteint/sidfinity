@@ -378,6 +378,7 @@ is_sfx_field: "is_sfx" ":" bool
 global_block: "global" "{" global_event* "}"
 global_event: "at" INT g_field+
 g_field: "dyn" "=" number      -> g_dyn
+       | "cutoff_lo" "=" number  -> g_cutoff_lo
        | "cutoff" "=" number    -> g_cutoff
        | "res" "=" number       -> g_res
        | "mode" "=" number      -> g_mode

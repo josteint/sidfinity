@@ -502,8 +502,9 @@ def _write_subtune(s) -> list[str]:
             lines.append('  global {')
             for e in s.global_track:
                 parts = [f'{k}={_hex(v)}' for k, v in
-                         (('dyn', e.dyn), ('cutoff', e.cutoff), ('res', e.res),
-                          ('mode', e.mode), ('route', e.route)) if v is not None]
+                         (('dyn', e.dyn), ('cutoff', e.cutoff),
+                          ('cutoff_lo', getattr(e, 'cutoff_lo', None)),
+                          ('res', e.res), ('mode', e.mode), ('route', e.route)) if v is not None]
                 lines.append(f'    at {e.step} ' + ' '.join(parts))
             lines.append('  }')
         lines.append('}')

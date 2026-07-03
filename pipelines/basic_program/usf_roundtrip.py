@@ -55,7 +55,7 @@ def _perstep_timbre(model):
     return {vc: sorted(rs) for vc, rs in pt.items()}
 
 
-GLOBAL_TRACK = {0x16, 0x17, 0x18}                      # decomposable into the global automation track
+GLOBAL_TRACK = {0x15, 0x16, 0x17, 0x18}                # decomposable into the global automation track
 
 
 def is_clean(model):
@@ -304,10 +304,11 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
             dd = dict(s2['attack']); dd.update(dict(s2['release']) if s2['release'] else {})
             written = sorted(r for r in dd if r >= 0x15)
             changed = set()
-            for reg in (0x16, 0x17, 0x18):
+            for reg in (0x15, 0x16, 0x17, 0x18):
                 if reg not in dd:
                     continue
-                fv = ({'cutoff': dd[reg]} if reg == 0x16 else
+                fv = ({'cutoff_lo': dd[reg]} if reg == 0x15 else
+                      {'cutoff': dd[reg]} if reg == 0x16 else
                       {'res': dd[reg] >> 4, 'route': dd[reg] & 0xF} if reg == 0x17 else
                       {'mode': dd[reg] >> 4, 'dyn': dd[reg] & 0xF})
                 if any(_rg.get(f2) != v2 for f2, v2 in fv.items()):
@@ -522,10 +523,11 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
         s = steps[ki]; k = kk
         d = dict(s['attack']); d.update(dict(s['release']) if s['release'] else {})
         chg = {}
-        for reg in (0x16, 0x17, 0x18):
+        for reg in (0x15, 0x16, 0x17, 0x18):
             if reg not in d:
                 continue
-            fv = ({'cutoff': d[reg]} if reg == 0x16 else
+            fv = ({'cutoff_lo': d[reg]} if reg == 0x15 else
+                  {'cutoff': d[reg]} if reg == 0x16 else
                   {'res': d[reg] >> 4, 'route': d[reg] & 0xF} if reg == 0x17 else
                   {'mode': d[reg] >> 4, 'dyn': d[reg] & 0xF})
             for f, v in fv.items():
@@ -742,6 +744,7 @@ def usf_to_model(usf):
     def gpack(reg):
         if reg == 0x18: return ((run_g.get('mode', 0) & 0xF) << 4) | (run_g.get('dyn', 0) & 0xF)
         if reg == 0x17: return ((run_g.get('res', 0) & 0xF) << 4) | (run_g.get('route', 0) & 0xF)
+        if reg == 0x15: return run_g.get('cutoff_lo', 0) & 0xFF   # $D415
         return run_g.get('cutoff', 0) & 0xFF           # $D416
     nf_decls = {k[len('bp_order_'):]: v for k in list(f)
                 if isinstance(k, str) and k.startswith('bp_order_')
@@ -829,7 +832,8 @@ def usf_to_model(usf):
                 if ge2.dyn is not None or ge2.mode is not None: gr.append(0x18)
                 if ge2.res is not None or ge2.route is not None: gr.append(0x17)
                 if ge2.cutoff is not None: gr.append(0x16)
-                for fld in ('dyn', 'cutoff', 'res', 'mode', 'route'):
+                if getattr(ge2, 'cutoff_lo', None) is not None: gr.append(0x15)
+                for fld in ('dyn', 'cutoff', 'cutoff_lo', 'res', 'mode', 'route'):
                     if getattr(ge2, fld) is not None:
                         run_g[fld] = getattr(ge2, fld)
             ctx['globals'] = tuple(sorted(gr))
@@ -892,8 +896,8 @@ def usf_to_model(usf):
         gap = vrows[voices[0]][hi + 1].duration if gated else 0   # exact (0 = back-to-back notes)
         ge = gevents.get(k)                            # advance the global state this step
         if ge:
-            for fld in ('dyn', 'cutoff', 'res', 'mode', 'route'):
-                if getattr(ge, fld) is not None:
+            for fld in ('dyn', 'cutoff', 'cutoff_lo', 'res', 'mode', 'route'):
+                if getattr(ge, fld, None) is not None:
                     run_g[fld] = getattr(ge, fld)
         if nf_decls:
             # NORMAL FORM: derive the step's writes from row-level facts + the
@@ -1267,7 +1271,7 @@ def best_attempt(sid_rel, dur, title='bp'):
             res5 = _attempt_model(build_model(sid, dur, detect_modulation=True), sid, dur, orig_wl, title, gap_exact=gap_exact)
             if res5[0] == 'FULL':
                 return res5
-        if res[0] in ('overlap_diverge', 'length_fail') or res[0] in (
+        if res[0] in ('overlap_diverge', 'length_fail', 'not_clean') or res[0] in (
                 'unsupported:variable_template', 'unsupported:legato_variable',
                 'unsupported:too_few_after_trim', 'unsupported:too_few_steps',
                 'unsupported:template_derive'):

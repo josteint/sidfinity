@@ -361,12 +361,20 @@ def _song_end_writes(frames, steps):
     stop-routine output, the symmetric bookend of `init`. [] if the tune doesn't
     silence itself this way."""
     flat = [(r, v) for fr in frames for (c, r, v) in fr]
-    if not flat or flat[-1] != (0x18, 0x00) or not steps:
+    if not flat or not steps:
         return []
     last = steps[-1]
     bnd = last.get('off_frame') or last.get('on_frame') or 0
     tail = [(r, v) for i in range(bnd + 1, len(frames)) for (c, r, v) in frames[i]]
-    return tail if (tail and tail[-1] == (0x18, 0x00)) else []
+    if flat[-1] == (0x18, 0x00):
+        return tail if (tail and tail[-1] == (0x18, 0x00)) else []
+    # Trailing-silence song end: the program leaves its loop and emits a short
+    # cleanup (e.g. a final gate-off) followed by >=2s of silence — a finite
+    # repetition, not an infinite loop (Beisikki class). Verify-gated fallback.
+    lastw = max((i for i, fr in enumerate(frames) if fr), default=0)
+    if len(frames) - lastw >= 100 and 0 < len(tail) <= 8:
+        return tail
+    return []
 
 
 MODREG = {1: 0x03, 2: 0x0a, 3: 0x11, 4: 0x16}          # free-running modulation channels:
@@ -598,19 +606,28 @@ def build_model(sid, dur, force_split=None, min_trim=False, detect_song_end=Fals
                     if s.get('off_tick') is not None:
                         s['off_frame'] = m['mod_start'] + round(s['off_tick'] * inv)
         return m
+    end_bias = False
+    if detect_song_end:
+        # The song may end AT or just before the verify window's edge (Beisikki:
+        # 8 frames of in-window tail) — probe past the window: no new writes
+        # beyond it means the tune is FINITE (play once, keep every step).
+        probe = capture_real(sid, dur + 5.0)
+        end_bias = sum(len(f) for f in probe) == sum(len(f) for f in frames)
     if force_split is not None:
         init, steps, start_frame, legato = segment(seg_frames, split_dups=force_split)
         _annot(steps)
         se = _song_end_writes(seg_frames, steps) if detect_song_end else None
         return _inject(_build_model_from_steps(sid, init, steps, legato, window, last_write, min_trim, se,
-                                               multi_template, detect_glide))
+                                               multi_template, detect_glide,
+                                               end_bias=end_bias))
     result = None
     for split_dups in (False, True):
         init, steps, start_frame, legato = segment(seg_frames, split_dups=split_dups)
         _annot(steps)
         se = _song_end_writes(seg_frames, steps) if detect_song_end else None
         result = _build_model_from_steps(sid, init, steps, legato, window, last_write, min_trim, se,
-                                         multi_template, detect_glide)
+                                         multi_template, detect_glide,
+                                         end_bias=end_bias)
         if ('unsupported' not in result or result['unsupported'] not in (
                 'variable_template', 'legato_variable', 'too_few_after_trim',
                 'too_few_steps', 'template_derive', 'too_many_shapes')):
@@ -619,10 +636,10 @@ def build_model(sid, dur, force_split=None, min_trim=False, detect_song_end=Fals
 
 
 def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0, min_trim=False, song_end=None,
-                            multi_template=False, detect_glide=False):
+                            multi_template=False, detect_glide=False, end_bias=False):
     from pipelines.basic_program.proof_multivoice import measure_rho, _find_loop
     import struct
-    if len(steps) < 2:
+    if len(steps) < (1 if multi_template else 2):
         return {'unsupported': 'too_few_steps'}
     multi = None
     if multi_template:
@@ -634,7 +651,7 @@ def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0, mi
         if not legato and not min_trim:
             while len(steps) > 2 and steps[-1]['release'] is None:
                 steps.pop()
-        if len(steps) < 2:
+        if len(steps) < 1:
             return {'unsupported': 'too_few_after_trim'}
         multi = _multi_templates(steps)
         if multi is None:
@@ -702,8 +719,32 @@ def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0, mi
     # A trailing master-vol=$00 (the engine silences itself) is an explicit SONG-END
     # marker: the song plays ONCE then stops, so a (false) internal-phrase loop must
     # not be applied. The captured silence writes are emitted once at the halt.
-    ends = (window and last_write < window * 0.85) or bool(song_end)
+    # end_bias (detect_song_end fallback): >=2s of trailing silence marks a
+    # FINITE tune even above the 0.85 threshold — a repeated final chord that
+    # then stops (Beisikki class) must keep ALL steps (incl. a final iteration
+    # whose release differs) and play once, not loop the modal iteration.
+    ends = (window and last_write < window * 0.85) or bool(song_end) or end_bias
     intro, period = (None, None) if ends else _find_loop(sigs)
+    if period is not None:
+        # TIMING-AWARE period: the signatures may repeat every P steps while the
+        # FRAME wrap alternates between passes (Crac_Mur: 218/278 — the BASIC
+        # program takes a different-length path on alternate passes). Grow the
+        # period to the smallest multiple whose per-step onset timing also
+        # repeats, else the rebuild loops fast/slow and drifts ~(wrap error)
+        # per pass.
+        TOL = 2                                        # BASIC free-running jitter
+        for _mult in (1, 2, 3, 4):
+            P = period * _mult
+            if intro + 2 * P > len(steps) - 1:
+                break
+            w_ok = all(abs((steps[intro + P + i]['on_frame'] - steps[intro + P]['on_frame']) -
+                           (steps[intro + i]['on_frame'] - steps[intro]['on_frame'])) <= TOL
+                       for i in range(P))
+            wrap_ok = abs((steps[intro + 2 * P]['on_frame'] - steps[intro + P]['on_frame']) -
+                          (steps[intro + P]['on_frame'] - steps[intro]['on_frame'])) <= TOL
+            if w_ok and wrap_ok:
+                period = P
+                break
     loop_to, loop_period = None, 0
     if period is not None:
         loop_to = intro
