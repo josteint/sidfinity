@@ -7,6 +7,21 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ FAMILY-1 round 17 (2026-07-03): pwstep redirect row + hrtest wipe fix (4276 current) — commit bebb372
+Round-16's 727-FULL sweep: 725 hold, 2 = stale-FULL palimpsests re-bucketed
+(Yo_Raps stored build diverged at 0(!); Brendas at 75). Brendas root-caused =
+off-table hi read wnote idx 182 → orig $175D = V2's CURRENT PW STEP ($175C,x
+= phase nibble + base, STA at $1379): orig live 0, our static capture $A2.
+NEW map row (0x175C,'pwstep',3) + fx_pulse stores its step into pwstep,x
+(guard+freewheel frames run fx_pulse ✓ lockstep; init-wiped both sides).
+Brendas 100% → FULL. ALSO fixed round-13 latent: hrtest sat INSIDE the
+state0..state_end wipe → init cleared the hr_test_init priming; moved after
+state_end (orig $17FB persists through init); all 24 hr-patch members hold.
+Gate: 25-member re-verify + full regression green. NOTE: the running partials
+sweep uses round-16 code — its newly-FULL members must be RE-VERIFIED with
+current code before mass-write (verify/build code-mismatch discipline, the
+Happy_Hour lesson). Pending: 725-FULL artifact rewrite (current code) + DB.
+
 ## ✅ FAMILY-1 round 16 (2026-07-03): exact inst-offset chain + 16-BIT TRACK POINTER (+1 now, 4277/5401; sweeps queued) — commit d99fe19
 Two exactness/capacity fixes from the V1sr class dig (heterogeneous bucket — 
 only Techno shared the cause; 4 others still open, per-member):
