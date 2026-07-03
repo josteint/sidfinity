@@ -7,6 +7,26 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 20 (2026-07-03): family-2 recovery sweep +118 (2412/2889 = 83.5%) + durrel redirect row +26 → family-1 4695/5401 (86.9%) — commit b4e486a
+1. **Family-2 recovery sweep (user-directed):** the rounds-18/19 SHARED-code
+   fixes swept over family-2's 595 non-FULL → **+118 FULL (115 ex-partial +
+   3 ex-unsupported)**, 2294→2412 (83.5%). All 118 + the 105 exposure-censused
+   FULLs (96 durrel-window + 10 glide0 + 0 probe carriers) re-verified 223/223
+   under the final tree. f2 residue 420 partial / 45 unsup / 12 error.
+2. **durrel redirect row (the round-19 plan, landed):** (0x173E,'durrel',3)
+   — live shadow at every event's `sta dur,x` (row duration ≡ orig reload BY
+   CONSTRUCTION: every orig row reloads its counter from $173E); leftover
+   primed from durrel_init params (post-init/file-image; emitted only for
+   window-reading members: flo idx 247-249 / fhi 151-153). Event dispatch →
+   JMP trampolines (branch range). **+26/32 census-cluster FULL; 65/66
+   window-reading FULLs hold.** Sweet_Honey = a PRE-EXISTING LATENT (stored
+   USF predates round 9; committed-tree rebuild diverges identically @81,
+   V3 fhi reads live cpwmaxV2 $0B vs orig $04 — suspect a later-round
+   instrument-decode interaction; re-bucketed partial, diagnose per-member).
+   EXONERATION METHOD: stash → committed-tree build → same divergence =
+   the new change is innocent (now in ledger C11).
+314 builds mass-written; DB refreshed; full regression + portfolio green ×2.
+
 ## ✅ FAMILY-1 round 19 (2026-07-03): full deep census → 2 fixes → +100 FULL = 4670/5401 (86.5%) — commits f0d4ae8/93cc8ea/22f47ca
 Full-set deep census (`tmp/f1_deep_census.py`, all 353 deep freq partials →
 tmp/f1_deep_census_r19.jsonl): in_table 144 / off_table 138 (top hits:

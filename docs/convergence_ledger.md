@@ -467,6 +467,15 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   of sectorpos). Object_of_Art: first-div LO byte = `fcut` ($171C, derivable,
   cleanly mappable) but HI byte = wavepos (blocked). Mapping wavepos+fcut was
   net-NEGATIVE: 0 recoveries (wavepos wrong) + 1 FULL regression.
+- **Redirect-map consumer — durrel (2026-07-03, +26 FULL f1, 0 attributable
+  regressions):** $173E duration-reload mapped as a live shadow; works because
+  every composer EVENT's stored duration == the orig's reload at that row BY
+  CONSTRUCTION (each orig row reloads its counter from $173E, so row duration
+  ≡ current reload). Priming from the file-image/post-init leftover, emitted
+  only for window-reading members. EXONERATION LESSON: the one 'regression'
+  in the 66-member exposure gate (Sweet_Honey) was a PRE-EXISTING latent —
+  attribute by rebuilding under the pre-change committed tree BEFORE blaming
+  the new map row (stash → build → verify; same first-divergence = exonerated).
 - **METHODOLOGY — the C6 off-table redirect map is NOT free; measure regressions.**
   Adding a `(addr, var, n)` entry can REGRESS a FULL whose off-table read happened
   to match via the STATIC freq-table overrun byte (the value the read got before
