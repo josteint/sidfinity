@@ -635,6 +635,12 @@ class InitVoice:
     # 2->1->0 after each note-init). Audible only when an off-table
     # read sonifies it. None = 0.
     guard: Optional[int] = None
+    # Initial duration-reload state before the voice's first event
+    # (DMC: the $173E work-file leftover; every row reloads its
+    # duration counter from it, so after the first event it always
+    # equals the current row's duration). Audible only when an
+    # off-table read sonifies it. None = 0.
+    dur_reload: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------

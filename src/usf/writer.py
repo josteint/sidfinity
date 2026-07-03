@@ -119,6 +119,8 @@ def _write_init_voice(v: InitVoice) -> str:
         parts.append(f'gate_mask: {_hex(v.gate_mask)}')
     if v.guard is not None:
         parts.append(f'guard: {_hex(v.guard)}')
+    if v.dur_reload is not None:
+        parts.append(f'dur_reload: {_hex(v.dur_reload)}')
     return f'  voice {v.id} {{ ' + '  '.join(parts) + ' }'
 
 

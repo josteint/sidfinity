@@ -660,8 +660,7 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     idle = [0, 0, 0]
     imask = [0, 0, 0]
     iguard = [0, 0, 0]
-    idurl = [int(usf.params.fields.get(f'durrel_init{v + 1}', 0)) & 0xFF
-             for v in range(3)]
+    idurl = [0, 0, 0]
     for v in usf.init.voices:
         if v.note is not None:
             idle[v.id - 1] = v.note
@@ -669,6 +668,8 @@ def compose_dmc_asm(usf: UsfFile) -> str:
             imask[v.id - 1] = v.gate_mask
         if v.guard is not None:
             iguard[v.id - 1] = v.guard
+        if getattr(v, 'dur_reload', None) is not None:
+            idurl[v.id - 1] = v.dur_reload
     if usf.freq_table:
         assert len(usf.freq_table) == 192, len(usf.freq_table)
         flo, fhi = usf.freq_table[:96], usf.freq_table[96:]

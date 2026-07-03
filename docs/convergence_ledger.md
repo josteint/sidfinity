@@ -472,7 +472,13 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   every composer EVENT's stored duration == the orig's reload at that row BY
   CONSTRUCTION (each orig row reloads its counter from $173E, so row duration
   ≡ current reload). Priming from the file-image/post-init leftover, emitted
-  only for window-reading members. EXONERATION LESSON: the one 'regression'
+  only for window-reading members. SCHEMA HOME: the pre-first-event leftover
+  is §4.5 engine-state PRIMING (trichotomy report) — a TYPED
+  `InitVoice.dur_reload` field alongside `guard`, NOT a params scalar (the
+  first landing used `durrel_init*` params citing the hr_test_init precedent;
+  re-reading the principle doc flagged that as the "cite a precedent to defend
+  the easy choice" drift-tell and it was moved to the typed init block, 46
+  builds byte-identical → provably neutral). EXONERATION LESSON: the one 'regression'
   in the 66-member exposure gate (Sweet_Honey) was a PRE-EXISTING latent —
   attribute by rebuilding under the pre-change committed tree BEFORE blaming
   the new map row (stash → build → verify; same first-divergence = exonerated).

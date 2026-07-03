@@ -198,9 +198,8 @@ def model_to_usf(m: DmcModel) -> UsfFile:
                        for inst in m.instruments.values()
                        for off, note, _lo, _hi in
                        (getattr(inst, 'offtable_freq', []) or []))
-    durrel_fields = ({f'durrel_init{v + 1}': m.durrel_init[v]
-                      for v in range(3)}
-                     if reads_durrel and any(m.durrel_init) else {})
+    durrel = (m.durrel_init if reads_durrel and any(m.durrel_init)
+              else (0, 0, 0))
 
     return UsfFile(
         psid=PsidMeta(title=m.title, author=m.author, released=m.released,
@@ -216,8 +215,6 @@ def model_to_usf(m: DmcModel) -> UsfFile:
             **({'play_repeat': m.play_repeat} if m.play_repeat > 1 else {}),
             # otrk phase-offset scalars (see _otrk_pad)
             **pad_fields,
-            # durreload leftover priming (window-reading members only)
-            **durrel_fields,
             # family-2 build knobs (factory-probed; empty for canon)
             **m.extra_params}),
         # NB idle_guards deliberately NOT emitted yet — the composer's guard
@@ -227,8 +224,10 @@ def model_to_usf(m: DmcModel) -> UsfFile:
         init=InitState(voices=[
             InitVoice(id=v + 1,
                       note=m.idle_notes[v] or None,
-                      gate_mask=m.idle_masks[v] or None)
-            for v in range(3) if m.idle_notes[v] or m.idle_masks[v]]),
+                      gate_mask=m.idle_masks[v] or None,
+                      dur_reload=durrel[v] or None)
+            for v in range(3)
+            if m.idle_notes[v] or m.idle_masks[v] or durrel[v]]),
         instruments=[_instrument_to_usf(m.instruments[k])
                      for k in sorted(m.instruments)],
         subtunes=subtunes,
