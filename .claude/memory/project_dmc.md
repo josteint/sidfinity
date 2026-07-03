@@ -7,6 +7,20 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ FAMILY-1 rounds 16/17 CLOSEOUT (2026-07-03): +79 recovery sweep → 4355/5401 = 80.6% — commit 8831188
+The all-partials sweep (893) under round-16/17 code recovered **+79 FULL**
+(long-orderlist partials fixed by the 16-bit track pointer + exact inst-offset
+chain — the >85-entry wrap had been masquerading as "deep tail" divergences).
+All 79 re-verified with the CURRENT tree per C20 before mass-write; 804 builds
+rewritten (79 + the 725 held long-orderlist FULLs), DB refreshed. Session
+2026-07-03 total: 4220 → 4355 (+135) over 5 rounds. FRESH RESIDUE (804
+partials, current flat_div): early<64 = 81 (top: pos~8 wrapper class 15
+[parked, needs robust chunker], V1flo pos~0 7, V3flo 6 [Object_of_Art
+wavepos-blocked], V1sr 5 [heterogeneous, Techno's sibling causes], Necrophobic
+11/0 3, Speed_It_Up 3, Reggae_Me ORDER 3, Super_Seven+Scratch_It wrappers 2)
+· mid 141 · deep ≥4k = 582 (the true off-table/drift tail, fresh flat_divs in
+tmp/dmc_wide_results.jsonl for clustering via divergence_census --partials).
+
 ## ✅ FAMILY-1 round 17 (2026-07-03): pwstep redirect row + hrtest wipe fix (4276 current) — commit bebb372
 Round-16's 727-FULL sweep: 725 hold, 2 = stale-FULL palimpsests re-bucketed
 (Yo_Raps stored build diverged at 0(!); Brendas at 75). Brendas root-caused =
