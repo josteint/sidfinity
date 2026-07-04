@@ -532,6 +532,22 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   read frame via memwatch-on-write base-hi, like `tmp/capturable.py`) — correct by
   construction, recovers the value-consistent reads. Family-2 freq tail accepted
   as the hard residue (matches family-1's freq-floor "no single lever").
+- **HARD BOUNDARY — a glide/slide TARGET that is an off-table "note" terminates
+  the sweep on a DYNAMIC scratch byte (2026-07-04, Plasmachaos/Calypso).** A
+  DMC glide_to whose target note ≥ octave-10 (raw noteB byte $7E etc.) is NOT a
+  real musical target — the arrival check `CMP freqhi[glb]` reads
+  freqhi[125]=$1724=dtmpl / freqhi[126]=$1725=dtmph, the dual-slide temp (C11
+  dynamic work-RAM). So it's a fast freq SWEEP that stops when the HI byte hits
+  a scratch value (Calypso C-3 -> F#10 = a 90-semitone "glide"). The composer's
+  `_row_event` glide_to parse `sep = tgt[1] if len(tgt)==3 else '-'` drops the
+  '#' for 2-digit octaves (F#10 -> parsed 125 not 126) — LOOKS like a bug, and
+  IS one in isolation, but it sits in a SELF-CONSISTENT balance: the parsed-125
+  target stops the sweep on dtmpl, which the composer's state happens to track.
+  "Fixing" it to `sep = tgt[1]` (target 126 -> dtmph) REGRESSED 20/104 FULL
+  members and recovered 0 (Plasmachaos, the degenerate gla==125 special case,
+  has an otrk-legacy 2nd blocker). DO NOT re-attempt the naive fix (warning
+  comment left in `_row_event`). The real fix is a REPRESENTATION change: an
+  off-table glide target is a dynamic-byte-terminated sweep, not a note glide.
 - **UNEXPOSED-TRACKING-VAR pattern — most of the "deep off-table tail" is NOT
   hard state, just a missing redirect ROW (2026-07-04, family-1 round 22, +50
   FULL: ioff +12, filter-state +19, +19 deeper-blocker).** The composer ALREADY

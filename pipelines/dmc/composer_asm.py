@@ -264,6 +264,17 @@ def _row_event(row, inst_slot: dict) -> tuple:
     soft = 1 if 'noretrig' in flags else 0
     if 'glide_to' in flags:
         tgt = flags['glide_to']
+        # NB the `len(tgt)==3` guard drops the '#' for a 2-digit-octave sharp
+        # (F#10 -> parsed as F-10, one semitone low). This LOOKS like a bug, but
+        # DO NOT "fix" it by `sep = tgt[1]`: glide_to octave-10+ targets are
+        # off-table "notes" (raw noteB byte $7E etc.) whose arrival check reads
+        # freqhi[126]=$1725=dtmph — a DYNAMIC scratch byte (C11 hard boundary).
+        # The parsed-125 target terminates the sweep on freqhi[125]=$1724=dtmpl,
+        # which is in a self-consistent balance with the composer's state; the
+        # "correct" 126 breaks it. Verified: `sep=tgt[1]` REGRESSED 20/104 FULL
+        # members (Calypso C-3->F#10 = a 90-semitone sweep, not a real glide),
+        # recovered 0 (Plasmachaos, the degenerate gla==125 case, has an otrk
+        # 2nd blocker). Round-22 investigation; left as-is.
         sep = tgt[1] if len(tgt) == 3 else '-'
         name = tgt[0] + ('#' if sep == '#' else '')
         target = int(tgt[2:]) * 12 + NOTE_IDX[name]
