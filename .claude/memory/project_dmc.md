@@ -7,7 +7,7 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
-## ✅ ROUND 22 (2026-07-04): deep tail = UNEXPOSED tracking vars, not hard → +60 family-1 = 4770/5401 (88.3%) — commits 07c2125/a026b74
+## ✅ ROUND 22 (2026-07-04): deep tail = UNEXPOSED tracking vars, not hard → +74 family-1 = 4784/5401 (88.6%) — commits 07c2125/a026b74/65c2e95/82538a1/f66a1bf
 THE REFRAME: most of the "deep off-table freq tail" is NOT divergent state —
 the composer ALREADY tracks the value byte-identically (it must, to reproduce
 the write stream); it's just not EXPOSED to the off-table redirect. Recipe
@@ -38,12 +38,36 @@ differs ⇒ wavepos drift (HARD); (c) var!=orig ⇒ non-tracking accumulator (HA
    re-asserts/member (ratio 0.04-0.44/note, no rule), so exact shadow needs
    per-event byte-widths in USF = C7 anti-pattern. See tmp/notectr_scoping.md.
 CLOSEOUT: full re-verify of all 465 partials with both fixes → +50 FULL (incl.
-~19 members blocked on ioff/filter DEEPER than first-div); merged 4720→4770;
-mass-write 4770 builds + DB. RESIDUE (415 partial): notectr positional 18,
-in_table per-member drift 61, cia-census-blind 45 (need per-IRQ align),
-fcut/otrk/dur/gla non-tracking (~19, harder — fix the var evolution), $171F
-temp/$1720 claim (hard), + freq deep tail. NEXT clean levers ~exhausted again;
-remaining = non-tracking-var evolution fixes (per-var) + cia tooling.
+~19 members blocked on ioff/filter DEEPER than first-div); merged 4720→4770.
+5. **fcut $171C + fstop $171E + frep $171D (+14, commit f66a1bf):** the "non-
+   tracking" triage turned up that fcut is NOT a drifting accumulator — it
+   drives the identical $D416 stream so live fcut == orig $171C by construction
+   (verified $20==$20). The C11 "regressed Humppa" caution was fcut BUNDLED with
+   wavepos $177A; fcut ALONE is 0-regression (Humppa's div byte-identical w/wo
+   it, Object_of_Art improves). fstop/frep = same filter-def-load class as
+   fres. Closeout re-verify +14 FULL (of 401), 4770→4784. LESSON (ledger C11):
+   when a caution names TWO co-mapped addrs, re-test SEPARATELY. otrk (6) =
+   otrk_legacy POSITIONAL-hard (val=i+1 approximation, can't reproduce the exact
+   orderlist byte-offset — same class as notectr); $1720 fclaim rejected;
+   $1721/$1722 have no composer cache var (read inline via fdstep/fddur).
+6. **CIA-census gap CLOSED (measurement, user-directed "reuse the CIA solution
+   from elsewhere"):** the 40 cia_skipped were the deep-census tool bailing on
+   CIA (flat memwatch event-N mis-aligns, Trap C) — NOT a verdict gap (the batch
+   already verifies CIA via `writelog_per_irq_capture`). Wired that same per-IRQ
+   capture into `tmp/f1_deep_census.py` classify with an init offset
+   `init_reg = flat_total - per_irq_total` (reg-write TOTAL is bucketing-
+   independent; per-IRQ drops the init prefix, flat keeps it). Validated (0
+   cia_skipped, ~7/40 event_misaligned residual). RESULT: the CIA partials are
+   the SAME hard-class distribution (notectr/otrk/wavepos/sectpos positional +
+   in_table + $1720/$1721) — NO missed fixable cluster.
+RESIDUE (401 partial, r22d CIA-aware census): notectr 23 + otrk 13 + wavepos 9
++ sectpos 6 = ~51 POSITIONAL (Move-1-scale, need editor-position representation
+in USF); in_table 64 + hi_table 15 = per-member freq/schedule DRIFT; $1720
+fclaim 10 + $1721/$1722 10 (no cache var) + wjmp_tmp 13 ($171F temp) = rejected/
+unmappable; + tail. THE CLEAN UNEXPOSED-TRACKING-VAR LEVERS ARE NOW EXHAUSTED
+(ioff/filter/fcut/fstop harvested). NEXT is genuinely hard: (a) a Move-1
+positional-encoding representation for notectr/otrk/sectpos/wavepos, (b)
+per-member in_table drift, (c) family-2/V5 have their own fresh levers.
 
 ## ✅ ROUND 21 (2026-07-04): full closeout (authoritative count + palimpsest cure) + cpwmax/cpwmin swap → family-1 4710/5401 (87.2%), family-2 2413/2889 (83.5%) — commits 09f8034/d1636b1
 1. **Typed-init cleanup (09f8034):** durrel priming moved from `durrel_init*`
