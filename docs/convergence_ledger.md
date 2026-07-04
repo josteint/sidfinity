@@ -901,11 +901,33 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   in the re-authored all-off JT slot (`LDX/JSR $141C ×3`). Before accepting an S
   classification for a diverging member, check the orig's per-IRQ stream for
   writes in the non-P calls.
+- **GROUND-TRUTH observer (2026-07-04): straddle-free pc-trace.** py65
+  observation FAILS on CIA/IRQ-armed members that idle silent under the
+  interpreter — it reads their effect frames as `S` (no writes), yielding a
+  bogus `P_S` schedule (9 CIA members mis-observed this way). The fix is a
+  ground-truth observer off the libsidplayfp pc-trace
+  (`verify_cycle.pctrace_per_play_capture` + `factory._observe_play_phases_pctrace`),
+  wired as a fallback whenever py65 gives `None` OR an `S`-containing schedule.
+  KEY LESSON: do NOT observe phases from the per-IRQ *writelog* — it buckets by
+  play-entry CYCLE, so a play() spanning a siddump-frame boundary STRADDLES into
+  the next chunk (F.A.K.E-Intro's writelog view showed a spurious `F P P` warm-up
+  and a doubled P; the pc-trace, bucketed by CPU INVOCATION at PC==play_addr, is
+  a clean `P F123 P F123` from call 0). This is what the parked
+  `_observe_play_phases_writelog` got wrong. Also: the F-vs-R classification
+  FLAPS (a held note stops advancing → reads R for a frame), so fit the period
+  on a collapsed key (F/R→same) and resolve each phase's F/R by MAJORITY. The
+  observer is correct + regression-safe (0/40 CIA-full sample) but recovered 0
+  currently-partial members — the `P_S`-mis-observed ones have DEEPER blockers
+  (note-start 2-frame arm, positional residue), so correct phases alone don't
+  flip them. Landed as latent-correctness infrastructure, not a FULL-count gain.
 - **Status:** logged (DMC family-1, 2026-07-02: P/F/S round +5 FULL, R round
-  +26 FULL → 4198/5401).
-- **Consumers:** DMC v4 `factory._observe_play_phases` + `composer_asm`
-  play_phases dispatcher. Sibling of C9 (measure, don't parse) — C9 measures
-  from the libsidplayfp writelog, C18 from py65 entry-point reachability.
+  +26 FULL → 4198/5401; 2026-07-04 straddle-free pc-trace observer, +0 FULL but
+  fixes the `P_S` mis-observation).
+- **Consumers:** DMC v4 `factory._observe_play_phases` (canon, py65) +
+  `_observe_play_phases_writes` (dataflow, py65) + `_observe_play_phases_pctrace`
+  (ground-truth fallback) → `composer_asm` play_phases dispatcher. Sibling of C9
+  (measure, don't parse) — C9/pctrace measure from libsidplayfp, C18-py65 from
+  interpreter entry-point reachability.
 
 ### C19 — Hand-patched player wedge (SMC opcode toggle / skipped-load variants)
 - **Canonical:** a scene-circle "editor mod" ships a CANON player with a few

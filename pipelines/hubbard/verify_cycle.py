@@ -24,7 +24,9 @@ Two comparisons:
 from __future__ import annotations
 
 import os
+import re
 import subprocess
+import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
@@ -137,6 +139,79 @@ def compare_strict(a: list[Frame], b: list[Frame]) -> dict:
             first_diff = (k, a[k], b[k])
     return {'frames': n, 'match': match, 'first_diff': first_diff,
             'len_a': len(a), 'len_b': len(b)}
+
+
+# ---------------------------------------------------------------------------
+# Straddle-free per-play() capture (from the libsidplayfp pc-trace).
+#
+# writelog_per_irq_capture buckets writes by play-ENTRY CYCLE, so a CIA play()
+# whose execution spans a siddump-frame boundary has its writes split across two
+# chunks (a "straddle tail") — noisy for phase observation. This buckets by CPU
+# INVOCATION instead (writes executed between consecutive PC==play_addr entries),
+# which never straddles. Ground truth (libsidplayfp) — works for CIA/IRQ-armed
+# members py65 cannot run.
+# ---------------------------------------------------------------------------
+_PCT_LINE = re.compile(r'^\s*([0-9a-fA-F]{4})\s+\S\s+'
+                       r'([0-9a-fA-F]{2})\s+([0-9a-fA-F]{2})\s+([0-9a-fA-F]{2})\b')
+_PCT_STORE = re.compile(r'\b(ST[AXY])\w*', re.I)
+_PCT_IDX = re.compile(r'\[d4([0-9a-fA-F]{2})\]', re.I)      # indexed, resolved
+_PCT_ABS = re.compile(r'\bST[AXY]a?\s+d4([0-9a-fA-F]{2})\b', re.I)  # absolute
+
+
+def pctrace_per_play_capture(sid_path: str, subtune: int, play_addr: int,
+                             n_frames: int = 12) -> list[Frame]:
+    """Straddle-free per-PSID-`play()` write buckets, read off the libsidplayfp
+    pc-trace. Each returned frame is the ordered `(reg, val)` `$D400-$D418`
+    stores executed by ONE play() invocation (writes between consecutive
+    PC==`play_addr` entries; the init prefix before the first entry is
+    excluded). No cycle in the tuples — the store's value is read directly off
+    the trace (STA→A, STX→X, STY→Y; effective reg from the resolved `[d4XX]`
+    for indexed stores or the operand for absolute ones).
+
+    `subtune` is 0-indexed. `n_frames` is siddump 50 Hz frames to trace (~2
+    play() invocations each under 2× CIA)."""
+    fd, tmp = tempfile.mkstemp(suffix='.pctrace')
+    os.close(fd)
+    try:
+        subprocess.run([SIDDUMP, sid_path, '--subtune', str(subtune + 1),
+                        '--pc-trace', tmp, '0', str(n_frames)],
+                       capture_output=True, text=True)
+        plays: list[Frame] = []
+        cur = None
+        with open(tmp) as f:
+            for line in f:
+                m = _PCT_LINE.match(line)
+                if not m:
+                    continue
+                if int(m.group(1), 16) == play_addr:
+                    cur = []
+                    plays.append(cur)
+                if cur is None:
+                    continue
+                st = _PCT_STORE.search(line)
+                if not st:
+                    continue
+                mi = _PCT_IDX.search(line)
+                if mi:
+                    reg = int(mi.group(1), 16)
+                else:
+                    ma = _PCT_ABS.search(line)
+                    if not ma:
+                        continue
+                    reg = int(ma.group(1), 16)
+                if reg > 0x18:
+                    continue
+                a, x, y = (int(m.group(2), 16), int(m.group(3), 16),
+                           int(m.group(4), 16))
+                mn = st.group(1).upper()
+                val = x if mn == 'STX' else y if mn == 'STY' else a
+                cur.append((reg, val))
+        return plays
+    finally:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
 
 
 # Register indices into a $D400-$D418 state vector.

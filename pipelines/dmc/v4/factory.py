@@ -478,56 +478,80 @@ def _observe_play_phases_writes(sid_path: str, subtune: int,
     return None
 
 
-def _observe_play_phases_writelog(sid_path: str, subtune: int):
-    """⚠️ PARKED — NOT WIRED (2026-07-03). Ground-truth play-phase observation
-    (C9: when py65 can't run the member, measure from libsidplayfp): classify
-    each per-IRQ writelog chunk by the same footprint rules as
-    _observe_play_phases_writes (P = the $D416 tail; F/R/S). UNRELIABLE as-is:
-    (a) the per-IRQ splitter's straddle handling makes chunk footprints noisy
-    (Domination_Bakery's orig stream shows an aperiodic 'F12,P,P' hiccup in an
-    otherwise clean P_R123 alternation — the period fit then locks onto a
-    WRONG schedule like P_S); (b) the phase rotation back to call 1 is guessy
-    even with the P-placement self-check. Needs a straddle-robust chunker +
-    glitch-tolerant period fit before wiring. Kept as the starting point for
-    that round; the pos~8 wrapper class (tmp/f1_v1flo8.json) is its test bed."""
+def _observe_play_phases_pctrace(sid_path: str, subtune: int, play_addr: int,
+                                 n_calls: int = 16):
+    """Ground-truth play-phase observation from the STRADDLE-FREE libsidplayfp
+    pc-trace — the reliable replacement for py65 observation when py65 can't run
+    the member (CIA/IRQ-armed tunes that idle silent under the interpreter).
+
+    The earlier `_observe_play_phases_writelog` (parked 2026-07-03) bucketed the
+    per-IRQ writelog by play-entry CYCLE, so a play() spanning a siddump-frame
+    boundary straddled into the next chunk (Domination's aperiodic 'F12,P,P'
+    hiccup, the guessy phase rotation). `pctrace_per_play_capture` buckets by CPU
+    INVOCATION (writes between consecutive PC==play_addr entries), which never
+    straddles — verified on F.A.K.E-Intro: the writelog view showed a spurious
+    'F P P' warm-up, the pc-trace view is a clean 'P F123 P F123' from call 0.
+
+    Same 'P_F123'-style output + minimal-period fit as _observe_play_phases_writes
+    (P = the $D416 filter tail; F<voices>/R<voices>/S). The verify gate is the
+    net for any misclassification (C18: observe, don't parse). Returns None when
+    the sequence doesn't settle into a clean period from call 0."""
     try:
-        from pipelines.hubbard.verify_cycle import writelog_per_irq_capture
-        irqs = writelog_per_irq_capture(sid_path, subtune, duration=1.0)
+        from pipelines.hubbard.verify_cycle import pctrace_per_play_capture
+        # ~2 invocations per 50 Hz frame under 2x CIA; capture enough for a
+        # period<=n_calls//2 fit plus headroom.
+        plays = pctrace_per_play_capture(sid_path, subtune, play_addr,
+                                         n_frames=max(10, n_calls))
     except Exception:
         return None
-    if len(irqs) < 16:
+    if len(plays) < 8:
         return None
-    toks = []
+    seq = []
     prev = None
-    for irq in irqs[:28]:
-        vals = [(w[1] & 0x1F, w[2]) for w in irq]
-        regs = {r for r, _ in vals}
-        if not vals:
-            toks.append('S')
+    for w in plays[:n_calls]:
+        regs = {r for r, _ in w}
+        if not w:
+            seq.append('S')
         elif 0x16 in regs:
-            toks.append('P')
+            seq.append('P')
         else:
             voices = sorted({r // 7 for r in regs if r < 21})
             vs = ''.join(str(v + 1) for v in voices)
-            toks.append(('R' if prev is not None and set(vals) <= set(prev)
-                         else 'F') + vs)
-        prev = vals
-    tail = toks[4:]
-    for p in range(1, len(tail) // 2 + 1):
-        if all(tail[i] == tail[i % p] for i in range(len(tail))):
-            # rotate so position 0 = call 1: tail[0] is call 5 (chunk 4)
-            sched = [tail[(i - 4) % p] for i in range(p)]
-            # SELF-CHECK the phase alignment: the rotation assumes the
-            # periodicity extends back to call 1, but chunks 0-3 can carry
-            # init spill / warm-up divergence (Real_Hardcore: rotated F-first
-            # while the true call 1 is a full play). Accept only when the
-            # early chunks match the predicted schedule; P (the $D416 tail)
-            # is the reliable marker, so mismatched P placement rejects.
-            for i in range(4):
-                pred, got = sched[i % p], toks[i]
-                if (pred == 'P') != (got == 'P'):
-                    return None
-            return '_'.join(sched)
+            seq.append(('R' if prev is not None and set(w) <= set(prev)
+                        else 'F') + vs)
+        prev = w
+    n = len(seq)
+    # Period fit is done on a COLLAPSED key (F<v> and R<v> both -> 'x<v>'): the
+    # R-vs-F distinction flaps frame-to-frame (a held note that stops advancing
+    # reads as R for a frame or two), which would spuriously break an otherwise
+    # clean period. Voice set + P/S must still match. Once a period is found,
+    # each phase position's OUTPUT token is resolved from all its occurrences:
+    # any advancing frame => F<v> (an effects-run phase); all non-advancing =>
+    # R<v> (a pure register refresh, e.g. Compotune_1's P_R123_R123_R123).
+    def _key(t):
+        return t if t in ('P', 'S') else 'x' + t[1:]
+    keys = [_key(t) for t in seq]
+    for p in range(1, n // 2 + 1):
+        if not all(keys[i] == keys[i % p] for i in range(n)):
+            continue
+        out = []
+        for k in range(p):
+            toks = [seq[i] for i in range(k, n, p)]
+            base = toks[0]
+            if base in ('P', 'S'):
+                out.append(base)
+            else:
+                # F vs R by MAJORITY over the phase's occurrences, ties -> R.
+                # A note advances (F) for its first frame(s) then settles to a
+                # pure refresh (R); the STEADY behaviour is what the composer
+                # emits for the bulk of the song, so the majority (not a lone
+                # early F) decides. Ties resolve to R — the py65 canon observer's
+                # result for the ambiguous case (Compotune_1: [F,F,R,R] -> R,
+                # verifies FULL), while a clear F majority stays F (F.A.K.E:
+                # [F..,R,R] -> F).
+                nR = sum(1 for t in toks if t[0] == 'R')
+                out.append(('R' if nR * 2 >= len(toks) else 'F') + base[1:])
+        return '_'.join(out)
     return None
 
 
@@ -769,6 +793,17 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str):
     if cfg.play_repeat == 1:
         ph = _observe_play_phases_writes(os.path.join(hvsc_root, sid_path),
                                          s['start'] - 1)
+        # py65 couldn't observe (None) OR observed an 'S' (silent) frame — under
+        # py65 a CIA/IRQ-armed member's effect frames don't run, so they read as
+        # S; the ground-truth pc-trace shows they actually run effects (F/R). In
+        # both cases fall back to the straddle-free pc-trace observer and adopt
+        # its clean, S-free P-cycle. Verify-gated; a clean non-S py65 answer is
+        # left untouched.
+        if ph is None or 'S' in (ph or ''):
+            pf = _observe_play_phases_pctrace(
+                os.path.join(hvsc_root, sid_path), s['start'] - 1, s['play'])
+            if pf and '_' in pf and 'P' in pf.split('_') and 'S' not in pf:
+                ph = pf
         if (ph and '_' in ph and 'P' in ph.split('_')):
             cfg.extra_params['play_phases'] = ph
     # POST-INIT leftover capture: canon's leftover priming (d417 shadow,
@@ -959,6 +994,16 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
             os.path.join(hvsc_root, sid_path), s['start'] - 1, base)
         if play_phases in ('P', 'S', None):
             play_phases = None
+        # py65 gave nothing usable, OR observed an 'S' (silent) frame — under
+        # py65 a CIA/IRQ-armed member's effect frames don't run and read as S,
+        # while the ground-truth pc-trace shows they run effects. Fall back to
+        # the straddle-free pc-trace observer and adopt its clean, S-free
+        # P-cycle. Verify-gated; a clean non-S py65 answer is left untouched.
+        if play_phases is None or 'S' in (play_phases or ''):
+            pf = _observe_play_phases_pctrace(
+                os.path.join(hvsc_root, sid_path), s['start'] - 1, s['play'])
+            if pf and '_' in pf and 'P' in pf.split('_') and 'S' not in pf:
+                play_phases = pf
     delta = base - 0x1000
 
     def at(canon_addr):                 # canonical $1xxx addr -> mem index
