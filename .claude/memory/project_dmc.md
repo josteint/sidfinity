@@ -7,6 +7,39 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 23 (2026-07-04): otrk EXACTNESS via the composer's ARRANGEMENT (transpose-cmd placement = musical content, §8) → +12 family-1 = 4795/5401 (88.8%) — commit 9c0c33e
+USER-DRIVEN (single random partial Plasmachaos → "the regressed SIDs may have a
+SUBOPTIMAL implementation that blocks us; explore more"). The blocker was
+otrk_legacy (the round-9 val=i+1 positional APPROXIMATION). Representation
+principle §8: the composer NEEDS the transpose-command PLACEMENT to reproduce
+the off-table sonification of $1726 — that placement is their ARRANGEMENT
+(musical content), NOT the byte-offset (engine bookkeeping, DERIVED). Two fixes
+to the otrk model (`_otrk_model`/`_otrk_rcmd_model` + composer):
+1. **cur-init = transposes[0] (was 0) — a latent BUG, the main driver.** A
+   LEADING transpose command was double-counted (pad covers its byte, then the
+   change-check re-added it) → spurious legacy fallback for any voice whose
+   FIRST entry is transposed. Recovers the whole otrk-legacy cluster
+   (Hardcore/Acidmania/Short_Acid_Loop/Insane/1st_Intro/...). NO schema change.
+2. **`_otrk_rcmd_model`: carry REDUNDANT mid-track transpose commands** as a
+   per-voice bitmask (their arrangement positions); composer adds +1/byte,
+   deriving the exact offset. Recovers Plasmachaos V2/V3 (the periodic $A0
+   reset at entry 2). This is the §8 musical-content addition.
+3. **Glide degenerate-detection:** restore the dropped '#' in glide_to ONLY
+   when it degenerates the glide to the row's OWN note (Plasmachaos F-10
+   glide_to=F#10 ran the wrong direction — a 2-digit-octave-sharp parse gap);
+   other off-table glide targets = dynamic-byte sweeps, left as the write-
+   stream-optimal natural parse (ledger C11, don't "fix" them).
+CLEAN: full 5401 re-verify → +12 FULL, 0 REAL regressions (4784→4795).
+⚠️⚠️ THE TWO TRAPS THAT MADE THIS LOOK LIKE A −22 LOSS (both are the C20
+re-lesson): (a) the glide fix "regressed 22/104 FULL glide members" — but ALL
+22 were STALE palimpsests (`.usf` grep said full; CURRENT code builds partial).
+I mis-baselined against stored .usf TWICE. (b) the otrk fix "regressed Zak_2 +
+Bilinski" — Zak_2 = a PARALLEL-BATCH siddump FLAKE (FULL on single re-verify);
+Bilinski = a stale-full palimpsest. ALWAYS re-baseline a "regression" against a
+FRESH single-member current-code build before believing it. THE USER'S INSIGHT
+(a correct fix that regresses ⇒ the regressed SIDs may be FULL through a
+suboptimal path, or the baseline is stale) is the load-bearing lesson.
+
 ## ✅ ROUND 22 (2026-07-04): deep tail = UNEXPOSED tracking vars, not hard → +74 family-1 = 4784/5401 (88.6%) — commits 07c2125/a026b74/65c2e95/82538a1/f66a1bf
 THE REFRAME: most of the "deep off-table freq tail" is NOT divergent state —
 the composer ALREADY tracks the value byte-identically (it must, to reproduce

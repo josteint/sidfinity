@@ -981,8 +981,24 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   stashed/popped tree, or committing between verify and write) silently writes
   UNVERIFIED builds recorded as FULL. Re-verify status-changed members with
   the CURRENT tree before mass-writing them.
-- **Status:** canonicalized (4 occurrences, 2026-07-02/03, DMC family-1).
-- **Consumers:** DMC family-1 rounds 9/16/17 handling; the round-16 sweep
+- **THE "MY FIX REGRESSED N FULLS" TRAP (2026-07-04, round 23 — cost hours,
+  TWICE in one session).** When a genuinely-CORRECT shared-code fix appears to
+  regress FULL members, the near-universal cause is NOT the fix — it is (a) a
+  STALE baseline or (b) a batch flake, and often (c) the "regressed" members
+  were FULL through a SUBOPTIMAL path the fix legitimately removes (the user's
+  load-bearing insight). Concretely: the round-23 otrk fix "regressed 22 glide
+  members + Zak_2 + Bilinski". Reality: all 22 glide members were STALE (a grep
+  of stored `.usf` files claimed FULL; CURRENT code builds them partial — I
+  compared against `.usf` status, not a fresh build); Zak_2 was a PARALLEL-BATCH
+  siddump FLAKE (FULL on a single-threaded re-verify); Bilinski was a stale-full
+  palimpsest. NET: 0 real regressions, +12 recoveries. MANDATORY before
+  believing ANY regression: re-verify the suspect with a FRESH SINGLE-MEMBER
+  current-code build (`find_first_divergence` or a 1-member batch) — never
+  against stored `.usf`/DB status, never trust one parallel-batch verdict.
+  Corollary: derive a "FULL members" list from a fresh batch, NOT from grepping
+  `hvsc84/*.usf` (those are palimpsest-prone).
+- **Status:** canonicalized (6 occurrences, 2026-07-02/04, DMC family-1).
+- **Consumers:** DMC family-1 rounds 9/16/17/23 handling; the round-16 sweep
   runner `tmp/f1_round16_sweeps.py` (re-verify → then rewrite).
 
 ### C22 — Ambiguous round-trip flag encoding (decoder misroutes one op onto another's path)
