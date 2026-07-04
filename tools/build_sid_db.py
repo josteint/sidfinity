@@ -1,26 +1,29 @@
 #!/usr/bin/env python3
-"""build_sid_db.py — Walk HVSC and our pipeline outputs, populate hvsc84.csv.
+"""build_sid_db.py — Walk HVSC and build the static catalogue hvsc84.parquet.
 
 One row per .sid file under hvsc84/, with:
   - PSID/RSID header fields (title, author, released, addresses, n_subtunes)
   - md5 of the original file
   - engine classification (from deprecated/gt2_grading/data/sidid_full.txt)
   - total HVSC songlength (from hvsc84/DOCUMENTS/Songlengths.md5)
-  - which pipelines/<...>/<engine>/ handles it (NULL = unmigrated)
-  - .usf / .sidfinity.sid presence + md5 (NULL when not built)
-  - last verify status (from verify_all write-through; preserved across rebuilds)
+  - exclusion flag + reason (from tools/excluded_sids.json)
 
-The index is a git-trackable CSV (hvsc84.csv) queried via DuckDB — see
-src/sid_db.py (schema + read/write live there). Idempotent: re-runs rewrite
-the CSV, preserving write-through columns (verify_*). Skips re-hashing files
-whose mtime is unchanged since the last run.
+Static catalogue ONLY — no per-build verdicts. Build status (verify_status /
+usf_path / sidfinity_md5 / pipeline) was removed 2026-07-04: zero readers,
+palimpsest-prone, concurrency-hazardous. Coverage is derived on demand from a
+fresh family batch, not cached here.
+
+The index is a compact Parquet file (hvsc84.parquet, zstd) queried via DuckDB —
+see src/sid_db.py (schema + read/write live there). Idempotent: re-runs rewrite
+the whole parquet. Skips re-hashing files whose mtime is unchanged since the
+last run.
 
 Usage:
   python3 tools/build_sid_db.py            # full sweep
   python3 tools/build_sid_db.py --rebuild  # ignore mtime cache, re-hash all
   python3 tools/build_sid_db.py --quiet    # suppress progress
 
-Common queries (DuckDB over the CSV — see src/sid_db.connect/query):
+Common queries (DuckDB over the parquet — see src/sid_db.connect/query):
   python3 -c "from src import sid_db; print(sid_db.query(
     'SELECT engine, COUNT(*) FROM sids GROUP BY engine ORDER BY 2 DESC LIMIT 20'))"
 """
@@ -42,7 +45,7 @@ sys.path.insert(0, str(ROOT))
 from src import sid_db  # noqa: E402  (CSV+DuckDB storage layer)
 
 HVSC = ROOT / 'hvsc84'
-CSV_PATH = sid_db.CSV_PATH
+PARQUET_PATH = sid_db.PARQUET_PATH
 SIDID_DUMP = ROOT / 'deprecated' / 'gt2_grading' / 'data' / 'sidid_full.txt'
 SONGLENGTHS = HVSC / 'DOCUMENTS' / 'Songlengths.md5'
 PIPELINES = ROOT / 'pipelines'
@@ -147,69 +150,6 @@ def load_songlengths(path: Path) -> dict[str, float]:
 
 
 # ---------------------------------------------------------------------------
-# Pipeline lookup
-# ---------------------------------------------------------------------------
-
-def build_pipeline_map() -> dict[str, str]:
-    """Map HVSC SID path → which pipelines/<...>/ handles it.
-
-    Reads each pipeline's config.py and resolves its sid_path. Returns
-    {rel_hvsc_path: 'pipelines/<...>'}.
-    """
-    sys.path.insert(0, str(ROOT))
-    sys.path.insert(0, str(ROOT / 'src'))
-    sys.path.insert(0, str(ROOT / 'tools' / 'py65_lib'))
-
-    out: dict[str, str] = {}
-
-    # Hubbard '85 + companion: import each config.py and read .sid_path
-    import importlib
-    candidates = []
-    for cfg_dir in (PIPELINES / 'hubbard').iterdir():
-        if cfg_dir.is_dir() and (cfg_dir / 'config.py').exists():
-            candidates.append((f'pipelines.hubbard.{cfg_dir.name}.config',
-                               f'pipelines/hubbard/{cfg_dir.name}'))
-    if (PIPELINES / 'companion' / 'config.py').exists():
-        candidates.append(('pipelines.companion.config',
-                           'pipelines/companion'))
-
-    for mod_name, pipeline_label in candidates:
-        try:
-            mod = importlib.import_module(mod_name)
-        except Exception:
-            continue
-        for attr in dir(mod):
-            if attr.startswith('_'):
-                continue
-            v = getattr(mod, attr)
-            if hasattr(v, 'sid_path'):
-                try:
-                    p = Path(v.sid_path).resolve()
-                    rel = p.relative_to(HVSC.resolve())
-                except (ValueError, OSError):
-                    continue
-                out[str(rel)] = pipeline_label
-
-    # 5_Title_Tunes uses a slightly different config layout (no
-    # EngineConfig.sid_path) — its source is hardcoded in v2/write_unified_usf.py.
-    five_tt = HVSC / 'MUSICIANS' / 'H' / 'Hubbard_Rob' / '5_Title_Tunes.sid'
-    if five_tt.exists():
-        out[str(five_tt.relative_to(HVSC))] = (
-            'pipelines/hubbard/five_title_tunes')
-
-    # Basic_Program: no per-tune config — the family batch mass-writes a
-    # `<name>_BASIC.usf` next to each FULL member. Map those siblings (only if
-    # not already claimed by another pipeline; the .sid is the round-trip source).
-    for usf in HVSC.rglob('*_BASIC.usf'):
-        sid = usf.with_suffix('.sid')
-        if sid.exists():
-            rel = str(sid.relative_to(HVSC))
-            out.setdefault(rel, 'pipelines/basic_program')
-
-    return out
-
-
-# ---------------------------------------------------------------------------
 # Per-family documentation state (tools/engine_docs.json -> engine_docs table)
 # ---------------------------------------------------------------------------
 #
@@ -308,7 +248,7 @@ def build_engine_docs(rows: dict[str, dict]) -> list[dict]:
 
 # ---------------------------------------------------------------------------
 # Schema lives in src/sid_db.py (SIDS_COLUMNS/TYPES + ENGINE_DOCS_*); the
-# catalogue is the git-tracked hvsc84.csv + engine_docs.csv, queried via DuckDB.
+# catalogue is hvsc84.parquet + engine_docs.csv, queried via DuckDB.
 # ---------------------------------------------------------------------------
 
 
@@ -388,12 +328,6 @@ def main(argv: list[str] | None = None) -> int:
             print(f'    {n_applied} songlength overrides applied from '
                   f'{overrides_path.relative_to(ROOT)}')
 
-    if not args.quiet:
-        print(f'  resolving pipeline mappings from pipelines/...')
-    pipeline_map = build_pipeline_map()
-    if not args.quiet:
-        print(f'    {len(pipeline_map)} SIDs handled by active pipelines')
-
     # Load exclusions (SIDs deliberately kept out of the pipeline).
     if not args.quiet:
         print(f'  loading exclusions from tools/excluded_sids.json...')
@@ -407,9 +341,9 @@ def main(argv: list[str] | None = None) -> int:
     if not args.quiet:
         print(f'    {len(excluded_hvsc)} SIDs in the exclusion list')
 
-    # Existing CSV: the mtime/md5 cache + the write-through columns (verify_*)
-    # to PRESERVE (build_sid_db doesn't recompute them). Loaded even on
-    # --rebuild (which only ignores the md5 cache, not verify_*).
+    # Existing catalogue: the mtime/md5 cache (to skip re-hashing unchanged
+    # files). The catalogue is now static-only, so there's nothing to preserve
+    # beyond the cache — every column is recomputed.
     existing = sid_db.read_all()
 
     rows: dict[str, dict] = {}
@@ -440,37 +374,18 @@ def main(argv: list[str] | None = None) -> int:
             header = f.read(124)
         hdr = parse_psid_header(header)
 
-        # Check for our artifacts alongside. Use string ops rather than
-        # Path.with_suffix — the latter only replaces the *last* suffix and
-        # mishandles 'Commando.sid' → '.sidfinity.sid' (would yield
-        # 'Commando.sidfinity.sid' fine, but '.sid' → '' first then double-
-        # extension is fragile). Strip '.sid' once and append explicitly.
-        base = str(sid_path)[:-4]  # drop '.sid'
-        usf_path = Path(base + '.usf')
-        sidfinity_path = Path(base + '.sidfinity.sid')
-        usf_rel = (str(usf_path.relative_to(HVSC))
-                   if usf_path.exists() else None)
-        sidfinity_md5 = (md5_file(sidfinity_path)
-                         if sidfinity_path.exists() else None)
-
         excl_reason = excluded_hvsc.get(rel)
-        # Start from the previous row so write-through columns (verify_*) are
-        # preserved; overwrite everything build_sid_db recomputes.
-        row = {c: (prev.get(c) if prev else None) for c in sid_db.SIDS_COLUMNS}
-        row.update({
+        row = {
             'path': rel,
             'md5': file_md5,
             'size': st.st_size,
             'mtime': st.st_mtime,
             'engine': engine_map.get(rel),
             'songlength_s': songlengths.get(file_md5),
-            'pipeline': pipeline_map.get(rel),
-            'usf_path': usf_rel,
-            'sidfinity_md5': sidfinity_md5,
             'excluded': 1 if excl_reason else 0,
             'exclusion_reason': excl_reason,
             **hdr,
-        })
+        }
         rows[rel] = row
 
         if not args.quiet and n_files % 5000 == 0:
@@ -489,8 +404,8 @@ def main(argv: list[str] | None = None) -> int:
         print()
         print(f'  done: {n_files:,} SID files indexed in {dt_total:.1f}s')
         print(f'    hashed: {n_hashed:,}   cached: {n_skipped:,}')
-        print(f'    csv: {CSV_PATH.relative_to(ROOT)} '
-              f'({CSV_PATH.stat().st_size / 1024:.0f} KB)')
+        print(f'    parquet: {PARQUET_PATH.relative_to(ROOT)} '
+              f'({PARQUET_PATH.stat().st_size / 1024:.0f} KB)')
     return 0
 
 

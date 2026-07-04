@@ -20,7 +20,7 @@ from src import sid_db                 # noqa: E402
 def main() -> int:
     rows = sid_db.read_all()
     if not rows:
-        print('no hvsc84.csv yet — run tools/build_sid_db.py first',
+        print('no hvsc84.parquet yet — run tools/build_sid_db.py first',
               file=sys.stderr)
         return 1
     docs = b.build_engine_docs(rows)

@@ -1,126 +1,75 @@
 ---
 name: hvsc84-db
-description: "hvsc84.csv (+ engine_docs.csv) — the HVSC #84 index, git-tracked CSV queried via DuckDB (src/sid_db). Migrated 2026-06-15 from the old hvsc84.db SQLite blob. Run tools/build_sid_db.py to refresh."
-metadata: 
+description: "hvsc84.parquet (+ engine_docs.csv) — the HVSC #84 STATIC catalogue, DuckDB-queried via src/sid_db. Catalogue-only (no build-status columns as of 2026-07-04); build status/coverage comes from a fresh family batch, NOT the index. Regenerate with tools/build_sid_db.py."
+metadata:
   node_type: memory
   type: reference
   originSessionId: 0dddd211-01d5-48ea-b899-54adc79e22ae
 ---
 
-**2026-06-15: migrated SQLite (`hvsc84.db`) → git-trackable CSV + DuckDB.**
-The index is now `hvsc84.csv` (path-sorted, one row per SID — build-status
-changes show as readable git line diffs instead of a 21MB binary blob churn)
-+ `engine_docs.csv`. Queried via DuckDB through `src/sid_db.py`. The old
-`hvsc84.db` is deleted + gitignored. Full pipeline regression stayed green
-across the migration.
+The HVSC index at the repo root indexes every `.sid` under `hvsc84/`. Storage
+history: SQLite `hvsc84.db` → CSV (2026-06-15) → **Parquet `hvsc84.parquet`**
+(2026-07-04, zstd ~3 MB, dropped from the 12 MB CSV). Queried via DuckDB through
+`src/sid_db.py`. Second table `engine_docs` (per-family research state) stays a
+small CSV.
 
-`hvsc84.csv` at the project root indexes every `.sid` file under
-`hvsc84/` with PSID/RSID header fields, engine classification (from
-sidid), HVSC songlength, and our per-SID build status.
+## 2026-07-04: catalogue-only + parquet (the big change)
 
-Built by `tools/build_sid_db.py` (walk/hash/classify unchanged; only the
-storage swapped to CSV). Re-runnable, idempotent. ~20 s incremental (mtime
-cache from the existing CSV), preserves write-through `verify_*` columns.
+The index is now **static catalogue ONLY** — path, PSID header, `engine`,
+`songlength_s`, `md5`, `excluded`/`exclusion_reason`. The build-status columns
+(`verify_status`/`verify_ok_subs`/`verify_total_subs`/`last_verified_at`/
+`usf_path`/`sidfinity_md5`/`pipeline`) and the `src/sid_db.record_*`
+write-through were **REMOVED**: zero readers, ~99.9% empty, palimpsest-prone (a
+persisted verdict rots the moment extract/composer code changes), and the
+full-file-rewrite write path was a concurrency hazard for parallel sessions.
 
-## Why this exists
+So **nothing writes the index in normal dev** — it's regenerated wholesale by
+`build_sid_db.py` and is read-mostly / parallel-safe. `record_usf`/
+`record_rebuild`/`record_verify` are gone; all callsites removed. **Do NOT
+reintroduce a build-status column** — see [[feedback_convergence_ledger]] C20.
 
-Engine-by-engine work is the natural unit when extending coverage —
-not composer-by-composer. The DB lets you ask
-"which Rob_Hubbard tunes haven't we migrated yet, sorted by
-musical substance?" with one SQL query instead of walking 60k files.
+## Coverage / FULL-list = a fresh family batch, never the index or stored files
 
-## Schema (essentials)
-
-One table `sids`, primary key `path` (relative to `hvsc84/`).
-
-Key columns:
-- `engine` — sidid classification, e.g. `'Rob_Hubbard'`, `'Companion'`,
-  `'GoatTracker_V2.x'`, `'DMC'`. NULL = unclassified by sidid (~2,600 files).
-- `title`, `author`, `released` — PSID/RSID header strings
-- `n_subtunes`, `is_psid`, `psid_version`, `load_addr`, `init_addr`, `play_addr`
-- `songlength_s` — HVSC total songlength (sum over subtunes)
-- `md5` — original file's md5
-- `pipeline` — `'pipelines/hubbard/<engine>'` if migrated, else NULL
-- `usf_path` — relative path to our `.usf` if it exists
-- `sidfinity_md5` — md5 of our rebuilt `.sidfinity.sid` if it exists
-- `verify_status` — `'ok'` | `'fail'` | NULL (wired: `verify_all` write-through
-  via `src/sid_db.record_verify`)
-
-Empty CSV field == SQL NULL. Schema (columns + DuckDB types) is defined in
-`src/sid_db.py` (`SIDS_TYPES`).
+The source of truth for "which members are FULL" is a fresh
+`tools/<engine>_family_batch.py` run (each `run_member` re-extracts into a temp
+dir — it never reads stored `.usf`). Do NOT derive a FULL list from stored
+`hvsc84/*.usf` existence or from the index. Batch results jsonls are stamped
+with a **`code_hash`** ([[reference_hvsc_db]] → `src/code_fingerprint.py`): on
+resume a row is reused ONLY if its hash matches the current engine dependency
+set (`pipelines/<engine>` + `src/usf` + `verify_cycle`), so a code change
+auto-re-verifies the members it could have affected — killing the "stale-.usf
+palimpsest" trap (the phantom "my fix regressed N FULLs"). This is safe under
+parallel sessions on different engines: a shared-code edit changes every
+dependent engine's hash; an other-engine edit doesn't. The `*_mass_write.py`
+tools skip + warn on any FULL row whose code_hash is stale, so they never write
+an unverified build to disk.
 
 ## Querying — `src/sid_db` shells out to the DuckDB CLI binary
 
-**2026-06-15 (round 2): reads go through the `duckdb` CLI binary, not the
-python module.** `src/sid_db.query(sql, params)` / `connect().execute(...)`
-spawn `duckdb -json -c "<view setup>; <sql>"` (binary found on PATH →
-`~/.local/bin/duckdb`), parse JSON, return sqlite3-style tuples (+ `_Result`
-`.fetchall()/.fetchone()`, iterable). **So DB reads need only `duckdb` on
-PATH — NO env.sh / PYTHONPATH / .pylocal** (the python-module path was
-brittle: env.sh sourcing kept failing in agent shells). The python `duckdb`
-module is NOT installed. Writes (`record_*`, build) use the `csv` module — no
-duckdb at all. `?` params, LIKE, `random()` work; **no `SUM(bool)`** (use
-`SUM(CASE WHEN … THEN 1 ELSE 0 END)`). Each `query()` re-reads the CSV (one
-subprocess) — for a per-row loop use `read_all()` instead. Ad-hoc CLI:
-`duckdb -c "SELECT … FROM read_csv('hvsc84.csv', header=true, nullstr='', escape='\"')"`.
+`src/sid_db.query(sql, params)` / `connect().execute(...)` spawn
+`duckdb -json -c "<view setup>; <sql>"` (binary on PATH → `~/.local/bin/duckdb`),
+return sqlite3-style tuples. **Reads need only `duckdb` on PATH — NO env.sh /
+PYTHONPATH / .pylocal.** The python `duckdb` module is not used. The `sids` view
+= `read_parquet('hvsc84.parquet')`; `engine_docs` = `read_csv(...)`. `read_all()`
+= one `duckdb -json` process (typed rows) for per-row loops. `?` params, LIKE,
+`random()` work; **no `SUM(bool)`** (use `SUM(CASE WHEN … THEN 1 ELSE 0 END)`).
+Ad-hoc CLI: `duckdb -c "SELECT … FROM read_parquet('hvsc84.parquet')"`.
 
 ```python
 from src import sid_db
-# Coverage by engine
-for row in sid_db.query("""
-    SELECT engine, COUNT(*),
-           SUM(CASE WHEN pipeline IS NOT NULL THEN 1 ELSE 0 END) AS migrated,
-           SUM(CASE WHEN sidfinity_md5 IS NOT NULL THEN 1 ELSE 0 END) AS built
-    FROM sids GROUP BY engine ORDER BY 2 DESC LIMIT 20"""): print(row)
-
-# Unmigrated Rob_Hubbard tunes by length
-for path, title, length in sid_db.query("""
-    SELECT path, title, songlength_s FROM sids
-    WHERE engine='Rob_Hubbard' AND pipeline IS NULL
-    ORDER BY songlength_s DESC LIMIT 10"""): print(f'{length:5.0f}s  {title}')
+for path, title in sid_db.query(
+    "SELECT path, title FROM sids WHERE engine='Rob_Hubbard' "
+    "ORDER BY songlength_s DESC LIMIT 10"): print(path, title)
 ```
 
-(NB: DuckDB has no `SUM(bool)`; use `SUM(CASE WHEN ... THEN 1 ELSE 0 END)`
-or `COUNT(*) FILTER (WHERE ...)`.)
+## When to re-run `tools/build_sid_db.py`
 
-## Auto-updates from the pipeline
-
-The pipeline writes back to the DB automatically via `src/sid_db.py`:
-
-- per-engine `extract/to_usf.write_*_usf()`       → `usf_path`
-- `pipelines.build_from_usf.build_from_usf()`     → `sidfinity_md5`
-- `pipelines.hubbard.verify.verify_all()` → `verify_status`, `verify_ok_subs`, `verify_total_subs`, `last_verified_at`
-
-Write-through does a CSV read-modify-write (the file has no row-level
-update) — fine for the single-threaded interactive-build / regression paths
-that use it (the parallel batches build to `tmp/` and never write-through;
-they refresh via an explicit `build_sid_db.py` run after mass-write). If
-`hvsc84.csv` doesn't exist yet, or the row is absent (a brand-new SID), the
-writes silently no-op — re-run `build_sid_db.py` to insert.
-
-## When to manually re-run `tools/build_sid_db.py`
-
-- First-time DB initialisation (auto-updates need the row to exist)
-- Adding a new engine pipeline → so `pipeline` column gets populated
-  for that SID (auto-update only writes after the next build)
-- HVSC update (re-walks the tree; adds rows for new SIDs)
-- Re-running sidid (refreshes `engine` column)
-- Schema changes — re-run with `--rebuild` to re-hash everything
-
-For day-to-day work: just build and verify normally, the DB stays
-current.
-
-## Counts as of 2026-05-27
-
-```
-total SIDs:           60,572
-classified by sidid:  57,933
-with songlength:      60,572
-Rob_Hubbard:             287 (12 migrated, 12 built)
-Companion:                26 (13 migrated, 13 built)
-```
+Only when the STATIC catalogue changes: an HVSC update (#85), a `sidid` re-run
+(engine column), or edits to `tools/excluded_sids.json` / `tools/engine_docs.json`
+(`apply_engine_docs.py` refreshes just the docs CSV). Idempotent, ~13 s with the
+mtime cache. No per-build triggers anymore. `--rebuild` re-hashes everything.
 
 ## Related
 
 - [[reference_usf_format]] — the USF format the `.usf` files use
-- [[project_pipelines_layout]] — where the pipelines live
+- [[feedback_convergence_ledger]] — C20 stale-FULL palimpsest (the trap this scheme closes)

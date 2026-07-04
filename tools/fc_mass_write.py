@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Mass-write FC-standard FULL members; then refresh hvsc84.csv.
+"""Mass-write FC-standard FULL members alongside the HVSC originals.
 
-Reads tmp/fc_std_wide_results.jsonl, and for every member with status
-'full' writes its .usf + .sidfinity.sid alongside the HVSC original (via
-the real SID -> USF -> SID featuredriven pipeline). Then refresh the index
-separately with `python3 tools/build_sid_db.py`.
+Reads tmp/fc_std_wide_results.jsonl and, for every member with status 'full'
+whose code_hash matches the current code (stale rows skipped + warned), writes
+its .usf + .sidfinity.sid via the real SID -> USF -> SID featuredriven pipeline.
 
 Usage:
     PYTHONPATH=src:. python3 tools/fc_mass_write.py [--results FILE.jsonl]
@@ -42,9 +41,24 @@ def main():
     results = RESULTS
     if '--results' in sys.argv:
         results = sys.argv[sys.argv.index('--results') + 1]
-    full = [json.loads(l)['sid'] for l in open(results)
-            if json.loads(l).get('status') == 'full']
-    print(f'{len(full)} FULL members to write', flush=True)
+    from src.code_fingerprint import code_fingerprint
+    code_hash = code_fingerprint('fc_standard')
+    full, stale = [], 0
+    for l in open(results):
+        if not l.strip():
+            continue
+        d = json.loads(l)
+        if d.get('status') != 'full':
+            continue
+        if d.get('code_hash') != code_hash:
+            stale += 1                 # verdict predates current code — DON'T write
+            continue
+        full.append(d['sid'])
+    print(f'{len(full)} current-code FULL members to write', flush=True)
+    if stale:
+        print(f'  WARNING: skipped {stale} FULL rows with stale/absent code_hash. '
+              f'Re-run tools/fc_family_batch.py to refresh before mass-write.',
+              flush=True)
     ok = err = 0
     errs = []
     with Pool(8) as pool:

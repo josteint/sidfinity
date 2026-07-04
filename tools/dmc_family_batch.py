@@ -28,6 +28,13 @@ sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
 
 OUT = os.path.join(ROOT, 'tmp', 'dmc_wide_results.jsonl')
 
+# Content hash of the DMC build+verify dependency set. Every result row is
+# stamped with it; on resume a row is reused ONLY if its code_hash matches the
+# current one, so a code change auto-invalidates the stale verdicts it could
+# have affected (see src/code_fingerprint.py). Parallel-session safe.
+from src.code_fingerprint import code_fingerprint  # noqa: E402
+CODE_HASH = code_fingerprint('dmc_v4')
+
 _db = None
 
 
@@ -223,7 +230,12 @@ def main():
     done = set()
     if os.path.exists(OUT):
         with open(OUT) as f:
-            done = {json.loads(l)['path'] for l in f if l.strip()}
+            for l in f:
+                if not l.strip():
+                    continue
+                d = json.loads(l)
+                if d.get('code_hash') == CODE_HASH:
+                    done.add(d['path'])
     todo = [m for m in members if m not in done]
     print(f'{len(members)} members, {len(done)} done, {len(todo)} to go',
           flush=True)
@@ -233,6 +245,7 @@ def main():
     with open(OUT, 'a') as f, Pool(8, initializer=_worker_init) as pool:
         for i, rec in enumerate(pool.imap_unordered(run_member, todo,
                                                     chunksize=1)):
+            rec['code_hash'] = CODE_HASH
             f.write(json.dumps(rec) + '\n')
             f.flush()
             stats[rec['status'] if rec['status'] != 'unsupported'

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Mass-write DMC FULL members; then refresh the index (hvsc84.csv).
+"""Mass-write DMC FULL members alongside the HVSC originals.
 
-Reads tmp/dmc_wide_results.jsonl, and for every member with status
-'full' writes its .usf + .sidfinity.sid alongside the HVSC original.
-Then run `python3 tools/build_sid_db.py` to refresh sidfinity_md5 /
-usf_path in hvsc84.csv (the CSV index — DuckDB-queried via src/sid_db).
+Reads tmp/dmc_wide_results.jsonl and, for every member with status 'full'
+WHOSE VERDICT WAS EARNED BY THE CURRENT CODE (code_hash match), writes its
+.usf + .sidfinity.sid. Rows whose code_hash is stale/absent are SKIPPED (with a
+warning) — writing them would re-create the on-disk .usf palimpsest this whole
+scheme exists to prevent. Re-run tools/dmc_family_batch.py to refresh them.
 
 Usage:
     PYTHONPATH=tools/py65_lib:tools:src python3 tools/dmc_mass_write.py
@@ -52,9 +53,24 @@ def main():
     results = RESULTS
     if '--results' in sys.argv:
         results = sys.argv[sys.argv.index('--results') + 1]
-    full = [(json.loads(l)['path'], json.loads(l).get('hold_gateoff'))
-            for l in open(results) if json.loads(l)['status'] == 'full']
-    print(f'{len(full)} FULL members to write', flush=True)
+    from src.code_fingerprint import code_fingerprint
+    code_hash = code_fingerprint('dmc_v4')
+    full, stale = [], 0
+    for l in open(results):
+        if not l.strip():
+            continue
+        d = json.loads(l)
+        if d.get('status') != 'full':
+            continue
+        if d.get('code_hash') != code_hash:
+            stale += 1                 # verdict predates current code — DON'T write
+            continue
+        full.append((d['path'], d.get('hold_gateoff')))
+    print(f'{len(full)} current-code FULL members to write', flush=True)
+    if stale:
+        print(f'  WARNING: skipped {stale} FULL rows with stale/absent code_hash '
+              f'(verdict predates current code). Re-run tools/dmc_family_batch.py '
+              f'to refresh them before mass-write.', flush=True)
     ok = err = 0
     errs = []
     with Pool(8) as pool:

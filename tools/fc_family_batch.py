@@ -25,6 +25,10 @@ os.environ['TMPDIR'] = os.path.join(ROOT, 'tmp', 'work')
 
 OUT = os.path.join(ROOT, 'tmp', 'fc_std_wide_results.jsonl')
 
+# Resume-cache invalidation on code change (see src/code_fingerprint.py).
+from src.code_fingerprint import code_fingerprint  # noqa: E402
+CODE_HASH = code_fingerprint('fc_standard')
+
 
 def run(sp):
     from pipelines.future_composer.standard.config import (
@@ -74,13 +78,19 @@ if __name__ == '__main__':
     done = set()
     if os.path.exists(OUT):
         with open(OUT) as f:
-            done = {json.loads(line)['sid'] for line in f if line.strip()}
+            for line in f:
+                if not line.strip():
+                    continue
+                d = json.loads(line)
+                if d.get('code_hash') == CODE_HASH:
+                    done.add(d['sid'])
     todo = [s for s in sids if s not in done]
     print(f'{len(sids)} FC SIDs, {len(done)} done, {len(todo)} to run',
           flush=True)
     counts = {}
     with Pool(8) as pool, open(OUT, 'a') as out:    # 8-core host
         for i, rec in enumerate(pool.imap_unordered(run, todo), 1):
+            rec['code_hash'] = CODE_HASH
             out.write(json.dumps(rec) + '\n')
             out.flush()
             counts[rec['status']] = counts.get(rec['status'], 0) + 1

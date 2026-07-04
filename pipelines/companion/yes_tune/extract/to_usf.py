@@ -311,9 +311,4 @@ def write_usf(sid_path: str, out_path: str | None = None) -> str:
     usf = build_usf(sid_path)
     validate(usf)
     write_file(usf, out_path)
-    try:
-        from src.sid_db import record_usf
-        record_usf(out_path)
-    except Exception:
-        pass
     return out_path

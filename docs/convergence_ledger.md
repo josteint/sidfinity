@@ -997,6 +997,24 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   against stored `.usf`/DB status, never trust one parallel-batch verdict.
   Corollary: derive a "FULL members" list from a fresh batch, NOT from grepping
   `hvsc84/*.usf` (those are palimpsest-prone).
+- **ROOT CAUSE (why palimpsests appeared ~2026-07-03, not before) + STRUCTURAL
+  FIX (2026-07-04).** The rapid family-1 rounds switched from *clean full-batch*
+  closeouts (jsonl DELETED → every FULL re-earned) to *incremental-merge*
+  closeouts for speed (`tmp/merge_r22_reverify.py`: `merged = dict(old)` then
+  overlay only the re-verified members → un-touched FULLs keep OLD verdicts
+  across code changes). Plus ad-hoc shortcuts that trust persisted artifacts as
+  the FULL baseline: `tmp/verify_ondisk_usf.py` (rebuilt from the STORED `.usf`
+  → old extract) and `glob hvsc84/*.usf` existence as a "was FULL" proxy. All
+  three are the same anti-pattern: a persisted verdict no fresh process
+  re-earns. STRUCTURAL FIX: (1) batch results jsonls stamped with a `code_hash`
+  (`src/code_fingerprint.py` = hash of the engine's `pipelines/<engine>` +
+  `src/usf` + `verify_cycle` dep set); resume reuses a row ONLY on hash match,
+  so a code change auto-re-verifies affected members (no "remember to delete the
+  jsonl"; parallel-session-safe). (2) `*_mass_write.py` skip + warn on stale-hash
+  FULL rows → never write an unverified `.usf`. (3) the HVSC index dropped ALL
+  build-status columns + the `record_*` write-through (2026-07-04) — it's a
+  static catalogue now (`hvsc84.parquet`), so it can no longer be a stale-verdict
+  surface. Deleted `tmp/verify_ondisk_usf.py`. See [[reference_hvsc_db]].
 - **Status:** canonicalized (6 occurrences, 2026-07-02/04, DMC family-1).
 - **Consumers:** DMC family-1 rounds 9/16/17/23 handling; the round-16 sweep
   runner `tmp/f1_round16_sweeps.py` (re-verify → then rewrite).

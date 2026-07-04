@@ -302,21 +302,25 @@ data-section emitters + `_Inputs` adapters + `_inputs_from_usf` +
 | `tools/regression.py` | Full pipeline regression — Hubbard `verify_all` + companion `compare_instruction_stream` + 5TT. Lists pre-existing partials so they're not mistaken for regressions. |
 | `tools/siddump.cpp` | C++ register dumper (libsidplayfp). `--writelog` for cycle timing, `--pc-trace` for CPU PC trace. |
 
-## HVSC index database — `hvsc84.csv` (+ `engine_docs.csv`), via DuckDB
+## HVSC index — `hvsc84.parquet` (+ `engine_docs.csv`), via DuckDB
 
-A catalogue of every SID in `hvsc84/` with classification + build status,
-stored as a **git-tracked CSV** (`hvsc84.csv`, path-sorted — build-status
-changes show as readable line diffs) and queried via **DuckDB**. (Migrated
-2026-06-15 from the old `hvsc84.db` SQLite blob, which is gone/gitignored.)
-The pipeline updates the CSV automatically (build → `sidfinity_md5`, USF
-write → `usf_path`, verify → `verify_*`) via the `src/sid_db.record_*`
-write-through. Initial population + full rebuild via `tools/build_sid_db.py`
-(re-runnable, idempotent, ~20 s incremental — preserves `verify_*`). Use for:
+A **static catalogue** of every SID in `hvsc84/` (path, PSID header, engine
+classification, songlength, exclusion), stored as a compact **git-tracked
+Parquet** file (`hvsc84.parquet`, zstd, ~3 MB) and queried via **DuckDB**.
+(History: SQLite blob → CSV 2026-06-15 → Parquet 2026-07-04.)
+
+**Catalogue only — NO per-build verdicts.** The old build-status columns
+(`verify_status`/`usf_path`/`sidfinity_md5`/`pipeline`) and the `src/sid_db.record_*`
+write-through were removed 2026-07-04: zero readers, ~empty, palimpsest-prone
+(a persisted verdict rots the moment extract/composer code changes), and the
+full-file-rewrite write path was a concurrency hazard for parallel sessions. So
+in normal dev **nothing writes the index** — it's read-mostly and parallel-safe.
+Derive coverage on demand from a fresh family batch, never from a cached column.
+Regenerate the catalogue with `tools/build_sid_db.py` (idempotent, ~13 s with
+the mtime cache — only after an HVSC update / `sidid` re-run). Use for:
 
 - **engine-by-engine iteration** (instead of folder-by-folder)
-- **coverage queries** ("how many Rob_Hubbard tunes are migrated?")
-- **migration candidate selection** ("show me the longest unmigrated
-  tunes by engine X, sorted by songlength")
+- **catalogue queries** (engine counts, longest tunes by engine, exclusions)
 
 Query via the `src/sid_db` helper — it **shells out to the `duckdb` CLI binary**
 (`~/.local/bin/duckdb`, on PATH), so it needs only `duckdb` on PATH, **no
@@ -327,18 +331,28 @@ which the tools add to `sys.path` themselves). sqlite3-style:
 from src import sid_db
 for path, title in sid_db.query(
     "SELECT path, title FROM sids "
-    "WHERE engine='Rob_Hubbard' AND pipeline IS NULL "
-    "ORDER BY songlength_s DESC LIMIT 10"): print(path, title)
+    "WHERE engine='Rob_Hubbard' ORDER BY songlength_s DESC LIMIT 10"):
+    print(path, title)
 # or: db = sid_db.connect(); db.execute(sql, params).fetchall()/.fetchone()
 ```
 
-Each `query()` spawns one `duckdb` process that re-reads the CSV — fine for
-occasional queries; for a per-row loop use `sid_db.read_all()` (csv module) and
-filter in Python. DuckDB SQL: no `SUM(bool)` (use `SUM(CASE WHEN … THEN 1 ELSE
-0 END)`); `?` params, LIKE, `random()` all work. Schema (columns/types) + the
-read/write helpers live in `src/sid_db.py`; the walk/hash/classify that builds
-the CSV is in `tools/build_sid_db.py`. Tables: `sids` + `engine_docs`. Ad-hoc
-CLI: `duckdb -c "SELECT … FROM read_csv('hvsc84.csv', header=true, nullstr='', escape='\"')"`.
+Each `query()` spawns one `duckdb` process reading the parquet — fine for
+occasional queries; for a per-row loop use `sid_db.read_all()` (one duckdb -json
+process) and filter in Python. DuckDB SQL: no `SUM(bool)` (use `SUM(CASE WHEN …
+THEN 1 ELSE 0 END)`); `?` params, LIKE, `random()` all work. Schema
+(columns/types) + read/write helpers live in `src/sid_db.py`; the
+walk/hash/classify that builds the catalogue is in `tools/build_sid_db.py`.
+Tables: `sids` (parquet) + `engine_docs` (csv). Ad-hoc CLI:
+`duckdb -c "SELECT … FROM read_parquet('hvsc84.parquet')"`.
+
+**Coverage / FULL-list source of truth** = a fresh family batch, NOT stored
+`.usf`/`.sid` files or the index. Batch results (`tmp/<engine>_*_results.jsonl`)
+are stamped with a `code_hash` (`src/code_fingerprint.py`): on resume a row is
+reused ONLY if its hash matches the current engine dependency set, so a code
+change auto-re-verifies exactly the members it could have affected — no more
+"remember to delete the jsonl", and no stale-verdict palimpsests. The
+`*_mass_write.py` tools likewise skip (and warn about) any FULL row whose
+code_hash is stale, so they never write an unverified build to disk.
 
 ### Per-family documentation state — `engine_docs` table
 
@@ -367,24 +381,22 @@ sid_db.query("SELECT family, sid_count FROM engine_docs WHERE doc_state='OK'")
 ```
 
 After editing `engine_docs.json`, refresh just `engine_docs.csv` in seconds
-with `python3 tools/apply_engine_docs.py` (reads `hvsc84.csv` for counts, no
-re-walk). The CSV write-through (`record_*`) does a full CSV rewrite, so it's
-for the **single-threaded** interactive-build / regression paths only — the
-parallel batches build to `tmp/` and never write-through (they refresh via an
-explicit `build_sid_db.py` run after mass-write).
+with `python3 tools/apply_engine_docs.py` (reads the parquet for counts, no
+re-walk). Nothing write-throughs the catalogue anymore — it's regenerated
+wholesale by `build_sid_db.py`, so parallel sessions never race on it.
 
 ### When to re-run `tools/build_sid_db.py`
 
 | Trigger | Why |
 |---|---|
-| After migrating a new engine to `pipelines/` | refresh `pipeline` column |
-| After running the build for an engine | refresh `usf_path` / `sidfinity_md5` |
 | After an HVSC update (#85 lands) | re-walk + re-classify added/removed SIDs |
 | After re-running `sidid` | refresh engine column |
-| After `verify_all` (future hook) | refresh `verify_status` columns |
 | After editing `tools/excluded_sids.json` | refresh `excluded` + `exclusion_reason` columns |
 | After editing `tools/engine_docs.json` | refresh `engine_docs` (or just `tools/apply_engine_docs.py`) |
 | After a `research-player` sweep completes for a family | bump its `engine_docs.json` state (→ `OK`) |
+
+(No per-build triggers anymore — the catalogue is static; build status is not
+tracked here. Coverage comes from a fresh family batch.)
 
 The script is idempotent — when in doubt, re-run with no flags. Use
 `--rebuild` to ignore mtime cache and re-hash everything.
@@ -428,7 +440,7 @@ per-user — NOT in the repo, NOT the python module). `src/sid_db` shells out to
 it for index reads, so **DB queries need only `duckdb` on PATH — no env.sh /
 PYTHONPATH / .pylocal** (deliberate: the python-module path was brittle). The
 python `duckdb` module is NOT installed/used. Ad-hoc:
-`duckdb -c "SELECT … FROM read_csv('hvsc84.csv', header=true, nullstr='', escape='\"')"`.
+`duckdb -c "SELECT … FROM read_parquet('hvsc84.parquet')"`.
 (The snap `duckdb` at `/snap/bin/duckdb` is broken — `snap-confine` error — don't use it.)
 
 ## Project structure

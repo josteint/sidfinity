@@ -376,10 +376,6 @@ _FAMILY_ORDER = [
 
 
 def main():
-    # The per-task builds run in parallel; suppress the per-build hvsc84.csv
-    # write-through (a full-CSV rewrite — racy under Pool). Regression is a
-    # verification gate, not a record step, so it never needs to touch the CSV.
-    os.environ['SIDFINITY_NO_DB_WRITE'] = '1'
     tasks = _build_tasks()
     jobs = int(os.environ.get('REGRESSION_JOBS', '8'))
     n = len(tasks)

@@ -54,8 +54,8 @@ def probe_one(args):
 def main():
     stride = int(sys.argv[1]) if len(sys.argv) > 1 else 6
     rows = subprocess.run(["duckdb", "-noheader", "-list", "-c",
-        "SELECT path, COALESCE(songlength_s,10) FROM read_csv('%s/hvsc84.csv',"
-        "header=true,nullstr='',escape='\"') WHERE engine='Basic_Program' ORDER BY path" % ROOT],
+        "SELECT path, COALESCE(songlength_s,10) FROM read_parquet('%s/hvsc84.parquet')"
+        " WHERE engine='Basic_Program' ORDER BY path" % ROOT],
         capture_output=True, text=True).stdout.strip().split("\n")
     allwork = [(r.rsplit("|", 1)[0], float(r.rsplit("|", 1)[1])) for r in rows if r]
     work = allwork[::stride]

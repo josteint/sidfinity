@@ -34,6 +34,10 @@ sys.path[:0] = [os.path.join(ROOT, 'src'), ROOT]
 
 OUT = os.path.join(ROOT, 'tmp', 'gt_v1_results.jsonl')
 
+# Resume-cache invalidation on code change (see src/code_fingerprint.py).
+from src.code_fingerprint import code_fingerprint  # noqa: E402
+CODE_HASH = code_fingerprint('goattracker_v1')
+
 
 def run_member(item) -> dict:
     rel, sl = item
@@ -114,7 +118,12 @@ def main():
     done = set()
     if os.path.exists(OUT):
         with open(OUT) as f:
-            done = {json.loads(l)['path'] for l in f if l.strip()}
+            for l in f:
+                if not l.strip():
+                    continue
+                d = json.loads(l)
+                if d.get('code_hash') == CODE_HASH:
+                    done.add(d['path'])
     todo = [m for m in members if m[0] not in done]
     print(f'{len(members)} members, {len(done)} done, {len(todo)} to go',
           flush=True)
@@ -123,6 +132,7 @@ def main():
     with open(OUT, 'a') as f, Pool(8) as pool:
         for i, rec in enumerate(pool.imap_unordered(run_member, todo,
                                                     chunksize=1)):
+            rec['code_hash'] = CODE_HASH
             f.write(json.dumps(rec) + '\n')
             f.flush()
             key = (f"{rec['player'][:4]}:{rec['status']}"

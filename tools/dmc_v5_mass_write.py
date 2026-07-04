@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Mass-write DMC V5 (family-3/5) FULL members; then refresh hvsc84.csv.
+"""Mass-write DMC V5 (family-3/5) FULL members alongside the HVSC originals.
 
-Reads tmp/dmc_v5_full_results.jsonl, and for every member with status
-'full' writes its .usf + .sidfinity.sid alongside the HVSC original (via
-the real SID -> USF -> SID pipeline). Then refresh the index separately with
-`python3 tools/build_sid_db.py` (writes hvsc84.csv; DuckDB-queried via
-src/sid_db).
+Reads tmp/dmc_v5_full_results.jsonl and, for every member with status 'full'
+whose code_hash matches the current code (stale rows skipped + warned), writes
+its .usf + .sidfinity.sid via the real SID -> USF -> SID pipeline.
 
 Usage:
     PYTHONPATH=tools/py65_lib:tools:src python3 tools/dmc_v5_mass_write.py \
@@ -48,9 +46,24 @@ def main():
     results = RESULTS
     if '--results' in sys.argv:
         results = sys.argv[sys.argv.index('--results') + 1]
-    full = [json.loads(l)['path'] for l in open(results)
-            if json.loads(l).get('status') == 'full']
-    print(f'{len(full)} FULL members to write', flush=True)
+    from src.code_fingerprint import code_fingerprint
+    code_hash = code_fingerprint('dmc_v5')
+    full, stale = [], 0
+    for l in open(results):
+        if not l.strip():
+            continue
+        d = json.loads(l)
+        if d.get('status') != 'full':
+            continue
+        if d.get('code_hash') != code_hash:
+            stale += 1                 # verdict predates current code — DON'T write
+            continue
+        full.append(d['path'])
+    print(f'{len(full)} current-code FULL members to write', flush=True)
+    if stale:
+        print(f'  WARNING: skipped {stale} FULL rows with stale/absent code_hash. '
+              f'Re-run tools/dmc_v5_family_batch.py to refresh before mass-write.',
+              flush=True)
     ok = err = 0
     errs = []
     with Pool(8) as pool:

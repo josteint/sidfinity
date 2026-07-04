@@ -24,6 +24,10 @@ from pipelines.basic_program import usf_roundtrip as RT
 from pipelines.basic_program.proof_multivoice import verdict_basic
 from pipelines.hubbard.verify_cycle import writelog_capture, compare_instruction_stream
 from src.usf import write_file, parse_file
+from src.code_fingerprint import code_fingerprint
+
+# Resume-cache invalidation on code change (see src/code_fingerprint.py).
+CODE_HASH = code_fingerprint('basic_program')
 
 OUT = os.path.join(ROOT, 'tmp/basic_program_research/family_batch.jsonl')
 TMPDIR = os.path.join(ROOT, 'tmp/basic_program_research/batch')
@@ -64,8 +68,8 @@ def main():
     ap.add_argument('--stride', type=int, default=1)
     a = ap.parse_args()
     rows = subprocess.run(["duckdb", "-noheader", "-list", "-c",
-        "SELECT path, COALESCE(songlength_s,10) FROM read_csv('%s/hvsc84.csv',"
-        "header=true,nullstr='',escape='\"') WHERE engine='Basic_Program' ORDER BY path" % ROOT],
+        "SELECT path, COALESCE(songlength_s,10) FROM read_parquet('%s/hvsc84.parquet')"
+        " WHERE engine='Basic_Program' ORDER BY path" % ROOT],
         capture_output=True, text=True).stdout.strip().split("\n")
     allwork = [(r.rsplit("|", 1)[0], float(r.rsplit("|", 1)[1])) for r in rows if r]
     work = allwork[::a.stride]
@@ -74,13 +78,16 @@ def main():
     if os.path.exists(OUT):
         with open(OUT) as f:
             for line in f:
-                d = json.loads(line); done[d['path']] = d
+                d = json.loads(line)
+                if d.get('code_hash') == CODE_HASH:   # skip stale-code verdicts
+                    done[d['path']] = d
     todo = [(p, s, a.write) for p, s in work if p not in done]
     print(f"family batch: {len(work)} members, {len(done)} cached, {len(todo)} to do"
           f"{' [WRITE]' if a.write else ''}", flush=True)
     results = list(done.values())
     with open(OUT, 'a') as fo, ProcessPoolExecutor(max_workers=8) as ex:
         for i, res in enumerate(ex.map(process, todo)):
+            res['code_hash'] = CODE_HASH
             fo.write(json.dumps(res) + "\n"); fo.flush(); results.append(res)
             if (i + 1) % 25 == 0: print(f"  {i+1}/{len(todo)}", flush=True)
     results = [r for r in results if r['path'] in {p for p, _ in work}]
