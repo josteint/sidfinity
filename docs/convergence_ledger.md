@@ -503,7 +503,15 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   the redirect). Always run a FULL-songlength transfer test (partials for
   recovery + a FULL sample for regression) before committing a new map entry;
   otrk/wnote were lucky on small samples. Reading $171C/$177A regressed
-  Humppa_Demo (1/33 FULLs).
+  Humppa_Demo (1/33 FULLs). **UPDATE (round 22): $171C fcut ALONE is safe and
+  IS now mapped (+~6, 0/150-FULL regression).** The old regression was fcut
+  BUNDLED with wavepos $177A — fcut tracks the $D416 write stream by
+  construction, so live fcut == orig $171C (verified King_of_Earth $20==$20);
+  Humppa's divergence is byte-IDENTICAL with/without the fcut row (not an fcut
+  read), and Object_of_Art (the wavepos member) merely moves its first-div
+  later. LESSON: when a caution names TWO co-mapped addresses, re-test them
+  SEPARATELY — one may be the sole culprit. Still NOT mapped: $1720 fclaim
+  (rejected f2) + $1721/$1722 (no composer cache var — read inline).
 - **HARD BOUNDARY — off-table reads sonifying DYNAMIC work-RAM (DMC family-2 freq
   tail, 2026-06-29).** 429/533 family-2 partials diverge on an off-table read; the
   dominant case (Death_Comes V2 first note, arp 121 → $1720) sonifies the FILTER

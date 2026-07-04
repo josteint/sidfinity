@@ -132,12 +132,24 @@ DMC_OFFTABLE_STATE = [
     # so these track by construction — verified index-match + value-match on 5
     # reps (Senna/In_die_Dunkelheit/Slide_Me/High_Tech/1st_Intro). Mapped so an
     # off-table read lands on the live var instead of a stale freqhi-overrun byte.
-    # NOT mapped: $171C fcut (the cutoff ACCUMULATOR drifts — regressed Humppa,
-    # ledger C11) and $1720 fclaim (voice/claim ordering differs — rejected f2).
+    # NOT mapped: $1720 fclaim (voice/claim ordering differs — rejected f2) and
+    # $1721/$1722 step-size/dur caches (the composer reads them inline from the
+    # fdstep/fddur def views — no cache VAR to redirect to). (fcut $171C IS
+    # mapped below — the old "regressed Humppa" caution was fcut+wavepos bundled;
+    # fcut alone tracks and is 0-regression, exposure-censused this round.)
     (0x1718, 'spdctr', 1),   # speed counter (DEC per frame; reload = $1716)
+    (0x171C, 'fcut', 1),     # filter current cutoff (-> $D416 every frame). The
+                             # composer's fcut drives the identical $D416 stream,
+                             # so it tracks $171C by construction (verified
+                             # index+value on King_of_Earth $20==$20). The old
+                             # "regressed Humppa" note (C11) was fcut BUNDLED with
+                             # wavepos $177A (the positional-hard byte); fcut alone
+                             # is clean — exposure-censused this round.
     (0x1719, 'fstep', 1),    # filter current step index 0-5
     (0x171A, 'fframe', 1),   # filter frames spent in current step
     (0x171B, 'fbase', 1),    # filter definition base index (def# << 4)
+    (0x171D, 'frep', 1),     # filter repeat/loop step index (def byte2)
+    (0x171E, 'fstop', 1),    # filter stop cutoff (def byte3) — verified tracks
     (0x1723, 'fres', 1),     # filter resonance (def byte0 hi nibble) -> $D417 hi
     (0x1724, 'dtmpl', 1),    # dual-slide freq temp lo — GLOBAL scratch written
     (0x1725, 'dtmph', 1),    # only by the $40 slide path ($14CB/$14D3);
