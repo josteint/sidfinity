@@ -89,6 +89,12 @@ DMC_OFFTABLE_STATE = [
     (0x1744, 'gla', 3),      # glide start note
     (0x1747, 'glb', 3),      # glide target note
     (0x174A, 'pend', 3),     # new-note pending flag
+    (0x174D, 'ioff', 3),     # instrument record offset (orig inst# * 11, the
+                             # exact 6502 carry-chain) — set at each voice's
+                             # note-init from ioffval[cinst]; tracks $174D,x
+                             # byte-identically (both derive from the current
+                             # instrument number). Read off-table when a note
+                             # index wraps to 166-168.
     (0x1750, 'pwl', 3),      # pulse width lo
     (0x1753, 'pwh', 3),      # pulse width hi
     (0x1762, 'pwphase', 3),  # PW phase index
@@ -182,6 +188,24 @@ def _gen_offtable_redirect(state_map, orig_base, win_min, static_load,
         i += 1
     parts.append(f'        {static_load}')
     return '\n'.join(parts)
+
+
+def _inst_offset(iid: int) -> int:
+    """The exact 6502 chain the DMC player uses to turn an instrument NUMBER
+    into its record byte-offset ($1213-$1222 -> stored at $174D,x): ASL x3
+    then ADC x3, carries propagating in the 8-bit accumulator — NOT a clean
+    (iid*11) & 0xFF (an intermediate ADC carry feeds the next, and the final
+    ASL carry feeds the first ADC for iid >= 32). Mirrors the extract's
+    engine_model._decode_instrument so ioffval matches $174D byte-for-byte."""
+    off, c = iid, 0
+    for _ in range(3):
+        c = (off >> 7) & 1
+        off = (off << 1) & 0xFF
+    for _ in range(3):
+        off = off + iid + c
+        c = 1 if off > 0xFF else 0
+        off &= 0xFF
+    return off
 
 
 # ---------------------------------------------------------------------------
@@ -421,6 +445,9 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     ipwinit = [(i.pwm.init >> 8) & 0x0F for i in insts]
     ipwmin = [i.pwm.min_hi for i in insts]
     ipwmax = [i.pwm.max_hi for i in insts]
+    # instrument-record byte offset (orig inst# * 11, exact 6502 chain) — the
+    # value the orig keeps in $174D,x; shadowed in ioff,x for off-table reads.
+    ioffval = [_inst_offset(i.id - 1) for i in insts]
     isteps = []
     ipwbase = []
     for i in insts:
@@ -741,7 +768,7 @@ def compose_dmc_asm(usf: UsfFile) -> str:
         _vd = _vd + _win
     data.append('vibdepth:\n' + _byt(_vd))
     for name, arr in [('iad', iad), ('isr', isr), ('ipwinit', ipwinit),
-                      ('ipwmin', ipwmin), ('ipwmax', ipwmax),
+                      ('ipwmin', ipwmin), ('ipwmax', ipwmax), ('ioffval', ioffval),
                       ('ipwbase', ipwbase),
                       ('ifdef', ifdef), ('ivdel', ivdel), ('ivwid', ivwid),
                       ('ivram', ivram), ('iflag', iflag), ('iwst', iwst)]:
@@ -1162,6 +1189,8 @@ fe_ni:
         lda curinst,x
         sta cinst,x                  ; cache: soft notes don't re-init
         tay
+        lda ioffval,y                ; orig inst# * 11 = $174D,x (off-table shadow)
+        sta ioff,x
         lda isr,y
         sta tmp
         lda volovr,x
@@ -1632,6 +1661,7 @@ evflags:  .dsb 1, 0
 otrk:     .dsb 3, 0                  ; orig track byte-offset shadow (= $1726)
 wnote:    .dsb 3, 0                  ; orig arp-note shadow (= $1783)
 durrel:   .dsb 3, 0                  ; orig duration-reload shadow (= $173E)
+ioff:     .dsb 3, 0                  ; orig instrument-offset shadow (= $174D)
 state_end:
 {hr_test_var}        .byt $00
 """
