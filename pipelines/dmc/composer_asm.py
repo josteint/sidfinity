@@ -127,6 +127,18 @@ DMC_OFFTABLE_STATE = [
     (0x1756, 'cpwmin', 3),   # orig PW bound A (byte2 hi nibble) = composer cpwmin
     (0x1759, 'cpwmax', 3),   # orig PW bound B (= A EOR $0F)    = composer cpwmax
     (0x175F, 'cpwbase', 3),  # PW step base (instr byte 6 hi nibble)
+    # GLOBAL filter state machine ($1718-$1723). The composer already maintains
+    # byte-identical copies (it reproduces the $D416/$D417 filter write stream),
+    # so these track by construction — verified index-match + value-match on 5
+    # reps (Senna/In_die_Dunkelheit/Slide_Me/High_Tech/1st_Intro). Mapped so an
+    # off-table read lands on the live var instead of a stale freqhi-overrun byte.
+    # NOT mapped: $171C fcut (the cutoff ACCUMULATOR drifts — regressed Humppa,
+    # ledger C11) and $1720 fclaim (voice/claim ordering differs — rejected f2).
+    (0x1718, 'spdctr', 1),   # speed counter (DEC per frame; reload = $1716)
+    (0x1719, 'fstep', 1),    # filter current step index 0-5
+    (0x171A, 'fframe', 1),   # filter frames spent in current step
+    (0x171B, 'fbase', 1),    # filter definition base index (def# << 4)
+    (0x1723, 'fres', 1),     # filter resonance (def byte0 hi nibble) -> $D417 hi
     (0x1724, 'dtmpl', 1),    # dual-slide freq temp lo — GLOBAL scratch written
     (0x1725, 'dtmph', 1),    # only by the $40 slide path ($14CB/$14D3);
                              # shadowed 1:1 in fx_dual_run
