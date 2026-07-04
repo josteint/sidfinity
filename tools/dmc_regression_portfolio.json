@@ -8,7 +8,8 @@
   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
   "MUSICIANS/M/Mermaid/Broken.sid",
-  "MUSICIANS/M/Martens/Senna.sid"
+  "MUSICIANS/M/Martens/Senna.sid",
+  "MUSICIANS/A/Alien_WOW/Hardcore.sid"
  ],
  "dimensions": {
   "fx:cymbal": [
@@ -230,7 +231,9 @@
   "note": "Broken=ioff ($174D) reader, Senna=filter-state ($1718) reader \u2014 added manually because the feature taxonomy does not model off-table redirect reads (round 22). Guards the DMC_OFFTABLE_STATE redirect rows in tier-1.",
   "members": [
    "MUSICIANS/M/Mermaid/Broken.sid",
-   "MUSICIANS/M/Martens/Senna.sid"
-  ]
+   "MUSICIANS/M/Martens/Senna.sid",
+   "MUSICIANS/A/Alien_WOW/Hardcore.sid"
+  ],
+  "otrk_note": "MUSICIANS/A/Alien_WOW/Hardcore.sid = otrk-arrangement (transpose-cmd placement) reader; guards _otrk_model/_otrk_rcmd_model exactness (round 23)"
  }
 }
