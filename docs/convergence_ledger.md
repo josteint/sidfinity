@@ -545,9 +545,16 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   target stops the sweep on dtmpl, which the composer's state happens to track.
   "Fixing" it to `sep = tgt[1]` (target 126 -> dtmph) REGRESSED 20/104 FULL
   members and recovered 0 (Plasmachaos, the degenerate gla==125 special case,
-  has an otrk-legacy 2nd blocker). DO NOT re-attempt the naive fix (warning
-  comment left in `_row_event`). The real fix is a REPRESENTATION change: an
-  off-table glide target is a dynamic-byte-terminated sweep, not a note glide.
+  has an otrk-legacy 2nd blocker). A SURGICAL retry — restore the '#' ONLY when
+  the drop degenerates the glide to the row's own note (target==note) — ALSO
+  regressed 22/104 (Garfield_Story/Speedy/...): those members glide up 1 to a
+  sharp-oct10 too and are FULL WITH the degenerate no-op (their dynamic-byte
+  sweep resolves to match). So the note-glide model CANNOT reproduce these for
+  ANY target choice — the current natural-parse is write-stream-OPTIMAL for the
+  corpus. DO NOT re-attempt any glide-target adjustment (both a blanket and a
+  surgical fix are proven net-negative). The real fix is a REPRESENTATION
+  change: an off-table glide target is a dynamic-byte-terminated sweep, not a
+  note glide (Move-1). Plasmachaos is doubly-blocked (this + otrk-legacy).
 - **UNEXPOSED-TRACKING-VAR pattern — most of the "deep off-table tail" is NOT
   hard state, just a missing redirect ROW (2026-07-04, family-1 round 22, +50
   FULL: ioff +12, filter-state +19, +19 deeper-blocker).** The composer ALREADY
