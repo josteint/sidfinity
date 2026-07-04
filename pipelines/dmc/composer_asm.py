@@ -278,6 +278,8 @@ def _row_event(row, inst_slot: dict) -> tuple:
         sep = tgt[1] if len(tgt) == 3 else '-'
         name = tgt[0] + ('#' if sep == '#' else '')
         target = int(tgt[2:]) * 12 + NOTE_IDX[name]
+        if target == note and len(tgt) > 3 and tgt[1] == '#':
+            target = int(tgt[2:]) * 12 + NOTE_IDX[tgt[0] + '#']
         return ('note', soft, note, row.duration, slot, vol, gspd, target)
     return ('note', soft, note, row.duration, slot, vol, 0, None)
 
@@ -347,10 +349,21 @@ class _Model:
                     or len(ol.entries) or 1
                 legacy = bool(usf.params.fields.get(
                     f'otrk_legacy_s{sub.id}_v{v.id}', 0))
-                off, cur = pad, 0
+                # rcmd = bitmask of physical entries the composer preceded with
+                # a REDUNDANT transpose command (their arrangement); the byte
+                # offset is DERIVED from it (each such command = +1 byte for
+                # that entry onward, within the period). See _otrk_rcmd_model.
+                rcmd = int(usf.params.fields.get(
+                    f'otrk_rcmd_s{sub.id}_v{v.id}', 0) or 0)
+                # cur = the transpose the leading command already set (matches
+                # _otrk_model / _otrk_rcmd_model — avoids double-counting a
+                # leading transpose command; pad covers its byte)
+                cur0 = ol.transpose_at(0) if ol.entries else 0
+                off, cur, red = pad, cur0, 0
                 for i, e in enumerate(ol.entries):
-                    if i and i % period == 0:
-                        off = pad    # physical-track pass boundary
+                    p = i % period
+                    if i and p == 0:
+                        off, cur, red = pad, cur0, 0  # physical-track boundary
                     enc = _encode_pattern(
                         [_row_event(r, self.inst_slot)
                          for r in pat_by_local[e].rows])
@@ -362,9 +375,11 @@ class _Model:
                     t = ol.transpose_at(i)
                     if t != cur:
                         off, cur = off + 1, t
+                    if rcmd & (1 << p):
+                        red += 1
                     # legacy: unmodeled counter phase (piecewise redundancy)
                     # -> the historical entry+1 approximation, unchanged
-                    val = (i + 1) if legacy else off
+                    val = (i + 1) if legacy else (off + red)
                     track += bytes([(t + 64) & 0xFF, gid, val & 0xFF])
                     off += 1
                 # loop tail emitted by the data section as a label-arithmetic

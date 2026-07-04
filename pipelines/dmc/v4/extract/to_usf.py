@@ -131,10 +131,15 @@ def _otrk_model(v):
             period = i
             break
     pad = v.entry_offsets[0]      # leading redundant-command count
-    off, cur = pad, 0
+    # cur = the transpose the LEADING command already set (pad accounts for its
+    # byte); starting at 0 double-counts a leading transpose command when the
+    # first entry is transposed (So_easy V1: entry 0 transpose 1 -> the model
+    # re-added the byte pad already covers -> spurious legacy fallback).
+    cur0 = v.transposes[0] if v.transposes else 0
+    off, cur = pad, cur0
     for i in range(n):
         if i and i % period == 0:
-            off = pad             # pass boundary: orig re-reads from start
+            off, cur = pad, cur0  # pass boundary: orig re-reads from start
         t = v.transposes[i] if v.transposes else 0
         if t != cur:
             off, cur = off + 1, t
@@ -144,23 +149,73 @@ def _otrk_model(v):
     return pad, period
 
 
+def _otrk_rcmd_model(v):
+    """When the plain (pad, period) model is off ONLY because the composer
+    placed extra REDUNDANT transpose commands mid-track — a `transpose to X`
+    where X is already the current value, an explicit reset the composer WROTE
+    (their arrangement), which the on-change model doesn't predict — recover
+    the exact offsets by carrying those command POSITIONS. Returns
+    (pad, period, rcmd) where rcmd is a bitmask of the redundant-command
+    positions WITHIN the period (bit p = a redundant transpose command
+    precedes physical entry p). This is the composer's ARRANGEMENT (where they
+    notated transpose commands) — named musical content per the representation
+    principle §8 (the composer needs it to reproduce the off-table sonification
+    of $1726); the byte-OFFSET is DERIVED from it, never stored. None = even
+    this can't model it (a non-unit jump / decrease = genuine legacy residue)."""
+    n = len(v.entries)
+    if not v.entry_offsets or len(v.entry_offsets) != n:
+        return None
+    period = n
+    for i in range(1, n):
+        if v.entry_offsets[i] <= v.entry_offsets[i - 1]:
+            period = i
+            break
+    pad = v.entry_offsets[0]
+    cur0 = v.transposes[0] if v.transposes else 0
+    rcmd = 0
+    off, cur, red = pad, cur0, 0
+    for i in range(n):
+        p = i % period
+        if p == 0:
+            off, cur, red = pad, cur0, 0
+        t = v.transposes[i] if v.transposes else 0
+        if t != cur:
+            off, cur = off + 1, t
+        actual = v.entry_offsets[i]
+        expected = off + red
+        if actual == expected + 1:
+            red += 1
+            rcmd |= (1 << p)
+        elif actual != expected:
+            return None
+        off += 1
+    return pad, period, rcmd if rcmd else None
+
+
 def _emit_otrk_fields(m) -> dict:
     fields = {}
     for song in m.songs:
         for vi, v in enumerate(song.voices):
             r = _otrk_model(v)
-            if r is None:
-                # piecewise mid-track redundancy — the phase-scalar model
-                # can't represent this voice's counter; mark it so the
-                # composer keeps the historical entry+1 approximation
-                # (documented residue; a modeled voice never gets this).
-                fields[f'otrk_legacy_s{song.id}_v{vi + 1}'] = 1
+            if r is not None:
+                pad, period = r
+                if pad:
+                    fields[f'otrk_pad_s{song.id}_v{vi + 1}'] = pad
+                if period < len(v.entries):
+                    fields[f'otrk_period_s{song.id}_v{vi + 1}'] = period
                 continue
-            pad, period = r
-            if pad:
-                fields[f'otrk_pad_s{song.id}_v{vi + 1}'] = pad
-            if period < len(v.entries):
-                fields[f'otrk_period_s{song.id}_v{vi + 1}'] = period
+            # the composer's redundant transpose-command PLACEMENT (arrangement)
+            r2 = _otrk_rcmd_model(v)
+            if r2 is not None and r2[2] is not None:
+                pad, period, rcmd = r2
+                if pad:
+                    fields[f'otrk_pad_s{song.id}_v{vi + 1}'] = pad
+                if period < len(v.entries):
+                    fields[f'otrk_period_s{song.id}_v{vi + 1}'] = period
+                fields[f'otrk_rcmd_s{song.id}_v{vi + 1}'] = rcmd
+                continue
+            # non-unit jump / decrease: genuine residue -> entry+1 approximation
+            fields[f'otrk_legacy_s{song.id}_v{vi + 1}'] = 1
     return fields
 
 
