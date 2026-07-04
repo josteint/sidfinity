@@ -6,7 +6,9 @@
   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-  "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+  "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+  "MUSICIANS/M/Mermaid/Broken.sid",
+  "MUSICIANS/M/Martens/Senna.sid"
  ],
  "dimensions": {
   "fx:cymbal": [
@@ -223,5 +225,12 @@
    "MUSICIANS/P/PFK/Home_Invasion_main.sid"
   ]
  },
- "corpus_full": 4670
+ "corpus_full": 4770,
+ "offtable_guards": {
+  "note": "Broken=ioff ($174D) reader, Senna=filter-state ($1718) reader \u2014 added manually because the feature taxonomy does not model off-table redirect reads (round 22). Guards the DMC_OFFTABLE_STATE redirect rows in tier-1.",
+  "members": [
+   "MUSICIANS/M/Mermaid/Broken.sid",
+   "MUSICIANS/M/Martens/Senna.sid"
+  ]
+ }
 }
