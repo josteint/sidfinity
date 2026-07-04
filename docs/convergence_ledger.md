@@ -524,7 +524,33 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   read frame via memwatch-on-write base-hi, like `tmp/capturable.py`) — correct by
   construction, recovers the value-consistent reads. Family-2 freq tail accepted
   as the hard residue (matches family-1's freq-floor "no single lever").
-- **Consumers:** DMC v4 `_decode_instrument` (commit 3cae4fd).
+- **UNEXPOSED-TRACKING-VAR pattern — most of the "deep off-table tail" is NOT
+  hard state, just a missing redirect ROW (2026-07-04, family-1 round 22, +50
+  FULL: ioff +12, filter-state +19, +19 deeper-blocker).** The composer ALREADY
+  maintains most engine state byte-identically — it MUST, to reproduce the
+  $D4xx write stream — so an off-table read that sonifies that state only needs
+  a redirect row exposing the already-tracking var; it is NOT a divergent-state
+  bug. DIAGNOSTIC (the index-match check, `tmp/verify_ioff.py`/`verify_filtervar.py`):
+  build the member, `siddump --memwatch-on-write D40x <composer_var>,<wnote>` at
+  the divergent event N (N = per-reg write count up to flat_div pos). Three
+  outcomes: (a) **wnote matches orig + composer_var == orig** ⇒ unexposed
+  tracking var → ADD a redirect row (clean, transfers to the whole cluster,
+  0-regression by construction — the live var == the orig value the FULL members
+  read via the static byte); (b) **wnote differs** ⇒ wavepos drift (the composer
+  re-packs the wave pool, positional — HARD, C11 wavepos boundary); (c) **wnote
+  matches but composer_var != orig** ⇒ a genuinely non-tracking ACCUMULATOR
+  (fcut $171C, the cutoff sum drifts; already-mapped otrk/dur/gla) — HARD, needs
+  the var's evolution fixed, not a row. Landed rows: `ioff` ($174D inst#*11, the
+  exact 6502 chain — the composer indexes by SLOT so it had no offset var) and
+  the global filter state ($1718 spdctr / $1719 fstep / $171A fframe / $171B
+  fbase / $1723 fres — all verified tracking). WHY the earlier census read them
+  as a hard freq tail: the STALE-PARTIAL palimpsest (C20) — the merged truth's
+  partials predated the round-21 fixes, so the deep census classified stale
+  members; a drift re-verify (fix-verdict step) is MANDATORY before censusing a
+  residue, else you chase already-fixed members (I burned an hour on stale
+  Abrakadabra/cpwmax before catching it via a fresh `find_first_divergence`).
+- **Consumers:** DMC v4 `_decode_instrument` (commit 3cae4fd). Redirect rows:
+  `ioff` (07c2125), filter-state $1718-$1723 (a026b74).
 
 
 ### C14 — Command-per-row tracker effects (note + effect + param per row)

@@ -7,6 +7,44 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 22 (2026-07-04): deep tail = UNEXPOSED tracking vars, not hard → +60 family-1 = 4770/5401 (88.3%) — commits 07c2125/a026b74
+THE REFRAME: most of the "deep off-table freq tail" is NOT divergent state —
+the composer ALREADY tracks the value byte-identically (it must, to reproduce
+the write stream); it's just not EXPOSED to the off-table redirect. Recipe
+(new ledger C11 note): census deep readers → for each unmapped var, the
+INDEX-MATCH check (`tmp/verify_ioff.py`/`verify_filtervar.py`: memwatch
+composer_var + wnote at the divergent event) → (a) wnote matches + var==orig
+⇒ add a redirect ROW (clean, transfers, 0-regr by construction); (b) wnote
+differs ⇒ wavepos drift (HARD); (c) var!=orig ⇒ non-tracking accumulator (HARD).
+1. **STALE-PARTIAL drift re-verify (+10, fix-verdict step):** the round-21
+   merged truth's PARTIALS predated the cpwmax/durrel fixes (only GAINS were
+   re-verified) → 10/475 already FULL. LESSON: drift-re-verify the residue
+   BEFORE censusing it — I burned an hour classifying stale Abrakadabra/cpwmax
+   as "var-value bugs" before a fresh find_first_divergence showed it FULL.
+   The cpwmin/cpwmax "cluster" was ~entirely stale (round-21 DID fix them).
+2. **ioff ($174D inst#*11) redirect row (+12, commit 07c2125):** the orig keeps
+   the instrument-record offset (exact 6502 carry-chain $1213-$1222) in $174D,x;
+   read off-table when a note idx wraps to 166-168. The composer indexes by SLOT
+   so had NO offset var — added ioffval[slot]=_inst_offset(id-1), stored to
+   ioff,x at note-init (with cinst), (0x174D,'ioff',3). Found by the single-SID
+   loop on Broken (first div $174D → FULL), transferred 12/13, 0/40 regr.
+3. **filter-state $1718-$1723 5 redirect rows (+19, commit a026b74):** global
+   filter machine (spdctr/fstep/fframe/fbase/fres) — the composer ALREADY
+   tracks all 5 byte-identically (verified index+value on 5 reps). Added rows;
+   19/32 readers FULL (13 have deeper 2nd blockers), 0/60 regr. NOT mapped:
+   $171C fcut (cutoff ACCUMULATOR drifts, regressed Humppa) + $1720 fclaim.
+4. **notectr/sectpos $1729 REJECTED (measured):** leading unmapped candidate
+   (18) but positional — measured hundreds of editor-chosen redundant dur/instr
+   re-asserts/member (ratio 0.04-0.44/note, no rule), so exact shadow needs
+   per-event byte-widths in USF = C7 anti-pattern. See tmp/notectr_scoping.md.
+CLOSEOUT: full re-verify of all 465 partials with both fixes → +50 FULL (incl.
+~19 members blocked on ioff/filter DEEPER than first-div); merged 4720→4770;
+mass-write 4770 builds + DB. RESIDUE (415 partial): notectr positional 18,
+in_table per-member drift 61, cia-census-blind 45 (need per-IRQ align),
+fcut/otrk/dur/gla non-tracking (~19, harder — fix the var evolution), $171F
+temp/$1720 claim (hard), + freq deep tail. NEXT clean levers ~exhausted again;
+remaining = non-tracking-var evolution fixes (per-var) + cia tooling.
+
 ## ✅ ROUND 21 (2026-07-04): full closeout (authoritative count + palimpsest cure) + cpwmax/cpwmin swap → family-1 4710/5401 (87.2%), family-2 2413/2889 (83.5%) — commits 09f8034/d1636b1
 1. **Typed-init cleanup (09f8034):** durrel priming moved from `durrel_init*`
    params → typed `InitVoice.dur_reload` (§4.5 engine-state priming; the params
