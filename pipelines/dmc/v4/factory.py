@@ -743,6 +743,74 @@ def _d418_play_wrapper(path: str, base: int):
     return None
 
 
+def _voice_tick_repeat_probe(path: str, base: int):
+    """Detect the DMC 'double-speed voice' hack: a play-body per-voice JSR
+    redirected to a stub that calls the voice routine N times, so that voice
+    ticks its effect chain (wave/pulse step + full block re-emit) N times per
+    play(). Returns a '1,1,N'-style string when any voice repeats > 1, else
+    None (canonical single-tick — no param, byte-identical build).
+
+    Follows the play vector to the body, locates `STX fclaim` (base+$720),
+    reads the three per-voice JSR sites, and for a site targeting a stub (not
+    the common voice routine) counts the `JSR <voice>` inside a clean
+    `JSR*/RTS` stub. Non-clean stubs (e.g. a JMP-tail form) return None — the
+    build stays as-is rather than mis-modelling an unrecognised variant."""
+    mem, s = _load(path)
+    p = s['play']
+    if mem[p] != 0x4C:
+        return None
+    body = mem[p + 1] | (mem[p + 2] << 8)
+    fclaim = base + 0x720
+    stx = None
+    a = body
+    for _ in range(80):
+        if mem[a] == 0x8E and (mem[a + 1] | (mem[a + 2] << 8)) == fclaim:
+            stx = a
+            break
+        a += 1
+    if stx is None:
+        return None
+    q = stx + 3
+    jsrs = []
+    for _ in range(20):
+        op = mem[q]
+        if op == 0x20:            # JSR abs = a per-voice call
+            jsrs.append(mem[q + 1] | (mem[q + 2] << 8)); q += 3
+        elif op == 0xE8:          # INX = step to the next voice
+            q += 1
+        else:
+            break
+        if len(jsrs) >= 3:
+            break
+    if len(jsrs) < 3:
+        return None
+    vaddr = jsrs[0]
+
+    def _count(tgt):
+        if tgt == vaddr:
+            return 1
+        c = 0
+        a = tgt
+        for _ in range(12):       # a clean `JSR vaddr * n : RTS` stub
+            op = mem[a]
+            if op == 0x20:
+                if (mem[a + 1] | (mem[a + 2] << 8)) == vaddr:
+                    c += 1
+                a += 3
+            elif op == 0x60:      # RTS terminates the stub
+                return c if c else None
+            else:
+                return None       # unrecognised stub shape -> don't model it
+        return None
+
+    reps = [_count(t) for t in jsrs]
+    if any(r is None for r in reps):
+        return None
+    if all(r == 1 for r in reps):
+        return None
+    return ','.join(str(r) for r in reps)
+
+
 def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     """Primary canonical-layout build; on a moved-layout rejection, fall back
     to the layout-independent dataflow extractor (pipelines.dmc.v4.dataflow).
@@ -774,6 +842,9 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     hg = _hold_gateoff_probe(os.path.join(hvsc_root, sid_path))
     if hg is not None:
         cfg.extra_params['hold_gateoff'] = hg
+    vtr = _voice_tick_repeat_probe(os.path.join(hvsc_root, sid_path), cfg.base)
+    if vtr is not None:
+        cfg.extra_params['voice_tick_repeat'] = vtr
     return cfg
 
 

@@ -770,6 +770,25 @@ def compose_dmc_asm(usf: UsfFile) -> str:
             '        sta $d418                    ; play-vector wrapper\n'
             f'        jmp {play_entry}\n\n') + play_wrapper
         play_entry = 'playd418'
+    # Per-voice tick repeat (default '1,1,1'): a value > 1 means the play body
+    # runs that voice's tick/effect routine N times per play() — the DMC
+    # "double-speed voice" editor hack, where the play body's per-voice JSR is
+    # redirected to a stub that calls the voice routine N times (voice runs its
+    # wave/pulse program N steps per frame and re-emits its full freq/PW/ctrl
+    # block N times). Factory-detected from the play-body JSR sites; the (1,1,1)
+    # default emits the canonical three-JSR body byte-identically.
+    vtr_s = str(usf.params.fields.get('voice_tick_repeat', '') or '1,1,1')
+    try:
+        voice_tick_repeat = [max(1, int(x)) for x in vtr_s.split(',')]
+    except ValueError:
+        voice_tick_repeat = [1, 1, 1]
+    voice_tick_repeat = (voice_tick_repeat + [1, 1, 1])[:3]
+    _vc = ['        ldx #$00', '        stx fclaim']
+    for _vi in range(3):
+        if _vi:
+            _vc.append('        inx')
+        _vc += ['        jsr voice'] * voice_tick_repeat[_vi]
+    voice_calls = '\n'.join(_vc) + '\n'
     idle = [0, 0, 0]
     imask = [0, 0, 0]
     iguard = [0, 0, 0]
@@ -1033,14 +1052,7 @@ ini_sid:
         lda spd
         sta spdctr
 pf_notick:
-        ldx #$00
-        stx fclaim
-        jsr voice
-        inx
-        jsr voice
-        inx
-        jsr voice
-        lda fcut
+{voice_calls}        lda fcut
         sta $d416
         lda shadow17
         ora fres
