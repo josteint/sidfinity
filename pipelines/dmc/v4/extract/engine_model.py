@@ -704,8 +704,15 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # the runtime value differs from the file image. Correct to what the engine
     # actually reads (post-init, ground truth) — recovers the constant reads the
     # file-image capture mis-valued (the "dynamic residue" that wasn't).
-    _correct_offtable_postinit(m, path, cfg.freq_lo_addr, cfg.freq_hi_addr,
-                               cfg.vibdepth_addr)
+    varying = _correct_offtable_postinit(m, path, cfg.freq_lo_addr,
+                                         cfg.freq_hi_addr, cfg.vibdepth_addr)
+    # If any off-table byte varied over the post-init time-sample, some read may
+    # land on a globally-varying byte that is nonetheless STABLE at the moment a
+    # given note reads it (sector-position, a settled track pointer). Recover
+    # those with an event-driven capture (the value read AT the access). Gated so
+    # members whose off-table reads are all init-constant skip the extra siddump.
+    if varying:
+        _correct_offtable_eventdriven(m, path)
     return m
 
 
@@ -839,7 +846,7 @@ def _correct_offtable_postinit(m: DmcModel, sid_path: str, flo_addr: int,
         addrs.add(vibdepth_addr + note)
     post = _postinit_values(sid_path, addrs)
     if not post:
-        return
+        return addrs                      # siddump failed → all unresolved
     for ins in m.instruments.values():
         new = []
         for off, note, lo, hi in ins.offtable_freq:
@@ -849,3 +856,125 @@ def _correct_offtable_postinit(m: DmcModel, sid_path: str, flo_addr: int,
         ins.offtable_freq = sorted(set(new))
     m.offtable_vibdepth = {n: post.get((vibdepth_addr + n) & 0xFFFF, d)
                            for n, d in m.offtable_vibdepth.items()}
+    # addrs whose byte VARIED over the post-init time-sample (post omitted them,
+    # keeping the file image). These are the candidates for the event-driven
+    # correction below: a globally-varying byte can still be STABLE at the moment
+    # a given note reads it (e.g. sector-position $1729).
+    return {a & 0xFFFF for a in addrs} - set(post)
+
+
+_SL_DB: dict = {}
+
+
+def _verify_window(sid_path: str) -> float:
+    """songlength × 1.1 (the verify window) for the longest subtune, used as the
+    event-driven capture duration so every read the verdict checks is observed.
+    Falls back to 150s if the Songlengths DB can't be located."""
+    root = sid_path
+    db_path = None
+    for _ in range(8):
+        root = os.path.dirname(root)
+        cand = os.path.join(root, 'DOCUMENTS', 'Songlengths.md5')
+        if os.path.exists(cand):
+            db_path = cand
+            break
+    if db_path is None:
+        return 150.0
+    if db_path not in _SL_DB:
+        from src.songlengths import load_database
+        _SL_DB[db_path] = load_database(db_path)
+    from src.songlengths import get_durations
+    durs = get_durations(sid_path, _SL_DB[db_path])
+    return min((max(durs) if durs else 130) * 1.1, 300.0)
+
+
+def _offtable_eventdriven(sid_path: str, duration: float) -> dict:
+    """EVENT-DRIVEN off-table capture: record the value each off-table freq read
+    produces AT THE ACCESS, keyed by `(inst, off, note)`. Recovers reads on a
+    byte that varies GLOBALLY but is STABLE when this note reads it (the
+    file-image / post-init-constant captures both miss these).
+
+    The engine computes each voice's freq base into `$172F/$1732,x` from the
+    (possibly off-table) index `$1783,x = curnote + wave_offset`. Snapshot all
+    three voices' `(y, curnote, inst, base_lo, base_hi)` at every `$D416` write
+    (once per play() — CIA-safe, per-play() not per-frame). Returns
+    `{(inst, off, note): (lo, hi)}` for keys whose value is the SAME across every
+    occurrence; keys that vary are omitted (they stay honest residue)."""
+    import subprocess
+    import re
+    from collections import defaultdict
+    sd = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..',
+                      'tools', 'siddump')
+    Y = (0x1783, 0x1784, 0x1785)      # offset-note = curnote + wave_offset
+    CN = (0x1012, 0x1013, 0x1014)     # current note
+    INS = (0x1015, 0x1016, 0x1017)    # current instrument
+    BLO = (0x172F, 0x1730, 0x1731)    # freq base lo (freqlo read result)
+    BHI = (0x1732, 0x1733, 0x1734)    # freq base hi (freqhi read result)
+    addrs = Y + CN + INS + BLO + BHI
+    try:
+        out = subprocess.run(
+            [sd, sid_path, '--duration', str(int(duration)),
+             '--memwatch-on-write', 'D416',
+             ','.join(f'{a:04X}' for a in addrs)],
+            capture_output=True, text=True, timeout=int(duration) + 120).stdout
+    except Exception:
+        return {}
+    pat = re.compile(r'([0-9A-F]{4})=([0-9A-F]+)')
+    vals = defaultdict(set)
+    for line in out.splitlines():
+        if '|E' not in line:
+            continue
+        for ev in line.split('|'):
+            if not ev.startswith('E'):
+                continue
+            d = {a: int(v, 16) for a, v in pat.findall(ev)}
+            for x in range(3):
+                y = d.get(f'{Y[x]:04X}')
+                if y is None or y < 96:            # in-table read: not off-table
+                    continue
+                cn = d.get(f'{CN[x]:04X}', 0)
+                blo = d.get(f'{BLO[x]:04X}')
+                bhi = d.get(f'{BHI[x]:04X}')
+                if blo is None or bhi is None:
+                    continue
+                key = (d.get(f'{INS[x]:04X}', 0), (y - cn) & 0xFF, cn & 0xFF)
+                vals[key].add((blo, bhi))
+    return {k: next(iter(vs)) for k, vs in vals.items() if len(vs) == 1}
+
+
+def _redirect_mapped_idx() -> set:
+    """The off-table freq idx positions the composer serves from a LIVE redirect
+    var (DMC_OFFTABLE_STATE), not the static window. A read landing there reads
+    the tracked var, and its static window value is used only to SEED that var at
+    init (round-25 gla/glb) — which must be the file-image LEFTOVER, never the
+    deep runtime value. So the event-driven correction must skip these idx (a
+    runtime override there breaks the seed — the Calimero regression)."""
+    from pipelines.dmc.composer_asm import DMC_OFFTABLE_STATE, ORIG_FHI
+    return {(addr + k - ORIG_FHI) & 0xFF
+            for addr, _label, n in DMC_OFFTABLE_STATE for k in range(n)}
+
+
+def _correct_offtable_eventdriven(m: DmcModel, sid_path: str) -> None:
+    """Override off-table records with the event-driven read-moment value where
+    it is STABLE per `(inst, off, note)`, EXCEPT positions the composer serves
+    from a live redirect var (those are live-tracked + seeded from the leftover,
+    so the static value must stay the file image — see `_redirect_mapped_idx`).
+    On the remaining (window-served) positions this is regression-safe: a FULL
+    member's reads already match, so the read-moment value equals the record → no
+    change; only currently-wrong reads move. A key that VARIES is not in `ev`."""
+    ev = _offtable_eventdriven(sid_path, _verify_window(sid_path))
+    if not ev:
+        return
+    mapped = _redirect_mapped_idx()
+    for iid, ins in m.instruments.items():
+        changed = False
+        new = []
+        for off, note, lo, hi in ins.offtable_freq:
+            rv = ev.get((iid, off & 0xFF, note & 0xFF))
+            if (off + note) & 0xFF not in mapped and rv is not None \
+                    and rv != (lo, hi):
+                new.append((off, note, rv[0], rv[1])); changed = True
+            else:
+                new.append((off, note, lo, hi))
+        if changed:
+            ins.offtable_freq = sorted(set(new))
