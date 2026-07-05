@@ -589,8 +589,31 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   members; a drift re-verify (fix-verdict step) is MANDATORY before censusing a
   residue, else you chase already-fixed members (I burned an hour on stale
   Abrakadabra/cpwmax before catching it via a fresh `find_first_divergence`).
+- **A MAPPED var that does NOT init-track needs SEEDING, not removal (2026-07-05,
+  commit 87bde4c, 98_Mix).** A redirect var is only correct if the composer's copy
+  tracks the orig FROM INIT. DMC's SPARSE glide state (gla/glb/glsp, $1744/$1747/
+  $1741) is written ONLY in the glide branches, so a voice that never glides leaves
+  it at the composer's ZERO-init while the orig keeps its uncleared file-image
+  LEFTOVER — a static-leftover off-table read (98_Mix inst-0 wave freq=255 -> idx
+  255 -> gla[2]) then read $00 vs the orig's $4C, the redirect shadowing the correct
+  static `offtable_freq` capture. REMOVING the vars from the map fixed the static
+  reader but REGRESSED a DYNAMIC reader (Alien_WOW/Hardcore, deep glide read) that
+  legitimately needs the live redirect — the amend Lens-1 signal that the blanket
+  map (commit 1ab8c46, "these track byte-identically") was the real defect, not a
+  reason to pick one behaviour. OVERARCHING FIX: keep the redirect, SEED gla/glb,x
+  at init from the captured off-table leftover (the ovr-window byte at the var's
+  position, `A-ORIG_FLO-192`), so they track from frame 0 — the static reader gets
+  the leftover, the dynamic reader overwrites the seed on its glide arm. glsp is NOT
+  seeded (a non-zero glsp spuriously triggers fx_glide, gated `lda glsp,x/beq`) —
+  a glsp static read stays residue. 0-regression by construction for the seeded
+  vars: the seed differs from zero-init only where the orig leftover is non-zero AND
+  read pre-glide (currently-partial members). GENERAL LESSON: before adding a var to
+  the redirect map, check it is either init-cleared on BOTH sides OR densely written
+  every note (so it converges) — a SPARSELY-written var must be seeded from the
+  leftover, else it regresses static-leftover readers.
 - **Consumers:** DMC v4 `_decode_instrument` (commit 3cae4fd). Redirect rows:
-  `ioff` (07c2125), filter-state $1718-$1723 (a026b74).
+  `ioff` (07c2125), filter-state $1718-$1723 (a026b74). Seeded (leftover-priming)
+  redirect vars: `gla`/`glb` (87bde4c).
 
 
 ### C14 — Command-per-row tracker effects (note + effect + param per row)

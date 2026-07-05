@@ -7,6 +7,31 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 25 (2026-07-05): SEED gla/glb from off-table leftover (98_Mix FULL, /amend Lens-1) — commit 87bde4c [ledger C11]
+Random partial 98_Mix (Stix): first div pos 7, V2 freq-LO orig $4C vs mine $00
+(same on V3). Inst-0 wave prog `freq=[255]` -> off-table idx 255 -> the composer's
+`gla[2]` via the DMC_OFFTABLE_STATE redirect. gla ($1744) is SPARSE glide state
+(written only in glide branches), so a non-gliding voice leaves it at the composer's
+ZERO-init while the orig keeps its uncleared file-image LEFTOVER $4C — the redirect
+returned $00, SHADOWING the correct static `offtable_freq` capture (ovr[63]=$4C).
+The HI byte ($81) was right (no state var covers its idx). THE /amend TRAP: removing
+gla/glb/glsp from the map fixed 98_Mix but REGRESSED Alien_WOW/Hardcore (deep glide
+read at 201698 — a DYNAMIC reader that legitimately needs the live redirect; caught
+by tools/regression.py DMC 13ok+1regr, the offtable_guards portfolio entry). Lens-1:
+the blanket map (commit 1ab8c46 "these track byte-identically") was the real defect.
+OVERARCHING FIX: keep the redirect, SEED gla/glb,x at init from the captured leftover
+(igla/iglb = ovr-window byte at `A-ORIG_FLO-192`; gla[x]->ovr[61+x], glb[x]->ovr[64+x])
+so they track from frame 0 — static reader gets the leftover, dynamic reader overwrites
+the seed on its glide arm. glsp NOT seeded (would spurious-trigger fx_glide, gated
+`lda glsp,x/beq`). 0-regr by construction for the seeded vars. VERIFIED: 98_Mix FULL,
+Hardcore held FULL, tools/regression.py ALL families 0 regressed (DMC 14ok+0regr),
+interim batch first 76 members 0 regr. GENERAL LESSON (ledger C11): a redirect var
+must be init-cleared on BOTH sides OR densely-written-every-note (converges) — a
+SPARSELY-written var needs leftover-SEEDING, else it regresses static-leftover readers.
+Full family-1 closeout batch (tmp/dmc_wide_gla_fix.jsonl) running for the authoritative
+recovery count + mass-write. NEXT: harvest recoveries (the freq-mine=$00 signature had
+~44 partial candidates, mostly deep = other first blockers).
+
 ## ✅ ROUND 24 (2026-07-05): the NOTE-START COLLAPSE — per-member 2-frame note-init deferral (+5 f1 = 4799/5401, 0 regr) — commit 1a632fe [ledger C23]
 USER-STEERED (the round-23 lesson re-applied): "a correct fix that regresses ⇒
 the regressed SIDs are FULL through a suboptimal/blanket model — reimplement to
