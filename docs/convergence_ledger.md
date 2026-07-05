@@ -47,6 +47,12 @@ recurrence is later found by lookup, not by memory):
 `/uready-review` is the periodic maintainer (cross-checks + promotes); per-solve
 recording is the everyday reflex (see the CLAUDE.md "before pipeline work" list).
 
+When a fix for a member's first divergence **regresses other members**, run the
+[`/amend`](../.claude/skills/amend/SKILL.md) skill — it operationalises this
+ledger + the CORE TENET + the principle + the trichotomy for exactly that
+situation (a regression usually indicts a suboptimal PAST fix; find the
+overarching fix that serves both; target the first divergence, not FULL).
+
 Entry schema: **Problem class** | **Canonical solution** | **Status** |
 **Boundary / when it applies** | **Consumers (seen)**.
 
@@ -1130,3 +1136,6 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   members + full `tools/regression.py`). Commit 1a632fe.
 - **Consumers:** DMC v4 `factory._detect_notestart_arm` → `notestart_arm` param
   → `composer_asm` voice_fx routing. Refines C18.
+- **Generalised:** this entry + round-23 otrk are the worked examples behind the
+  [`/amend`](../.claude/skills/amend/SKILL.md) skill (the methodology for "my
+  first-divergence fix regressed other members").
