@@ -7,6 +7,34 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 26 (2026-07-05): PER-VOICE TICK MULTIPLIER (voice_tick_repeat, Talk_a_Lot_2_tune_06 FULL) — commit 6e01c3e [ledger C24 NEW]
+Random partial Talk_a_Lot_2_tune_06 (Tichelmann_Kay): first div frame 1 $D410
+(V3 PW lo) orig $10 vs mine $00. ROOT CAUSE: the play body's THIRD voice JSR
+($109D) is redirected to a stub `$1FE0: JSR $10B0 / JSR $10B0 / RTS` — voice 2
+(V3) is ticked TWICE per play(). V3 runs its pulse program 2 steps/frame and
+re-emits its full freq/PW/ctrl block TWICE ($10 then $00) every frame; the
+rebuild ticked V3 ONCE, alternating PW $10/$00 per frame (a "double-speed voice"
+editor hack). NONE of the voices are $40 dual-effect (177D/E/F = $30/$00/$00) —
+the dual-effect path was a red herring; pc-trace showed both $D410 writes from
+$161C with X=$02, and the play-body JSRs came from $1FE0/$1FE3 not the canon
+$109D. FIX (two parts): (1) composer play-body voice-call sequence parametric
+over `voice_tick_repeat` triple (default '1,1,1' = byte-identical 3-JSR body;
+'1,1,2' adds one `jsr voice` for V2, no INX so X stays 2); (2) factory
+`_voice_tick_repeat_probe` = STATIC byte-probe (C19 method): follow play vector →
+locate `STX fclaim` (base+$720) → read the 3 per-voice JSR sites → count
+`JSR<voice>` in a clean `JSR*/RTS` stub. Non-clean stub → None (unchanged).
+REGRESSION-SAFE BY CONSTRUCTION: default byte-identical (old-vs-new MD5 proven on
+canonical members) + family-1 census found ZERO FULL members with a non-canon
+repeat — only 2 members family-wide are non-canon, BOTH partials: Talk_a_Lot
+(1,1,2, now FULL) + 3rd_Voice.sid (unrecognized stub `$1EF5: LDX#2/JSR/JSR/JMP
+$10A0` = voice-2-twice PLUS re-runs the $D416/$D417 filter tail — left as residue,
+the CANONICALIZE trigger if a 2nd multiplier variant appears). verify_dmc FULL
+105458/105458; full tools/regression.py green (0 regr all families). Family-1
+4801→**4802/5401**; truth row updated (tmp/dmc_wide_results.jsonl partial 385→384).
+DISTINCT from play_repeat (whole play(), all voices+filter tail) and C18
+play_phases (play VECTOR cycles whole CALLS; this multiplies ONE voice within one
+call). NEXT: the freq-drift residue tail (unchanged from round 24/25).
+
 ## ✅ ROUND 25 (2026-07-05): SEED gla/glb from off-table leftover (98_Mix FULL, /amend Lens-1) — commit 87bde4c [ledger C11]
 Random partial 98_Mix (Stix): first div pos 7, V2 freq-LO orig $4C vs mine $00
 (same on V3). Inst-0 wave prog `freq=[255]` -> off-table idx 255 -> the composer's
