@@ -7,7 +7,7 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
-## ✅ ROUND 24 (2026-07-05): the NOTE-START COLLAPSE — per-member 2-frame note-init deferral (+4 f1, 0 regr) — commit 1a632fe [ledger C23]
+## ✅ ROUND 24 (2026-07-05): the NOTE-START COLLAPSE — per-member 2-frame note-init deferral (+5 f1 = 4799/5401, 0 regr) — commit 1a632fe [ledger C23]
 USER-STEERED (the round-23 lesson re-applied): "a correct fix that regresses ⇒
 the regressed SIDs are FULL through a suboptimal/blanket model — reimplement to
 serve BOTH; focus on the FIRST DIVERGENCE, not FULL; think what the composer did
@@ -35,15 +35,23 @@ deferred. note-init ALWAYS carries AD/SR ⇒ "deferred" has NO false positive �
 regression-safe by construction. Sets `notestart_arm=1` (BOTH factory build
 paths — canon @~L1122 + dataflow @~L849, F-token schedules only); composer routes
 `voice_fx → wavestep` when set, `frame_entry` otherwise.
-**RESULT:** +4 FULL on the o=flo/m=SR pos-11/13/15 cluster (2_Speed /
-Voices_in_My_Head / Canned_with_canned_beer / Compotune). 0 regressions: all 56
-currently-FULL F-token members held + full tools/regression.py green. The other
-11 cluster members ADVANCE PAST the note-start first-divergence to a separate
-freq-drift blocker (per "focus on first divergence" — real progress, next round).
-**NOT YET DONE:** full family-1 re-verify to harvest deferring members OUTSIDE
-the 15-cluster (the +4 is a lower bound — any F-token partial with arm could
-flip) + mass-write. NEXT: (a) that closeout; (b) the freq-drift second blocker
-now exposed on Real_Hardcore/Hexzakk/Brews/Domination/... (V1/V2/V3 freq lo/hi).
+**RESULT (full family-1 closeout, 607 non-FULL re-verified):** +5 FULL →
+**family-1 4794→4799**. 4 carry notestart_arm=1 (2_Speed / Voices_in_My_Head /
+Canned_with_canned_beer / Compotune — the o=flo/m=SR cluster WAS the whole
+reachable deferring class); +1 non-arm (Ucieczka_z_Tropiku = a stale-partial a
+prior round already fixed, byte-identical build now verifies full). 0
+regressions: all 56 currently-FULL F-token members held + full
+tools/regression.py green; 5 artifacts mass-written (the 4795 byte-identical
+round-23 FULLs correctly skipped, stale code_hash). 5 gains merged into
+tmp/dmc_wide_results.jsonl.
+**13 notestart_arm=1 members total: 4 flipped, 9 have a DEEPER blocker** now
+exposed (the note-start first-divergence is RESOLVED for all 13 — "focus on
+first divergence" progress): mostly V1/V2/V3 FREQ-DRIFT (Real_Hardcore V1flo
+24→0, Hexzakk V3flo 49→96, Noising_Funk V1fhi 73→0, McBurger V1fhi 2→86,
+Viiskyt V3flo deep @110k) + F_A_K_E-Intro (sub1 pre-existing 2x) + Big_GLORZ
+(len) + Sound_Test (len 1/6, dispatch). NEXT: the freq-drift second blocker
+(the same class as the round-22 in_table/hi_table tail) — census these 9 +
+the broader freq-drift residue.
 
 ## ✅ ROUND 23 (2026-07-04): otrk EXACTNESS via the composer's ARRANGEMENT (transpose-cmd placement = musical content, §8) → +12 family-1 = 4795/5401 (88.8%) — commit 9c0c33e
 USER-DRIVEN (single random partial Plasmachaos → "the regressed SIDs may have a
