@@ -673,6 +673,14 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     # block), seeded so call #1 executes phases[0] = the observed sequence.
     play_phases = str(usf.params.fields.get('play_phases', '') or '')
     tokens = [t for t in play_phases.split('_') if t] if play_phases else []
+    # notestart_arm: the F phase enters the wave step PAST the note-init check,
+    # so a fetched note ARMS on the F call (wave-step only, envelope held at the
+    # $0F0F hard-restart leftover) and note-init fires on the NEXT P call — the
+    # DMC 2-frame note-start. Factory-observed per member (not schedule-derived:
+    # Words and F.A.K.E are both P_F123 but differ). Default 0 = note-init on the
+    # F call (orig $11F9 -> frame_entry), the immediate-note-start majority.
+    notestart_arm = str(usf.params.fields.get('notestart_arm', '0')) == '1'
+    voice_fx_target = 'wavestep' if notestart_arm else 'frame_entry'
     if (tokens and 'P' in tokens and len(tokens) > 1
             and all(t == 'P' or t == 'S'
                     or (t[0] in 'FR' and t[1:]
@@ -721,8 +729,11 @@ def compose_dmc_asm(usf: UsfFile) -> str:
             + routines
             + f'phasetab: .byt {tab}\n'
             f'phasectr: .byt {n_ph - 1}\n'
-            'voice_fx:                            ; $11F9 direct: note-init or\n'
-            '        jmp frame_entry\n\n')         # running effects, no tick
+            'voice_fx:                            ; F phase entry\n'
+            f'        jmp {voice_fx_target}\n\n')   # frame_entry ($11F9: note-init
+            # or effects) for the immediate note-start; wavestep ($1591: emit +
+            # advance wave, PAST note-init/gate/pulse) when notestart_arm, so
+            # pending survives to the next P call = the 2-frame arm
     elif play_repeat > 1:
         play_entry = 'playrepeat'
         play_wrapper = ('playrepeat:\n'

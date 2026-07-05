@@ -555,6 +555,47 @@ def _observe_play_phases_pctrace(sid_path: str, subtune: int, play_addr: int,
     return None
 
 
+def _detect_notestart_arm(sid_path: str, subtune: int, play_addr: int) -> bool:
+    """Does this member DEFER note-init by one play() call — the 2-frame
+    note-start ARM? Some CIA play-routine variants enter the F phase PAST the
+    $11F9 note-init check, so a note fetched on a P call only ARMS (wave-step
+    only, envelope held at the $0F0F hard-restart leftover) on the intervening
+    F call, then loads the real AD/SR on the NEXT P call. Others do note-init
+    on the F call directly (no arm). This is a per-member play-routine property
+    NOT derivable from the schedule string (Words and F.A.K.E-Intro are both
+    P_F123 but Words is immediate, F.A.K.E defers) or the multispeed factor
+    (both 1.82 calls/frame) — so observe it, C18-style.
+
+    Detected from the WRITE FOOTPRINT (reloc-invariant, no PCs): after a voice's
+    hard-restart call (ctrl=$08, AD=SR=$0F), the FIRST call that re-emits that
+    voice's freq/ctrl is the note-init iff it ALSO writes AD/SR; if it writes
+    freq/ctrl with NO AD/SR it is the ARM => deferred. note-init ALWAYS carries
+    AD/SR ($D405/$D406 at $1234/$1230), so a 'deferred' verdict is never a false
+    positive — the change is regression-safe by construction. Conservative
+    (returns False = immediate = current behaviour) when no HR is observed
+    (soft-start openings) or no emit follows."""
+    try:
+        from pipelines.hubbard.verify_cycle import pctrace_per_play_capture
+        plays = pctrace_per_play_capture(sid_path, subtune, play_addr,
+                                         n_frames=12)
+    except Exception:
+        return False
+    for v in range(3):
+        b = v * 7
+        flo, fhi, ctl, ad, sr = b, b + 1, b + 4, b + 5, b + 6
+        hr = next((i for i, fr in enumerate(plays)
+                   if dict(fr).get(ctl) == 0x08 and dict(fr).get(ad) == 0x0F
+                   and dict(fr).get(sr) == 0x0F), None)
+        if hr is None:
+            continue                                   # this voice soft-starts
+        for j in range(hr + 1, min(hr + 6, len(plays))):
+            regs = {r for r, _ in plays[j]}
+            if regs & {flo, fhi, ctl}:                 # first note-emit call
+                return not bool(regs & {ad, sr})       # arm iff no envelope
+        return False
+    return False
+
+
 def _detect_play_repeat(mem, play: int, base: int, load: int) -> int:
     """INTERNAL multispeed: a play vector that is N consecutive `JSR T` (same
     target T) terminated by RTS runs the engine N times per VBI (e.g. High_Speed
@@ -806,6 +847,13 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str):
                 ph = pf
         if (ph and '_' in ph and 'P' in ph.split('_')):
             cfg.extra_params['play_phases'] = ph
+            # Per-member: does the F phase DEFER note-init (the 2-frame arm)?
+            # Only F-token schedules have the ambiguity (the arm lives on an F
+            # call). Observe it — not derivable from the schedule/multispeed.
+            if any(t and t[0] == 'F' for t in ph.split('_')) and \
+                    _detect_notestart_arm(os.path.join(hvsc_root, sid_path),
+                                          s['start'] - 1, s['play']):
+                cfg.extra_params['notestart_arm'] = '1'
     # POST-INIT leftover capture: canon's leftover priming (d417 shadow,
     # idle notes/masks, dual phase) reads the file image because canon init
     # never touches those bytes. A re-assembled init MAY clear/rewrite them
@@ -1072,6 +1120,13 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     extra = {}
     if play_phases:
         extra['play_phases'] = play_phases
+        # Per-member: does the F phase DEFER note-init (the 2-frame arm)?
+        # Only F-token schedules carry the ambiguity; observe it (not derivable
+        # from the schedule string — Words/F.A.K.E are both P_F123 but differ).
+        if any(t and t[0] == 'F' for t in play_phases.split('_')) and \
+                _detect_notestart_arm(os.path.join(hvsc_root, sid_path),
+                                      s['start'] - 1, s['play']):
+            extra['notestart_arm'] = '1'
     # rest/switch/slide-tail dispatch ($1180): canon JMP $1322 (run
     # effects); a sub-build JMP $1591 (wavestep) — the modulators hold one
     # frame at each tie (the family-2 rest_effects='skip' behavior).
