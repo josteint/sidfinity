@@ -88,6 +88,22 @@ DMC_OFFTABLE_STATE = [
     (0x1741, 'glsp', 3),     # glide speed nibble
     (0x1744, 'gla', 3),      # glide start note
     (0x1747, 'glb', 3),      # glide target note
+    # gla/glb/glsp are the SPARSE glide state — written ONLY in the glide
+    # branches (ev_slide / the evflags&2 note branch), so a voice that never
+    # glides leaves them at their INIT value. The orig keeps the file-image
+    # LEFTOVER there (never cleared by init); the composer's init would zero
+    # them, so an off-table read landing here (e.g. 98_Mix inst-0 wave freq=255
+    # -> idx 255 -> gla[2]) read $00 where the orig reads the leftover $4C
+    # (redirect shadowed the correct static capture — the C11 "redirect regresses
+    # a FULL matched via the static byte" pattern, commit 1ab8c46's sample lacked
+    # a static-leftover reader). FIX: the init now SEEDS gla/glb,x from the
+    # captured off-table values (igla/iglb = the ovr-window bytes at these vars'
+    # positions), so they track the orig from frame 0. glsp is NOT seeded (a
+    # non-zero glsp would spuriously trigger fx_glide, gated `lda glsp,x / beq`);
+    # it stays mapped for dynamic readers but a glsp static-leftover read remains
+    # residue. A DYNAMIC reader (Alien_WOW/Hardcore) is unaffected — its glide
+    # arm overwrites the seed before the read; a STATIC-leftover reader (98_Mix)
+    # now reads the leftover.
     (0x174A, 'pend', 3),     # new-note pending flag
     (0x174D, 'ioff', 3),     # instrument record offset (orig inst# * 11, the
                              # exact 6502 carry-chain) — set at each voice's
@@ -794,11 +810,27 @@ def compose_dmc_asm(usf: UsfFile) -> str:
                 if not (6 <= pl <= 16):
                     ovr[pl] = lo
 
+    # Seed the SPARSE glide vars gla/glb from their captured off-table values so
+    # they track the orig from init (see DMC_OFFTABLE_STATE). A state var at
+    # canonical addr A lands at window position A-ORIG_FLO-192 (LO and HI reads
+    # coincide since ORIG_FHI=ORIG_FLO+96): gla[x]->pos 61+x, glb[x]->pos 64+x.
+    # A DYNAMIC glide reader (Hardcore) overwrites the seed on its glide arm
+    # before the read; a STATIC-leftover reader (98_Mix) now reads the leftover.
+    # glsp is deliberately NOT seeded — a non-zero glsp would spuriously trigger
+    # fx_glide (gated `lda glsp,x / beq`) at frame 0. Empty capture -> all-zero
+    # seed == the old zero-init, so members that don't read here are unchanged.
+    _glap = 0x1744 - ORIG_FLO - 192
+    _glbp = 0x1747 - ORIG_FLO - 192
+    igla = [ovr[_glap + x] for x in range(3)]
+    iglb = [ovr[_glbp + x] for x in range(3)]
+
     data = []
     data.append('inote:\n' + _byt(idle))
     data.append('imask:\n' + _byt(imask))
     data.append('iguard:\n' + _byt(iguard))
     data.append('idurl:\n' + _byt(idurl))
+    data.append('igla:\n' + _byt(igla))
+    data.append('iglb:\n' + _byt(iglb))
     data.append('freqlo:\n' + _byt(flo))
     data.append('freqhi:\n' + _byt(fhi))
     # off-table overrun window: the original reads past its freq tables
@@ -977,6 +1009,10 @@ ini_v:
         sta guard,x
         lda idurl,x                  ; duration-reload leftover priming
         sta durrel,x                 ; (orig init never writes $173E)
+        lda igla,x                   ; glide-start leftover priming (off-table
+        sta gla,x                    ; read tracks orig from init; glsp=0 so
+        lda iglb,x                   ; fx_glide stays gated off until an arm)
+        sta glb,x
         inx
         cpx #$03
         bne ini_v
