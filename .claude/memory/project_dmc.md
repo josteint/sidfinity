@@ -7,6 +7,39 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 27 (2026-07-06): EVENT-DRIVEN off-table capture (stable-when-read dynamic reads) +24 = 4827/5401 [ledger C11] — commit 8eb86a4
+Random partial I_Hate_Techkkno (The_Syndrom, CIA cia_period=4913). First div
+(per-IRQ, NOT the flat pos-0 Trap-C artifact) at 367802: V1 noise note freqhi
+orig $08 vs mine $00. Off-table wave-step (inst $12, y=$82) reads $16A7+$82=
+**$1729 = SECTOR POSITION** (per-voice prefix-command counter, cycles 0-9 globally).
+**THE /amend SKILL (user-prompted) OVERTURNED my "positional, defer to Move-1"
+verdict.** I'd accepted the round-22 blanket ("sectorpos unmappable") — but it
+PREDATES round-23's arrangement technique. Lens-1: the "capture file-image /
+globally-constant value" model is the suboptimal past fix. Step-3 MEASURE: over
+the full song, $1729 is **STABLE AT THE READ** ($08 both occurrences of this note)
+even though it varies globally — a static one-record patch (hi $00->$08) makes it
+fully FULL. So NOT positional — a capture-VALUE bug.
+ROOT CAUSE: `_assign_offtable_freq` reads the file image; `_correct_offtable_postinit`
+only fixes bytes CONSTANT over a 6s TIME-sample → omits $1729 (varies) → keeps
+$00. FIX = round-22's deferred EVENT-DRIVEN capture (`_offtable_eventdriven`):
+memwatch-on-write D416 (per-play(), CIA-safe) snapshots all 3 voices'
+(y=$1783,curnote=$1012,inst=$1015,base=$172F/$1732); per (inst,off,note) key use
+the read-moment base where STABLE across the verify window. Gated on post-init
+leaving a varying byte.
+⚠️ **CALIMERO REGRESSION = amend Lens-1 RECURSIVELY:** the fix collided with a
+PAST fix (round-25 igla/iglb seeding). Reads on REDIRECT-MAPPED idx (gla/glb/ioff/
+dur — DMC_OFFTABLE_STATE) are live-tracked + SEEDED from the file-image leftover;
+overriding their static value broke the seed (FULL->partial @6743). DISCRIMINATOR:
+`_redirect_mapped_idx` (from composer_asm) — event-driven applies ONLY to
+WINDOW-served (non-mapped) idx. $1729 non-mapped ✓; dur/glb/ioff mapped ✗.
+REGRESSION-SAFE on the window-served set (FULL read matches → runtime==file-image
+→ no change). CENSUS 383 partials + 300 FULL: **+24 FULL, 0 regr** (Calimero
+restored after the exclusion); full tools/regression.py green. Family-1
+4803→**4827/5401 (89.4%)**; jsonl merged (partial 383→359). LESSON: an off-table
+capture-value fix must respect window-served vs redirect-served idx. NEXT: the
+remaining freq tail — genuinely-varying reads (per-key non-stable, e.g. otrk $1726
+{$14,$15}) stay residue (round-23 arrangement / Move-1).
+
 ## ✅ ROUND 26b (2026-07-05): UNIFY to play_unit_repeat + 3rd_Voice FULL (4803/5401) [ledger C24 recurring]
 Extended round-26 to the 2nd (and, proven, LAST) family-1 member with this feature:
 3rd_Voice.sid (Tichelmann). Its stub `$1EF5: LDX #2 / JSR / JSR / JMP $10A0` doubles

@@ -612,9 +612,41 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   the redirect map, check it is either init-cleared on BOTH sides OR densely written
   every note (so it converges) — a SPARSELY-written var must be seeded from the
   leftover, else it regresses static-leftover readers.
+- **EVENT-DRIVEN capture recovers a STABLE-when-read dynamic byte (2026-07-06,
+  commit 8eb86a4, +24 f1: 4803->4827).** Landed round-22's deferred "event-driven
+  capture" — reached via the /amend skill overturning the round-22 "sectorpos
+  $1729 is positional, defer to Move-1" BLANKET (which predates round-23's
+  arrangement technique). An off-table freq read can land on a byte that varies
+  GLOBALLY yet is STABLE at the moment a given note reads it: I_Hate_Techkkno's
+  V1 noise note (inst $12, off-note y=$82) reads $16A7+$82=$1729 = SECTOR POSITION
+  (cycles 0-9 over the song) and it's $08 EVERY time this note reads it. The old
+  capture is wrong twice: `_assign_offtable_freq` reads the file image, and
+  `_correct_offtable_postinit` only fixes bytes CONSTANT over a 6s TIME-sample, so
+  it omits $1729 (globally-varying) and keeps the wrong file byte. FIX
+  (`_offtable_eventdriven`): snapshot all 3 voices' (y=$1783, curnote=$1012,
+  inst=$1015, base=$172F/$1732) at every $D416 write (once per play(), CIA-safe),
+  and per (inst,off,note) key use the read-moment base where STABLE across the
+  whole verify window. Gate: only when post-init left a globally-varying byte
+  (skip members whose off-table reads are all init-constant). DIAGNOSTIC DELTA vs
+  the earlier a/b/c triage: this is the (c)-looking case (byte varies) that is
+  actually fixable because it's PER-KEY stable — measure stability AT THE READ,
+  keyed by (inst,off,note), not over a time window.
+  ⚠️ **CALIMERO REGRESSION = amend Lens-1 RECURSIVELY:** the event-driven fix
+  collided with a PAST fix (round-25 igla/iglb seeding). Reads on REDIRECT-MAPPED
+  idx (gla/glb/ioff/dur — the DMC_OFFTABLE_STATE positions) are served by the LIVE
+  var and SEEDED from the file-image leftover; overriding their static window
+  value with the deep runtime value broke the seed (FULL->partial). DISCRIMINATOR:
+  `_redirect_mapped_idx()` (derived from composer_asm DMC_OFFTABLE_STATE + ORIG_FHI)
+  — event-driven applies ONLY to WINDOW-served (non-mapped) idx; $1729 sectorpos is
+  non-mapped ✓, dur/glb/ioff are mapped ✗. Regression-safe on the window-served
+  set: a FULL member's read already matches → runtime value == file-image → no
+  change. GENERAL LESSON: an off-table capture-value fix must respect which idx the
+  composer serves from the STATIC window vs a LIVE redirect var — only correct the
+  window-served ones; the redirect-served ones' static value is a leftover SEED.
 - **Consumers:** DMC v4 `_decode_instrument` (commit 3cae4fd). Redirect rows:
   `ioff` (07c2125), filter-state $1718-$1723 (a026b74). Seeded (leftover-priming)
-  redirect vars: `gla`/`glb` (87bde4c).
+  redirect vars: `gla`/`glb` (87bde4c). Event-driven capture:
+  `_offtable_eventdriven` + `_redirect_mapped_idx` (8eb86a4).
 
 
 ### C14 — Command-per-row tracker effects (note + effect + param per row)
