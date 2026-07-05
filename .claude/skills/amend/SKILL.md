@@ -1,6 +1,6 @@
 ---
 name: amend
-description: Handle the situation where fixing a member's FIRST DIVERGENCE regresses other members. The core reframes — (1) a regression may indict a SUBOPTIMAL PAST fix, not your new one; find the overarching, more principle-aligned fix that serves BOTH; (2) reframe around what the SONG'S COMPOSER intended in the editor/original code (precedent: the kept transpose command); (3) target the first divergence, NOT making the SID FULL. Read the guiding docs as adversarial checks first. Use when a fix causes regressions, or PROACTIVELY before landing any shared-composer/extract change that could.
+description: Handle the situation where fixing a member's FIRST DIVERGENCE regresses other members. Lenses to EXPLORE (options, not presumed causes) — (1) maybe a suboptimal PAST fix (a blanket model) is the real defect, fixable by an overarching change that serves both — or maybe your new fix is just wrong; (2) maybe the divergence is an editorial artifact the composer intended, worth keeping as musical content (precedent: the kept transpose command) — or maybe not; plus the firm rule (3) always score by the first divergence, not by making the SID FULL. Read the guiding docs as adversarial checks first. Use when a fix causes regressions, or PROACTIVELY before landing any shared-composer/extract change that could.
 argument-hint: "[member.sid or engine + the first-divergence you're fixing]"
 user-invocable: true
 allowed-tools: Bash Read Write Edit Glob Grep Agent
@@ -17,11 +17,22 @@ more-elegant fix. It has been proven twice on DMC family-1: round-23 (otrk
 arrangement, commits `9c0c33e`/`9e8f5ea`) and round-24 (note-start arm, ledger
 **C23**, commit `1a632fe`).
 
-**The one-line thesis:** a correct fix that regresses other members is almost
-never wrong — it has exposed that those members were passing through a
-**suboptimal / blanket earlier model**. Your job is not to pick a side; it is to
-find the **overarching** fix, more in line with the guiding documents, that
-serves the new member *and* the regressed ones. Both get better.
+**The one-line thesis:** a regression is a signal to *investigate the model*,
+not proof that your new fix is wrong. It might be — but there are several
+possibilities to explore, and picking one side prematurely is the mistake. The
+possibilities, roughly:
+- your new fix is genuinely wrong (the ordinary case — check it honestly first);
+- a **past** fix was a suboptimal / blanket model that those members passed
+  through, and an **overarching** fix serves both (the case `amend` exists to
+  make sure you *consider* — it's easy to miss because it doesn't feel like your
+  bug);
+- the two classes genuinely differ and the model is missing a **discriminator**
+  (Step 3);
+- the "regression" isn't real — a stale-FULL palimpsest or a flake (C20, Step 3).
+
+`amend` is the discipline for **exploring these before committing to one**, and
+for reaching for the overarching-fix option when the easy move is to just exclude
+the regressors.
 
 ---
 
@@ -73,17 +84,24 @@ Never design from a prior task description or a py65 trace — both go stale.
 
 ---
 
-## STEP 2 — the three reframes (the heart of `amend`)
+## STEP 2 — three lenses
 
-### Reframe 1 — the regression may indict a PAST fix, not your new one
-When your correct fix regresses currently-FULL members, ask: **how were those
-members FULL before?** Usually through a *blanket* model — one behaviour applied
-to every member — that happened to be right for them and wrong for your target.
-That blanket model is the real defect; your fix just exposed it.
+**Lenses 1 and 2 are options to *explore*, not conclusions to assume** — try
+them alongside the ordinary check that your new fix is simply wrong; neither is
+the presumed answer, and the value is in *considering* them, because the easy
+path (exclude the regressors, or accept a conflict) skips them. **Lens 3 is a
+scoring rule that always applies.**
 
-Do NOT: pick one behaviour, or bolt on a heuristic to exclude the regressors.
-DO: find the **overarching** fix that makes the model *complete* so it serves
-both. The two worked examples:
+### Lens 1 — could a PAST fix be the culprit, not your new one?
+This is an option to *explore*, not a default diagnosis. Ask: **how were those
+members FULL before?** One possibility worth checking: a *blanket* model — one
+behaviour applied to every member — that happened to be right for them and wrong
+for your target. **If** that's what you find, the blanket model is the real
+defect and your fix merely exposed it; then don't pick one behaviour or bolt on
+a heuristic to exclude the regressors — look for the **overarching** fix that
+makes the model *complete* so it serves both. (Equally, you may find your new
+fix was wrong, or the classes genuinely differ — Step 3. Explore, then decide.)
+Two times this option paid off:
 
 - **Round-23 otrk:** the `otrk_legacy` positional *approximation* (round-9,
   `val=i+1`) made a cluster FULL; the exact fix regressed them. Root: the
@@ -95,12 +113,14 @@ both. The two worked examples:
   class. The blanket model was the defect. Overarching fix: **observe** each
   member's actual F behaviour → both classes correct. (ledger C23.)
 
-### Reframe 2 — what did the SONG'S COMPOSER intend, in the editor?
-Stop asking "how do I reproduce these bytes" and ask **"what did the musician do
-at the tracker/editor, and what write stream did that produce?"** The audible
-character (a redundant command, a note-start arm, a hard-restart quirk) is often
-a *deliberate or incidental editorial artifact* that belongs in the reproduction
-as musical content — not a bug to fight.
+### Lens 2 — what did the SONG'S COMPOSER intend, in the editor?
+Another lens to try (again, an option, not the answer): alongside "how do I
+reproduce these bytes", also ask **"what did the musician do at the
+tracker/editor, and what write stream did that produce?"** The audible character
+(a redundant command, a note-start arm, a hard-restart quirk) *can be* a
+deliberate or incidental editorial artifact that belongs in the reproduction as
+musical content rather than a bug to fight — so it's worth checking before you
+try to derive it away. Sometimes it is; sometimes it isn't.
 
 Precedent (git `9c0c33e`, round-23): the composer left **redundant transpose
 commands** (incl. transpose=0 re-assertions) in the orderlist; each one advanced
@@ -111,8 +131,9 @@ in the original is frequently the composer's intent; capture it, don't erase it.
 (Representation guardrail: it goes in USF as **named musical content**, never as
 opaque engine bytes or a per-engine emitter — §7/§8.)
 
-### Reframe 3 — target the FIRST DIVERGENCE, not FULL
-FULL is the wrong scoreboard for a single fix. Score by: **is this first
+### Lens 3 — target the FIRST DIVERGENCE, not FULL  (a scoring rule, not an option)
+Unlike Lenses 1–2, this one always applies. FULL is the wrong scoreboard for a
+single fix. Score by: **is this first
 divergence correctly resolved, with 0 regressions?** Two legitimate outcomes:
 1. the member goes FULL, or
 2. the first divergence moves **deeper** — a *different*, later blocker is now
@@ -178,9 +199,12 @@ class apart from the regressed class? Get it right mechanically, not by hope.
 ```
 localise first divergence (ground truth: writelog per-IRQ + pc-trace + disasm)
   → read CORE TENET / principle / trichotomy / ledger as adversarial checks
-  → hypothesise fix; if it regresses:
-      · how were the regressors FULL before?  (a blanket/suboptimal past model?)
-      · what did the composer DO in the editor?  (keep the intent, don't fight it)
+  → hypothesise fix; if it regresses, EXPLORE (don't assume a cause):
+      · is the new fix simply wrong?  (the ordinary case — check first)
+      · lens 1: how were the regressors FULL before? — could a blanket/suboptimal
+                PAST model be the real defect, fixable by an overarching change?
+      · lens 2: what did the composer do in the editor? — is this an editorial
+                artifact worth keeping as musical content? (sometimes yes, sometimes no)
       · measure the discriminator on fixed-set AND regressed-set
           → same value, opposite behaviour ⇒ per-member OBSERVABLE, not a rule
   → implement the overarching fix; make the "changed" verdict have no false positive

@@ -50,8 +50,10 @@ recording is the everyday reflex (see the CLAUDE.md "before pipeline work" list)
 When a fix for a member's first divergence **regresses other members**, run the
 [`/amend`](../.claude/skills/amend/SKILL.md) skill — it operationalises this
 ledger + the CORE TENET + the principle + the trichotomy for exactly that
-situation (a regression usually indicts a suboptimal PAST fix; find the
-overarching fix that serves both; target the first divergence, not FULL).
+situation (options to EXPLORE, not presumed causes: maybe a suboptimal PAST fix
+is the real defect and an overarching fix serves both, maybe the divergence is
+editorial intent to keep — or maybe the new fix is just wrong; always score by
+the first divergence, not FULL).
 
 Entry schema: **Problem class** | **Canonical solution** | **Status** |
 **Boundary / when it applies** | **Consumers (seen)**.
