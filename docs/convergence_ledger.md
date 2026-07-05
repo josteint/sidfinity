@@ -84,6 +84,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | hand-patched player WEDGE inside the canon body · SMC opcode toggle · 1-byte opcode patch · JMP over canonical loads · runtime state ≠ static file byte · STATIC opcode probe, never a bounded stream scan · census carriers both sides · reproduce semantics behind a factory-probed param | C19 | canonicalized (2×) |
 | stale-FULL palimpsest · recorded 'full' the current code can't reproduce · hides members from residue censuses · verify the STORED build first, then USF-diff/param-bisect to attribute · never mass-write with code that didn't produce the verdict | C20 | canonicalized |
 | AMBIGUOUS round-trip flag encoding · two distinct engine ops render to OVERLAPPING USF flag sets · the decoder's branch test uses a SUBSET of the discriminator → misroutes one op onto the other's path · matches for most content (paths coincide when inputs coincide), diverges on the distinguishing case | C22 | canonicalized (2×) |
+| a play-phase/schedule TOKEN hides a per-member behavioural ambiguity · same P_F123 token = note-init-on-F vs deferred 2-frame arm · fixing one class REGRESSES same-token FULLs · NOT derivable from the token/multispeed → OBSERVE the distinguishing write-footprint per member · regression-safe when the "changed" verdict has no false positive | C23 | logged |
 
 ---
 
@@ -1089,3 +1090,43 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   $C0-speed-0 row could only have matched if no glide was armed there
   (else its old always-ramping build couldn't have been FULL), and the
   cancel is then a no-op.
+
+### C23 — A play-phase TOKEN hides a per-member behavioural ambiguity (2-frame note-start)
+- **The problem class:** a C18 play-phase schedule token (`P_F123`) is treated
+  as fully specifying what each call does, but the SAME token maps to TWO
+  distinct play-routine behaviours across members. DMC F phase: some members'
+  play-routine enters the F call at the note-init check (`$11F9` → note-init on
+  the F call = IMMEDIATE note-start), others enter PAST it (`$1591` wave-step),
+  so a note fetched on a P call only ARMS on the F call (wave-step only, ADSR
+  held at the `$0F0F` hard-restart leftover) and note-inits on the NEXT P call
+  = a 2-FRAME note-start. The blanket model (F → frame_entry) is right for the
+  majority and wrong for the deferring class.
+- **TELL / how it presents:** you fix the minority class and it REGRESSES
+  currently-FULL members carrying the SAME token (Words and F.A.K.E-Intro are
+  both `P_F123`, opposite behaviour). The regression is the signal that the
+  token is INCOMPLETE, NOT that the fix is wrong (the round-23 lesson: a correct
+  fix that regresses ⇒ the regressed members are FULL through a blanket/
+  suboptimal model; reimplement to serve BOTH). Sibling of C22 (an encoding
+  that renders two ops identically) — here the "encoding" is the phase token.
+- **Canonical fix:** do NOT pick one behaviour or add a schedule-string
+  heuristic — the distinction is not derivable from the token OR the editor
+  setting (Words/F.A.K.E are both `P_F123` AND both 1.82 calls/frame). OBSERVE
+  the distinguishing behaviour per member (C18: observe, don't parse) from the
+  WRITE FOOTPRINT (reloc-invariant, no PCs): the opening note-start's first
+  freq/ctrl re-emit after a voice's HR call (ctrl=`$08`, AD=SR=`$0F`) is the
+  note-init IFF it also writes AD/SR; freq/ctrl with NO AD/SR = the arm ⇒
+  deferred. Emit a per-member param; the one composer routes on it (F →
+  wavestep when deferred, frame_entry otherwise). **Regression-safe by
+  construction:** note-init ALWAYS carries AD/SR, so the "deferred" verdict has
+  no false positive — the immediate majority is provably untouched.
+- **METHODOLOGY:** measure the candidate discriminator (multispeed factor,
+  schedule string) against BOTH the fixed set and the regressed set BEFORE
+  designing the fix — if they overlap, it's a per-member observable, not a
+  derived rule. Focus the verdict on FIRST-DIVERGENCE resolution, not FULL: the
+  fix resolved the note-start for all 15 cluster members (0 regr) even though
+  only 4 reached FULL (the other 11 advanced to a separate freq-drift blocker).
+- **Status:** logged (DMC family-1, 2026-07-05: +4 FULL [2_Speed / Voices /
+  Canned / Compotune], 0 regressions across all 56 currently-FULL F-token
+  members + full `tools/regression.py`). Commit 1a632fe.
+- **Consumers:** DMC v4 `factory._detect_notestart_arm` → `notestart_arm` param
+  → `composer_asm` voice_fx routing. Refines C18.

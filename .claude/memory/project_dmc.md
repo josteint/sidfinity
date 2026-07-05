@@ -7,6 +7,44 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 24 (2026-07-05): the NOTE-START COLLAPSE — per-member 2-frame note-init deferral (+4 f1, 0 regr) — commit 1a632fe [ledger C23]
+USER-STEERED (the round-23 lesson re-applied): "a correct fix that regresses ⇒
+the regressed SIDs are FULL through a suboptimal/blanket model — reimplement to
+serve BOTH; focus on the FIRST DIVERGENCE, not FULL; think what the composer did
+in the editor." All three steers were load-bearing.
+**THE BUG:** C18's F phase was modelled with ONE behaviour — `voice_fx →
+frame_entry` ($11F9: note-init on the F call). Correct for the IMMEDIATE
+note-start majority, WRONG for a CIA class whose play-routine enters the F call
+PAST the note-init check ($1591 wave-step): a note fetched on a P call only ARMS
+on the F call (wave-step only, ADSR HELD at the $0F0F hard-restart leftover) and
+note-inits on the NEXT P call = the DMC 2-FRAME note-start (orig: HR $17FB → arm
+$1591 → note-init $1201; confirmed via pc-trace + disasm). Composer collapsed it
+(real AD/SR one play()-call early), diverging at pos 11 (o=V1flo, m=V1SR) at
+every note-start. ALL 15 cluster members CIA; all F.A.K.E FULLs vblank.
+**THE TRAP (why naive fix is net-NEGATIVE):** `voice_fx → wavestep` for ALL F
+regressed ~20 currently-FULL members (Fuck_Off/Words/Life_Is_Death...). Words is
+P_F123 (SAME token as F.A.K.E) yet needs the OLD behaviour. Not derivable from
+the schedule string OR the multispeed factor (Words & F.A.K.E both P_F123 AND
+both 1.82 calls/frame). A genuine per-member play-routine ambiguity (C22 sibling:
+the token is the ambiguous "encoding").
+**THE FIX (observe, don't parse — C18/C23):** `factory._detect_notestart_arm`
+reads the OPENING write footprint (reloc-invariant, no PCs): after a voice's HR
+call (ctrl=$08, AD=SR=$0F), the first call re-emitting its freq/ctrl is the
+note-init IFF it ALSO writes AD/SR; freq/ctrl with NO AD/SR = the ARM ⇒
+deferred. note-init ALWAYS carries AD/SR ⇒ "deferred" has NO false positive ⇒
+regression-safe by construction. Sets `notestart_arm=1` (BOTH factory build
+paths — canon @~L1122 + dataflow @~L849, F-token schedules only); composer routes
+`voice_fx → wavestep` when set, `frame_entry` otherwise.
+**RESULT:** +4 FULL on the o=flo/m=SR pos-11/13/15 cluster (2_Speed /
+Voices_in_My_Head / Canned_with_canned_beer / Compotune). 0 regressions: all 56
+currently-FULL F-token members held + full tools/regression.py green. The other
+11 cluster members ADVANCE PAST the note-start first-divergence to a separate
+freq-drift blocker (per "focus on first divergence" — real progress, next round).
+**NOT YET DONE:** full family-1 re-verify to harvest deferring members OUTSIDE
+the 15-cluster (the +4 is a lower bound — any F-token partial with arm could
+flip) + mass-write. NEXT: (a) that closeout; (b) the freq-drift second blocker
+now exposed on Real_Hardcore/Hexzakk/Brews/Domination/... (V1/V2/V3 freq lo/hi).
+
 ## ✅ ROUND 23 (2026-07-04): otrk EXACTNESS via the composer's ARRANGEMENT (transpose-cmd placement = musical content, §8) → +12 family-1 = 4795/5401 (88.8%) — commit 9c0c33e
 USER-DRIVEN (single random partial Plasmachaos → "the regressed SIDs may have a
 SUBOPTIMAL implementation that blocks us; explore more"). The blocker was
