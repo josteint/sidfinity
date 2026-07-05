@@ -24,13 +24,17 @@ OVERARCHING FIX: keep the redirect, SEED gla/glb,x at init from the captured lef
 so they track from frame 0 — static reader gets the leftover, dynamic reader overwrites
 the seed on its glide arm. glsp NOT seeded (would spurious-trigger fx_glide, gated
 `lda glsp,x/beq`). 0-regr by construction for the seeded vars. VERIFIED: 98_Mix FULL,
-Hardcore held FULL, tools/regression.py ALL families 0 regressed (DMC 14ok+0regr),
-interim batch first 76 members 0 regr. GENERAL LESSON (ledger C11): a redirect var
-must be init-cleared on BOTH sides OR densely-written-every-note (converges) — a
-SPARSELY-written var needs leftover-SEEDING, else it regresses static-leftover readers.
-Full family-1 closeout batch (tmp/dmc_wide_gla_fix.jsonl) running for the authoritative
-recovery count + mass-write. NEXT: harvest recoveries (the freq-mine=$00 signature had
-~44 partial candidates, mostly deep = other first blockers).
+Hardcore held FULL, tools/regression.py ALL families 0 regressed (DMC 14ok+0regr).
+GENERAL LESSON (ledger C11): a redirect var must be init-cleared on BOTH sides OR
+densely-written-every-note (converges) — a SPARSELY-written var needs leftover-SEEDING,
+else it regresses static-leftover readers. CLOSEOUT (targeted, 886 = 386 partials + 500
+FULL sample): **+1 FULL (98_Mix only), 0 regressions** → family-1 4800→**4801/5401**.
+As the census predicted, gla was the FIRST divergence only for 98_Mix; the other ~44
+freq-mine=$00 partial candidates are DEEP (other first blockers) — /amend Lens-3 clean.
+98_Mix artifact written; truth merged (tmp/dmc_wide_results.jsonl). The layout shift
+(6 igla/iglb bytes) makes all FULL artifacts byte-shifted-but-write-stream-EQUIVALENT
+(0 regr proven) — not rewritten (artifacts aren't the coverage source; a full batch
+refreshes on demand). NEXT: the freq-drift residue (in_table/off-table deep tail).
 
 ## ✅ ROUND 24 (2026-07-05): the NOTE-START COLLAPSE — per-member 2-frame note-init deferral (+5 f1 = 4799/5401, 0 regr) — commit 1a632fe [ledger C23]
 USER-STEERED (the round-23 lesson re-applied): "a correct fix that regresses ⇒
