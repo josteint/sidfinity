@@ -770,25 +770,32 @@ def compose_dmc_asm(usf: UsfFile) -> str:
             '        sta $d418                    ; play-vector wrapper\n'
             f'        jmp {play_entry}\n\n') + play_wrapper
         play_entry = 'playd418'
-    # Per-voice tick repeat (default '1,1,1'): a value > 1 means the play body
-    # runs that voice's tick/effect routine N times per play() — the DMC
-    # "double-speed voice" editor hack, where the play body's per-voice JSR is
-    # redirected to a stub that calls the voice routine N times (voice runs its
-    # wave/pulse program N steps per frame and re-emits its full freq/PW/ctrl
-    # block N times). Factory-detected from the play-body JSR sites; the (1,1,1)
-    # default emits the canonical three-JSR body byte-identically.
-    vtr_s = str(usf.params.fields.get('voice_tick_repeat', '') or '1,1,1')
+    # Play-body unit repeat (default '1,1,1,1'): the play body executes four
+    # units per frame — voice 0, voice 1, voice 2, then the global filter tail
+    # ($D416/$D417) — and this 4-int list gives how many times each unit runs.
+    # A value > 1 is the DMC editor hack where a play-body JSR is redirected to
+    # a stub that calls a unit N times: a "double-speed voice" (that voice's
+    # wave/pulse program advances N steps/frame and its full block is emitted N
+    # times), or — via a stub that JMPs back into the filter tail rather than
+    # RTS'ing — the filter tail re-runs ($D416/$D417 emitted twice). Factory-
+    # detected; the '1,1,1,1' default emits the canonical single-pass body
+    # byte-identically. (Distinct from play_repeat, which repeats the WHOLE
+    # play() — all four units together.)
+    pur_s = str(usf.params.fields.get('play_unit_repeat', '') or '1,1,1,1')
     try:
-        voice_tick_repeat = [max(1, int(x)) for x in vtr_s.split(',')]
+        play_unit_repeat = [max(1, int(x)) for x in pur_s.split(',')]
     except ValueError:
-        voice_tick_repeat = [1, 1, 1]
-    voice_tick_repeat = (voice_tick_repeat + [1, 1, 1])[:3]
+        play_unit_repeat = [1, 1, 1, 1]
+    play_unit_repeat = (play_unit_repeat + [1, 1, 1, 1])[:4]
     _vc = ['        ldx #$00', '        stx fclaim']
     for _vi in range(3):
         if _vi:
             _vc.append('        inx')
-        _vc += ['        jsr voice'] * voice_tick_repeat[_vi]
+        _vc += ['        jsr voice'] * play_unit_repeat[_vi]
     voice_calls = '\n'.join(_vc) + '\n'
+    filter_tail = ('        lda fcut\n        sta $d416\n'
+                   '        lda shadow17\n        ora fres\n'
+                   '        sta $d417\n') * play_unit_repeat[3]
     idle = [0, 0, 0]
     imask = [0, 0, 0]
     iguard = [0, 0, 0]
@@ -1052,12 +1059,7 @@ ini_sid:
         lda spd
         sta spdctr
 pf_notick:
-{voice_calls}        lda fcut
-        sta $d416
-        lda shadow17
-        ora fres
-        sta $d417
-        rts
+{voice_calls}{filter_tail}        rts
 
 ;; ===================== per-voice tick/fetch =====================
 voice:

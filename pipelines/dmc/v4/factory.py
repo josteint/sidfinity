@@ -743,18 +743,22 @@ def _d418_play_wrapper(path: str, base: int):
     return None
 
 
-def _voice_tick_repeat_probe(path: str, base: int):
-    """Detect the DMC 'double-speed voice' hack: a play-body per-voice JSR
-    redirected to a stub that calls the voice routine N times, so that voice
-    ticks its effect chain (wave/pulse step + full block re-emit) N times per
-    play(). Returns a '1,1,N'-style string when any voice repeats > 1, else
-    None (canonical single-tick — no param, byte-identical build).
+def _play_unit_repeat_probe(path: str, base: int):
+    """Detect the DMC play-body 'double-speed unit' hack. The play body runs
+    four units per frame — voice 0, voice 1, voice 2, then the global filter
+    tail — and a hand-patch can redirect a per-voice JSR to a stub that calls
+    the voice routine N times (a double-speed voice: its wave/pulse program
+    advances N steps/frame, its full block emitted N times), optionally ending
+    in a JMP back into the filter tail (which, via the leftover play-body JSR
+    return address, re-runs the tail — $D416/$D417 written twice). Returns a
+    '1,1,2,2'-style 4-int string [v0,v1,v2,filter] when any unit repeats > 1,
+    else None (canonical single-pass — no param, byte-identical build).
 
-    Follows the play vector to the body, locates `STX fclaim` (base+$720),
-    reads the three per-voice JSR sites, and for a site targeting a stub (not
-    the common voice routine) counts the `JSR <voice>` inside a clean
-    `JSR*/RTS` stub. Non-clean stubs (e.g. a JMP-tail form) return None — the
-    build stays as-is rather than mis-modelling an unrecognised variant."""
+    Static byte-probe (C19): follow the play vector, locate `STX fclaim`
+    (base+$720), read the three per-voice JSR sites, and for a redirected site
+    count the `JSR <voice>` inside the stub. Terminators: RTS (clean) or, on
+    the LAST voice only, JMP <filter-tail> (sets the filter unit to 2). Any
+    other stub shape returns None (unrecognised -> build unchanged)."""
     mem, s = _load(path)
     p = s['play']
     if mem[p] != 0x4C:
@@ -771,44 +775,56 @@ def _voice_tick_repeat_probe(path: str, base: int):
     if stx is None:
         return None
     q = stx + 3
-    jsrs = []
+    sites = []                    # (site_addr, target) per per-voice JSR
     for _ in range(20):
         op = mem[q]
         if op == 0x20:            # JSR abs = a per-voice call
-            jsrs.append(mem[q + 1] | (mem[q + 2] << 8)); q += 3
+            sites.append((q, mem[q + 1] | (mem[q + 2] << 8))); q += 3
         elif op == 0xE8:          # INX = step to the next voice
             q += 1
         else:
             break
-        if len(jsrs) >= 3:
+        if len(sites) >= 3:
             break
-    if len(jsrs) < 3:
+    if len(sites) < 3:
         return None
-    vaddr = jsrs[0]
+    vaddr = sites[0][1]
+    filter_tail_addr = sites[2][0] + 3   # the play body continues here
+    filt = [1]                    # boxed so _count can bump the filter unit
 
-    def _count(tgt):
+    def _count(i, tgt):
         if tgt == vaddr:
             return 1
-        c = 0
         a = tgt
-        for _ in range(12):       # a clean `JSR vaddr * n : RTS` stub
+        if mem[a] == 0xA2:               # optional `LDX #imm` re-assert
+            if mem[a + 1] != i:          # must re-select THIS voice
+                return None
+            a += 2
+        c = 0
+        for _ in range(12):
             op = mem[a]
-            if op == 0x20:
-                if (mem[a + 1] | (mem[a + 2] << 8)) == vaddr:
-                    c += 1
-                a += 3
-            elif op == 0x60:      # RTS terminates the stub
-                return c if c else None
+            if op == 0x20:               # JSR <unit>
+                if (mem[a + 1] | (mem[a + 2] << 8)) != vaddr:
+                    return None          # calls something else -> not this hack
+                c += 1; a += 3
+            elif op == 0x60:             # RTS = clean stub
+                return c or None
+            elif op == 0x4C:             # JMP = only the filter-tail re-entry
+                if i == 2 and (mem[a + 1] | (mem[a + 2] << 8)) == filter_tail_addr:
+                    filt[0] = 2
+                    return c or None
+                return None
             else:
-                return None       # unrecognised stub shape -> don't model it
+                return None              # unrecognised stub shape
         return None
 
-    reps = [_count(t) for t in jsrs]
+    reps = [_count(i, t) for i, (_, t) in enumerate(sites)]
     if any(r is None for r in reps):
         return None
-    if all(r == 1 for r in reps):
+    units = reps + filt
+    if all(u == 1 for u in units):
         return None
-    return ','.join(str(r) for r in reps)
+    return ','.join(str(u) for u in units)
 
 
 def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
@@ -842,9 +858,9 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     hg = _hold_gateoff_probe(os.path.join(hvsc_root, sid_path))
     if hg is not None:
         cfg.extra_params['hold_gateoff'] = hg
-    vtr = _voice_tick_repeat_probe(os.path.join(hvsc_root, sid_path), cfg.base)
-    if vtr is not None:
-        cfg.extra_params['voice_tick_repeat'] = vtr
+    pur = _play_unit_repeat_probe(os.path.join(hvsc_root, sid_path), cfg.base)
+    if pur is not None:
+        cfg.extra_params['play_unit_repeat'] = pur
     return cfg
 
 

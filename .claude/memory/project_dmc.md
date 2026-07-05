@@ -7,6 +7,28 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 26b (2026-07-05): UNIFY to play_unit_repeat + 3rd_Voice FULL (4803/5401) [ledger C24 recurring]
+Extended round-26 to the 2nd (and, proven, LAST) family-1 member with this feature:
+3rd_Voice.sid (Tichelmann). Its stub `$1EF5: LDX #2 / JSR / JSR / JMP $10A0` doubles
+V3 AND — via the JMP-into-filter-tail (leftover play-body JSR return re-enters the
+tail's RTS) — emits $D416/$D417 TWICE/frame. USER-STEERED representation: replaced
+the two knobs (voice_tick_repeat 3-tuple + filter_tail_repeat scalar) with ONE unified
+`play_unit_repeat` = 4-int list [v0,v1,v2,filter] (the play body runs 4 UNITS/frame,
+each N×). Talk_a_Lot=1,1,2,1; 3rd_Voice=1,1,2,2 — they differ ONLY in the filter slot.
+CORE-TENET re-anchor (user-prompted): the filter slot is a first-class write-stream
+config field (parametrises a $D416/$D417 write-count difference, encodes NO code layout
+— same class as nextvoice_write_order), produced by CLEAN inline code (not by mirroring
+the stack-re-entry trick). An earlier "filter_tail is less musical/bookkeeping"
+hesitation was the drift-tell = applying the §7 musical-content lens to an engine-config
+field. Probe `_play_unit_repeat_probe`: STATIC byte-probe, RTS terminator (clean) or
+JMP-to-filter-tail on the LAST voice (→ filter=2). REGRESSION-SAFE: '1,1,1,1' default
+byte-identical (MD5 old-vs-new on canonicals); the REAL probe over all 4802 FULLs fires
+on exactly 1 (Talk_a_Lot). Layout-independent write-stream recheck (closed the STX-probe
+648-member blind spot) CONFIRMED these 2 are the ONLY family-1 members with the feature —
+others with doubled writes are whole-play multispeed [N,N,N] (=play_repeat: Heniek/Fucking)
+or a bespoke test player (Sound_Test [6,1,26]). +1 FULL: 4802→**4803/5401**; jsonl updated
+(partial 384→383). NEXT: freq-drift residue tail (unchanged).
+
 ## ✅ ROUND 26 (2026-07-05): PER-VOICE TICK MULTIPLIER (voice_tick_repeat, Talk_a_Lot_2_tune_06 FULL) — commit 6e01c3e [ledger C24 NEW]
 Random partial Talk_a_Lot_2_tune_06 (Tichelmann_Kay): first div frame 1 $D410
 (V3 PW lo) orig $10 vs mine $00. ROOT CAUSE: the play body's THIRD voice JSR

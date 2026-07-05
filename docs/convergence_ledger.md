@@ -93,7 +93,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | stale-FULL palimpsest · recorded 'full' the current code can't reproduce · hides members from residue censuses · verify the STORED build first, then USF-diff/param-bisect to attribute · never mass-write with code that didn't produce the verdict | C20 | canonicalized |
 | AMBIGUOUS round-trip flag encoding · two distinct engine ops render to OVERLAPPING USF flag sets · the decoder's branch test uses a SUBSET of the discriminator → misroutes one op onto the other's path · matches for most content (paths coincide when inputs coincide), diverges on the distinguishing case | C22 | canonicalized (2×) |
 | a play-phase/schedule TOKEN hides a per-member behavioural ambiguity · same P_F123 token = note-init-on-F vs deferred 2-frame arm · fixing one class REGRESSES same-token FULLs · NOT derivable from the token/multispeed → OBSERVE the distinguishing write-footprint per member · regression-safe when the "changed" verdict has no false positive | C23 | logged |
-| per-voice tick MULTIPLIER · play body ticks ONE voice N× per play() (JSR-to-double-call stub) · that voice's block emitted N×/frame, effect programs advance N steps/frame · "double-speed voice" · distinct from play_repeat (whole play()) + C18 play_phases (whole calls) · voice_tick_repeat triple, static byte-probe (C19 method) | C24 | logged |
+| play-body UNIT-repeat · play body runs ONE of its 4 units (v0/v1/v2/filter-tail) N× per play() (JSR-to-N-call stub; JMP-tail form re-runs the filter tail) · "double-speed voice" · unified play_unit_repeat=[v0,v1,v2,filter] list · distinct from play_repeat (whole play()) + C18 play_phases (whole calls) · static byte-probe (C19 method) | C24 | recurring |
 
 ---
 
@@ -1166,34 +1166,50 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   [`/amend`](../.claude/skills/amend/SKILL.md) skill (the methodology for "my
   first-divergence fix regressed other members").
 
-### C24 — Per-voice tick MULTIPLIER (the play body ticks one voice N× per play())
-- **The problem class:** a hand-patched DMC player redirects the play body's
-  per-voice `JSR <voice>` for ONE voice to a stub that calls the voice routine
-  N times (`JSR <voice> * N : RTS`). That voice runs its FULL tick — wave/pulse
-  step + `DEC dur` + the freq/PW/ctrl block re-emit — N times per play(), so its
-  effect programs advance N steps/frame and its whole SID block is emitted N
-  times per frame (a "double-speed voice" editor trick). The write-log shows one
-  voice's block twice while the others appear once. DISTINCT from `play_repeat`
-  (repeats the WHOLE play() — all voices + the $D416/$D417 filter tail) and from
-  C18 `play_phases` (the play VECTOR cycles whole CALLS as P/F/S/R across
-  successive play()s; here it's one voice multiplied WITHIN a single call).
-- **Canonical:** a per-voice `voice_tick_repeat` params triple (default
-  `'1,1,1'`). The composer emits the play body's per-voice call sequence from it
-  (`ldx #0 / stx fclaim / jsr voice ×r0 / inx / jsr voice ×r1 / inx / jsr voice
-  ×r2`); `(1,1,1)` is byte-identical to the fixed three-JSR body. Factory detects
-  it with a STATIC byte-probe (C19 method): follow the play vector, locate
-  `STX fclaim` (base+$720), read the three per-voice JSR sites, and for a site
-  targeting a stub count the `JSR <voice>` inside a clean `JSR*/RTS` stub. A
-  non-clean stub (e.g. a `JSR*/JMP <filter-tail>` form — 3rd_Voice, which also
-  re-runs the $D416/$D417 tail) returns None ⇒ no param, build unchanged.
-- **Status:** logged (DMC family-1, 2026-07-05: Talk_a_Lot_2_tune_06 `(1,1,2)`
-  FULL). Regression-safe by construction: default emits byte-identical asm
-  (proven via old-vs-new MD5 on canonical members) and a family-1 census found
-  ZERO FULL members with a non-canonical repeat (only 2 members family-wide are
-  non-canonical, both partials — Talk_a_Lot `(1,1,2)` + 3rd_Voice, the
-  unrecognised-stub form left as residue).
-- **Consumers:** DMC v4 `factory._voice_tick_repeat_probe` → `voice_tick_repeat`
-  param → `composer_asm` play-body `voice_calls`. Reuses the C19 static-probe +
-  factory-param canonical form (this is a WRITE-STREAM difference, not the same
-  wedge shape). CANONICALIZE if a second per-voice-multiplier variant appears
-  (e.g. 3rd_Voice's filter-tail-twice stub, or a voice ×3).
+### C24 — Play-body UNIT-repeat (the play body runs one unit N× per play())
+- **The problem class:** a hand-patched DMC player redirects one of the play
+  body's per-frame `JSR`s to a stub that calls that routine N times. The play
+  body runs FOUR units per frame — voice 0, voice 1, voice 2, then the global
+  filter tail ($D416/$D417) — so the hack makes one unit run N times: a
+  "double-speed voice" (`JSR <voice> ×N`, so its wave/pulse program advances N
+  steps/frame and its full block is emitted N times), and/or — via a stub that
+  ends in `JMP <filter-tail>` instead of RTS — the filter tail re-runs (the
+  leftover play-body JSR return address makes the tail's own RTS re-enter it, so
+  $D416/$D417 write twice). DISTINCT from `play_repeat` (repeats the WHOLE
+  play() — all four units together) and from C18 `play_phases` (the play VECTOR
+  cycles whole CALLS across successive play()s; here it's ONE unit multiplied
+  WITHIN a single call).
+- **Canonical:** ONE unified `play_unit_repeat` params list of 4 ints
+  `[v0,v1,v2,filter]` (default `'1,1,1,1'`). The composer emits the play body's
+  voice-call sequence and the filter-tail block from it; `'1,1,1,1'` is
+  byte-identical to the fixed single-pass body. The two example members differ
+  only in the last slot: Talk_a_Lot `1,1,2,1`, 3rd_Voice `1,1,2,2`. Factory
+  detects it with a STATIC byte-probe (C19 method): follow the play vector,
+  locate `STX fclaim` (base+$720), read the three per-voice JSR sites, and for a
+  redirected site count the `JSR <voice>` inside the stub — terminator RTS
+  (clean) or, on the LAST voice only, `JMP <filter-tail>` (= filter slot 2). Any
+  other stub shape ⇒ None (build unchanged).
+- **CORE-TENET framing (why `filter_tail` is first-class, not a compromise):**
+  both the voice slots and the filter slot are per-engine config fields that
+  parametrise a WRITE-LOG difference (unit's writes emitted N×) and encode NO
+  code layout (the value is a count, never the stub address / JMP target). That
+  is exactly the sanctioned class (`nextvoice_write_order`,
+  `held_note_clears_stod404_gate`). The filter re-write is inaudible (identical
+  values) but the strict-write-stream policy requires reproducing it, and the
+  composer produces it with CLEAN inline code — it does NOT mirror the stack
+  re-entry trick (the tenet's "emit clean code that produces the writes, don't
+  reproduce the mechanism"). An early "filter_tail is less musical / bookkeeping"
+  hesitation was the re-anchor tell: applying the §7 musical-content lens to an
+  engine-config field, where the CORE TENET is the governing one.
+- **Status:** recurring (DMC family-1, 2026-07-05: Talk_a_Lot `1,1,2,1` +
+  3rd_Voice `1,1,2,2`, both FULL). Regression-safe by construction: `'1,1,1,1'`
+  is byte-identical (proven via old-vs-new MD5 on canonical members) and the
+  actual probe run over all 4802 FULL members fires on exactly ONE (Talk_a_Lot
+  itself). A layout-independent write-stream recheck confirmed these are the
+  ONLY two family-1 members with the feature (others with doubled writes are
+  whole-play multispeed `[N,N,N]` = `play_repeat`, or a bespoke test player).
+- **Consumers:** DMC v4 `factory._play_unit_repeat_probe` → `play_unit_repeat`
+  param → `composer_asm` play-body `voice_calls` + `filter_tail`. Reuses the C19
+  static-probe + factory-param canonical form (a WRITE-STREAM difference, not the
+  same wedge shape). FACTOR at Move 1 if a 3rd variant appears (a voice ×3, or a
+  unit-repeat on a relocated/2-entry layout the STX-$1720 probe can't locate).
