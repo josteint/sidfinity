@@ -166,6 +166,16 @@ DMC_OFFTABLE_STATE = [
     (0x171B, 'fbase', 1),    # filter definition base index (def# << 4)
     (0x171D, 'frep', 1),     # filter repeat/loop step index (def byte2)
     (0x171E, 'fstop', 1),    # filter stop cutoff (def byte3) — verified tracks
+    (0x171F, 'wjmp', 1),     # shared effect scratch — the LAST of: pulse-program
+                             # raw speed byte ($1357/$135A, the two-nibble
+                             # instr+3..5 byte, reconstructed as
+                             # isteps[even] | isteps[odd]>>4 in irawsp), glide
+                             # step<<4 ($1425), wave jump-back distance
+                             # ($15A5/$15E2). Shadowed 1:1 at all three composer
+                             # sites (fx_pulse / fx_glide / ws_rd0+ws_drum);
+                             # init-cleared both sides ($1718-$179D wipe), and
+                             # densely written (fx_pulse runs unconditionally
+                             # per voice per frame) so it converges — no seed.
     (0x1723, 'fres', 1),     # filter resonance (def byte0 hi nibble) -> $D417 hi
     (0x1724, 'dtmpl', 1),    # dual-slide freq temp lo — GLOBAL scratch written
     (0x1725, 'dtmph', 1),    # only by the $40 slide path ($14CB/$14D3);
@@ -516,6 +526,7 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     ioffval = [_inst_offset(i.id - 1) for i in insts]
     isteps = []
     ipwbase = []
+    irawsp = []
     for i in insts:
         ss = list(i.pwm.speed_steps) or [i.pwm.speed] * 6
         ss = (ss + [ss[-1]] * 6)[:6]
@@ -524,6 +535,14 @@ def compose_dmc_asm(usf: UsfFile) -> str:
             f'inst {i.id}: pulse steps do not share a base nibble'
         ipwbase.append(base)
         isteps += [s & 0xF0 for s in ss] + [0, 0]       # stride 8
+        # raw instr+3..5 speed bytes (hi nibble = even-phase step, lo nibble =
+        # odd-phase step >> 4 — exact inverse of the extract's nibs decode),
+        # duplicated per parity so fx_pulse reuses the isteps index. Feeds the
+        # wjmp shadow of orig $171F ($1357: LDA raw / STA $171F).
+        raw3 = [(ss[2 * k] & 0xF0) | ((ss[2 * k + 1] & 0xF0) >> 4)
+                for k in range(3)]
+        irawsp += [raw3[0], raw3[0], raw3[1], raw3[1],
+                   raw3[2], raw3[2], 0, 0]              # stride 8
     ifdef = [m.filter_slots.get(i.filter_prog.program, 0) for i in insts]
     ivdel = [i.vibrato.onset for i in insts]
     ivwid = [i.vibrato.amplitude for i in insts]
@@ -893,6 +912,7 @@ def compose_dmc_asm(usf: UsfFile) -> str:
                       ('ivram', ivram), ('iflag', iflag), ('iwst', iwst)]:
         data.append(f'{name}:\n' + _byt(arr))
     data.append('isteps:\n' + _byt(isteps))
+    data.append('irawsp:\n' + _byt(irawsp))
     for name, arr in [('fdres', fdres), ('fdmode', fdmode),
                       ('fdinit', fdinit), ('fdrep', fdrep),
                       ('fdstop', fdstop)]:
@@ -1416,6 +1436,8 @@ fx_pulse:
         clc
         adc pwphase,x
         tay
+        lda irawsp,y                 ; raw speed byte -> wjmp (orig $135A
+        sta wjmp                     ; STA $171F, before the nibble select)
         lda isteps,y                 ; per-phase step nibble
         clc
         adc cpwbase,x                ; + cached base (0 while idling)
@@ -1497,6 +1519,7 @@ fx_glide:
         asl
         asl
         sta tmp                      ; step = speed << 4
+        sta wjmp                     ; shadow orig $1425 STA $171F
         lda gla,x
         cmp glb,x
         bcs fx_gl_dn
@@ -1642,6 +1665,7 @@ ws_rd0:
         bcc ws_rd
         sbc #$90                     ; (carry set)
         sta tmp
+        sta wjmp                     ; shadow orig $15A5 STA $171F
         tya
         sec
         sbc tmp
@@ -1674,6 +1698,7 @@ ws_drum:
         bcc ws_drd
         sbc #$90
         sta tmp
+        sta wjmp                     ; shadow orig $15E2 STA $171F
         tya
         sec
         sbc tmp
@@ -1768,6 +1793,9 @@ fstop:    .dsb 1, 0
 fres:     .dsb 1, 0
 tmp:      .dsb 1, 0
 tmp2:     .dsb 1, 0
+wjmp:     .dsb 1, 0                  ; orig $171F shared-scratch shadow (raw
+                                     ; pulse speed byte / glide step / wave
+                                     ; jump-back distance — last writer wins)
 evflags:  .dsb 1, 0
 otrk:     .dsb 3, 0                  ; orig track byte-offset shadow (= $1726)
 wnote:    .dsb 3, 0                  ; orig arp-note shadow (= $1783)
