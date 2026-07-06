@@ -922,7 +922,7 @@ _DUAL_HACK_SITE = re.compile(rb'\xBC\x0D.\xA6\x2F\x69\x18\x7D\x35.\x8D(..)',
                              re.DOTALL)
 
 
-def _dual_hack_probe(path: str, base: int, freq_lo: int):
+def _dual_freq_gen_probe(path: str, base: int, freq_lo: int):
     """Dual-effect ($40) freq-generator wedge (STATIC opcode probe, C19 4th
     occurrence — Taurus/Taurus_02, the only family-1 carrier): the odd-parity
     dual path's `LDA $172F,x` opcode is patched BD->A6 (`LDX $2F`). Under the
@@ -1100,10 +1100,10 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     pwc = _pw_hi_const_probe(os.path.join(hvsc_root, sid_path), cfg.base)
     if pwc is not None:
         cfg.extra_params['pw_hi_const'] = pwc
-    dh = _dual_hack_probe(os.path.join(hvsc_root, sid_path), cfg.base,
+    dh = _dual_freq_gen_probe(os.path.join(hvsc_root, sid_path), cfg.base,
                           cfg.freq_lo_addr)
     if dh is not None:
-        cfg.extra_params['dual_hack'] = dh
+        cfg.extra_params['dual_freq_generator'] = dh
     fm = _filter_mod_probe(os.path.join(hvsc_root, sid_path), cfg.op_filtdef)
     if fm is not None:
         cfg.extra_params['filter_mod'] = fm

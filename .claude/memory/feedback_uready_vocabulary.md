@@ -71,3 +71,26 @@ single-consumer→REUSED (FC std + DMC v5). The convergence ledger
 ([`docs/convergence_ledger.md`](../../docs/convergence_ledger.md), new this
 session) is now the incremental pre-decider Move 1 consumes; this review is
 its periodic maintainer.
+
+**Scoreboard update (2026-07-06, `/uready-review` DMC-focused — the rounds
+22-41 principles audit, user-prompted):** the 4 uready families unchanged.
+**DMC v4 (fam-1+2): C3 GAP CLOSED** — `freq_overrun` window deleted
+2026-06-21; off-table capture is reachability-enumerated `offtable_freq`
+records (median 1/file, ~0.4% of USF text); rounds 27-39 net-SHRANK the raw
+surface (redirect rows = 0 USF bytes). C1✓ C2✓ (no §7/§8 leaks; all knobs
+factory-probed + behavior-named except naming nits). Rounds 22-41 schema
+additions audited SOUND (`wave_table_pos` gate-load-bearing, `filter_mod`
+exemplary, `dur_reload` typed, sectpos fx_flags borderline-accepted) with ONE
+LEAK-ADJACENT item: `dual_hack`/`dual_hack_steps` — RESOLVED same day
+(user-ratified): the filter_mod comparison was a category error (C10 vs C19);
+decision = C7-(b) document-and-minimize, renamed `dual_freq_generator`/
+`dual_gen_steps`, Taurus_02 re-verified FULL; see ledger C7 note (which also
+records why the "lift to musical form" direction is a §8 trap).
+**C4 still GAP:** f1 ≈5019/5401 but closeout batch pending; f2 count STALE
+(2413/2889, Jul 4 — rounds 22-41 all landed f1; a f2 recovery sweep over the
+shared-composer fixes is due); regression portfolio stale (derived at 4770
+FULL, +249 FULL + new dimensions since — re-derive due). **C6 half-GAP:**
+residue current in [[project_dmc]] but `v4/RE_NOTES.md` + `family2/RE_NOTES.md`
+frozen at Jun 14 (cover none of rounds 15-41). DMC still NOT uready; the
+blockers are process (C4 freshness, C6 repo-residence, dual_hack decision),
+not representation.

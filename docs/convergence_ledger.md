@@ -244,13 +244,38 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   as an absolute freq/note (hard: note-dependent → effectively an extended tuning
   table, and for B2 the extra entries are state-derived); (b) **document + minimize**
   — reachability-minimal capture, flagged "engine reads state-as-freq" (the ML sees
-  a small, labeled blob; DMC v5's `freq_overrun` is NOT minimized yet — a C3-gap);
+  a small, labeled blob; DMC's off-table capture IS minimized as of 2026-06-21 —
+  per-instrument `offtable_freq` records, median 1/file, the old window gone);
   (c) **exclude** the tune as engine-quirk-dependent.
 - **Status:** `methodology` (recurring). **Before adding any new content-by-reference
   / `bytes`-typed USF field, CONSULT this entry and pick (a)/(b)/(c) deliberately.**
   Audit hook: `/uready-review` should flag every content-by-reference/`bytes` USF
   field as a B-class candidate. (Distinct from C6, which is the off-table-freq
   TECHNIQUE; C7 is the anti-pattern lens over it + extended_freq + the freq_table tail.)
+- **B-class audit RESOLVED (2026-07-06, user-ratified): `dual_freq_generator` +
+  `dual_gen_steps`** (round 35, Taurus_02, sole corpus carrier; renamed from
+  `dual_hack`/`dual_hack_steps` — behavior naming was the one uready criterion it
+  failed). The `/uready-review` first flagged it LEAK-adjacent by comparison with
+  the same week's `filter_mod`; the full re-anchor OVERTURNED that comparison as a
+  CATEGORY ERROR: `filter_mod` is C10 (global automation with RECOVERABLE
+  structure — a triangle LFO, compressible to a contour → typed parametric form
+  correct); the dual generator is C19 (hand-patched wedge → probe → param IS the
+  canonical form, 5 occurrences). Decision = **C7-(b) document-and-minimize**:
+  every write-determining constant is in USF (9 CSV values, 2 lines of a 654-line
+  file), the composer holds ONE fixed mechanism (BASIC-ROM bytes = environment,
+  same category as the PSID env's zp $2F=$A9 that creates the wedge), default
+  byte-identical, capture minimal. The "lift to musical form" direction is the
+  TRAP, recorded so it isn't re-litigated: a `law: random` enum value would NOT
+  determine the write stream (the chaos generator would be hidden per-member
+  composer mechanism = the §8 disease proper); putting the generator arithmetic
+  in USF = Pole B. `dual_gen_steps` derivability was checked and is genuinely
+  unavailable (Taurus_02's inst-6 raws land past the table end in the wavectrl
+  region, whose layout is not in USF for this member) → justified-minimal C2-class
+  capture. Lower-stakes siblings flagged same review, still open:
+  `offtable_redirect='0'` (a serialized bit describing the ORIG's memory geometry —
+  config fields must never describe HVSC layout; cleaner home = extract-side gate
+  suppression) and `sectpos_shadow` (probe-result transport, mostly derivable from
+  `offtable_freq` indices).
 
 ### C6 — Off-table FREQ-table lookup (index past the N-entry freq table)
 - **Canonical (CANONICALIZED 2026-06-21, both consumers):** when a melodic/effect
@@ -1201,10 +1226,11 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   Net: one GLOBAL free-running pseudo-random freq ramp on dual frames +
   pwphase[V3] clobbered to $42/$43 (live-carry-dependent), driving the
   pulse machine's speed fetch off the instrument record (static bytes past
-  the table). Fix: `factory._dual_hack_probe` (wedge-anchored regex, all
-  effective constants captured from the image) → `dual_hack` param →
+  the table). Fix: `factory._dual_freq_gen_probe` (wedge-anchored regex, all
+  effective constants captured from the image) → `dual_freq_generator` param
+  (renamed from `dual_hack` 2026-07-06, C7-note decision) →
   composer emits the generator as CLEAN code (legal ror+adc = RRA,
-  inlined constants, live-carry pwphase store) + `dual_hack_steps`
+  inlined constants, live-carry pwphase store) + `dual_gen_steps`
   (extract-captured static bytes) EXTENDS the stride-8 isteps/irawsp
   tables at the reachable garbage-phase indices — zero pulse-code change.
   Python-simulate the generator against ALL observed dual events (3826/

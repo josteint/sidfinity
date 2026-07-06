@@ -134,3 +134,37 @@ sweep; the factory's typed reasons make these greppable in
    investigate.
 9. **partial (140).** factory-passing but writelog diverges — the true
    long tail; bucket by first_diff signature (carried in the jsonl).
+
+## Documented residue — the dual-effect FREQ GENERATOR (Taurus_02, 2026-07-06)
+
+**`dual_freq_generator` + `dual_gen_steps` params (renamed from
+`dual_hack`/`dual_hack_steps`; ledger C19 4th occurrence, C7-(b)
+document-and-minimize decision, user-ratified 2026-07-06).**
+
+Taurus/Taurus_02.sid — the ONLY carrier in all 10,676 DMC members — byte-edits
+the dual ($40) odd-parity path: the `LDA $172F,x` opcode is patched BD→A6
+(`LDX $2F`; zp $2F=$A9 under the PSID environment), so every subsequent
+per-voice `,x` read lands +$A9 past the state arrays onto fixed CODE bytes.
+Net audible behaviour: ONE global free-running pseudo-random freq ramp on dual
+frames (the "accumulator" self-modifies two tune-setup code bytes whose
+file-image values seed it; the update ORs a BASIC ROM byte and rotates a
+feedback byte via an illegal RRA) + fixed PW/ctrl from code bytes + a pwphase
+clobber that drives the pulse-speed fetch off the instrument record.
+
+Representation status (why this is residue, deliberately NOT schema):
+- `factory._dual_freq_gen_probe` (static wedge-anchored regex) captures the 9
+  write-determining constants → `dual_freq_generator` param; the composer
+  emits the generator as CLEAN legal code (ror+adc = RRA; the BASIC-ROM bytes
+  are environment constants, same category as zp $2F=$A9). Default
+  byte-identical; verify FULL 86118/86118.
+- `dual_gen_steps` = the static bytes the clobbered pulse fetch reads past the
+  record (C2 class, same as offtable_freq but for pulse speeds). Derivability
+  CHECKED and unavailable (inst-6 raws land past the table end in the wavectrl
+  region, whose layout is not in USF for this member) → justified-minimal
+  capture (2 entries).
+- The "lift to a musical form" direction (e.g. a `law: random` enum) is a §8
+  TRAP recorded in ledger C7: the enum value would not determine the write
+  stream — the chaos generator would become hidden composer mechanism; putting
+  its arithmetic in USF is Pole B. The param transcript is the maximally
+  principled form for chaos content: all determining constants in USF, one
+  fixed mechanism in the composer.

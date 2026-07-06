@@ -7,6 +7,27 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 42 (2026-07-06): dual_hack → dual_freq_generator — the /uready-review C7 flag RESOLVED (0 count change) [ledger C7 note rewritten]
+A DMC-focused /uready-review (user-prompted "did the fast progress cut
+principle corners?") found NO §7/§8 leaks; its one LEAK-adjacent flag
+(dual_hack, Taurus_02 sole carrier) was then OVERTURNED by a full re-anchor
+(principles + core tenet + trichotomy + ledger + amend, user-directed): the
+filter_mod comparison was a CATEGORY ERROR — filter_mod is C10 (recoverable
+structure → typed contour), the dual wedge is C19 (probe → param IS the
+canonical form). Decision (user-ratified) = C7-(b) document-and-minimize:
+rename `dual_hack`/`dual_hack_steps` → `dual_freq_generator`/`dual_gen_steps`
+(behavior naming was the one real defect; probe → `_dual_freq_gen_probe`),
+steps-derivability checked = unavailable (raws land in wavectrl, layout not
+in USF), the "lift to `law: random` musical enum" recorded as a §8 trap in
+ledger C7 (the enum wouldn't determine the write stream). Taurus_02
+re-extracted/rebuilt/verified FULL 86118/86118; artifacts rewritten; v4
+RE_NOTES got the residue section. KEY LESSON: run the /uready-review's own
+findings through the same adversarial re-anchor before acting on them —
+"same week, different treatment" can be two ledger classes each getting its
+correct canonical form. Audit also found: C3 gap CLOSED (offtable capture
+minimal), C4 stale (portfolio at 4770, f2 frozen at 2413 since Jul 4 —
+recovery sweep due), C6 rotted (RE_NOTES Jun 14).
+
 ## ✅ ROUND 41 (2026-07-06): single-speed CIA DEFAULT latch $4025 (+3 FULL, 0 regr) — commit a92f9a7c [ledger C9 note]
 Random partial Phobos/Crazy_Mix: flat find_first_divergence said pos 0 — the
 CIA init-phase artifact (PSID speed=1; ALWAYS re-localize per-IRQ before

@@ -222,6 +222,54 @@ canonical in the [convergence ledger](convergence_ledger.md) C6. The reused
 dimensions (freq_table, wave envelope, ADSR, `init.sid`) confirm the feature
 space is sound; the divergences D1-D5 are the work.
 
+### DMC v4 rounds-22-41 principles audit (2026-07-06)
+
+Focused `/uready-review` (user-prompted: "did the fast recent DMC progress
+cut principle corners?"). Answer: **largely no** — no §7 schema leak, no §8
+engine-identity dispatch, leak scans clean, the C3 off-table gap from the
+06-18 review is CLOSED (raw `freq_overrun` window deleted; per-instrument
+`offtable_freq` records, median 1/file; redirect rows carry 0 USF bytes).
+Typed additions in the window (`wave_table_pos`, `filter_mod`,
+`InitVoice.dur_reload`, PSID clock/SID capture) audited SOUND with
+carrier-gated emission + byte-identical defaults.
+
+Criterion-5 feature accounting (new since 06-18):
+- **`filter_mod`** — global cutoff-LFO contour reusing C1's `fp_step` token;
+  single-consumer today, but the form is the SweepEnvelope/contour family →
+  feeds divergence D2's reconciliation rather than forking it.
+- **`wave_table_pos`** — §8-arrangement (editor-typed table placement);
+  single-consumer, gate is load-bearing (emit only for off-table-sonified
+  verbatim layouts). Watch: never widen "for uniformity".
+- **sectpos fx_flags (`dcmd/icmd/vcmd/softcmd`)** — stated-command
+  arrangement, same class as `otrk_rcmd`; borderline-accepted. Watch: any
+  new `*cmd` token needs a fresh principle review (§9.4 generalization risk).
+- **`play_unit_repeat`** (C24) — genuine generalization of voice_tick +
+  filter-tail repeats into one behavior list.
+
+Pending decisions added for the human (also in ledger C7 note):
+1. ~~`dual_hack`/`dual_hack_steps`~~ **RESOLVED 2026-07-06 (user-ratified):
+   the filter_mod comparison was a category error (C10 recoverable-structure
+   vs C19 wedge — each got its class's canonical form). Decision = C7-(b)
+   document-and-minimize; renamed `dual_freq_generator`/`dual_gen_steps`
+   (behavior naming was the one real defect); steps-derivability checked and
+   unavailable; the "lift to musical form" direction recorded as a §8 trap in
+   ledger C7. Taurus_02 re-verified FULL 86118/86118 under the new names.
+2. **`Params.fields` escape surface** — `offtable_redirect='0'` describes
+   orig memory geometry (the one thing config fields must never describe) —
+   prefer extract-side gate suppression; `sectpos_shadow` is probe-result
+   transport. (The blanket "migrate all CSV knobs probe→typed" framing is
+   WITHDRAWN per the dual-generator resolution: C19 wedge knobs' canonical
+   home IS params; typing is for recoverable musical structure.)
+3. **`glide_to` off-table-target parse quirk** — documented Move-1 debt
+   (dynamic-byte-terminated sweep representation), must not silently persist.
+
+Process gaps (why DMC is still not uready — C4/C6, not representation):
+f1 closeout batch pending (~5019/5401); f2 stale at 2413/2889 (Jul 4 — all
+rounds 22-41 landed f1; the shared-composer fixes make a f2 recovery sweep
+due); regression portfolio derived at 4770 FULL, re-derive due; v4+family2
+RE_NOTES.md frozen Jun 14 while residue lives only in project memory. Minor:
+no static extract↔USF roundtrip checker for DMC (behavioral-only validation).
+
 ---
 
 ## Move 2 (digi fold) — landable any time
