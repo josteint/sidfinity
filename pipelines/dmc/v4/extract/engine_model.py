@@ -67,6 +67,10 @@ class DmcInstrument:
     drum: bool               # flag $01 — wave freq bytes are absolute
     noise_attack: bool       # flag $80 — cymbal
     wave_start: int          # byte9 (raw index into the shared wave table)
+    wave_pool_pos: int | None = None  # table position of the program's first
+                                      # step (== wave_start unless byte9 sits
+                                      # on the own-end marker); set only when
+                                      # DmcModel.wavepos_layout fires
     wave_ctrl: list = field(default_factory=list)   # sliced program
     wave_freq: list = field(default_factory=list)   # parallel
     wave_loop: int = 0
@@ -145,6 +149,13 @@ class DmcModel:
                                      # PSID speed bit (vblank-dispatched). 1=once.
     family2: bool = False            # the V4-derived family-2 build
     extra_params: dict = field(default_factory=dict)  # factory-probed knobs
+    wavepos_layout: bool = False     # an off-table freq read sonifies a live
+                                     # wave position ($177A-$177C) AND every
+                                     # wave program is a verbatim contiguous
+                                     # slice of the orig table: carry each
+                                     # instrument's editor wave-table position
+                                     # so the composer packs its pool at the
+                                     # orig positions (wavepos == orig $177A)
     idle_wave: tuple = ((), (), 0)   # wave walk from table index 0 (the
                                      # cleared-cache idle path): ctrl,
                                      # freq, loop
@@ -832,7 +843,81 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     if not canon_geom and any(ins.offtable_freq
                               for ins in m.instruments.values()):
         m.extra_params['offtable_redirect'] = '0'
+    # wavepos live serving: an off-table freq read on $177A-$177C (fhi idx
+    # 211-213) sonifies a voice's LIVE wave position — it varies at the read
+    # (neither the static capture nor the event-driven one can serve it), and
+    # the composer's own wavepos runs on ITS re-packed pool offsets. When
+    # every wave program (idle walk included) is a verbatim contiguous slice
+    # of the orig table, carry each instrument's editor wave-table position
+    # (arrangement, §8) so the composer packs its pool at the orig positions —
+    # then its wavepos state EQUALS orig $177A,x and the DMC_WAVEPOS_ROW
+    # redirect serves the read live. Canon geometry only (ledger C6 note).
+    _WAVEPOS_IDX = {(0x177A + k) - 0x16A7 for k in range(3)}
+    if canon_geom and any((off + note) & 0xFF in _WAVEPOS_IDX
+                          for ins in m.instruments.values()
+                          for off, note, _lo, _hi in ins.offtable_freq):
+        pos = _wave_layout_verbatim(m, ctrl_tab, freq_tab, n_wave)
+        if pos is not None:
+            for iid, c in pos.items():
+                m.instruments[iid].wave_pool_pos = c
+            m.wavepos_layout = True
     return m
+
+
+def _wave_layout_verbatim(m: DmcModel, ctrl_tab, freq_tab, n_wave):
+    """Layout-preserving-pool precondition. Returns `{iid: table position of
+    the program's first step}` when the idle walk AND every instrument's wave
+    program are verbatim contiguous slices of the original wave table, ending
+    on an orig marker byte equal to the composer's synthesized `$90+(n-loop)`
+    — then a pool placed at these positions makes the runtime wavepos equal
+    orig $177A at every SETTLED (observable) moment, marker hops included.
+    None -> the member stays honest residue.
+
+    A wave_start may sit ON the program's own end marker (the editor idiom
+    "start at the loop marker": the engine chases it back n positions on the
+    first read, settling on the same step span — inst byte9 = slice start + n,
+    loop 0). That's admitted; the composer skips the transient chase (iwst =
+    first-step position), which is unobservable EXCEPT through the chase's
+    $171F wjmp write — so a member that ALSO reads the wjmp window (flo idx
+    216 / fhi idx 120) with any chasing instrument is rejected."""
+    progs = [(None, 0, list(m.idle_wave[0]), list(m.idle_wave[1]),
+              m.idle_wave[2])]
+    progs += [(iid, ins.wave_start, list(ins.wave_ctrl),
+               list(ins.wave_freq), ins.wave_loop)
+              for iid, ins in m.instruments.items()]
+    lim = min(n_wave, 256)
+    out, chased = {}, False
+    for iid, start, ctrl, freq, loop in progs:
+        n = len(ctrl)
+        if n == 0 or not 0 <= loop < n or n - loop > 0x6F:
+            return None
+        if start < lim and ctrl_tab[start] >= 0x90:
+            # start on a marker: admit ONLY the own-end-marker form
+            # (back distance n, i.e. loop 0 with the slice right before it)
+            if loop != 0 or ctrl_tab[start] != 0x90 + n or start < n:
+                return None
+            start -= n
+            chased = True
+        if start + n >= lim:             # marker must sit inside the table
+            return None
+        if any(b >= 0x90 for b in ctrl):
+            return None                  # embedded marker (resolved chain)
+        if ctrl != ctrl_tab[start:start + n]:
+            return None
+        f = freq if freq else [0] * n
+        if f != freq_tab[start:start + n]:
+            return None
+        if ctrl_tab[start + n] != 0x90 + (n - loop):
+            return None
+        if iid is not None:
+            out[iid] = start
+    if chased:
+        _WJMP_IDX = {(0x171F - 0x16A7) & 0xFF, (0x171F - 0x1647) & 0xFF}
+        if any((off + note) & 0xFF in _WJMP_IDX
+               for ins in m.instruments.values()
+               for off, note, _lo, _hi in ins.offtable_freq):
+            return None
+    return out
 
 
 def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,

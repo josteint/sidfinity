@@ -7,6 +7,34 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 38 (2026-07-06): WAVEPOS boundary falls — layout-preserving wave pool (+5 FULL, 0 regr) [ledger C11 new note]
+Random partial Zyron/Distant_Echoes (vblank, flat div 107112, V3 fhi orig $21
+vs mine $01). Off-table fhi read idx 211 → $177A = V1 LIVE WAVE POSITION —
+the round-22 "wavepos positional-hard" bucket; measured 32 distinct read-moment
+values per key (static + event-driven both correctly fail). THE REFRAME (the
+§8 sectpos playbook applied to the wave table): the DMC wave table is an
+EDITOR-SHARED table the composer typed positions into (instrument byte 9 =
+arrangement, like transpose placement). FIX: (1) USF `Instrument.
+wave_table_pos` (grammar/parser/writer/types; emitted ONLY for carriers — all
+instruments or none); (2) extract `_wave_layout_verbatim` gate: canon geometry
+(C6 note) + idle walk and EVERY instrument's program a verbatim contiguous
+slice ending on the orig marker $90+(n−loop); admits wave_start ON the own-end
+marker ("start at the loop marker" idiom — the chased first-step position is
+carried), EXCEPT when the member also reads the wjmp window (the skipped
+transient chase writes $171F); (3) composer `place_prog` packs the pool AT
+those positions (instead of append+dedup) so `wavepos,x == orig $177A,x` at
+every settled moment (marker hops carry identical distances for verbatim
+slices), and the gated `DMC_WAVEPOS_ROW` (0x177A,'wavepos',3) redirect serves
+the read live. Default byte-identical (MD5 old-vs-new, Aktarus). 30-member
+stored-USF exposure sweep: 12 FULLs HOLD, **+5 FULL** (Distant_Echoes
+313604/313604, No_Name_Remix, In_die_Dunkelheit, Das_Remix, II-V3), 2 partials
+moved LATER (PVCF Fast_Shit 159299→162542, Vincenzo 64854→65156), 4
+no_jumptable = pre-existing v5-family refusals, 0 regressions. Object_of_Art
+(the 2026-06-28 blocker) has a DIFFERENT first blocker (flat 15) — unchanged,
+honest residue. Ledger C11 "HARD BOUNDARY" rewritten as RESOLVED. NOTE: more
+round-22 wavepos-class members should re-flip at the next batch sweep where
+their first div was the $177A read and their layout is verbatim.
+
 ## ✅ ROUND 37 (2026-07-06): NON-CANON STATE GEOMETRY — the whole live-serving stack falls back to static (+4 FULL, 0 regr) [ledger C6 new note]
 Random partial Aomeba/Viiskyt_vuotta_humppaa (vblank, flat div 61788, V1 fhi
 orig $BD vs mine $06). The member is a VARIANT BUILD: freq tables shifted −$13

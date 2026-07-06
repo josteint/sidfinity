@@ -82,6 +82,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | chip-global $D415-$D418 automation during a song · master vol / filter varies · global_track vs MasterVolConfig/filter_programs · explicit-event vs parametric | C10 | logged |
 | engine reads a table via an 8-bit index register (`base,Y` w/ Y=#*stride) · orig "reads garbage"/looks broken · extractor must wrap `(#*stride)&0xFF` · suspect OUR extractor not the packer | C11 | logged |
 | off-table read sonifies a "positional" byte counter (sector position / stream offset) · per-event deltas derive from row kind + stated commands → live shadow, stated-command flags = §8 arrangement (DMC sectpos) | C11 | logged |
+| off-table read sonifies the live WAVE POSITION ($177A) · composer pool offsets ≠ orig's → layout-preserving pool packing from per-instrument editor wave-table positions (`wave_table_pos`, §8 arrangement) + gated redirect row (DMC wavepos) | C11 | logged |
 | accumulated per-step rounding drift in a round-trip · USF stores DELTAS (durations), player sums them to ABSOLUTE positions · a min/floor on each delta drifts over a long song · short tunes pass, long tunes length_fail · keep deltas EXACT (allow 0) | C12 | logged |
 | engine variant dispatch · player jump-table init offset shifted but play body at canonical offset · "no_jumptable"/code-mismatch reject · dispatch on the PLAY-body signature not init (we emit our own init) | C13 | logged |
 | command-per-row tracker effect (note + fx + param per row) · porta/vibrato/arp/filter/tempo on a row · NOT per-instrument · how to represent in NoteRow | C14 | recurring (FC + GoatTracker V1) |
@@ -503,18 +504,34 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   table — e.g. the DMC wave POSITION ($177A is 8-bit, so a wave program crossing
   $FF wraps to wctab[0]; `_slice_wave` reads linearly past it — a candidate
   unfixed instance). Audit other `mem[base + i*stride]` extracts for the same.
-- **HARD BOUNDARY — off-table reads that sonify the ABSOLUTE wave position
-  (2026-06-28, Object_of_Art).** When a wave program's arp index runs off-table
+- **~~HARD BOUNDARY~~ → RESOLVED — off-table reads that sonify the ABSOLUTE
+  wave position (2026-06-28 Object_of_Art blocked; 2026-07-06 Distant_Echoes
+  resolved, +5 FULL 0 regr).** When a wave program's arp index runs off-table
   and lands on `$177A` (wavepos itself), the orig plays the absolute wave
-  POSITION as a frequency. This is NOT addable to the C6 off-table redirect map:
-  our composer RE-PACKS the wave pool with its own offsets (`iwst` in
-  composer_asm — idle-program-first + dedup + instrument-order), so our wavepos
-  diverges from the orig's (Object_of_Art V2/V3 = orig+5). The off-table read can
-  only match if the composer reproduces the orig packer's wave-pool layout
-  BYTE-FOR-BYTE (offsets + sharing) — the encoding-specific-layout class (sibling
-  of sectorpos). Object_of_Art: first-div LO byte = `fcut` ($171C, derivable,
-  cleanly mappable) but HI byte = wavepos (blocked). Mapping wavepos+fcut was
-  net-NEGATIVE: 0 recoveries (wavepos wrong) + 1 FULL regression.
+  POSITION as a frequency. The un-gated redirect row was net-NEGATIVE (0
+  recoveries + 1 FULL regression): our composer re-packs the wave pool with
+  its own offsets (`iwst` — idle-first + dedup + instrument-order), so our
+  wavepos diverges from the orig's (Object_of_Art V2/V3 = orig+5).
+  **CANONICAL FIX — layout-preserving pool packing from arrangement (the §8
+  sectpos playbook applied to the wave table):** the DMC wave table is an
+  EDITOR-SHARED table the composer typed positions into (instrument byte 9)
+  — carry each instrument's editor wave-table position as USF
+  `Instrument.wave_table_pos` (emitted only for members whose off-table
+  reads hit fhi idx 211-213), and the composer PLACES its pool at those
+  positions instead of appending+dedup — then its `wavepos,x` EQUALS orig
+  `$177A,x` at every settled moment (marker hops included: verbatim slices
+  carry identical marker bytes/distances) and a plain gated redirect row
+  (`DMC_WAVEPOS_ROW`) serves the read live. GATE (extract
+  `_wave_layout_verbatim`): canon geometry (C6 note) + idle walk and EVERY
+  instrument's program a verbatim contiguous slice ending on the orig marker
+  `$90+(n-loop)`; a wave_start ON the program's own end marker (the "start
+  at the loop marker" editor idiom) is admitted with the chased first-step
+  position, EXCEPT when the member also reads the wjmp window (the skipped
+  transient chase writes $171F). Non-verbatim (chain-resolved / off-table /
+  runaway) programs stay honest residue. Default byte-identical (MD5
+  old-vs-new, Aktarus); 30-member exposure sweep: 12 FULLs hold, +5 FULL
+  (Distant_Echoes/No_Name_Remix/In_die_Dunkelheit/Das_Remix/II-V3), 2
+  partials moved LATER, 0 regressions.
 - **Redirect-map consumer — durrel (2026-07-03, +26 FULL f1, 0 attributable
   regressions):** $173E duration-reload mapped as a live shadow; works because
   every composer EVENT's stored duration == the orig's reload at that row BY

@@ -334,6 +334,14 @@ instrument 1 lead {
     representation (it superseded the removed `freq_overrun` verbatim
     post-table byte window); the model sees frequencies, never
     bytes-at-an-offset.
+  - `wave_table_pos`: `N` — the instrument's position in the editor's SHARED
+    wave table (DMC: a number the composer typed into instrument byte 9 —
+    arrangement, like transpose-command placement). Audible only when an
+    off-table freq read sonifies a voice's LIVE wave position, so it is
+    emitted only for members where that happens (then EVERY instrument
+    carries it). The composer packs its wave pool at these positions so its
+    wave-position state equals the value the original sonifies, and serves
+    the read live.
 
 Field set is engine-determined. Fields not relevant to an engine
 omit cleanly.

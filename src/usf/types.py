@@ -571,6 +571,15 @@ class Instrument:
     # Each entry is `(offset, note, freq_lo, freq_hi)`; idx = (offset + note) &
     # $FF. Replaces the `freq_overrun` blob.
     offtable_freq: list[tuple] = field(default_factory=list)
+    # The instrument's position in the editor's SHARED wave table (DMC byte 9
+    # — a number the composer typed; §8 arrangement, like transpose-command
+    # placement). Audible ONLY when an off-table freq read sonifies a voice's
+    # live wave position ($177A-$177C), so it is emitted only for members
+    # where that happens (all instruments carry it or none do); the composer
+    # then packs its wave pool at these positions so its wave-position state
+    # equals the value the original sonifies. None = not carried (the
+    # composer packs the pool however it likes).
+    wave_table_pos: Optional[int] = None
     pwm: PwmConfig = field(default_factory=PwmConfig)
     adsr: tuple = (0, 0)             # (ad, sr)
     arp: ArpConfig = field(default_factory=ArpConfig)

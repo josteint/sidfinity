@@ -371,6 +371,8 @@ def _write_instrument(i: Instrument) -> list[str]:
         entries = ' '.join(f'at({s}, {n}, {lo}, {hi})'
                            for s, n, lo, hi in i.offtable_freq)
         lines.append(f'  offtable_freq: {entries}')
+    if getattr(i, 'wave_table_pos', None) is not None:
+        lines.append(f'  wave_table_pos: {i.wave_table_pos}')
     lines.append(f'  {_write_pwm(i.pwm)}')
     lines.append(f'  adsr:     {_hex(i.adsr[0])} {_hex(i.adsr[1])}')
     lines.append(f'  {_write_arp(i.arp)}')

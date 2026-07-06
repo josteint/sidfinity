@@ -243,6 +243,9 @@ class _T(Transformer):
     def inst_offtable_freq(self, items):
         return ('offtable_freq', [tuple(e) for e in items])
 
+    def inst_wave_table_pos(self, items):
+        return ('wave_table_pos', int(items[0]))
+
     def pwm_mode(self, items):
         return ('mode', str(items[0]))
 

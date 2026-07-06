@@ -194,16 +194,14 @@ DMC_OFFTABLE_STATE = [
                              # $FF is not a possible guard value (BEQ guards
                              # the DEC); that member's read was wnote idx 221
                              # and its FULL status a stale palimpsest.
-    # NOTE: wavepos ($177A) + fcut ($171C) are read off-table by Object_of_Art's
-    # wave program (arp=213 -> hi=wavepos, lo=fcut). Mapping them was net-negative
-    # (0 recoveries, 1 regression / 33 FULLs): the HI byte sonifies the ABSOLUTE
-    # wave position, but our composer re-packs the wave pool with its own offsets
-    # (iwst), so our wavepos diverges from the orig's (+5 for Object_of_Art's
-    # V2/V3) — the off-table read can't match without reproducing the orig's
-    # wave-pool LAYOUT byte-for-byte (the hard C11 encoding-specific class).
-    # Mapping also regressed a FULL whose off-table read matched via the static
-    # overrun byte. So: off-table-wavepos reads are BLOCKED on the wave-pool
-    # layout, not addable as a redirect entry. See ledger C11 / project_dmc.
+    # NOTE: wavepos ($177A) is NOT here — the composer's wavepos runs on its
+    # own re-packed pool offsets (iwst), so an UNCONDITIONAL row was
+    # net-negative (0 recoveries, 1 regression: Object_of_Art, 2026-06-28,
+    # our wavepos = orig+5). It is served by the GATED DMC_WAVEPOS_ROW below
+    # instead: members whose off-table reads sonify a live wave position
+    # carry per-instrument `wave_table_pos` (editor arrangement, §8) and get
+    # a LAYOUT-PRESERVING pool placed at those positions, making wavepos ==
+    # orig $177A at every settled moment. See ledger C11 / project_dmc.
 ]
 
 # sector-position shadow ($1729,x = INC per consumed sector byte, reset to 0
@@ -216,6 +214,15 @@ DMC_OFFTABLE_STATE = [
 # no byte offsets are carried in USF. The extract's event-driven capture
 # excludes these idx unconditionally (_redirect_mapped_idx).
 DMC_SECTPOS_ROW = (0x1729, 'sectpos', 3)
+
+# live wave-position row ($177A,x — fhi window idx 211-213). NOT in
+# DMC_OFFTABLE_STATE: the composer's wavepos runs on its OWN pool offsets, so
+# the row is only correct under layout-preserving packing (every instrument
+# carries wave_table_pos and the pool is placed at the orig editor positions —
+# see Model.wavepos_layout). Emitted only for those members; everyone else
+# keeps the static window byte (the old "mapping wavepos regressed a FULL"
+# caution was exactly the un-gated form of this row).
+DMC_WAVEPOS_ROW = (0x177A, 'wavepos', 3)
 
 
 def _gen_offtable_redirect(state_map, orig_base, win_min, static_load,
@@ -398,6 +405,13 @@ class _Model:
             'offtable_redirect', '1')) != '0'
         self.instruments = list(usf.instruments)
         self.inst_slot = {i.id: k for k, i in enumerate(self.instruments)}
+        # layout-preserving wave pool: every instrument carries its editor
+        # wave-table position (only emitted for members whose off-table freq
+        # reads sonify a live wave position $177A-$177C) — pack the pool at
+        # those positions so the runtime wavepos EQUALS the orig's $177A,x
+        # and the DMC_WAVEPOS_ROW redirect serves the read live.
+        _wtp = [getattr(i, 'wave_table_pos', None) for i in self.instruments]
+        self.wavepos_layout = bool(_wtp) and all(p is not None for p in _wtp)
         # filter defs: program key -> slot = orig def# (key-1). The def table
         # is emitted DENSE in orig order at the orig 16-byte record stride so
         # off-table walk reads (repeat > 5) hit the same bytes as the orig;
@@ -523,18 +537,53 @@ class _Model:
             _wseen[key] = s
             return s
 
+        # Layout-preserving packing (wavepos_layout): place every program at
+        # its editor wave-table position so wavepos,x == orig $177A,x at all
+        # times (marker hops included — the marker byte and hop distance are
+        # identical for verbatim slices, which the extract gate guarantees).
+        # Overlapping placements come from ONE original table, so they agree
+        # byte-for-byte (asserted). Marker slots claim only the ctrl byte —
+        # the parallel freq byte under a marker is never read, but another
+        # program's step may legitimately own it.
+        _ctrl_at, _freq_at = {}, {}
+
+        def place_prog(ctrl, freq, loop, pos):
+            n = len(ctrl)
+            if n == 0:
+                raise RuntimeError('unsupported:zero_wave_table')
+            assert 0 <= loop < n and n - loop <= 0x6F, \
+                f'wave program shape n={n} loop={loop}'
+            assert pos + n <= 255, 'wave pool overflow'
+            cb = [b & 0xFF for b in ctrl] + [0x90 + n - loop]
+            fb = [b & 0xFF for b in freq]
+            for k, v in enumerate(cb):
+                assert _ctrl_at.setdefault(pos + k, v) == v, \
+                    'wave layout overlap conflict'
+            for k, v in enumerate(fb):
+                assert _freq_at.setdefault(pos + k, v) == v, \
+                    'wave layout overlap conflict'
+            return pos
+
+        first = place_prog if self.wavepos_layout else \
+            (lambda ctrl, freq, loop, _pos: add_prog(ctrl, freq, loop))
+
         ip = usf.wave_programs.get(0)
         if ip and ip['ctrl']:
-            add_prog(ip['ctrl'], ip['freq'], ip.get('loop', 0))
+            first(ip['ctrl'], ip['freq'], ip.get('loop', 0), 0)
         elif self.instruments:
             i0 = self.instruments[0]
-            add_prog(i0.waveform, i0.wave_freq or [0] * len(i0.waveform),
-                     i0.loop)
+            first(i0.waveform, i0.wave_freq or [0] * len(i0.waveform),
+                  i0.loop, getattr(i0, 'wave_table_pos', None) or 0)
         for inst in self.instruments:
-            self.iwst.append(add_prog(
+            self.iwst.append(first(
                 inst.waveform, inst.wave_freq or [0] * len(inst.waveform),
-                inst.loop))
-        assert len(self.wctrl) <= 255, 'wave pool overflow'
+                inst.loop, getattr(inst, 'wave_table_pos', None)))
+        if self.wavepos_layout:
+            size = max(_ctrl_at) + 1
+            self.wctrl = bytearray(_ctrl_at.get(k, 0) for k in range(size))
+            self.wfreq = bytearray(_freq_at.get(k, 0) for k in range(size))
+        else:
+            assert len(self.wctrl) <= 255, 'wave pool overflow'
 
     def iflags(self, inst) -> int:
         f = 0
@@ -1261,7 +1310,8 @@ fx_dual_up:
     # extract-probed): their window bytes are static code/data served by the
     # static capture.
     otmap = (DMC_OFFTABLE_STATE if m.offtable_redirect else []) \
-        + ([DMC_SECTPOS_ROW] if sectpos_on else [])
+        + ([DMC_SECTPOS_ROW] if sectpos_on else []) \
+        + ([DMC_WAVEPOS_ROW] if m.wavepos_layout else [])
     ws_lo_redirect = _gen_offtable_redirect(
         otmap, ORIG_FLO, 192, 'lda freqlo,y', 'ws_rd_los')
     ws_hi_redirect = _gen_offtable_redirect(

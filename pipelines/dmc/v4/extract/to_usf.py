@@ -83,7 +83,7 @@ def _row_to_usf(r: DmcRow, cmd_flags: bool = False) -> NoteRow:
                    fx_flags=tuple(flags))
 
 
-def _instrument_to_usf(inst) -> Instrument:
+def _instrument_to_usf(inst, wavepos_layout: bool = False) -> Instrument:
     effects = set()
     if inst.drum:
         effects.add('drum')
@@ -106,6 +106,9 @@ def _instrument_to_usf(inst) -> Instrument:
         wave_freq=wave_freq,
         adsr=(inst.ad, inst.sr),
         offtable_freq=list(inst.offtable_freq),
+        # editor wave-table position (arrangement) — only for members whose
+        # off-table reads sonify a live wave position (see DmcModel)
+        wave_table_pos=inst.wave_pool_pos if wavepos_layout else None,
         pwm=PwmConfig(mode='bidirectional',
                       init=inst.pw_init_hi << 8,
                       min_hi=inst.pw_bound_a, max_hi=inst.pw_bound_b,
@@ -298,7 +301,7 @@ def model_to_usf(m: DmcModel) -> UsfFile:
                       dur_reload=durrel[v] or None)
             for v in range(3)
             if m.idle_notes[v] or m.idle_masks[v] or durrel[v]]),
-        instruments=[_instrument_to_usf(m.instruments[k])
+        instruments=[_instrument_to_usf(m.instruments[k], m.wavepos_layout)
                      for k in sorted(m.instruments)],
         subtunes=subtunes,
         filter_programs={d + 1: dict(v) for d, v in m.filter_defs.items()},

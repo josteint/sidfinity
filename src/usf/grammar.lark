@@ -228,6 +228,13 @@ instrument_field: "waveform" ":" byte_list                              -> inst_
                 // offset = a wave step's semitone offset, or 0 for the base read
                 // (vib step / note freq / glide arrival). The off-table-read form.
                 | "offtable_freq" ":" ofreq_entry+                      -> inst_offtable_freq
+                // The instrument's position in the editor's SHARED wave
+                // table (a number the composer typed — arrangement).
+                // Carried only when an off-table freq read sonifies a
+                // voice's live wave position; the composer packs its wave
+                // pool at these positions so its wave-position state equals
+                // the sonified value.
+                | "wave_table_pos" ":" INT                              -> inst_wave_table_pos
 
 // off-table arpeggio freq entry: at(offset, note, freq_lo, freq_hi)
 ofreq_entry: "at" "(" number "," number "," number "," number ")"
