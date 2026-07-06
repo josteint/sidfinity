@@ -768,11 +768,27 @@ def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
 
     for song in m.songs:
         for v in song.voices:
+            # `running` = the instrument whose wave program is LIVE before a
+            # row's note-init runs. Notes are FETCHED on a P call (curnote +
+            # base update at $11A3-$11B3) but note-init (wave restart) is
+            # DEFERRED to the pending frame — an intervening wave-step call
+            # ($1591 F entry) steps the OLD program with the NEW curnote. And
+            # a SOFT ($7C) row skips note-init entirely, so the old program
+            # runs for its whole duration. Both make off-table reads at
+            # (old-program offset + new note) — enumerate them too, else the
+            # window byte for that idx stays the file-image leftover
+            # (Bladeswede: inst-13 noise-arp off 52 + soft note 47 = idx 99
+            # reads $170A = V1 track-ptr hi, runtime $1B vs file $00).
+            running = None
             for ei, e in enumerate(v.entries):
                 tr = v.transposes[ei] if v.transposes else 0
                 for r in v.patterns[e]:
                     if r.note is not None:
                         add_note(r.note + tr, r.instr)
+                        if running is not None and running != r.instr:
+                            add_note(r.note + tr, running)
+                        if not r.soft:
+                            running = r.instr
                     if r.glide_to is not None:
                         add_note(r.glide_to + tr, r.instr)
     # IDLE-WAVE off-table reads: a voice that starts on rests freewheels the

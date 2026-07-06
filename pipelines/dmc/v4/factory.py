@@ -450,10 +450,20 @@ def _observe_play_phases_writes(sid_path: str, subtune: int,
                 return None
         return None
 
-    if run(s['init'], subtune) is None:
+    init_writes = run(s['init'], subtune)
+    if init_writes is None:
         return None
+    # R vs F by CHIP STATE, not the previous call's write set: a pure register
+    # refresh can only re-emit values already on the chip, while an effects
+    # call (wave-step) eventually writes a value that DIFFERS from the current
+    # register content (e.g. a chord program stepping +3). Comparing against
+    # the previous call misreads a wave-step whose early steps repeat values
+    # (chord [0,0,0,3,...]) as R — Bladeswede played its arpeggio's first tone
+    # forever. A true refresh can never be misread as F under this rule.
+    chip = {}
+    for a, v in init_writes:
+        chip[a & 0x1F] = v
     seq = []
-    prev_vals = None
     for _ in range(n_calls):
         w = run(s['play'], 0)
         if w is None:
@@ -462,19 +472,37 @@ def _observe_play_phases_writes(sid_path: str, subtune: int,
             seq.append('S')
             continue
         regs = {a & 0x1F for a, _ in w}
+        advancing = False
+        for a, v in w:
+            if (a & 0x1F) in chip and chip[a & 0x1F] != v:
+                advancing = True
+            chip[a & 0x1F] = v
         if 0x16 in regs:
             seq.append('P')
         else:
             voices = sorted({r // 7 for r, _ in
                              ((a & 0x1F, v) for a, v in w) if r < 21})
             vs = ''.join(str(v + 1) for v in voices)
-            vals = [(a & 0x1F, v) for a, v in w]
-            seq.append(('R' if prev_vals is not None
-                        and set(vals) <= set(prev_vals) else 'F') + vs)
-        prev_vals = [(a & 0x1F, v) for a, v in w]
+            seq.append(('F' if advancing else 'R') + vs)
+    # Period fit on a COLLAPSED key (F<v>/R<v> both -> 'x<v>'): an effects
+    # phase reads R on occurrences where its program happens to repeat values,
+    # which would spuriously break the raw-token period. Once fit, a position
+    # is F if ANY occurrence advanced (a refresh can never advance), else R.
+    def _key(t):
+        return t if t in ('P', 'S') else 'x' + t[1:]
+    keys = [_key(t) for t in seq]
     for p in range(1, n_calls // 2 + 1):
-        if all(seq[i] == seq[i % p] for i in range(n_calls)):
-            return '_'.join(seq[:p])
+        if not all(keys[i] == keys[i % p] for i in range(n_calls)):
+            continue
+        out = []
+        for k in range(p):
+            toks = [seq[i] for i in range(k, n_calls, p)]
+            if toks[0] in ('P', 'S'):
+                out.append(toks[0])
+            else:
+                anyF = any(t[0] == 'F' for t in toks)
+                out.append(('F' if anyF else 'R') + toks[0][1:])
+        return '_'.join(out)
     return None
 
 
@@ -506,10 +534,25 @@ def _observe_play_phases_pctrace(sid_path: str, subtune: int, play_addr: int,
         return None
     if len(plays) < 8:
         return None
+    # R vs F by CHIP STATE (same rule as _observe_play_phases_writes): a pure
+    # refresh can only re-emit values already on the chip; an effects call
+    # eventually writes a value that DIFFERS from the current register content.
+    # The capture drops the init prefix, so the chip starts unknown — a reg's
+    # FIRST sighting is recorded, never counted as advancing (a refresh
+    # re-emitting an init-written reg must not false-F); a genuine effects
+    # phase changes a known reg within the window. Comparing against the
+    # previous call's write set (the old rule) misread a wave-step whose early
+    # steps repeat values (chord [0,0,0,3,...]) as R — Bladeswede played its
+    # arpeggio's first tone forever.
+    chip = {}
     seq = []
-    prev = None
     for w in plays[:n_calls]:
         regs = {r for r, _ in w}
+        advancing = False
+        for r, v in w:
+            if r in chip and chip[r] != v:
+                advancing = True
+            chip[r] = v
         if not w:
             seq.append('S')
         elif 0x16 in regs:
@@ -517,17 +560,16 @@ def _observe_play_phases_pctrace(sid_path: str, subtune: int, play_addr: int,
         else:
             voices = sorted({r // 7 for r in regs if r < 21})
             vs = ''.join(str(v + 1) for v in voices)
-            seq.append(('R' if prev is not None and set(w) <= set(prev)
-                        else 'F') + vs)
-        prev = w
+            seq.append(('F' if advancing else 'R') + vs)
     n = len(seq)
-    # Period fit is done on a COLLAPSED key (F<v> and R<v> both -> 'x<v>'): the
-    # R-vs-F distinction flaps frame-to-frame (a held note that stops advancing
-    # reads as R for a frame or two), which would spuriously break an otherwise
-    # clean period. Voice set + P/S must still match. Once a period is found,
-    # each phase position's OUTPUT token is resolved from all its occurrences:
-    # any advancing frame => F<v> (an effects-run phase); all non-advancing =>
-    # R<v> (a pure register refresh, e.g. Compotune_1's P_R123_R123_R123).
+    # Period fit is done on a COLLAPSED key (F<v> and R<v> both -> 'x<v>'): an
+    # effects phase reads R on occurrences where its program repeats values,
+    # which would spuriously break an otherwise clean period. Voice set + P/S
+    # must still match. Once a period is found, each phase position's OUTPUT
+    # token is resolved from all its occurrences: ANY advancing occurrence =>
+    # F<v> (a refresh can never advance, so this has no false positive); all
+    # non-advancing => R<v> (a pure register refresh, e.g. Compotune_1's
+    # P_R123_R123_R123).
     def _key(t):
         return t if t in ('P', 'S') else 'x' + t[1:]
     keys = [_key(t) for t in seq]
@@ -541,16 +583,8 @@ def _observe_play_phases_pctrace(sid_path: str, subtune: int, play_addr: int,
             if base in ('P', 'S'):
                 out.append(base)
             else:
-                # F vs R by MAJORITY over the phase's occurrences, ties -> R.
-                # A note advances (F) for its first frame(s) then settles to a
-                # pure refresh (R); the STEADY behaviour is what the composer
-                # emits for the bulk of the song, so the majority (not a lone
-                # early F) decides. Ties resolve to R — the py65 canon observer's
-                # result for the ambiguous case (Compotune_1: [F,F,R,R] -> R,
-                # verifies FULL), while a clear F majority stays F (F.A.K.E:
-                # [F..,R,R] -> F).
-                nR = sum(1 for t in toks if t[0] == 'R')
-                out.append(('R' if nR * 2 >= len(toks) else 'F') + base[1:])
+                anyF = any(t[0] == 'F' for t in toks)
+                out.append(('F' if anyF else 'R') + base[1:])
         return '_'.join(out)
     return None
 
@@ -897,13 +931,19 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str):
         return None
     # CIA multispeed (same as the canon path): if the speed bit is set, run the
     # init and recover the timer latch so the rebuild runs at the same rate.
-    # Lenient on an unreadable latch (fall back to single-speed; the verify gate
-    # catches a mis-rated build as a partial) — the dataflow path is itself a
-    # best-effort fallback.
+    # When py65 can't read it (init hangs / latch programmed in an IRQ /
+    # wrapper the sentinel never returns from), measure the rate from the
+    # ground-truth writelog — the same fallback the canon path uses. Still
+    # lenient on a fully unmeasurable latch (fall back to single-speed; the
+    # verify gate catches a mis-rated build as a partial) — the dataflow path
+    # is itself a best-effort fallback.
     cia_period = 0
     if s.get('speed', 0) & 1:
         cp = _cia_period_from_init(os.path.join(hvsc_root, sid_path),
                                    s['start'] - 1)
+        if not (0x0100 <= cp <= 0xFFFF):
+            cp = _cia_period_from_writelog(os.path.join(hvsc_root, sid_path),
+                                           s['start'] - 1)
         if 0x0100 <= cp <= 0xFFFF:
             cia_period = cp
     play_repeat = (1 if (s.get('speed', 0) & 1)
