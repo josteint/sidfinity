@@ -224,7 +224,11 @@ def _cia_period_from_writelog(sid_path: str, subtune: int,
     --per-irq-debug` (nentries per siddump frame; base = absolute PHI1 clock),
     round to the integer multispeed factor, and return the canonical latch
     19656/N - 1 (e.g. N=2 -> $2663, N=4 -> $1331 — the exact DMC inits).
-    Returns 0 if not measurable / single-speed (N rounds to <2)."""
+    Single-speed CIA (N rounds to <2): a speed-bit tune whose init programs
+    NO timer runs at the PSID environment's DEFAULT latch $4025 (16422
+    cycles, ~60 Hz) — measure the exact play-entry period and return $4025
+    when it matches (Phobos/Crazy_Mix). Returns 0 if not measurable /
+    any other single-speed rate."""
     import subprocess
     import re
     sd = os.path.join(os.path.dirname(__file__), '..', '..', '..',
@@ -248,9 +252,22 @@ def _cia_period_from_writelog(sid_path: str, subtune: int,
     if span <= 0:
         return 0
     n = round(total / (span / 19656.0))
-    if n < 2:
+    if n >= 2:
+        return 19656 // n - 1
+    # Single-speed: measure the exact entry-to-entry period (entry0 = the
+    # play-entry PHI1 clock per siddump frame; a frame holding 2 entries
+    # yields a doubled delta — the median discards those). The DEFAULT CIA
+    # latch is the only single-speed value admitted; a 50 Hz-ish period is
+    # indistinguishable from a correct vblank build, leave it 0.
+    entries = [int(m.group(1)) for m in
+               re.finditer(r'entry0=(\d+)', out)]
+    deltas = sorted(b - a for a, b in zip(entries, entries[1:]) if b > a)
+    if not deltas:
         return 0
-    return 19656 // n - 1
+    period = deltas[len(deltas) // 2]
+    if abs(period - 0x4026) <= 2:      # default latch $4025 -> 16422 cycles
+        return 0x4025
+    return 0
 
 
 def _cia_period_from_init(sid_path: str, subtune: int,
@@ -1329,23 +1346,23 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         cia_period = _cia_period_from_init(
             os.path.join(hvsc_root, sid_path), s['start'] - 1)
         if not (0x0100 <= cia_period <= 0xFFFF):
-            # A wrapper member IS multispeed but we can't read its rate ->
-            # can't rebuild it faithfully. A canonical-play member with the
-            # speed bit set but no readable latch falls back to single-speed
-            # (the prior behavior — no worse than before).
-            if s['play'] != base + 3:
-                # py65 couldn't read the latch (init hangs / unsupported
-                # opcode / timer programmed in an IRQ). Measure the rate from
-                # the ground-truth writelog (libsidplayfp runs the init
-                # correctly) instead of rejecting.
-                cia_period = _cia_period_from_writelog(
-                    os.path.join(hvsc_root, sid_path), s['start'] - 1)
-                if not (0x0100 <= cia_period <= 0xFFFF):
+            # py65 couldn't read the latch (init hangs / unsupported opcode /
+            # timer programmed in an IRQ) OR the init programs none. Measure
+            # the rate from the ground-truth writelog (libsidplayfp runs the
+            # init correctly) — this also recovers the speed-bit-with-NO-latch
+            # class, which runs at the PSID default $4025 (60 Hz; a vblank
+            # 50 Hz build under-runs it ~20% = a guaranteed length partial).
+            cia_period = _cia_period_from_writelog(
+                os.path.join(hvsc_root, sid_path), s['start'] - 1)
+            if not (0x0100 <= cia_period <= 0xFFFF):
+                # A wrapper member IS multispeed but we can't read its rate ->
+                # can't rebuild it faithfully. A canonical-play member falls
+                # back to single-speed (a 50 Hz-ish CIA rate is equivalent).
+                if s['play'] != base + 3:
                     raise DMCV4Unsupported(
                         'cia_multispeed',
                         f"play=${s['play']:04X} CIA latch unreadable "
                         "(py65 + writelog)")
-            else:
                 cia_period = 0
     # INTERNAL multispeed (vblank wrapper, no speed bit) — independent of CIA.
     play_repeat = (1 if (s.get('speed', 0) & 1)

@@ -396,14 +396,31 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   the GROUND-TRUTH writelog (libsidplayfp runs the real CPU). Sibling of C4
   (localize a divergence via memwatch); both replace a py65 limitation with a
   libsidplayfp observation.
-- **Status:** logged (DMC v4 CIA multispeed rate, 2026-06-25).
+- **Status:** recurring (DMC v4 CIA multispeed rate 2026-06-25; single-speed
+  DEFAULT latch 2026-07-06).
 - **Boundary:** works when the parameter is OBSERVABLE in the write timing /
   memory. CIA multispeed rate: count play()s per PAL frame from
   `--writelog-per-irq --per-irq-debug` (`nentries`/frame, `base`=abs PHI1
   clock), round N to the integer factor, latch = 19656/N − 1 (the exact
   canonical $2663=2x / $1331=4x). The rounding makes it robust (N within 0.01).
+- **NOTE — the SINGLE-SPEED CIA default latch (2026-07-06, Phobos/Crazy_Mix
+  +3 FULL):** a PSID speed-bit tune whose init programs NO timer is still a
+  CIA tune — it runs at the PSID environment's DEFAULT latch $4025 (16422
+  cycles, ~60 Hz). The old "no readable latch → single-speed fallback"
+  blanket built it as a vblank 50 Hz tune: the write SEQUENCE matches as a
+  perfect prefix but under-runs ~20% = a guaranteed length partial (the
+  Trap-C-looking flat pos-0 divergence is the CIA init-phase artifact —
+  localize per-IRQ). Fix: when N rounds to <2, measure the exact
+  entry-to-entry period (median of entry0 deltas; a 2-entry frame doubles
+  one delta, the median discards it) and return $4025 iff it matches (±2).
+  A 50 Hz-ish single-speed CIA rate is left 0 (a vblank build is
+  equivalent). Regression-safe by construction: any member this changes was
+  rate-wrong (never FULL). Also: call the writelog fallback for
+  CANONICAL-play members (play == base+3), not only wrappers — the canon
+  path never measured them.
 - **Consumers:** DMC v4 `factory._cia_period_from_writelog` (commit 2114f21 —
-  67 py65-unreadable cia_multispeed members → 56 build, +20 FULL).
+  67 py65-unreadable cia_multispeed members → 56 build, +20 FULL; default
+  latch $4025: Crazy_Mix/Love_Song/Magnum_Theme 2026-07-06).
 
 ### C10 — Chip-global ($D415-$D418) automation that varies during a song (master vol + filter)
 - **The DOF:** master volume + filter cutoff/res/mode/route — chip-GLOBAL state
