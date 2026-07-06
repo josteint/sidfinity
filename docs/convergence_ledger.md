@@ -660,6 +660,21 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   needed when the orig init wipes it and one writer runs unconditionally per
   voice per frame). Exposure census: 30 FULL idx-carriers held, 12 partials
   none-earlier / 3 improved.
+- **CACHE bytes with "no composer var" are shadowable by MATERIALIZING the
+  var at the writer site (2026-07-06, Saturday_Dance +7 FULL — fxf $177D-F,
+  fsz $1721, fdu $1722, overturning the round-22 "$1721/$1722 read inline via
+  fdstep/fddur, no cache VAR to redirect to" rejection).** Two sub-cases in one
+  first-divergence chase: (a) $177D fx-flags cache — the composer ALREADY had
+  the var (`fxf,x`, stored at note-init exactly where the orig stores instr
+  byte 10; `iflags()` is the lossless byte-10 reconstruction from typed fields
+  — verify the ROUND-TRIP per instrument before mapping a reconstructed
+  value); plain missing-row case, add `(0x177D,'fxf',3)`. (b) $1721/$1722
+  filter step-size/duration caches — the composer read them inline into
+  scratch (`tmp`/`tmp2`) at exactly the orig's STA sites; "no var to redirect
+  to" is not a rejection, it's a one-edit fix: RENAME the scratch to dedicated
+  vars (`fsz`/`fdu`) and add the rows. Both inside the orig's $1718-$179D init
+  wipe + composer state wipe → no seed. Exposure sweep (83 idx-carriers): 62
+  FULLs held, +7 partial→FULL, 0 regressions; full regression green.
 - **A "POSITIONAL" counter is shadowable when its per-event deltas DERIVE from
   row content + stated-command flags (2026-07-06, Rodney/Intro_Music_2 —
   sectpos $1729-$172B, overturning the round-22 REJECTED verdict).** DMC's

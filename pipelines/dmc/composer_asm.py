@@ -126,6 +126,14 @@ DMC_OFFTABLE_STATE = [
     (0x1771, 'vibdel', 3),   # vibrato delay counter
     (0x1774, 'vibwid', 3),   # vibrato width
     (0x1777, 'cvram', 3),    # vibrato ramp limit
+    (0x177D, 'fxf', 3),      # FX flags cache (instr byte 10) — stored at
+                             # note-init from iflag,y exactly where the orig
+                             # stores $18FA,y ($12EB); init-cleared to 0 on
+                             # both sides so no seed needed. iflags() is the
+                             # lossless byte-10 reconstruction from the typed
+                             # instrument fields (all 8 bits round-trip).
+                             # Read off-table via fhi idx 214-216
+                             # (Saturday_Dance V3 idx 216).
     (0x1780, 'wctrl', 3),    # current wave ctrl byte
     (0x1792, 'vstep', 3),    # vibrato step size lo
     (0x1795, 'vsteph', 3),   # vibrato step size hi
@@ -148,11 +156,10 @@ DMC_OFFTABLE_STATE = [
     # so these track by construction — verified index-match + value-match on 5
     # reps (Senna/In_die_Dunkelheit/Slide_Me/High_Tech/1st_Intro). Mapped so an
     # off-table read lands on the live var instead of a stale freqhi-overrun byte.
-    # NOT mapped: $1720 fclaim (voice/claim ordering differs — rejected f2) and
-    # $1721/$1722 step-size/dur caches (the composer reads them inline from the
-    # fdstep/fddur def views — no cache VAR to redirect to). (fcut $171C IS
-    # mapped below — the old "regressed Humppa" caution was fcut+wavepos bundled;
-    # fcut alone tracks and is 0-regression, exposure-censused this round.)
+    # NOT mapped: $1720 fclaim (voice/claim ordering differs — rejected f2).
+    # (fcut $171C IS mapped below — the old "regressed Humppa" caution was
+    # fcut+wavepos bundled; fcut alone tracks and is 0-regression,
+    # exposure-censused this round.)
     (0x1718, 'spdctr', 1),   # speed counter (DEC per frame; reload = $1716)
     (0x171C, 'fcut', 1),     # filter current cutoff (-> $D416 every frame). The
                              # composer's fcut drives the identical $D416 stream,
@@ -163,6 +170,11 @@ DMC_OFFTABLE_STATE = [
                              # is clean — exposure-censused this round.
     (0x1719, 'fstep', 1),    # filter current step index 0-5
     (0x171A, 'fframe', 1),   # filter frames spent in current step
+    (0x1721, 'fsz', 1),      # filter step size cache — the composer's fsz is
+                             # stored from fdstep,y exactly where the orig
+                             # stores $1a7b,y → $1721 ($13E9); init-cleared
+                             # to 0 both sides (Saturday_Dance flo idx 218)
+    (0x1722, 'fdu', 1),      # filter step duration cache (orig $13EF)
     (0x171B, 'fbase', 1),    # filter definition base index (def# << 4)
     (0x171D, 'frep', 1),     # filter repeat/loop step index (def byte2)
     (0x171E, 'fstop', 1),    # filter stop cutoff (def byte3) — verified tracks
@@ -1810,16 +1822,16 @@ fx_filter:
         adc fstep
         tay
         lda fdstep,y
-        sta tmp
+        sta fsz                      ; shadow orig $1721 STA (step size cache)
         lda fddur,y
-        sta tmp2
+        sta fdu                      ; shadow orig $1722 STA (step dur cache)
         lda fcut
         clc
-        adc tmp
+        adc fsz
         sta fcut
         inc fframe
         lda fframe
-        cmp tmp2
+        cmp fdu
         bne fx_glide
         lda #$00
         sta fframe
@@ -2065,6 +2077,8 @@ dualpar:  .dsb 1, 0
 fclaim:   .dsb 1, 0
 fstep:    .dsb 1, 0
 fframe:   .dsb 1, 0
+fsz:      .dsb 1, 0                  ; filter step size cache (= orig $1721)
+fdu:      .dsb 1, 0                  ; filter step duration cache (= orig $1722)
 fbase:    .dsb 1, 0
 fcut:     .dsb 1, 0
 frep:     .dsb 1, 0

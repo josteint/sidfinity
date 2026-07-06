@@ -7,6 +7,29 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 39 (2026-07-06): fxf + fsz/fdu redirect rows — materialize the cache var (+7 FULL, 0 regr) [ledger C11 new note]
+Random partial Signor/Saturday_Dance (vblank, flat div 13232, V3 fhi orig $20
+vs mine $00). ONE first-divergence chase peeled TWO off-table classes: (1) fhi
+idx 216 → $177F = FX-FLAGS CACHE ($177D,x, instr byte 10) — the composer
+already had the var (`fxf,x`, stored at note-init exactly at the orig's $12EB
+site); verified `iflags()` round-trips the raw byte 10 for every instrument
+(all 8 bits ↔ typed fields) BEFORE mapping, then plain row `(0x177D,'fxf',3)`.
+(2) flo idx 218 → $1721 = filter STEP-SIZE cache — the round-22 "$1721/$1722
+read inline via fdstep/fddur, no cache VAR" rejection OVERTURNED: the composer
+read them into scratch `tmp`/`tmp2` at exactly the orig's STA sites, so the fix
+is renaming the scratch to dedicated `fsz`/`fdu` vars + rows (0x1721/0x1722).
+All three inside the orig $1718-$179D init wipe + composer state wipe → no
+seed. Saturday_Dance FULL 110279/110279. Exposure sweep (83 stored idx-
+carriers {214-216,218,219,122,123}): 62 FULLs HOLD (incl. 12 CIA), **+7 FULL**
+(Saturday_Dance, Crystal_Sheep_III_Intro, Nuclear_Family, Rio/NEO,
+Non_plus_Ultra_tune_2, My_Shelter, Hank/Scream), 14 partials have deeper
+blockers, 0 regressions. Full tools/regression.py green (DMC 14ok+0regr).
+LESSON (ledger C11 note): "no composer var to redirect to" is usually a
+one-edit materialization, not a rejection — and a RECONSTRUCTED value (iflags)
+must be round-trip-verified per instrument before its var is mapped.
+f1 ≈ 5015 FULL / ~170 partial (closeout batch still pending for the exact
+count).
+
 ## ✅ ROUND 38 (2026-07-06): WAVEPOS boundary falls — layout-preserving wave pool (+5 FULL, 0 regr) [ledger C11 new note]
 Random partial Zyron/Distant_Echoes (vblank, flat div 107112, V3 fhi orig $21
 vs mine $01). Off-table fhi read idx 211 → $177A = V1 LIVE WAVE POSITION —
