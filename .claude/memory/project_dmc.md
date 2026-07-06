@@ -7,6 +7,26 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 32 (2026-07-06): PW-hi SOURCE patch — C19 3rd occurrence (Lame FULL, 4871/5401) — commit dd5682a
+Random partial Olsen/Lame (vblank, flat div 13): V3 PW hi orig $3D vs mine $00
+(V1 $DB vs $08, V2 $0C vs $08 — per-voice CONSTANT all song, PW lo sweeps
+identically). effect_chain_profiler → orig's $D411 store at $1622 (sidwrite
+tail), but no writes to $1753 serve it — the C19 diagnosis tell (read site ≠
+canon). Byte dump: the member's `LDA $1753,x` operand is patched to
+**$1707,x = the track-ptr lo triple** (set once at init = $DB/$0C/$3D),
+pinning each voice's AUDIBLE PW hi at a constant while the internal PWM
+machine still runs on $1753 (note-init store + bound compares untouched). FIX
+(C19 canonical form): `factory._pw_hi_const_probe` — static opcode probe
+anchored on the `BD..99 02 D4 BD..99 03 D4` store pair, canon PW-accum-lo
+operand (base+$750) as the layout-blind base anchor; patched hi operand →
+capture POST-INIT bytes at op..+2 → `pw_hi_const='a,b,c'`; composer pwwrite
+swaps `lda pwh,x` → `lda pwhic,x` + 3-byte table. Default byte-identical;
+base-relative census (anchor on the PW-LO operand in the SAME match, NOT the
+load addr — load-shifted members false-positive otherwise) proved Lame is the
+ONLY family-1 carrier. verify FULL 117030/117030; full tools/regression.py
+green (DMC 14ok+0regr). Truth 4870→**4871/5401** (partial 315→314; NB the
+round-31 note's 4832 was stale vs a later sweep); Lame artifacts written.
+
 ## ✅ ROUND 31 (2026-07-06): wjmp shadow of $171F shared scratch (Ok_Ob_2_intro FULL, 4832/5401) — commit 1198016
 Random partial Ok_Ob_2_intro (Comer, vblank): first div 258, V3 noise fhi orig
 $00 vs mine $01. Deep-census classify: off-table hi read idx 120 → $171F =
