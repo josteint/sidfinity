@@ -789,12 +789,31 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # file-image capture mis-valued (the "dynamic residue" that wasn't).
     varying = _correct_offtable_postinit(m, path, cfg.freq_lo_addr,
                                          cfg.freq_hi_addr, cfg.vibdepth_addr)
+    # State-geometry probe: the composer's off-table redirect map
+    # (DMC_OFFTABLE_STATE) + the sectpos shadow identify window idx with the
+    # canon live state vars via the CANON table→state geometry (state block at
+    # canon offsets from the freq tables — invariant under whole-image
+    # relocation). Variant builds move the state elsewhere (the page-3 builds:
+    # Viiskyt_vuotta_humppaa keeps per-voice state at $03xx) — their window
+    # bytes are unrelated STATIC code/data, exactly what the post-init capture
+    # above serves, and every live redirect there would shadow a correct
+    # static value (idx 130 "sectpos" = an opcode byte; idx 208 "cvram" = an
+    # INY). Probe statically (C19: read the member's instructions): the canon
+    # player DECs its per-voice duration counter at freq_hi + ($173B-$16A7);
+    # no `DEC <that addr>,x` in the image ⇒ non-canon geometry ⇒ redirect map
+    # + sectpos shadow off, event-driven correction unrestricted.
+    canon_geom = _canon_state_geometry(mem, cfg)
     # If any off-table byte varied over the post-init time-sample, some read may
     # land on a globally-varying byte that is nonetheless STABLE at the moment a
     # given note reads it (sector-position, a settled track pointer). Recover
     # those with an event-driven capture (the value read AT the access). Gated so
     # members whose off-table reads are all init-constant skip the extra siddump.
-    if varying:
+    # Canon geometry only: the capture memwatches the CANON state addresses
+    # ($1783/$1012/$1015/$172F/$1732), which on a non-canon member are unrelated
+    # bytes — it would fabricate constant bogus keys that can poison correct
+    # records. Non-canon members keep the post-init static values (their
+    # window bytes are static code/data; a varying one stays honest residue).
+    if varying and canon_geom:
         _correct_offtable_eventdriven(m, path)
     # sectpos shadow gating: an off-table freq read landing on $1729-$172B
     # (per-voice sector position — INC per consumed sector byte, reset at the
@@ -802,13 +821,17 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # event-driven capture (varies per key). The composer maintains a live
     # sectpos,x shadow instead, its per-row values derived from row kind +
     # the stated-command flags (dcmd/icmd/vcmd/softcmd) — enable it when any
-    # captured read hits those bytes (flo idx 226-228 / fhi idx 130-132).
+    # captured read hits those bytes (flo idx 226-228 / fhi idx 130-132),
+    # canon geometry only (see the probe above).
     _SECTPOS_IDX = {(0x1729 + k) - 0x16A7 for k in range(3)} \
         | {(0x1729 + k) - 0x1647 for k in range(3)}
-    if any((off + note) & 0xFF in _SECTPOS_IDX
-           for ins in m.instruments.values()
-           for off, note, _lo, _hi in ins.offtable_freq):
+    if canon_geom and any((off + note) & 0xFF in _SECTPOS_IDX
+                          for ins in m.instruments.values()
+                          for off, note, _lo, _hi in ins.offtable_freq):
         m.extra_params['sectpos_shadow'] = '1'
+    if not canon_geom and any(ins.offtable_freq
+                              for ins in m.instruments.values()):
+        m.extra_params['offtable_redirect'] = '0'
     return m
 
 
@@ -1054,6 +1077,21 @@ def _offtable_eventdriven(sid_path: str, duration: float) -> dict:
     return {k: next(iter(vs)) for k, vs in vals.items() if len(vs) == 1}
 
 
+def _canon_state_geometry(mem, cfg) -> bool:
+    """True iff the member keeps its per-voice state block at the CANON offset
+    from its freq tables (the premise of the composer's off-table redirect map
+    + the sectpos shadow: window idx N = the canon state var at fhi+N).
+    Static opcode probe (C19): the canon player DECs its per-voice duration
+    counter every tick via `DEC $173B,x` ($10BD) — expect `DE lo hi` with
+    addr = freq_hi + ($173B − $16A7) somewhere in the player image. Variant
+    builds that moved the state (e.g. to $03xx) DEC a different address.
+    Fail-open: a stray data match keeps today's behavior (redirect on)."""
+    dur = (cfg.freq_hi_addr + (0x173B - 0x16A7)) & 0xFFFF
+    pat = bytes((0xDE, dur & 0xFF, dur >> 8))
+    lo = max(0, cfg.base)
+    return pat in bytes(mem[lo:min(0x10000, lo + 0x4000)])
+
+
 def _redirect_mapped_idx() -> set:
     """The off-table freq idx positions the composer serves from a LIVE redirect
     var (DMC_OFFTABLE_STATE), not the static window. A read landing there reads
@@ -1073,6 +1111,8 @@ def _correct_offtable_eventdriven(m: DmcModel, sid_path: str) -> None:
     it is STABLE per `(inst, off, note)`, EXCEPT positions the composer serves
     from a live redirect var (those are live-tracked + seeded from the leftover,
     so the static value must stay the file image — see `_redirect_mapped_idx`).
+    Canon-geometry members only (the caller gates on `_canon_state_geometry`;
+    the capture memwatches canon state addresses).
     On the remaining (window-served) positions this is regression-safe: a FULL
     member's reads already match, so the read-moment value equals the record → no
     change; only currently-wrong reads move. A key that VARIES is not in `ev`."""

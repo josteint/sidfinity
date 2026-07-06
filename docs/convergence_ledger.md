@@ -307,6 +307,25 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   freq_overrun blob eliminated, 2026-06-21); DMC v5 (`engine_model._assign_offtable_freq`
   → 1041 FULL, blob eliminated, 2026-06-21). Both `freq_overrun`-free; the schema
   field removal is the pending cleanup (`docs/offtable_freq_plan.md` Phase 7).
+- **NON-CANON STATE GEOMETRY (2026-07-06, DMC v4, Viiskyt_vuotta_humppaa +3 Finn;
+  status: logged):** every LIVE-serving of a window position (the
+  DMC_OFFTABLE_STATE redirect rows, the sectpos shadow, the co-located
+  sidoff/fbit/fmask/spd/mvol block at window pos 6..16, the event-driven
+  capture's memwatch addresses) identifies window idx with canon state vars via
+  the CANON table→state geometry — invariant under whole-image relocation but
+  WRONG for variant builds that moved the state block (the page-3 builds:
+  Bakewell/Finn/Stix/Aomeba/Ed keep per-voice state at $03xx; freq tables shift
+  −$13). There, idx 130 "sectpos" is an opcode byte, idx 208 "cvram" is an INY,
+  window pos 16 "live mvol" is a static $07 — all STATIC, exactly what the
+  post-init static capture already serves, and every live redirect/co-location
+  SHADOWS the correct static value. FIX: probe the geometry statically per
+  member (C19 method — the canon player's `DEC dur,x` must exist at
+  freq_hi + ($173B−$16A7); fail-open on a stray match) → non-canon members get
+  `offtable_redirect=0` (map emptied, window fully static, live structs emitted
+  outside it, sectpos shadow + event-driven capture off). Real-probe census:
+  10 carriers / 1212 stored-offtable members; +4 FULL, 0 regressions.
+  When adding ANY new live-serving of a window position, gate it on the same
+  probe.
 
 ### C5 — Detection ≠ FULL
 - **Canonical:** accepting a member past the factory's detection gate just moves

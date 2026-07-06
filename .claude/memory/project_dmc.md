@@ -7,6 +7,37 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 37 (2026-07-06): NON-CANON STATE GEOMETRY — the whole live-serving stack falls back to static (+4 FULL, 0 regr) [ledger C6 new note]
+Random partial Aomeba/Viiskyt_vuotta_humppaa (vblank, flat div 61788, V1 fhi
+orig $BD vs mine $06). The member is a VARIANT BUILD: freq tables shifted −$13
+(fhi $1694) and ALL per-voice state moved to PAGE 3 ($03xx: fbl $0359, wavepos
+$03A4, fxf $03A7...; curnote $1011). So every canon-geometry identification of
+"window idx N = live state var" is wrong for it: idx 130 "sectpos" = an opcode
+byte $BD, idx 208 "cvram" = an INY $C8, window pos 16 "live mvol" = a static
+$07 — all STATIC bytes the post-init capture already records exactly, each
+SHADOWED by a live redirect/co-location. THREE heads of one disease, peeled in
+one first-divergence chase: (1) sectpos_shadow gate fired on idx∈{130-132}
+alone; (2) DMC_OFFTABLE_STATE redirect rows served live cvram for idx 208;
+(3) the ovrwin co-located spd/mvol block served live mvol $0F for the lo read
+at window pos 16. FIX (one probe, all consumers): `_canon_state_geometry` —
+static C19 opcode probe, the canon player's `DEC dur,x` must exist at
+fhi + ($173B−$16A7), fail-open — gates sectpos_shadow, the event-driven
+capture (its memwatch addrs are canon — on a non-canon member it fabricates
+constant bogus keys, so it's SKIPPED not unrestricted), and a new
+`offtable_redirect=0` param (composer empties the redirect map, places records
+verbatim at pos 6..16, emits sidoff/fbit/fmask/spd/mvol OUTSIDE the window).
+Default byte-identical (Hardcore/Intro_Music_2 MD5 old-vs-new; 98_Mix = itself
+a carrier, byte-shifted but verified FULL). Real-probe census over all 1212
+stored-offtable f1 members: exactly 10 carriers (Bakewell×4/Finn×3/98_Mix/
+Viiskyt/Noising_Funk). RESULT: +4 FULL (Viiskyt 303644/303644, Finn Hyper/
+Industure/Blastlaugh), 4 Bakewell FULLs hold, Noising_Funk = unrelated
+pre-existing blocker (flat_div 14 identical). Full tools/regression.py green.
+TRAP: an approx census keyed on the PSID LOAD address claimed 225 carriers —
+members load data prefixes below $1000, so cfg.base ≠ load; always census with
+the real probe (dataflow cfg). f1 ≈ 5005 FULL / 180 partial. LESSON: when
+adding ANY new live-serving of an off-table window position, gate it on the
+geometry probe (ledger C6 note).
+
 ## ✅ ROUND 36 (2026-07-06): hard-restart AD/SR IMMEDIATE patch (Stryyker, +3 FULL) [ledger C19 5th occurrence]
 Random partial Stryyker/Proportional_Text_Writer (vblank, flat div 88, V1 AD
 orig $0A vs mine $0F at a note-fetch frame). The member patches ONE byte:

@@ -390,6 +390,12 @@ class _Model:
         # sector position); each event then carries its visible value.
         self.sectpos = str(usf.params.fields.get('sectpos_shadow',
                                                  '0')) == '1'
+        # off-table redirect gating: '0' = the member's state block is NOT at
+        # the canon offset from its freq tables (extract geometry probe), so
+        # the window idx the map identifies with live state land on unrelated
+        # static bytes — serve every off-table read from the static capture.
+        self.offtable_redirect = str(usf.params.fields.get(
+            'offtable_redirect', '1')) != '0'
         self.instruments = list(usf.instruments)
         self.inst_slot = {i.id: k for k, i in enumerate(self.instruments)}
         # filter defs: program key -> slot = orig def# (key-1). The def table
@@ -1077,6 +1083,12 @@ fx_dual_up:
     # idx-192 (the LO read lands deeper via table double-adjacency). Positions
     # 6..16 stay co-located (live spd/mvol + the sidoff/fbit/fmask constants) —
     # so members that only read there are byte-identical to before.
+    # Positions 6..16 are CO-LOCATED live/constant structures (sidoff/fbit/
+    # fmask + spd/mvol) for canon-geometry members — the orig's bytes there ARE
+    # those live values, so records at those positions defer to the co-location.
+    # For a non-canon member (offtable_redirect=0) the orig's window bytes are
+    # unrelated static code/data: place every record verbatim and emit the live
+    # structures OUTSIDE the window (see the ovrwin emission below).
     ovr = [0] * 160
     for inst in insts:
         for off, note, lo, hi in getattr(inst, 'offtable_freq', []) or []:
@@ -1084,11 +1096,11 @@ fx_dual_up:
             if idx < 96:
                 continue
             ph = idx - 96
-            if not (6 <= ph <= 16):
+            if not (m.offtable_redirect and 6 <= ph <= 16):
                 ovr[ph] = hi
             if idx >= 192:
                 pl = idx - 192
-                if not (6 <= pl <= 16):
+                if not (m.offtable_redirect and 6 <= pl <= 16):
                     ovr[pl] = lo
 
     # Seed the SPARSE glide vars gla/glb from their captured off-table values so
@@ -1120,13 +1132,25 @@ fx_dual_up:
     # (the original's $1707+ adjacency: 6 track-ptr slots, the three
     # voice constant triplets, then speed + master volume — the last
     # two are the LIVE variables, placed here so the values track).
-    data.append('ovrwin:\n' + _byt(ovr[0:6]) + '\n'
-                'sidoff:   .byt $00, $07, $0E\n'
-                'fbit:     .byt $01, $02, $04\n'
-                'fmask:    .byt $FE, $FD, $FB\n'
-                'spd:      .dsb 1, 0\n'
-                'mvol:     .dsb 1, 0\n'
-                + _byt(ovr[17:160]))
+    if m.offtable_redirect:
+        data.append('ovrwin:\n' + _byt(ovr[0:6]) + '\n'
+                    'sidoff:   .byt $00, $07, $0E\n'
+                    'fbit:     .byt $01, $02, $04\n'
+                    'fmask:    .byt $FE, $FD, $FB\n'
+                    'spd:      .dsb 1, 0\n'
+                    'mvol:     .dsb 1, 0\n'
+                    + _byt(ovr[17:160]))
+    else:
+        # non-canon geometry: the window is pure static capture; the live
+        # structures live outside it (their canon co-location would shadow
+        # the member's static bytes at pos 6..16 — Viiskyt lo idx 208 read
+        # LIVE mvol $0F where the orig reads a static $07 code byte).
+        data.append('ovrwin:\n' + _byt(ovr) + '\n'
+                    'sidoff:   .byt $00, $07, $0E\n'
+                    'fbit:     .byt $01, $02, $04\n'
+                    'fmask:    .byt $FE, $FD, $FB\n'
+                    'spd:      .dsb 1, 0\n'
+                    'mvol:     .dsb 1, 0')
     # vibdepth table (96-entry constant) + the off-table overrun window: a
     # note>95 reads `vibdepth[note]` past the table; place the captured depth at
     # pos note-96 so the read resolves to the original's value (it landed on
@@ -1232,8 +1256,12 @@ fx_dual_up:
             '        sta vibwid,x')
 
     # Off-table read-redirect (per-engine map -> shared generator). lo reads
-    # hit state for idx 192-255; hi reads for idx 96-255.
-    otmap = DMC_OFFTABLE_STATE + ([DMC_SECTPOS_ROW] if sectpos_on else [])
+    # hit state for idx 192-255; hi reads for idx 96-255. The whole map is
+    # void for non-canon state-geometry members (params offtable_redirect=0,
+    # extract-probed): their window bytes are static code/data served by the
+    # static capture.
+    otmap = (DMC_OFFTABLE_STATE if m.offtable_redirect else []) \
+        + ([DMC_SECTPOS_ROW] if sectpos_on else [])
     ws_lo_redirect = _gen_offtable_redirect(
         otmap, ORIG_FLO, 192, 'lda freqlo,y', 'ws_rd_los')
     ws_hi_redirect = _gen_offtable_redirect(
