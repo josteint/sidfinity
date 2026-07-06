@@ -7,6 +7,24 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 36 (2026-07-06): hard-restart AD/SR IMMEDIATE patch (Stryyker, +3 FULL) [ledger C19 5th occurrence]
+Random partial Stryyker/Proportional_Text_Writer (vblank, flat div 88, V1 AD
+orig $0A vs mine $0F at a note-fetch frame). The member patches ONE byte:
+sub_17FB's `LDA #$0F` operand ($17FF) → $0A, so the hard-restart prime writes
+AD=SR=$0A. Simplest C19 form yet. FIX: `factory._hr_preset_probe` (static
+opcode-shape regex `[99|B9] 04 D4 A9 vv 99 05 D4 99 06 D4 60`, layout-blind;
+first opcode admits $B9 for the hr_patch SMC variant) → value fed through the
+EXISTING `hard_restart` param (domain extended 'preset'/'none'/numeric — NO
+new schema field); composer renders `lda #$vv`; guarded so family-2's preset
+'none' is never overridden. Default renders identical asm text →
+byte-identical for non-carriers. Whole-corpus census (10,676): exactly 4
+carriers, all Stryyker/$0A, ZERO FULL exposure. +3 FULL (Proportional_Text_
+Writer 77076/77076, Chaotic, Sans_Theme); Sans_intro = unrelated pre-existing
+first blocker (flat_div [0,0,6,252,96] byte-identical before/after — nothing
+moved earlier, no /amend). Full tools/regression.py green (DMC 14ok+0regr);
+truth merged; 3 artifacts mass-written. f1 ≈ 5000 FULL / 185 partial
+(round-35 closeout batch still pending for the authoritative count).
+
 ## ✅ ROUND 35 (2026-07-06): dual-effect FREQ-GENERATOR wedge (Taurus_02 FULL) [ledger C19 4th occurrence]
 Random partial Taurus/Taurus_02 (vblank, flat div 30954, whole V3 block: freq
 $16F1 vs $1A9C, ctrl $8D vs $11 on ALTERNATING frames). The member byte-edits

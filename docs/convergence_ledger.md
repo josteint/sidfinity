@@ -1125,6 +1125,19 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   tables at the reachable garbage-phase indices — zero pulse-code change.
   Python-simulate the generator against ALL observed dual events (3826/
   3826) BEFORE composing. Default byte-identical (3-member MD5).
+- **5th occurrence (round 36, 2026-07-06):** the hard-restart AD/SR
+  IMMEDIATE patch (Stryyker, 4 carriers, all family-1, all value $0A):
+  sub_17FB's `LDA #$0F` operand ($17FF) patched to $0A, so every
+  note-fetch frame primes AD=SR=$0A instead of $0F/$0F. The simplest C19
+  form yet — one immediate byte. `factory._hr_preset_probe` anchors on the
+  routine's opcode shape (`[99|B9] 04 D4 A9 vv 99 05 D4 99 06 D4 60`,
+  layout-blind; first opcode admits $B9 for the _hr_patch_probe SMC
+  variant) and feeds the value through the EXISTING `hard_restart` param
+  (domain extended: 'preset'/'none'/numeric — no new schema field);
+  composer renders `lda #$vv`. Guarded against family-2's preset
+  'none'. Default renders identical text → byte-identical. Census over
+  all 10,676: 4 carriers, 0 FULL exposure; 3 flipped FULL, Sans_intro has
+  an unrelated pre-existing first blocker (identical flat_div before/after).
 - **3rd occurrence (round 32):** the PW-hi SOURCE patch (Olsen/Lame, 1
   family-1 carrier): the sidwrite tail's `LDA $1753,x / STA $D403,y`
   operand re-pointed at base+$707 (the track-ptr lo triple, constant after

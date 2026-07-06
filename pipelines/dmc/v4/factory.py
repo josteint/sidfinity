@@ -769,6 +769,27 @@ def _hold_gateoff_probe(path: str):
     return None
 
 
+# sub_17FB hard-restart prime: `STA $D404,y / LDA #$0F / STA $D405,y /
+# STA $D406,y / RTS`. First opcode admits $B9 too — the _hr_patch_probe
+# variant SMC-toggles it STA<->LDA. Group(1) = the AD/SR immediate.
+_HR_PRIME = re.compile(rb'[\x99\xB9]\x04\xD4\xA9(.)\x99\x05\xD4\x99\x06\xD4\x60',
+                       re.DOTALL)
+
+
+def _hr_preset_probe(path: str):
+    """Hard-restart AD/SR immediate probe (STATIC opcode probe, C19 5th
+    occurrence — Stryyker/Proportional_Text_Writer): the member patches ONE
+    byte, sub_17FB's `LDA #$0F` immediate ($17FF), so the hard-restart prime
+    writes AD=SR=that value on every note-fetch frame. Anchor on the
+    routine's opcode shape (layout-blind); return the immediate when it
+    differs from the canon $0F, else None (build unchanged)."""
+    mem, _ = _load(path)
+    m = _HR_PRIME.search(bytes(mem))
+    if m is None or m.group(1)[0] == 0x0F:
+        return None
+    return m.group(1)[0]
+
+
 _PW_HI_WRITE = re.compile(rb'\xBD(..)\x99\x02\xD4\xBD(..)\x99\x03\xD4',
                           re.DOTALL)
 
@@ -974,6 +995,11 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     hg = _hold_gateoff_probe(os.path.join(hvsc_root, sid_path))
     if hg is not None:
         cfg.extra_params['hold_gateoff'] = hg
+    # family-2 sets hard_restart='none' (no sub_17FB at all) — never override
+    if 'hard_restart' not in cfg.extra_params:
+        hrv = _hr_preset_probe(os.path.join(hvsc_root, sid_path))
+        if hrv is not None:
+            cfg.extra_params['hard_restart'] = str(hrv)
     pur = _play_unit_repeat_probe(os.path.join(hvsc_root, sid_path), cfg.base)
     if pur is not None:
         cfg.extra_params['play_unit_repeat'] = pur

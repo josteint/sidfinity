@@ -716,12 +716,17 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     # hard-restart envelope preset: 'preset' (canon) writes AD=$0F SR=$0F
     # (the original's sub_17FB) on the note-fetch frame; 'none' (family 2)
     # writes only the $08 TEST bit (its relocated instrument table clobbers
-    # sub_17FB, so the hard restart drops the AD/SR=$0F0F writes).
+    # sub_17FB, so the hard restart drops the AD/SR=$0F0F writes). A numeric
+    # value (C19 wedge, Stryyker: the sub_17FB `LDA #$0F` immediate patched
+    # to another byte) primes AD=SR=that value instead.
     hard_restart = str(usf.params.fields.get('hard_restart', 'preset'))
-    hard_restart_adsr = ('' if hard_restart == 'none' else
-                         '        lda #$0F\n'
-                         '        sta $d405,y                  ; AD = $0F\n'
-                         '        sta $d406,y                  ; SR = $0F\n')
+    if hard_restart == 'none':
+        hard_restart_adsr = ''
+    else:
+        hr_val = 0x0F if hard_restart == 'preset' else int(hard_restart) & 0xFF
+        hard_restart_adsr = (f'        lda #${hr_val:02X}\n'
+                             f'        sta $d405,y                  ; AD = ${hr_val:02X}\n'
+                             f'        sta $d406,y                  ; SR = ${hr_val:02X}\n')
     # rest / switch / slide (duration events that don't retrigger): canon
     # runs the full effect chain on the fetch frame ('run'); family 2 skips
     # straight to the wave step ('skip', the original's JMP $1591) — so the
