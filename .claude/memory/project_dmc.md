@@ -7,6 +7,31 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 34 (2026-07-06): soft-note fetch honors rest_effects='skip' (+14 FULL, 0 regr; f1 partials 219) — commit 010af48 [ledger C19 corollary]
+Random partial Daf/Chojnow_Music_Compo_1 (CIA 4x, flat div 266023, V2 PW lo
+$F0 vs $E0 — one pulse step ahead). Orig HOLDS all pulse accums one frame on
+row-FETCH ticks: the member carries the rest-skip wedge ($117D: JMP $1322 →
+JMP $1591), and that ONE patched JMP is the funnel for rest, switch, slide
+AND the $7C soft-note fetch. The composer honored `rest_effects='skip'` in
+ev_rest/ev_switch/ev_slide but ev_n_softq hard-coded `jmp run_effects` — so
+soft-note fetch frames stepped the pulse where the orig held it. FIX: one
+line, `jmp {rest_jmp}` (canon 'run' renders byte-identically). LEDGER
+COROLLARY (C19): a probed knob must be honored on EVERY orig path funneling
+through the patched site — grep the composer for ALL jumps to the canon
+target label when landing a knob. METHOD: memwatch-on-write showed holds at
+fetch ticks ($173C reload + sectpos advance, speed-ctr reload); C19 tell =
+disasm says effects run but stream holds → dump the member's bytes at the
+canon site (rest-tail regex census: Zaks $322 vs Chojnow $591). GATE: full
+regression green; exposure batch 465 (all stored-USF skip+noretrig carriers)
+= 464 FULL + Super_Seven pre-existing-identical partial. +14 unique
+partial→FULL (Orcan×3/Cubehead×3/Rio×2/Chock×2/Chojnow/Uj_X_Dik/Hardshit/
+My_46th_Tune); artifacts mass-written; truth merged (f1 partial 233→219).
+NB siddump positional `-t86` is silently ignored — use `--duration`; and a
+siddump second ≈ 0.915 real seconds (Trap C cousin) when sizing captures.
+NEXT: f1 partials-only sweep ran post-fix (more soft-fetch flips possible
+among no-artifact partials); full-family closeout batch still pending
+(round-33 note); freq-drift in_table + wavepos/otrk_legacy tail remain.
+
 ## ✅ ROUND 33 (2026-07-06): SECTPOS LIVE SHADOW — the round-22 "positional" blanket falls (+120 FULL, 0 regr; f1 partials 233) [ledger C11 new note]
 Random partial Rodney/Intro_Music_2 (vblank, flat div 301, V2/V3 fhi $06 vs
 $09): off-table fhi read idx 130 → $1729 = V1 SECTOR POSITION — the round-22
