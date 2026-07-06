@@ -268,6 +268,18 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   (FC `composer_asm._offtable_window` · v5 `composer_v5` · GT V1 `_Tables` freqlo/freqhi
   rebuild) → a Move-1 factor-candidate. Distinct from **C2** (off-table PROGRAM tables;
   this is off-table DATA lookup).
+- **TRANSITION reads — deferred note-init / soft notes (2026-07-06, Bladeswede,
+  DMC v4):** the reach model must enumerate more than (instrument's offsets ×
+  that instrument's row notes). Notes are FETCHED on one play() call (curnote +
+  base update) but note-init (wave restart) can be DEFERRED to a later call —
+  an intervening wave-step call runs the OLD instrument's program with the NEW
+  curnote; and a SOFT ($7C) note skips note-init entirely, so the old program
+  runs for the note's whole duration. Off-table idx = old-program offset + new
+  note (Bladeswede: noise-arp off 52 + soft note 47 = idx 99 → hi read $170A =
+  V1 track-ptr hi, runtime $1B vs file-image $00). Extract fix: track the
+  RUNNING instrument per voice during enumeration; for every note row also
+  add_note(note, running); soft rows don't update `running`. The existing
+  post-init correction then captures init-set state bytes.
 - **GT V1 consumer (2026-06-30, commit 8a743d1):** `extract/to_usf._offtable_freq` —
   per-inst reachable reads (wave/arp/**bare-note** idx≥96, via a cross-pattern
   instrument-carry walk; the bare-note read `freq[note]` for note+transpose≥96 was the
@@ -985,6 +997,20 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   currently-partial members — the `P_S`-mis-observed ones have DEEPER blockers
   (note-start 2-frame arm, positional residue), so correct phases alone don't
   flip them. Landed as latent-correctness infrastructure, not a FULL-count gain.
+- **CHIP-STATE R/F rule (2026-07-06, Bladeswede):** classifying R vs F against
+  the PREVIOUS CALL's write set (or by majority-with-ties→R) misreads an
+  effects phase whose program repeats values early — a chord wave program
+  [0,0,0,3,...] re-emits identical freqs for its first steps, observed as
+  R123, and the rebuild froze the arpeggio at tone 1 forever. The precise
+  discriminator is CHIP STATE: a pure register refresh can only re-emit the
+  value currently ON the chip, so track `chip[reg]` across all observed calls
+  (a reg's FIRST sighting is recorded, never counted as advancing — the
+  pc-trace capture drops the init prefix) and mark a call F iff it writes a
+  known reg a DIFFERENT value. Resolve a phase position F on ANY advancing
+  occurrence (a true refresh can never advance ⇒ no false F); keep the
+  period fit on the collapsed F/R key. Empirically 0-drift: all 86 stored
+  play_phases/cia_period carriers (incl. Compotune's genuine
+  P_R123_R123_R123) reproduce identically. Supersedes the majority rule.
 - **Status:** logged (DMC family-1, 2026-07-02: P/F/S round +5 FULL, R round
   +26 FULL → 4198/5401; 2026-07-04 straddle-free pc-trace observer, +0 FULL but
   fixes the `P_S` mis-observation).

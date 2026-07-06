@@ -7,6 +7,47 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 28 (2026-07-06): Bladeswede FULL — 3 fixes off one first-divergence chase (4828/5401) — commit 61600f2
+Random partial Bladeswede (PVCF, CIA 4x, dataflow route play=$2638 wrapper). THE
+CHASE PEELED 3 LAYERS, each a shared fix:
+1. **Dataflow-path CIA gap:** rebuild logged 4x fewer writes. The dataflow path
+   lacked the canon path's `_cia_period_from_writelog` fallback (py65 init can't
+   see a latch programmed in the play-vector wrapper: `JSR $1003 / LDX #$13/$31
+   → $DC04/5` = $1331). Fix = same fallback wired in. Regression-safe: only
+   affects members that were guaranteed-partial (kx write deficit).
+2. **R/F phase misclassification (div 96):** the wrapper alternates play with
+   `LDX#0/JSR $1591 ×3` = the WAVE-STEP entry (F123), but both observers read it
+   as R123 (chord program [0,0,0,3,3,3,7,7,7] re-emits identical values early →
+   "refresh"). Rebuild froze every arpeggio at tone 1. FIX (ledger C18 note):
+   classify R vs F by CHIP STATE — a pure refresh can only re-emit values
+   already on the chip; ANY chip-diverging write on a known reg ⇒ F (no false
+   positive), all occurrences chip-equal ⇒ R. Replaces the majority/ties→R hack
+   in the pctrace observer + the raw-token period fit in the py65 one (collapse
+   F/R for the fit, resolve any-F→F). VERIFIED 0-drift: all 86 stored
+   play_phases/cia_period carriers (incl. Compotune's genuine
+   P_R123_R123_R123) reproduce identically under the new rule.
+3. **Transition off-table reads (div 43018):** V2 fhi orig $1B vs mine $00 on a
+   noise step. Notes are FETCHED on a P call (curnote+base at $11A3) but
+   note-init (wave restart) is DEFERRED — the intervening $1591 F call steps the
+   OLD instrument's program with the NEW curnote; a SOFT ($7C) note skips
+   note-init entirely (old program runs its whole duration). Off-table idx =
+   old-program offset + new note (inst-13 noise-arp off 52 + note 47 = idx 99 →
+   hi reads $170A = V1 TRACK-PTR HI: runtime $1B, file image $00). The composer
+   already reproduced the runtime semantics (ctrl/flo matched!) — only the
+   extract's add_note enumeration missed (old-program × new-note) pairs. FIX:
+   track `running` inst per voice in the enumeration; on every note row also
+   add_note(note, running); soft rows don't update running. The existing
+   postinit-correction then captures $170A=$1B (constant, set once at init).
+METHOD NOTE: the memwatch-on-write state at ONE rare event ($1781=$81 wavepos
+$6E with inst cache=1/fx=$A0) looked self-contradictory for a long time — the
+resolution was the FETCH/INIT SPLIT (fetch updates curnote/base, init updates
+wavepos/fx a call later). When per-voice caches look inconsistent at a write,
+suspect the deferred-note-init window before inventing player patches.
+verify FULL 654657/654657; full regression green; truth merged (partial
+359→358, full 4827→**4828/5401**). NEXT: freq-drift tail unchanged; the
+transition-enumeration fix may flip more CIA/noise members — check at the next
+batch sweep.
+
 ## ✅ ROUND 27 (2026-07-06): EVENT-DRIVEN off-table capture (stable-when-read dynamic reads) +24 = 4827/5401 [ledger C11] — commit 8eb86a4
 Random partial I_Hate_Techkkno (The_Syndrom, CIA cia_period=4913). First div
 (per-IRQ, NOT the flat pos-0 Trap-C artifact) at 367802: V1 noise note freqhi
