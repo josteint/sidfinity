@@ -111,10 +111,12 @@ def _read_psid_meta(sid_path: str) -> PsidMeta:
     clock_bits = (flags >> 2) & 0x3
     sid_bits   = (flags >> 4) & 0x3
     clock = {0: 'unknown', 1: 'PAL', 2: 'NTSC', 3: 'both'}[clock_bits]
-    sid_model = {0: 0, 1: 6581, 2: 8580, 3: 6581}[sid_bits]
+    # lossless: 0 stays 0 (unknown), 3 stays 'both' — the grammar admits both
+    # forms and the composer maps them straight back to the same flag bits
+    sid_model = {0: 0, 1: 6581, 2: 8580, 3: 'both'}[sid_bits]
     speed = struct.unpack('>I', d[0x12:0x16])[0]
     return PsidMeta(title=title, author=author, released=released,
-                    clock=clock, sid=sid_model or 6581,
+                    clock=clock, sid=sid_model,
                     start_song=start_song or 1, speed=speed)
 
 

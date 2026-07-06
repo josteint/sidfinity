@@ -272,6 +272,7 @@ def model_to_usf(m: DmcModel) -> UsfFile:
 
     return UsfFile(
         psid=PsidMeta(title=m.title, author=m.author, released=m.released,
+                      clock=m.clock, sid=m.sid_model,
                       start_song=m.start_song),
         # slide_phase: initial phase bit of the global half-rate slide
         # clock (work-file leftover; shifts WHICH frames dual-effect

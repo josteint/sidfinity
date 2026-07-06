@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from src.usf.types import UsfFile, Pitch
 from src.composer_runtime.xa65 import assemble
-from src.composer_runtime.psid import build_header, FLAGS_PAL_6581
+from src.composer_runtime.psid import build_header
 
 LOAD = 0x1000
 
@@ -1553,11 +1553,15 @@ def _sanitize(asm: str) -> str:
 def build_v1_sid(usf: UsfFile) -> bytes:
     asm = _sanitize(compose_v1_asm(usf))
     code = assemble(asm)
+    # Header clock/SID-model flags from the USF psid block — write-log-blind
+    # but audible (filter curve differs between 6581 and 8580).
+    clock = {'PAL': 1, 'NTSC': 2, 'both': 3}.get(usf.psid.clock, 0)
+    sidm = {6581: 1, 8580: 2, 'both': 3}.get(usf.psid.sid, 0)
     header = build_header(
         load=0, init=LOAD, play=LOAD + 3,
         songs=len(usf.subtunes), start_song=usf.psid.start_song,
         title=usf.psid.title, author=usf.psid.author,
-        released=usf.psid.released, flags=FLAGS_PAL_6581)
+        released=usf.psid.released, flags=(clock << 2) | (sidm << 4))
     return header + bytes([LOAD & 0xFF, LOAD >> 8]) + code
 
 

@@ -15,7 +15,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from src.composer_runtime.xa65 import assemble
-from src.composer_runtime.psid import build_header, FLAGS_PAL_6581
+from src.composer_runtime.psid import build_header
 
 LOAD = 0x1000
 
@@ -1269,8 +1269,12 @@ def build_v5_sid(m) -> bytes:
     # CIA multispeed: set the PSID speed bit for every subtune so libsidplayfp
     # drives play() via the CIA1 timer A our init programs (cia_period 0 = VBI).
     speed = ((1 << n_songs) - 1) if int(getattr(m, 'cia_period', 0)) else 0
+    # Header clock/SID-model flags from the model (extracted orig header):
+    # write-log-blind but audible — a 6581 build of an 8580 tune sounds wrong.
+    clock = {'PAL': 1, 'NTSC': 2, 'both': 3}.get(getattr(m, 'clock', 'PAL'), 0)
+    sidm = {6581: 1, 8580: 2, 'both': 3}.get(getattr(m, 'sid_model', 6581), 0)
     header = build_header(load=0, init=LOAD, play=LOAD + 3, songs=n_songs,
                           start_song=1, speed=speed, title=m.title,
                           author=m.author, released=m.released,
-                          flags=FLAGS_PAL_6581)
+                          flags=(clock << 2) | (sidm << 4))
     return header + bytes([LOAD & 0xFF, LOAD >> 8]) + code

@@ -79,6 +79,7 @@ psid_field: "title" ":" STRING       -> psid_title
           | "released" ":" STRING    -> psid_released
           | "clock" ":" CNAME        -> psid_clock
           | "sid" ":" INT            -> psid_sid
+          | "sid" ":" CNAME          -> psid_sid_name
           | "start_song" ":" INT     -> psid_start_song
           | "speed" ":" number       -> psid_speed
 

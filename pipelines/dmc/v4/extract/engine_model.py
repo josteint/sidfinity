@@ -161,6 +161,10 @@ class DmcModel:
     title: str = ''
     author: str = ''
     released: str = ''
+    clock: str = 'PAL'               # PSID header clock flag (audio metadata)
+    sid_model: int = 6581            # PSID header SID model — the write-log
+                                     # verdict is BLIND to this; a 6581 build
+                                     # of an 8580 tune sounds wrong (filters)
     n_subtunes: int = 1
     start_song: int = 1
 
@@ -168,6 +172,27 @@ class DmcModel:
 # ---------------------------------------------------------------------------
 # Binary loading
 # ---------------------------------------------------------------------------
+
+def _hdr_flags(sid_path: str) -> int:
+    """PSID v2+ header flags word (0 for v1/RSID-without-flags)."""
+    with open(sid_path, 'rb') as f:
+        b = f.read(0x78)
+    if len(b) < 0x78 or int.from_bytes(b[4:6], 'big') < 2:
+        return 0
+    return int.from_bytes(b[0x76:0x78], 'big')
+
+
+def _hdr_clock(sid_path: str) -> str:
+    return {0: 'unknown', 1: 'PAL', 2: 'NTSC', 3: 'both'}[
+        (_hdr_flags(sid_path) >> 2) & 3]
+
+
+def _hdr_sid_model(sid_path: str):
+    # int 6581/8580, or the strings the USF psid block also admits —
+    # lossless round-trip of the orig header flag
+    return {0: 0, 1: 6581, 2: 8580, 3: 'both'}[
+        (_hdr_flags(sid_path) >> 4) & 3]
+
 
 def _load_image(sid_path: str):
     from seed_disassembly import parse_psid
@@ -672,6 +697,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
         play_repeat=cfg.play_repeat,
         title=s.get('name', ''), author=s.get('author', ''),
         released=s.get('released', ''),
+        clock=_hdr_clock(path), sid_model=_hdr_sid_model(path),
         n_subtunes=s.get('songs', 1), start_song=s.get('start', 1),
     )
 

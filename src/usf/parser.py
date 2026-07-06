@@ -103,6 +103,9 @@ class _T(Transformer):
     def psid_sid(self, items):
         return ('sid', int(items[0]))
 
+    def psid_sid_name(self, items):
+        return ('sid', str(items[0]))          # 'both' (PSID flag 3)
+
     def psid_start_song(self, items):
         return ('start_song', int(items[0]))
 

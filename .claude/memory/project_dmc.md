@@ -32,6 +32,16 @@ identical (3-member MD5 old-vs-new incl. Hardcore); whole-corpus census
 (10,676): Taurus_02 = the ONLY carrier. verify FULL 86118/86118. LESSON:
 when a hack executes garbled/illegal opcodes, STOP hand-simulating — pc-trace
 + simulate the observed stream; the write-log defines the semantics.
+ADDENDUM (user ear-test on Taurus_02): the rebuild verified FULL yet SOUNDED
+different — the composer hardcoded PSID flags PAL/6581 while the orig header
+says 8580 (63% of the DMC corpus = 6,729 members is 8580-flagged; ~3.8k
+shipped artifacts had wrong headers). The write-log verdict is BLIND to
+header flags ([[feedback_header_flags_audible]]). FIX: extract captures
+header clock/sid losslessly (grammar now admits `sid: both`/0), v4+v5+GT-v1
+composers derive flags from usf.psid (the FC canonical form); FC's collapse
+of both/unknown→6581 also made lossless. ALL stored DMC artifacts + USFs
+need a re-extract+rebuild mass-write (code_hash auto-invalidates the batch
+rows — fold into the pending round-35 closeout batch).
 
 ## ✅ ROUND 34 (2026-07-06): soft-note fetch honors rest_effects='skip' (+14 FULL, 0 regr; f1 partials 219) — commit 010af48 [ledger C19 corollary]
 Random partial Daf/Chojnow_Music_Compo_1 (CIA 4x, flat div 266023, V2 PW lo

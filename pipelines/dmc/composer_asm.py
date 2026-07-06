@@ -33,7 +33,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from src.usf.types import UsfFile, Pitch
 from src.composer_runtime.xa65 import assemble
-from src.composer_runtime.psid import build_header, FLAGS_PAL_6581
+from src.composer_runtime.psid import build_header
 from pipelines.dmc.engine_constants import FREQ_LO, FREQ_HI, VIBDEPTH
 
 LOAD = 0x1000
@@ -2021,9 +2021,15 @@ def build_dmc_sid(usf: UsfFile) -> bytes:
     # libsidplayfp drives play() via the CIA1 timer A our init programs.
     speed = ((1 << len(usf.subtunes)) - 1) if usf.params.fields.get(
         'cia_period') else 0
+    # Header clock/SID-model flags from the USF psid block (extracted from
+    # the orig header): the write-log verdict is BLIND to these, but a 6581
+    # build of an 8580 tune sounds wrong (filter curve, combined waves) —
+    # 63% of the DMC corpus is flagged 8580.
+    clock = {'PAL': 1, 'NTSC': 2, 'both': 3}.get(usf.psid.clock, 0)
+    sidm = {6581: 1, 8580: 2, 'both': 3}.get(usf.psid.sid, 0)
     header = build_header(
         load=0, init=LOAD, play=LOAD + 3,
         songs=len(usf.subtunes), start_song=usf.psid.start_song,
         speed=speed, title=usf.psid.title, author=usf.psid.author,
-        released=usf.psid.released, flags=FLAGS_PAL_6581)
+        released=usf.psid.released, flags=(clock << 2) | (sidm << 4))
     return header + bytes([LOAD & 0xFF, LOAD >> 8]) + code

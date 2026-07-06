@@ -99,6 +99,8 @@ class V5Model:
     title: str = ''
     author: str = ''
     released: str = ''
+    clock: str = 'PAL'      # PSID header clock flag (audio metadata)
+    sid_model: int = 6581   # PSID header SID model (write-log-blind; audible)
 
 
 def _load(path: str):
@@ -186,6 +188,8 @@ def _decode_sector(mem, ptr: int):
 
 
 def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
+    from pipelines.dmc.v4.extract.engine_model import (_hdr_clock,
+                                                       _hdr_sid_model)
     mem, s = _load(os.path.join(hvsc_root, cfg.sid_path))
 
     a_order = _rd16(mem, cfg.op_orderlist)
@@ -241,6 +245,8 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
         cia_period=int(getattr(cfg, 'cia_period', 0)) & 0xFFFF,
         title=s.get('name', ''), author=s.get('author', ''),
         released=s.get('released', ''),
+        clock=_hdr_clock(os.path.join(hvsc_root, cfg.sid_path)),
+        sid_model=_hdr_sid_model(os.path.join(hvsc_root, cfg.sid_path)),
     )
     for i in range(n_instr):
         b = [mem[a_instr + i * 8 + k] for k in range(8)]

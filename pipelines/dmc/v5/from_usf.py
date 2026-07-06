@@ -153,6 +153,7 @@ def usf_to_model(usf: UsfFile) -> V5Model:
                     if usf.params and usf.params.fields else 0),
         title=usf.psid.title, author=usf.psid.author,
         released=usf.psid.released,
+        clock=usf.psid.clock, sid_model=usf.psid.sid,
     )
     # family-4 (Jupiter41) player flag + leftovers (Phase C composer knobs)
     pf = usf.params.fields if usf.params and usf.params.fields else {}

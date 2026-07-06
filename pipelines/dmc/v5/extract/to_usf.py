@@ -520,6 +520,8 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
 
     return UsfFile(
         psid=PsidMeta(title=m.title, author=m.author, released=m.released,
+                      clock=getattr(m, 'clock', 'PAL'),
+                      sid=getattr(m, 'sid_model', 6581),
                       start_song=1),
         params=Params(fields={
             **({'cia_period': m.cia_period} if getattr(m, 'cia_period', 0)
