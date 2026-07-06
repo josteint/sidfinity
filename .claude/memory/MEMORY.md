@@ -48,7 +48,7 @@
 - [subtune_frames not arbitrary](feedback_subtune_frames_not_arbitrary.md) — verify window = songlength × 1.1 (RATIFIED 2026-07-02), never arbitrary N, never 1.0x.
 - [NO writelog replay](feedback_no_writelog_replay.md) — user STRONGLY rejected. Never propose. Defeats the USF/ML purpose.
 - [py65 misses dispatch bugs](feedback_py65_misses_dispatch_bugs.md) — `verify_all` is silent about PSID speed / CIA timer / dispatch-rate bugs. Ear-test new engines / dispatch changes.
-- [Header flags are audible](feedback_header_flags_audible.md) — the write-log verdict is BLIND to PSID header SID-model/clock flags; a FULL 8580 tune with a hardcoded 6581 header sounds wrong (Taurus_02, ear-caught). Composers derive flags from usf.psid, never FLAGS_PAL_6581.
+- [Header flags are audible](feedback_header_flags_audible.md) — NEW-COMPOSER CHECKLIST: derive PSID flags from usf.psid + diff rebuilt header vs orig at bring-up. The write-log verdict is blind to SID-model/clock flags; the hardcode recurred in 3 composers before an ear-test caught it (Taurus_02).
 - [Observation drift vs music drift](feedback_observation_drift.md) — siddump's per-VBI-frame bucketing is OBSERVATION; the chip sees a continuous stream. Use `compare_instruction_stream`; don't trust per-frame "FAIL".
 - [Always through USF](feedback_always_through_usf.md) — pipeline MUST be SID → USF → SID
 - [USF spec sync](feedback_usf_sync.md) — update spec, all converters, player, and tests whenever USF changes
