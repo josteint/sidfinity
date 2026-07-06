@@ -734,6 +734,27 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # table; the swell mechanism is the build-level params.vib_ramp flag.
     m.family2 = (cfg.sector_format == 'family2')
     m.extra_params = dict(getattr(cfg, 'extra_params', {}))
+    if m.extra_params.get('dual_hack'):
+        # Dual-hack members (factory._dual_hack_probe) force pwphase to
+        # P0/P0+1 on every dual frame (P0 = $19 + ph_add), so the pulse
+        # machine's speed fetch reads instr_base + ioff + 3 + (P>>1) — past
+        # the instrument's own record. Those are STATIC table bytes; capture
+        # them per dual instrument so the composer can extend its stride-8
+        # isteps/irawsp tables at the reachable indices (P0..P0+3 — at most
+        # two direction-flip INCs before the next dual-frame reset).
+        from pipelines.dmc.composer_asm import _inst_offset
+        ph_add = int(m.extra_params['dual_hack'].split(',')[1])
+        p0 = (0x19 + ph_add) & 0xFF
+        ents = []
+        for iid, ins in sorted(m.instruments.items()):
+            if not ins.dual:
+                continue
+            ioff = _inst_offset(iid)
+            raws = [mem[instr_base + ioff + 3 + (p0 >> 1) + k]
+                    for k in range(3)]
+            ents.append(':'.join([str(iid + 1)] + [str(r) for r in raws]))
+        if ents:
+            m.extra_params['dual_hack_steps'] = ','.join(ents)
     _assign_offtable_freq(m, mem, cfg.freq_lo_addr, cfg.freq_hi_addr,
                           cfg.vibdepth_addr)
     # off-table source bytes are in the engine's work RAM; init writes them, so

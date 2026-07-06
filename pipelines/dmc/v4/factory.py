@@ -798,6 +798,53 @@ def _pw_hi_const_probe(path: str, base: int):
     return ','.join(str(src[ophi + i]) for i in range(3))
 
 
+# The dual-effect wedge: canon `LDY $170D,x / LDA $172F,x / ... / STA $1724`
+# byte-edited into `LDY $170D,x / LDX $2F / ADC #$18 / ADC $1735,x / STA <tgt>`
+# (opcode BD->A6 turns the base-freq load into `LDX $2F`, re-indexing every
+# subsequent per-voice read +$A9 past the state arrays — onto fixed CODE
+# bytes). Anchor on the wedge itself; group(1) = the repointed STA operand.
+_DUAL_HACK_SITE = re.compile(rb'\xBC\x0D.\xA6\x2F\x69\x18\x7D\x35.\x8D(..)',
+                             re.DOTALL)
+
+
+def _dual_hack_probe(path: str, base: int, freq_lo: int):
+    """Dual-effect ($40) freq-generator wedge (STATIC opcode probe, C19 4th
+    occurrence — Taurus/Taurus_02, the only family-1 carrier): the odd-parity
+    dual path's `LDA $172F,x` opcode is patched BD->A6 (`LDX $2F`). Under the
+    PSID environment zp $2F holds $A9 (constant; pc-trace-verified), so every
+    per-voice `,x` read lands +$A9 past the state arrays, i.e. on fixed code
+    bytes: slide speed = the JMP opcode at state+$1820, freq base hi = the
+    $80 operand of `CMP #$80` ($17DB), PW lo/hi + ctrl = sub_17EC/17FB code
+    bytes, and the "slide accumulator" self-modifies two tune-setup code
+    bytes at state+$1841/$1844 whose FILE-IMAGE values seed the ramp (the
+    orig init wipe stops at $179D). The repointed STA lands in the pwphase
+    triple (Taurus_02: slot 2). The `ORA $BD68,y` in the update reads BASIC
+    ROM (environment constants, hardcoded composer-side). Returns
+    'step,ph_add,base_hi,pw_lo,pw_hi,ctrl,seed_lo,seed_hi,slot' or None
+    (no wedge -> build unchanged)."""
+    mem, s = _load(path)
+    m = _DUAL_HACK_SITE.search(bytes(mem))
+    if not m:
+        return None
+    d = freq_lo - 0x1647
+    xofs = 0xA9                      # zp $2F under the PSID environment
+
+    def st(canon):                   # state-array byte at canon addr, +$A9
+        return mem[canon + d + xofs]
+
+    tgt = m.group(1)[0] | (m.group(1)[1] << 8)
+    slot = tgt - (0x1762 + d)        # canon pwphase triple
+    if not 0 <= slot <= 2:
+        return None                  # unrecognised store target
+    ph_add = st(0x1735)
+    if 1 + 0x18 + 1 + ph_add > 0xFF:
+        return None                  # composer folds the carry chain; keep safe
+    ctrl = st(0x1780) & mem[base + 0x00F + xofs]   # canon $100F gate masks
+    vals = [st(0x1777), ph_add, st(0x1732), st(0x1750), st(0x1753),
+            ctrl, st(0x1798), st(0x179B), slot]
+    return ','.join(str(v) for v in vals)
+
+
 def _d418_play_wrapper(path: str, base: int):
     """$D418 play-vector wrapper probe: the PSID play address points at
     `LDA #imm / STA $D418 / JMP base+3` (PVCF / Zyron / Signor) — a constant
@@ -933,6 +980,10 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     pwc = _pw_hi_const_probe(os.path.join(hvsc_root, sid_path), cfg.base)
     if pwc is not None:
         cfg.extra_params['pw_hi_const'] = pwc
+    dh = _dual_hack_probe(os.path.join(hvsc_root, sid_path), cfg.base,
+                          cfg.freq_lo_addr)
+    if dh is not None:
+        cfg.extra_params['dual_hack'] = dh
     return cfg
 
 

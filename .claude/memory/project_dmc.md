@@ -7,6 +7,32 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 35 (2026-07-06): dual-effect FREQ-GENERATOR wedge (Taurus_02 FULL) [ledger C19 4th occurrence]
+Random partial Taurus/Taurus_02 (vblank, flat div 30954, whole V3 block: freq
+$16F1 vs $1A9C, ctrl $8D vs $11 on ALTERNATING frames). The member byte-edits
+the dual ($40) odd-parity path: `LDA $172F,x` opcode BD→A6 = `LDX $2F`, and
+zp $2F=$A9 under the PSID env, so every per-voice read lands +$A9 past the
+state arrays onto FIXED CODE BYTES (speed=$4C JMP opcode, base hi=$80 CMP
+operand, PW $04D4 + ctrl $9D&$CD=$8D from sub_17EC/17FB bytes); the "accum"
+self-modifies two tune-setup code bytes (file bytes $0F/$69 = seed, outside
+the init wipe), the update ORs BASIC ROM $BD68,y ($E9) and rotates zp $12 via
+ILLEGAL RRA. Net = ONE global free-running pseudo-random noise-freq ramp on
+dual frames + pwphase[V3] clobbered to $42/$43 (live carry from the pulse
+CMP), which sends the pulse speed fetch OFF the instrument record (static
+bytes past the table, e.g. wavectrl[14]=$FF → step $F0). METHOD: pc-trace one
+dual frame for ground truth (hand-decoding the garbled overlap MISLED twice);
+then Python-simulate the generator vs ALL observed dual events — 3826/3826
+exact BEFORE composing. FIX: `factory._dual_hack_probe` (wedge regex; all
+constants captured from the image; 'step,ph,bhi,pwl,pwh,ctrl,seedlo,seedhi,
+slot') → composer replaces fx_dual_run with clean code (legal ror+adc = RRA,
+live-carry `adc #$18/adc #ph` pwphase store, constant PW/ctrl tail) +
+`dual_hack_steps` (extract) EXTENDS stride-8 isteps/irawsp at the garbage-
+phase indices (cinst*8+P0..P0+3) — ZERO pulse-code change. Default byte-
+identical (3-member MD5 old-vs-new incl. Hardcore); whole-corpus census
+(10,676): Taurus_02 = the ONLY carrier. verify FULL 86118/86118. LESSON:
+when a hack executes garbled/illegal opcodes, STOP hand-simulating — pc-trace
++ simulate the observed stream; the write-log defines the semantics.
+
 ## ✅ ROUND 34 (2026-07-06): soft-note fetch honors rest_effects='skip' (+14 FULL, 0 regr; f1 partials 219) — commit 010af48 [ledger C19 corollary]
 Random partial Daf/Chojnow_Music_Compo_1 (CIA 4x, flat div 266023, V2 PW lo
 $F0 vs $E0 — one pulse step ahead). Orig HOLDS all pulse accums one frame on

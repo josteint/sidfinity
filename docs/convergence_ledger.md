@@ -1105,6 +1105,26 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   by opcode shape (layout-blind, C13 corollary) and classifies the byte
   after the gate-mask STA. The param (`hold_gateoff='mask_only'`) already
   existed for family-2 — the probe just feeds it for family-1 carriers.
+- **4th occurrence (round 35):** the dual-effect FREQ-GENERATOR wedge
+  (Taurus/Taurus_02, the only carrier in ALL 10,676 DMC members): the dual
+  ($40) odd-parity path's `LDA $172F,x` opcode patched BD→A6 (`LDX $2F`;
+  zp $2F = $A9 under the PSID environment) so every subsequent per-voice
+  read lands +$A9 past the state arrays — onto fixed CODE bytes (slide
+  speed = a JMP opcode, base hi = a CMP operand, PW/ctrl = sub_17EC/17FB
+  bytes) — while the "slide accumulator" self-modifies two tune-setup code
+  bytes (file-image values = the seed) and the update ORs in a BASIC ROM
+  byte ($BD68,y) and rotates a feedback byte via an ILLEGAL RRA on zp $12.
+  Net: one GLOBAL free-running pseudo-random freq ramp on dual frames +
+  pwphase[V3] clobbered to $42/$43 (live-carry-dependent), driving the
+  pulse machine's speed fetch off the instrument record (static bytes past
+  the table). Fix: `factory._dual_hack_probe` (wedge-anchored regex, all
+  effective constants captured from the image) → `dual_hack` param →
+  composer emits the generator as CLEAN code (legal ror+adc = RRA,
+  inlined constants, live-carry pwphase store) + `dual_hack_steps`
+  (extract-captured static bytes) EXTENDS the stride-8 isteps/irawsp
+  tables at the reachable garbage-phase indices — zero pulse-code change.
+  Python-simulate the generator against ALL observed dual events (3826/
+  3826) BEFORE composing. Default byte-identical (3-member MD5).
 - **3rd occurrence (round 32):** the PW-hi SOURCE patch (Olsen/Lame, 1
   family-1 carrier): the sidwrite tail's `LDA $1753,x / STA $D403,y`
   operand re-pointed at base+$707 (the track-ptr lo triple, constant after

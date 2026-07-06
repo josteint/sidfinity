@@ -596,6 +596,37 @@ def compose_dmc_asm(usf: UsfFile) -> str:
                 for k in range(3)]
         irawsp += [raw3[0], raw3[0], raw3[1], raw3[1],
                    raw3[2], raw3[2], 0, 0]              # stride 8
+    # dual_hack pulse-step extension (factory._dual_hack_probe): the wedge
+    # forces pwphase to P0/P0+1 every dual frame (+<=2 flip INCs), so
+    # fx_pulse indexes isteps/irawsp at cinst*8+P far past the canon 0-5
+    # range. The orig reads the same positions off the END of the record
+    # (static bytes, captured extract-side as dual_hack_steps =
+    # 'usfid:rawA:rawB:rawC,...'); extend both tables with the equivalent
+    # entries — everything in between stays 0.
+    dhs = str(usf.params.fields.get('dual_hack_steps', '') or '')
+    dh_param = str(usf.params.fields.get('dual_hack', '') or '')
+    if dhs and dh_param:
+        p0 = (0x19 + int(dh_param.split(',')[1])) & 0xFF
+        pos_by_id = {i.id: k for k, i in enumerate(insts)}
+        ext = {}
+        for ent in dhs.split(','):
+            uid, *raws = (int(t) for t in ent.split(':'))
+            k = pos_by_id.get(uid)
+            if k is None:
+                continue
+            for p in range(p0, p0 + 4):
+                raw = raws[(p >> 1) - (p0 >> 1)]
+                idx = (k * 8 + p) & 0xFF
+                if idx < len(insts) * 8:
+                    continue                     # never clobber real entries
+                ext[idx] = ((raw & 0x0F) << 4 if p & 1 else raw & 0xF0, raw)
+        if ext:
+            n = max(ext) + 1
+            isteps += [0] * (n - len(isteps))
+            irawsp += [0] * (n - len(irawsp))
+            for idx, (sv, rv) in ext.items():
+                isteps[idx] = sv
+                irawsp[idx] = rv
     ifdef = [m.filter_slots.get(i.filter_prog.program, 0) for i in insts]
     ivdel = [i.vibrato.onset for i in insts]
     ivwid = [i.vibrato.amplitude for i in insts]
@@ -708,6 +739,122 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     pw_hi_const = str(usf.params.fields.get('pw_hi_const', '') or '')
     pw_hi_load = ('        lda pwhic,x                  ; patched PW-hi source'
                   if pw_hi_const else '        lda pwh,x')
+    # Dual-effect freq-generator wedge (C19 4th occurrence, Taurus/Taurus_02,
+    # the only family-1 carrier — see factory._dual_hack_probe): the member's
+    # odd-parity dual path is byte-edited (`LDX $2F` -> X=$A9) so every
+    # per-voice read lands on fixed CODE bytes, turning the per-note slide
+    # into ONE global free-running freq ramp; the "accumulator" self-modifies
+    # two tune-setup code bytes (file-image values = the seed), the update
+    # ORs in a BASIC ROM byte ($BD68,y) and rotates a feedback byte via an
+    # illegal RRA. The composer reproduces the WRITE STREAM with clean code
+    # (legal ror+adc, inlined constants); the pwphase store keeps the orig's
+    # live-carry dependence (C chains from the pulse machine's last CMP).
+    # dual_hack = 'step,ph_add,base_hi,pw_lo,pw_hi,ctrl,seed_lo,seed_hi,slot'.
+    dual_hack = str(usf.params.fields.get('dual_hack', '') or '')
+    if dual_hack:
+        (dh_step, dh_ph, dh_bhi, dh_pwl, dh_pwh, dh_ctrl, dh_slo, dh_shi,
+         dh_slot) = [int(t) & 0xFF for t in dual_hack.split(',')]
+        if dh_step & 0x80:
+            # wedge with slide bit7: the orig's UP branch is unpatched canon
+            # (accum -= step&$7F, no ROM/RRA feedback)
+            dh_upd = f"""        lda hacc
+        sec
+        sbc #${dh_step & 0x7F:02X}
+        sta hacc
+        lda hacch
+        sbc #$00
+        sta hacch"""
+        else:
+            dh_upd = f"""        lda hacc                     ; ramp update - exact orig carry chain
+        clc
+        adc #${dh_step:02X}
+        sta hacc
+        lda hacch
+        adc #$00
+        adc #${dh_step:02X}
+        ora hromv,y                  ; BASIC ROM $BD68,y (env constant)
+        ror hrra                     ; legal-op RRA (= ror mem + adc mem)
+        adc hrra
+        and #$7F
+        sta tmp
+        lda hacc
+        sec
+        sbc tmp
+        sta hacc
+        lda hacch
+        sbc #$00
+        sta hacch"""
+        dual_run = f"""fx_dual_run:                         ; dual_hack wedge (Taurus_02)
+        ldy sidoff,x
+        adc #$18                     ; A=parity(1), C live from pulse CMP
+        adc #${dh_ph:02X}
+        sta pwphase+{dh_slot}        ; the wedge's repointed dtmpl store
+        lda #${dh_bhi:02X}
+        sta dtmph                    ; orig $1725 (idx-222 off-table readers)
+        lda dtmpl                    ; canon $1724 - wiped, never written here
+        sec
+        sbc hacc
+        sta $d400,y
+        lda #${dh_bhi:02X}
+        sbc hacch
+        sta $d401,y
+{dh_upd}
+        lda #${dh_pwl:02X}           ; sidwrite tail with X=$A9 - PW and ctrl
+        sta $d402,y                  ; come from fixed code bytes
+        lda #${dh_pwh:02X}
+        sta $d403,y
+        lda #${dh_ctrl:02X}
+        sta $d404,y
+        rts"""
+        dual_vars = (f'hacc:     .byt ${dh_slo:02X}          '
+                     '; dual_hack ramp accum (file-image seed)\n'
+                     f'hacch:    .byt ${dh_shi:02X}\n'
+                     'hrra:     .byt $00              ; RRA feedback (orig zp $12)\n'
+                     'hromv:    .byt $B4,$BF,$48,$24,$5F,$10,$02,$E6\n'
+                     '          .byt $5D,$20,$E2,$BA,$68,$38,$E9 '
+                     '; BASIC ROM $BD68-$BD76\n')
+    else:
+        dual_run = """fx_dual_run:
+        ldy sidoff,x
+        lda fbl,x
+        clc
+        adc accl,x
+        sta tmp
+        sta dtmpl                    ; orig $1724: the dual-slide freq temp is
+        lda fbh,x                    ; a GLOBAL leftover ("last dual voice's
+        adc #$00                     ; base+accum") that off-table reads
+        sta tmp2                     ; sonify (idx 221) — shadow it 1:1
+        lda tmp2
+        sta dtmph                    ; orig $1725
+        lda tmp
+        sec
+        sbc slal,x
+        sta $d400,y
+        lda tmp2
+        sbc slah,x
+        sta $d401,y
+        lda cvram,x                  ; slide byte: bit7 = up
+        bmi fx_dual_up
+        lda slal,x
+        clc
+        adc cvram,x
+        sta slal,x
+        lda slah,x
+        adc #$00
+        sta slah,x
+        jmp pwwrite
+fx_dual_up:
+        and #$7F
+        sta tmp
+        lda slal,x
+        sec
+        sbc tmp
+        sta slal,x
+        lda slah,x
+        sbc #$00
+        sta slah,x
+        jmp pwwrite"""
+        dual_vars = ''
     # sectpos shadow (params sectpos_shadow): each pattern event carries its
     # row's visible orig sector-position after the opcode; every handler
     # stores it to sectpos,x at fetch and all event field/advance offsets
@@ -1663,46 +1810,7 @@ fx_dual:
         sta dualpar
         bne fx_dual_run
         jmp wavestep
-fx_dual_run:
-        ldy sidoff,x
-        lda fbl,x
-        clc
-        adc accl,x
-        sta tmp
-        sta dtmpl                    ; orig $1724: the dual-slide freq temp is
-        lda fbh,x                    ; a GLOBAL leftover ("last dual voice's
-        adc #$00                     ; base+accum") that off-table reads
-        sta tmp2                     ; sonify (idx 221) — shadow it 1:1
-        lda tmp2
-        sta dtmph                    ; orig $1725
-        lda tmp
-        sec
-        sbc slal,x
-        sta $d400,y
-        lda tmp2
-        sbc slah,x
-        sta $d401,y
-        lda cvram,x                  ; slide byte: bit7 = up
-        bmi fx_dual_up
-        lda slal,x
-        clc
-        adc cvram,x
-        sta slal,x
-        lda slah,x
-        adc #$00
-        sta slah,x
-        jmp pwwrite
-fx_dual_up:
-        and #$7F
-        sta tmp
-        lda slal,x
-        sec
-        sbc tmp
-        sta slal,x
-        lda slah,x
-        sbc #$00
-        sta slah,x
-        jmp pwwrite
+{dual_run}
 fx_vib:
         lda vibdir,x
         bne fx_vib_dn
@@ -1890,7 +1998,7 @@ wnote:    .dsb 3, 0                  ; orig arp-note shadow (= $1783)
 durrel:   .dsb 3, 0                  ; orig duration-reload shadow (= $173E)
 ioff:     .dsb 3, 0                  ; orig instrument-offset shadow (= $174D)
 {sectpos_bss}state_end:
-{hr_test_var}        .byt $00
+{hr_test_var}{dual_vars}        .byt $00
 """
 
 
