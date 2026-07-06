@@ -7,6 +7,34 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 31 (2026-07-06): wjmp shadow of $171F shared scratch (Ok_Ob_2_intro FULL, 4832/5401) — commit 1198016
+Random partial Ok_Ob_2_intro (Comer, vblank): first div 258, V3 noise fhi orig
+$00 vs mine $01. Deep-census classify: off-table hi read idx 120 → $171F =
+"wjmp_tmp", the round-22 REJECTED bucket — and the read-moment value GENUINELY
+VARIES per (inst,off,note) key ((4,1)×278/(4,0)×79/(4,6)×55), so neither
+static nor round-27 event-driven capture can serve it. /amend Lens-1 on the
+round-22 blanket: $171F is a shared effect SCRATCH with exactly 3 writers
+(disasm: $135A pulse-program RAW speed byte, $1425 glide step<<4, $15A5/$15E2
+wave jump-back distance) — all three values the composer ALREADY computes =
+the C11 "unexposed tracking var" reframe. FIX: global `wjmp` var shadowed 1:1
+at fx_pulse (raw byte reconstructed as isteps[even]|isteps[odd]>>4 — exact
+inverse of the extract's nibs decode, emitted as the stride-8 `irawsp` table;
+NO schema change) + fx_glide + ws_rd0/ws_drum; redirect row (0x171F,'wjmp',1).
+No seed needed: orig init wipes $1718-$179D (covers $171F) + densely written
+(fx_pulse unconditional per voice/frame). NOTE the lo-read window also maps
+(idx 216). EXPOSURE CENSUS (the amend-proactive step): 72 stored reads on idx
+120/216 → 30 v4 FULL members ALL HOLD; 17 no_jumptable = v5-family members
+(own composer, unaffected); 12 were ALREADY-partial (C20 re-baseline vs truth
+jsonl — stored .usf ≠ FULL!), none moved EARLIER, 3 improved (Solar_Energy
++181k to a pre-existing length-fail tail, Zdeh_Mi_Kot +3280, Saturday_Dance
++1). Full tools/regression.py green. ALSO: Finn/Tune_11 = stale partial,
+verified FULL fresh (an earlier round's fix, no play_phases). Truth merged
+4830→**4832/5401** (partial 356→354); both artifacts written. Layout shifted
+(wjmp + irawsp) — stored FULL artifacts byte-shifted-but-equivalent, not
+rewritten (round-25 precedent). NEXT: more wjmp-blocked partials may flip at
+the next batch sweep (Saturday_Dance/King_of_Earth/Deceased-class members whose
+FIRST div was the $171F read are now past it); freq-drift tail continues.
+
 ## ✅ ROUND 30 (2026-07-06): notestart_arm detector per-voice gap — partial F phase (Dresden_Party_95_II FULL, 4830/5401) — commit 17fd27e
 Random partial Dresden_Party (PVCF, CIA, `play_phases='P_F3'`): per-IRQ first
 div at pos 13 — orig's V3 first note block = freq+PW+ctrl with NO AD/SR (the

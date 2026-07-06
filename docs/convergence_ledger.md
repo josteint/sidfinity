@@ -608,6 +608,21 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   members; a drift re-verify (fix-verdict step) is MANDATORY before censusing a
   residue, else you chase already-fixed members (I burned an hour on stale
   Abrakadabra/cpwmax before catching it via a fresh `find_first_divergence`).
+- **A GENUINELY-VARYING read can still be an unexposed tracking var — shadow a
+  SHARED SCRATCH by mirroring ALL its writers (2026-07-06, commit 1198016,
+  Ok_Ob_2_intro).** $171F ("wjmp_tmp", round-22 rejected bucket) varies per
+  (inst,off,note) key, so static AND event-driven capture both fail — but it is
+  a shared effect scratch with exactly 3 writers (pulse-program raw speed byte /
+  glide step<<4 / wave jump-back distance), all values the composer already
+  computes. A global `wjmp` var stored 1:1 at the three composer sites + a
+  redirect row reproduces it exactly (raw pulse byte reconstructed from the
+  decoded per-phase steps — `isteps[even] | isteps[odd]>>4` — as a derived
+  `irawsp` table, NO schema change). Requirements to check before shadowing a
+  scratch: enumerate ALL orig writers (disasm grep), confirm identical gating +
+  per-frame order both sides, and init-clear/dense-write convergence (no seed
+  needed when the orig init wipes it and one writer runs unconditionally per
+  voice per frame). Exposure census: 30 FULL idx-carriers held, 12 partials
+  none-earlier / 3 improved.
 - **A MAPPED var that does NOT init-track needs SEEDING, not removal (2026-07-05,
   commit 87bde4c, 98_Mix).** A redirect var is only correct if the composer's copy
   tracks the orig FROM INIT. DMC's SPARSE glide state (gla/glb/glsp, $1744/$1747/
