@@ -629,27 +629,45 @@ def _detect_notestart_arm(sid_path: str, subtune: int, play_addr: int) -> bool:
     ALL voices are checked and ANY arm footprint => deferred: with a partial
     F phase (e.g. P_F3) only the F-phase voice defers — the others note-init
     directly on P calls and read "immediate", so the first-HR-voice verdict
-    alone misses the deferring voice (Dresden_Party: V2 immediate, V3 arms)."""
+    alone misses the deferring voice (Dresden_Party: V2 immediate, V3 arms).
+
+    The window ESCALATES (12 -> 96 frames) when the short pass is
+    inconclusive — some voice showed no HR (soft-start opening) or no emit
+    followed within it. Wavefrontline's first HR is at play ~41 (~21 frames
+    at 2x), past the original fixed 12-frame window, yet the member defers
+    from its very first soft note — the HR footprint is the only observable
+    discriminator, so look far enough to find one. A definitive "immediate"
+    on all three voices stops the escalation."""
     try:
         from pipelines.hubbard.verify_cycle import pctrace_per_play_capture
-        plays = pctrace_per_play_capture(sid_path, subtune, play_addr,
-                                         n_frames=12)
     except Exception:
         return False
-    for v in range(3):
-        b = v * 7
-        flo, fhi, ctl, ad, sr = b, b + 1, b + 4, b + 5, b + 6
-        hr = next((i for i, fr in enumerate(plays)
-                   if dict(fr).get(ctl) == 0x08 and dict(fr).get(ad) == 0x0F
-                   and dict(fr).get(sr) == 0x0F), None)
-        if hr is None:
-            continue                                   # this voice soft-starts
-        for j in range(hr + 1, min(hr + 6, len(plays))):
-            regs = {r for r, _ in plays[j]}
-            if regs & {flo, fhi, ctl}:                 # first note-emit call
-                if not regs & {ad, sr}:                # arm iff no envelope
-                    return True
-                break
+    for n_frames in (12, 96):
+        try:
+            plays = pctrace_per_play_capture(sid_path, subtune, play_addr,
+                                             n_frames=n_frames)
+        except Exception:
+            return False
+        inconclusive = False
+        for v in range(3):
+            b = v * 7
+            flo, fhi, ctl, ad, sr = b, b + 1, b + 4, b + 5, b + 6
+            hr = next((i for i, fr in enumerate(plays)
+                       if dict(fr).get(ctl) == 0x08 and dict(fr).get(ad) == 0x0F
+                       and dict(fr).get(sr) == 0x0F), None)
+            if hr is None:
+                inconclusive = True                    # no HR seen (yet)
+                continue
+            for j in range(hr + 1, min(hr + 6, len(plays))):
+                regs = {r for r, _ in plays[j]}
+                if regs & {flo, fhi, ctl}:             # first note-emit call
+                    if not regs & {ad, sr}:            # arm iff no envelope
+                        return True
+                    break
+            else:
+                inconclusive = True                    # no emit in the window
+        if not inconclusive:
+            return False                               # all voices immediate
     return False
 
 

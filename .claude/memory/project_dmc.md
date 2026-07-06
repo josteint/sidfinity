@@ -7,6 +7,25 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 43 (2026-07-06): notestart_arm window escalation 12→96 (+1 FULL Wavefrontline, 0 regr) [ledger C23 refinement 2]
+Random partial Aomeba/Wavefrontline (CIA 2x, P_F123): per-IRQ first div pos 21,
+V1 ctrl orig $00 vs mine $40 — the note-start chirp's gate-mask 0→$FE
+transition lands one call LATER in orig = the C23 2-frame arm, visible from the
+FIRST soft note (no HR needed for the stream to diverge). `_detect_notestart_
+arm`'s fixed 12-frame window ends before the song's first HR (play ~41) →
+conservative "immediate" → wrong. FIX: escalate the pctrace window 12→96
+frames ONLY when the short pass is inconclusive (a voice with no HR, or no emit
+within hr+6); all-voices-definitive-immediate stops escalation → members the
+short window decides are byte-identical. GATES: 0 verdict drift over all 76
+stored F-token carriers (NB census regex trap: stored USF writes
+`notestart_arm: "1"` QUOTED — an unquoted-regex census reported 14 phantom
+flips, all of them the known carriers); partials sweep = exactly 1 new arm
+carrier (Wavefrontline; the other 8 arm partials already detected at 12 frames,
+builds unchanged, deeper blockers); full tools/regression.py green (DMC
+14ok+0regr). Batch verdict FULL 288100/288100; artifacts written; truth merged
+(5477 full / 165 partial). TRAP re-confirmed: dmc_mass_write.py has NO --help —
+invoking it with --help RUNS the tool (harmless here: 0 current-hash rows).
+
 ## ✅ ROUND 42 (2026-07-06): dual_hack → dual_freq_generator — the /uready-review C7 flag RESOLVED (0 count change) [ledger C7 note rewritten]
 A DMC-focused /uready-review (user-prompted "did the fast progress cut
 principle corners?") found NO §7/§8 leaks; its one LEAK-adjacent flag

@@ -1437,6 +1437,19 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   carries AD/SR). 0 verdict drift over all 62 stored F-token carriers;
   Dresden_Party_95_II FULL, Dresden_Party first-div 13 → 78261 (freq-drift
   second blocker).
+- **2026-07-06 refinement 2 — the observation WINDOW must reach the first HR:**
+  the fixed 12-frame capture ends before a soft-start opening's first hard
+  restart (Wavefrontline: first HR at play ~41), so the detector read
+  "conservative immediate" for a member that defers from its very first soft
+  note (the arm also delays the GATE-MASK 0→$FE transition — the divergence is
+  visible at play 1, long before any HR, but the HR footprint is the only
+  observable discriminator). Fix: ESCALATE the window (12 → 96 frames) only
+  when the short pass is inconclusive (some voice with no HR or no emit
+  following); a definitive all-voices-immediate verdict stops the escalation,
+  so members the short window already decides are byte-identical. 0 verdict
+  drift over all 76 stored F-token carriers; among 166 partials exactly ONE new
+  arm carrier (Wavefrontline → FULL 288100/288100); the 8 other arm partials
+  were already detected at 12 frames (deeper blockers, builds unchanged).
 - **Consumers:** DMC v4 `factory._detect_notestart_arm` → `notestart_arm` param
   → `composer_asm` voice_fx routing. Refines C18.
 - **Generalised:** this entry + round-23 otrk are the worked examples behind the
