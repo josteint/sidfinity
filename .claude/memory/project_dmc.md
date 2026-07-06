@@ -7,6 +7,33 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 41 (2026-07-06): single-speed CIA DEFAULT latch $4025 (+3 FULL, 0 regr) — commit a92f9a7c [ledger C9 note]
+Random partial Phobos/Crazy_Mix: flat find_first_divergence said pos 0 — the
+CIA init-phase artifact (PSID speed=1; ALWAYS re-localize per-IRQ before
+believing a flat pos-0 on a CIA member). Per-IRQ: the rebuild's stream was a
+PERFECT PREFIX (all 94811 of its own writes matched) but orig emitted 113495
+in the same window — orig 6713 IRQs vs reb 6105. Orig's exact play-entry
+period = 16422 cycles = latch $4025 = the PSID environment's DEFAULT CIA
+latch (~60 Hz): a speed-bit tune whose init programs NO timer still runs on
+the CIA, at the default rate. Both factory probes returned 0 ("no readable
+latch → single-speed fallback" blanket) → the composer built it VBLANK 50 Hz
+= guaranteed ~20% length partial. FIX (C9, no schema change — the existing
+cia_period param): `_cia_period_from_writelog` on N<2 measures the exact
+entry0-delta period (median; a 2-entry frame doubles one delta, median
+discards) and returns $4025 iff it matches ±2 (a 50 Hz-ish rate stays 0 —
+vblank build equivalent); canon path now calls the writelog fallback for
+CANONICAL-play members too (was wrapper-only). Exposure: census all 169
+partials → exactly 3 carriers (Crazy_Mix 113495/113495, Love_Song
+133516/133516, Magnum_Theme 145730 full overlap) — all FULL by the official
+batch verdict; the 3 flagged multispeed members (Axel_F/Strange_Acidshit/
+Keep_Rave) proved BYTE-IDENTICAL old-vs-new (dataflow path already measured
+them; their truth rows were stale, C20 — re-baselined via git-stash builds
+before believing anything). No FULL can carry the changed path by
+construction (a rate-wrong build always length-fails). Full
+tools/regression.py green (DMC 14ok+0regr; portfolio members probed = all on
+unaffected paths). Artifacts mass-written; truth merged (partial 169→166).
+f1 ≈ 5019 FULL / ~166 partial.
+
 ## ✅ ROUND 40 (2026-07-06): filter_mod — global cutoff LFO streamed into the filter DEF bytes (Core_of_Acid FULL, +1) [ledger C10 new note]
 Random partial Ed/Core_of_Acid (vblank, flat div 9506, $D416 orig $8D vs mine
 $5D): rebuild reproduced the cutoff sweep DELTAS exactly but orig's per-note
