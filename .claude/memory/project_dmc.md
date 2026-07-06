@@ -7,6 +7,25 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 30 (2026-07-06): notestart_arm detector per-voice gap — partial F phase (Dresden_Party_95_II FULL, 4830/5401) — commit 17fd27e
+Random partial Dresden_Party (PVCF, CIA, `play_phases='P_F3'`): per-IRQ first
+div at pos 13 — orig's V3 first note block = freq+PW+ctrl with NO AD/SR (the
+C23 deferred-arm footprint) while the rebuild did a full note-init. ROOT CAUSE:
+`_detect_notestart_arm` returned the verdict of the FIRST voice with an
+observed HR — with a partial F phase only the F-phase voice (V3) defers; V1
+soft-starts (skipped) and V2 note-inits immediately on P calls, so the detector
+read V2's "immediate" and never inspected V3. FIX (C23 refinement): check ALL
+voices, ANY arm footprint ⇒ deferred (no false positive — note-init always
+carries AD/SR). Validated: forced notestart_arm=1 matched 30465/30465 before
+touching the detector; old-vs-new detector verdicts over all 62 stored F-token
+`play_phases` carriers = ZERO drift; full tools/regression.py green (DMC
+14ok+0regr). Dresden_Party_95_II FULL 130254/130254 (same P_F3 cluster, fix
+transferred); Dresden_Party itself first-div 13 → 78261 (arm wave-step V3 flo
+$02 vs $81 = the freq-drift tail, separate blocker). Truth merged 4829→
+**4830/5401** (partial 357→356); 95_II artifacts written. NEXT: other partials
+with partial-F schedules may flip at the next batch sweep; freq-drift tail
+unchanged.
+
 ## ✅ ROUND 29 (2026-07-06): chained wave-marker in the pre-start loop region (Tichelmann_03 FULL, 4829/5401) — commit 3d648cd
 Random partial Tichelmann_03 (flat div 336, V2 fhi orig $00 vs mine $68; ctrl
 $40 vs $14 same frame). Inst 12 wave program `$14,$14,$14,$94` freq `21,42,68,00`:

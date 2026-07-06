@@ -1224,6 +1224,15 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
 - **Status:** logged (DMC family-1, 2026-07-05: +4 FULL [2_Speed / Voices /
   Canned / Compotune], 0 regressions across all 56 currently-FULL F-token
   members + full `tools/regression.py`). Commit 1a632fe.
+- **2026-07-06 refinement (commit 17fd27e):** the observation must cover ALL
+  voices, not stop at the first voice with an observed HR. With a PARTIAL F
+  phase (`P_F3`) only the F-phase voice defers — the others note-init directly
+  on P calls and read "immediate", so a first-voice verdict misses the arm
+  (Dresden_Party: V2 immediate, V3 arms → detector said immediate). Fix: any
+  voice's arm footprint ⇒ deferred (still no false positive — note-init always
+  carries AD/SR). 0 verdict drift over all 62 stored F-token carriers;
+  Dresden_Party_95_II FULL, Dresden_Party first-div 13 → 78261 (freq-drift
+  second blocker).
 - **Consumers:** DMC v4 `factory._detect_notestart_arm` → `notestart_arm` param
   → `composer_asm` voice_fx routing. Refines C18.
 - **Generalised:** this entry + round-23 otrk are the worked examples behind the
