@@ -28,9 +28,12 @@ partial→FULL (Orcan×3/Cubehead×3/Rio×2/Chock×2/Chojnow/Uj_X_Dik/Hardshit/
 My_46th_Tune); artifacts mass-written; truth merged (f1 partial 233→219).
 NB siddump positional `-t86` is silently ignored — use `--duration`; and a
 siddump second ≈ 0.915 real seconds (Trap C cousin) when sizing captures.
-NEXT: f1 partials-only sweep ran post-fix (more soft-fetch flips possible
-among no-artifact partials); full-family closeout batch still pending
-(round-33 note); freq-drift in_table + wavepos/otrk_legacy tail remain.
+SWEEP ADDENDUM: the f1 partials-only sweep (219) flipped **+31 more FULL**
+(Olsen×10/Bakewell×6/Cubehead×5/Brian×2/... — the no-artifact soft-fetch
+partials + stale-partials from prior rounds), all mass-written. Round-34
+total +45; merged truth f1 = **4997 FULL / 188 partial** (closeout batch for
+the authoritative count still pending). NEXT: freq-drift in_table +
+wavepos/otrk_legacy tail remain.
 
 ## ✅ ROUND 33 (2026-07-06): SECTPOS LIVE SHADOW — the round-22 "positional" blanket falls (+120 FULL, 0 regr; f1 partials 233) [ledger C11 new note]
 Random partial Rodney/Intro_Music_2 (vblank, flat div 301, V2/V3 fhi $06 vs
