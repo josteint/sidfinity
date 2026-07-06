@@ -607,7 +607,12 @@ def _detect_notestart_arm(sid_path: str, subtune: int, play_addr: int) -> bool:
     AD/SR ($D405/$D406 at $1234/$1230), so a 'deferred' verdict is never a false
     positive — the change is regression-safe by construction. Conservative
     (returns False = immediate = current behaviour) when no HR is observed
-    (soft-start openings) or no emit follows."""
+    (soft-start openings) or no emit follows.
+
+    ALL voices are checked and ANY arm footprint => deferred: with a partial
+    F phase (e.g. P_F3) only the F-phase voice defers — the others note-init
+    directly on P calls and read "immediate", so the first-HR-voice verdict
+    alone misses the deferring voice (Dresden_Party: V2 immediate, V3 arms)."""
     try:
         from pipelines.hubbard.verify_cycle import pctrace_per_play_capture
         plays = pctrace_per_play_capture(sid_path, subtune, play_addr,
@@ -625,8 +630,9 @@ def _detect_notestart_arm(sid_path: str, subtune: int, play_addr: int) -> bool:
         for j in range(hr + 1, min(hr + 6, len(plays))):
             regs = {r for r, _ in plays[j]}
             if regs & {flo, fhi, ctl}:                 # first note-emit call
-                return not bool(regs & {ad, sr})       # arm iff no envelope
-        return False
+                if not regs & {ad, sr}:                # arm iff no envelope
+                    return True
+                break
     return False
 
 
