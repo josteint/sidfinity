@@ -1057,6 +1057,16 @@ class _T(Transformer):
     def filter_programs_block(self, items):
         return ('filter_programs', {n: prog for n, prog in items})
 
+    def filter_mod_entry(self, items):
+        n = int(items[0])
+        start, ip, sp = int(items[1]), int(items[2]), int(items[3])
+        steps = [v for k, v in items[4:] if k == 'step']
+        return (n, {'start': start, 'init_phase': ip, 'stop_phase': sp,
+                    'steps': steps})
+
+    def filter_mod_block(self, items):
+        return ('filter_mod', {n: e for n, e in items})
+
     def dnum_list(self, items):
         return [int(x) for x in items]
 
@@ -1134,6 +1144,7 @@ class _T(Transformer):
         arp_programs = {}
         pulse_programs = {}
         filter_programs = {}
+        filter_mod = {}
         drum_programs = {}
         attack_len = []
         attack_wave = []
@@ -1166,6 +1177,8 @@ class _T(Transformer):
                     pulse_programs = v
                 elif k == 'filter_programs':
                     filter_programs = v
+                elif k == 'filter_mod':
+                    filter_mod = v
                 elif k == 'drum_programs':
                     drum_programs = v
                 elif k == 'attack_len':
@@ -1199,6 +1212,7 @@ class _T(Transformer):
             song_end=song_end, init_behavior=init_behavior,
             master_vol=master_vol, sfx=sfx, arp_programs=arp_programs,
             pulse_programs=pulse_programs, filter_programs=filter_programs,
+            filter_mod=filter_mod,
             drum_programs=drum_programs, attack_len=attack_len,
             attack_wave=attack_wave, wave_arp=wave_arp, pulse_arp=pulse_arp,
             wave_programs=wave_programs, offtable_vibdepth=offtable_vibdepth,

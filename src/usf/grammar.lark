@@ -13,7 +13,7 @@ default_pulse_block: "default_pulse" "{" swenv_args "}"
 
 // FC aux tables/programs — grouped into one repeated rule (any order) so the
 // LALR table stays small; a long chain of optionals blows up construction.
-fc_aux_block: arp_programs_block | pulse_programs_block | filter_programs_block | drum_programs_block | wave_programs_block | attack_len_decl | attack_wave_decl | wave_arp_decl | pulse_arp_decl
+fc_aux_block: arp_programs_block | pulse_programs_block | filter_programs_block | filter_mod_block | drum_programs_block | wave_programs_block | attack_len_decl | attack_wave_decl | wave_arp_decl | pulse_arp_decl
 
 // ----- arp programs (FC arpeggio library) -----
 // `prog N: [o0, o1, ...]` — N is the arp index selected by a pattern $7x
@@ -50,6 +50,20 @@ filter_program: "prog" INT ":" "init" "=" number ("onset" "=" number)? "d418" "=
               | "prog" INT ":" "res" "=" number "mode" "=" number "init" "=" number "repeat" "=" INT "stop" "=" number fp_step+   -> filter_program_dur
 fp_step: "step" "(" signed_int "," INT ")"
 fp_seg: "seg" number number
+
+// ----- global filter-cutoff modulation (song-global looped LFO) -----
+// A free-running cutoff contour that advances one position per play()
+// call for the whole song: `start` is the contour value at position 0
+// and each step(d, f) adds d per frame for f frames (the same
+// piecewise-constant-rate form as the duration-based filter program;
+// the step frames sum to the contour period, and the deltas sum to 0
+// mod 256 so the loop closes). Each frame, prog N's `init` cutoff takes
+// the contour value at (init_phase + t) mod period and its `stop`
+// cutoff the value at (stop_phase + t) — two phase-offset taps of one
+// LFO. The engine samples both at filter note-init, so musically every
+// filter note starts (and freezes) wherever the LFO currently sits.
+filter_mod_block: "filter_mod" "{" filter_mod_entry* "}"
+filter_mod_entry: "prog" INT ":" "start" "=" number "init_phase" "=" INT "stop_phase" "=" INT fp_step+
 
 // ----- drum programs (FC percussion library) -----
 // `drum N: wave=[..] tone=[..]` — parallel per-step waveform ($D404) and

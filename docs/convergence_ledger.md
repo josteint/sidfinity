@@ -449,7 +449,23 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   filter-program parametric forks are already tracked under C1's divergent-forms note.
 - **Consumers:** basic_program `global_track` (224 FULL); `MasterVolConfig`
   (Hubbard Confuzion/TOAS); `FilterProgConfig` (FC Jarre_2); `default_filter` /
-  `filter_env` (DMC v5). See C1 (per-instrument sweep) and C7 (opaque-dump lens).
+  `filter_env` (DMC v5); `filter_mod` (DMC v4, Ed/Core_of_Acid — see note
+  below). See C1 (per-instrument sweep) and C7 (opaque-dump lens).
+- **NOTE (2026-07-06, DMC v4 `filter_mod` — Ed/Core_of_Acid, sole corpus
+  carrier):** a play-vector wrapper streams an init-GENERATED 513-byte
+  triangle table into the filter DEFINITION's init/stop cutoff bytes via two
+  SMC roving pointers (+1/frame, wrap, +16-byte phase offset); the engine
+  samples both at filter note-init, so every filter note starts/freezes at
+  the LFO's current position. Landed as the PARAMETRIC form: USF
+  `filter_mod { prog N: start= init_phase= stop_phase= step (d,f)... }`
+  (reuses the `fp_step` piecewise-rate token = C1's contour shape; the two
+  taps are phase offsets of ONE contour), factory `_filter_mod_probe`
+  (C19-style static opcode probe of the wrapper + automaton; contour bytes
+  read from post-init RAM and delta-RLE'd — NOT a byte dump), composer =
+  two sweep walkers feeding `fdinit+slot`/`fdstop+slot` each play() call.
+  Default byte-identical. Recipe transfers to any "engine data table
+  rewritten per frame by a play wrapper" hack: probe wrapper → lift the
+  written sequence as a parametric contour + tap phases.
 
 ### C11 — Engine indexes a table via an 8-bit register → the offset WRAPS mod 256
 - **The bug class:** the player reaches a record/table entry with a 6502 INDEX

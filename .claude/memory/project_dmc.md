@@ -7,6 +7,32 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 40 (2026-07-06): filter_mod — global cutoff LFO streamed into the filter DEF bytes (Core_of_Acid FULL, +1) [ledger C10 new note]
+Random partial Ed/Core_of_Acid (vblank, flat div 9506, $D416 orig $8D vs mine
+$5D): rebuild reproduced the cutoff sweep DELTAS exactly but orig's per-note
+START climbed +1/elapsed-frame. NOT a code wedge (filter init/run regions
+byte-identical to canon) and NOT static data — taint_source on the RIGHT def
+($19BF/$19C1 = def3 init/stop; the first scan covered defs 0-1 only, mind the
+range) showed both DYNAMIC. Mechanism: play vector = wrapper `JSR reader /
+double 16-bit SMC INC automaton / JMP play`; reader = `LDA ptr1/STA def+1 /
+LDA ptr2/STA def+3` with both pointers roving an init-GENERATED 513-byte
+triangle table ($1CFF-$1EFF, past file end), +16-byte phase offset between
+taps → a free-running cutoff LFO the engine samples at every filter
+note-init. FIX (C10 parametric form, C1 contour shape): USF `filter_mod {
+prog N: start= init_phase= stop_phase= step (d,f)... }` (grammar/parser/
+types/writer; reuses fp_step); factory `_filter_mod_probe` (C19 static probe
+of wrapper+automaton, validates SMC targets == reader operands + stores ==
+filtdef+16n+1/+3; contour = post-init RAM delta-RLE'd, ≤16 runs); composer =
+two sweep walkers (val/idx/cnt, shared rate/len tables, python-computed
+phase seeds) storing into `fdinit+slot`/`fdstop+slot` at the top of the
+play-wrapper chain. Core_of_Acid probe: '4|0|92|108|2:1,1:253,0:1,-1:253,
+0:4,-2:1'. FULL 66338/66338; whole-corpus census: SOLE carrier; default
+byte-identical (Hardcore+Broken MD5 old-vs-new); artifacts written; truth
+merged (partial 170→169). LESSON: when a member's sweep SHAPE matches but
+the reload BASE drifts ~+1/frame, suspect the filter DEF BYTES are being
+rewritten by a play wrapper — taint the EXACT def record, not just the
+table head.
+
 ## ✅ ROUND 39 (2026-07-06): fxf + fsz/fdu redirect rows — materialize the cache var (+7 FULL, 0 regr) [ledger C11 new note]
 Random partial Signor/Saturday_Dance (vblank, flat div 13232, V3 fhi orig $20
 vs mine $00). ONE first-divergence chase peeled TWO off-table classes: (1) fhi

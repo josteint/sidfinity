@@ -1092,6 +1092,65 @@ fx_dual_up:
             '        sta $d418                    ; play-vector wrapper\n'
             f'        jmp {play_entry}\n\n') + play_wrapper
         play_entry = 'playd418'
+    # Song-global filter-cutoff LFO (usf.filter_mod): a free-running looped
+    # contour with two phase-offset taps feeding a filter program's init and
+    # stop cutoff cells every play() call; the engine samples them at filter
+    # note-init. Two sweep walkers (value / run index / frames-left) share
+    # the contour's (rate, frames) run tables — clean parametric replacement
+    # for the original's SMC roving-pointer table stream (Ed/Core_of_Acid).
+    for _fm_prog, _fm in sorted(usf.filter_mod.items()):
+        _slot = m.filter_slots.get(_fm_prog)
+        if _slot is None:
+            continue
+        _runs = [(d & 0xFF, f) for d, f in _fm['steps']]
+
+        def _fm_seed(phase):
+            val, rem = _fm['start'] & 0xFF, phase
+            for i, (d, f) in enumerate(_runs):
+                if rem < f:
+                    return (val + d * rem) & 0xFF, i, f - rem
+                val = (val + d * f) & 0xFF
+                rem -= f
+            return val, 0, _runs[0][1]
+
+        _sa = [_fm_seed(_fm['init_phase']), _fm_seed(_fm['stop_phase'])]
+        play_wrapper = (
+            'playfmod:                            ; global cutoff LFO\n'
+            '        lda fmv+0\n'
+            f'        sta fdinit+{_slot}\n'
+            '        lda fmv+1\n'
+            f'        sta fdstop+{_slot}\n'
+            '        ldx #$00\n'
+            '        jsr fmadv\n'
+            '        ldx #$01\n'
+            '        jsr fmadv\n'
+            f'        jmp {play_entry}\n'
+            'fmadv:  ldy fmi,x\n'
+            '        lda fmv,x\n'
+            '        clc\n'
+            '        adc fmrate,y\n'
+            '        sta fmv,x\n'
+            '        dec fmc,x\n'
+            '        bne fmadv_rts\n'
+            '        iny\n'
+            f'        cpy #{len(_runs)}\n'
+            '        bne fmadv_set\n'
+            '        ldy #$00\n'
+            'fmadv_set:\n'
+            '        tya\n'
+            '        sta fmi,x\n'
+            '        lda fmlen,y\n'
+            '        sta fmc,x\n'
+            'fmadv_rts:\n'
+            '        rts\n'
+            f'fmv:    .byt {_sa[0][0]},{_sa[1][0]}\n'
+            f'fmi:    .byt {_sa[0][1]},{_sa[1][1]}\n'
+            f'fmc:    .byt {_sa[0][2]},{_sa[1][2]}\n'
+            'fmrate: ' + _byt([d for d, _ in _runs]) + '\n'
+            'fmlen:  ' + _byt([f & 0xFF for _, f in _runs]) + '\n\n'
+            ) + play_wrapper
+        play_entry = 'playfmod'
+        break                        # label scheme supports one modulated prog
     # Play-body unit repeat (default '1,1,1,1'): the play body executes four
     # units per frame — voice 0, voice 1, voice 2, then the global filter tail
     # ($D416/$D417) — and this 4-int list gives how many times each unit runs.

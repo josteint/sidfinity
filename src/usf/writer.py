@@ -330,6 +330,21 @@ def _write_filter_programs(progs: dict) -> list[str]:
     return lines
 
 
+def _write_filter_mod(mods: dict) -> list[str]:
+    """Emit `filter_mod { prog N: start= init_phase= stop_phase=
+    step (d, f) ... }` — the song-global looped cutoff LFO."""
+    lines = ['filter_mod {']
+    for n in sorted(mods):
+        m = mods[n]
+        parts = [f'start={m["start"]}', f'init_phase={m["init_phase"]}',
+                 f'stop_phase={m["stop_phase"]}']
+        for d, f in m['steps']:
+            parts.append(f'step ({d}, {f})')
+        lines.append(f'  prog {n}: ' + ' '.join(parts))
+    lines.append('}')
+    return lines
+
+
 def _write_drum_programs(progs: dict) -> list[str]:
     """Emit `drum_programs { drum N: wave=[..] tone=[..] }`."""
     lines = ['drum_programs {']
@@ -689,6 +704,9 @@ def write(usf: UsfFile) -> str:
     if usf.filter_programs:
         lines.append('')
         lines.extend(_write_filter_programs(usf.filter_programs))
+    if usf.filter_mod:
+        lines.append('')
+        lines.extend(_write_filter_mod(usf.filter_mod))
     if usf.drum_programs:
         lines.append('')
         lines.extend(_write_drum_programs(usf.drum_programs))

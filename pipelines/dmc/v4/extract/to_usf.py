@@ -273,6 +273,18 @@ def model_to_usf(m: DmcModel) -> UsfFile:
     durrel = (m.durrel_init if reads_durrel and any(m.durrel_init)
               else (0, 0, 0))
 
+    # filter_mod: the factory probe encodes the song-global cutoff LFO as
+    # 'prog|start|init_phase|stop_phase|d:f,...' — decode into the typed
+    # block (musical content, not a params knob).
+    filter_mod = {}
+    fm = m.extra_params.pop('filter_mod', None)
+    if fm:
+        prog, start, ip, sp, steps = fm.split('|')
+        filter_mod[int(prog)] = {
+            'start': int(start), 'init_phase': int(ip),
+            'stop_phase': int(sp),
+            'steps': [(int(d), int(f)) for d, f in
+                      (t.split(':') for t in steps.split(','))]}
     return UsfFile(
         psid=PsidMeta(title=m.title, author=m.author, released=m.released,
                       clock=m.clock, sid=m.sid_model,
@@ -305,6 +317,7 @@ def model_to_usf(m: DmcModel) -> UsfFile:
                      for k in sorted(m.instruments)],
         subtunes=subtunes,
         filter_programs={d + 1: dict(v) for d, v in m.filter_defs.items()},
+        filter_mod=filter_mod,
         # tuning is per-tune musical content (members ship edited or
         # wholly different temperaments): 96 lo + 96 hi bytes.
         freq_table=list(m.freq_lo) + list(m.freq_hi),
