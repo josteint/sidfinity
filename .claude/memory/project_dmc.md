@@ -7,6 +7,38 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 33 (2026-07-06): SECTPOS LIVE SHADOW — the round-22 "positional" blanket falls (+120 FULL, 0 regr; f1 partials 233) [ledger C11 new note]
+Random partial Rodney/Intro_Music_2 (vblank, flat div 301, V2/V3 fhi $06 vs
+$09): off-table fhi read idx 130 → $1729 = V1 SECTOR POSITION — the round-22
+REJECTED bucket (census name 'notectr'), read-moment value GENUINELY VARIES
+(6/7/8) so static + round-27 event-driven capture both fail. THE REFRAME
+(overturning the C7 objection): the visible sectpos during a row is a PER-ROW
+CONSTANT = cumulative byte width through that row's fetch (0 on the pattern's
+last row — the $7F check runs IN the fetch, $11E6/$11F2), and width DERIVES
+from row kind (note/rest/switch 1, slide 2, glide 3) + the STATED dur/instr/
+vol/soft commands. Statedness is a sector-byte FACT (instance-independent →
+pattern-fact, survives dedup); value-change derivation reconstructs it except
+REDUNDANT re-statements = the editor's command placement = §8 arrangement
+(exact otrk_rcmd precedent). NO byte offsets in USF. FIX: extract records
+per-row `dcmd/icmd/vcmd/softcmd` fx_flags (new USF grammar tokens; emitted
+only for carriers) + sets `sectpos_shadow` when any offtable_freq idx ∈
+{130-132, 226-228}; composer embeds 1 derived byte/event after the opcode
+(all handler offsets +1, gated), stores it to `sectpos,x` at every fetch,
+redirect row DMC_SECTPOS_ROW (0x1729,3). Default byte-identical (9 portfolio
+members MD5 old-vs-new; non-gated members re-merge in the composer's
+encoded-bytes dedup even where the extract key splits). SWEEP (74 exposure +
+all 314 f1 partials): **+120 FULL, 0 regressions, 0 errors** — the whole
+notectr census bucket + Surgeon/Zyron/Bax/Cleve/Rayden clusters. Full
+tools/regression.py green (DMC 14ok+0regr). f1 partial 314→**233**; artifacts
+mass-written. TRAPS THIS SESSION: (a) "DIFFERS vs stored artifact" ≠
+regression — stored artifacts are stale since round-31's layout shift; always
+baseline old-CODE vs new-CODE builds (git stash), C20 again; (b) a background
+`dmc_family_batch.py --help` LAUNCHED A FULL BATCH (argparse ignores unknown
+args!) mid-edit — killed it; its rows carried a mid-edit code_hash so the
+hash gate auto-invalidated them. NEXT: full-family closeout batch for the
+authoritative count (round-32's 4871 + these 120 needs a fresh sweep to
+settle); freq-drift in_table tail + wavepos/otrk_legacy remain the residue.
+
 ## ✅ ROUND 32 (2026-07-06): PW-hi SOURCE patch — C19 3rd occurrence (Lame FULL, 4871/5401) — commit dd5682a
 Random partial Olsen/Lame (vblank, flat div 13): V3 PW hi orig $3D vs mine $00
 (V1 $DB vs $08, V2 $0C vs $08 — per-voice CONSTANT all song, PW lo sweeps
