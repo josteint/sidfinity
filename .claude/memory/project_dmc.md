@@ -7,6 +7,27 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 29 (2026-07-06): chained wave-marker in the pre-start loop region (Tichelmann_03 FULL, 4829/5401) — commit 3d648cd
+Random partial Tichelmann_03 (flat div 336, V2 fhi orig $00 vs mine $68; ctrl
+$40 vs $14 same frame). Inst 12 wave program `$14,$14,$14,$94` freq `21,42,68,00`:
+the end marker $94 jumps back BEFORE the program start (43→39), and idx 39 is
+ITSELF a marker ($91 → 38 = the settled hold step $41/freq $00, chip ctrl $40
+gate-masked). `_slice_wave`'s loop_pos<start branch concatenated
+`ctrl_tab[loop_pos:start]` UNSCANNED → stored the $91 marker as a literal 4th
+wave step; the composer runtime then re-dispatched it and held the WRONG step
+($68/$14). FIX (ledger C11 canonical form, 3rd wave-walk instance): gate the
+branch on `any(b>=0x90)` in the copied region → delegate to
+`_resolve_wave_chain` (walk simulator handles chained hops + settle). Clean
+slices byte-identical by construction; regression-safe: the branch only changes
+programs whose old flat list embedded a marker mid-program (if played, the
+runtime looped to the wrong step = was partial; if unplayed, stream unchanged).
+verify FULL 249282/249282; batch row full (code_hash 542a9f80ef7fbad4); full
+tools/regression.py green (DMC 14ok+0regr). Truth merged 4828→**4829/5401**
+(partial 358→357); artifacts written. The 2 ctrl-mine>=$90 census candidates
+(Necrophobic We_Are_Not_Your_Pal/Whipme, pos-0 V2 ctrl) do NOT transfer —
+different first blocker (and note: the composer runtime processes embedded
+markers, so a mine>=$90 flat_div is NOT this bug's tell). NEXT: freq-drift tail.
+
 ## ✅ ROUND 28 (2026-07-06): Bladeswede FULL — 3 fixes off one first-divergence chase (4828/5401) — commit 61600f2
 Random partial Bladeswede (PVCF, CIA 4x, dataflow route play=$2638 wrapper). THE
 CHASE PEELED 3 LAYERS, each a shared fix:
