@@ -39,10 +39,23 @@ def _pitch(note: int) -> Pitch:
     return Pitch(name=NOTE_NAMES[note % 12], octave=note // 12)
 
 
-def _row_to_usf(r: DmcRow) -> NoteRow:
+def _row_to_usf(r: DmcRow, cmd_flags: bool = False) -> NoteRow:
     flags = []
     if r.vol:
         flags.append(f'vol={r.vol}')
+    if cmd_flags:
+        # stated-command placement (arrangement, §8): emitted only for members
+        # whose off-table freq reads sonify the sector-position counter
+        # ($1729-$172B) — the composer derives each row's orig byte width
+        # (base + stated commands) to keep a live sectpos,x shadow.
+        if r.dcmd:
+            flags.append('dcmd')
+        if r.icmd:
+            flags.append('icmd')
+        if r.vcmd:
+            flags.append('vcmd')
+        if r.softcmd:
+            flags.append(f'softcmd={r.softcmd}')
     if r.gate_toggle:
         flags.append('gate_toggle')
     if r.soft or r.glide_slide:
@@ -221,13 +234,14 @@ def _emit_otrk_fields(m) -> dict:
 
 def model_to_usf(m: DmcModel) -> UsfFile:
     pad_fields = _emit_otrk_fields(m)
+    cmd_flags = m.extra_params.get('sectpos_shadow') == '1'
     subtunes = []
     for song in m.songs:
         voices = []
         for vi, v in enumerate(song.voices):
             pats = [Pattern(id=i,
                             length=sum(r.duration for r in rows),
-                            rows=[_row_to_usf(r) for r in rows])
+                            rows=[_row_to_usf(r, cmd_flags) for r in rows])
                     for i, rows in enumerate(v.patterns)]
             ol = Orderlist(entries=list(v.entries),
                            transposes=(list(v.transposes)

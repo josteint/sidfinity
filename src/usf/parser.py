@@ -865,6 +865,18 @@ class _T(Transformer):
     def fx_noretrig(self, _):
         return 'noretrig'
 
+    def fx_dcmd(self, _):
+        return 'dcmd'
+
+    def fx_icmd(self, _):
+        return 'icmd'
+
+    def fx_vcmd(self, _):
+        return 'vcmd'
+
+    def fx_softcmd(self, items):
+        return f'softcmd={int(items[0])}'
+
     def freq_table_block(self, items):
         # items[0] is a byte_list (= list[int])
         return ('freq_table', items[0])

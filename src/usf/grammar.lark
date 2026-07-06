@@ -471,6 +471,16 @@ fx_flag: "tie"                  -> fx_tie
        // starts from the sounding note instead (DMC slide mode 1);
        // speed comes from the existing `glide=N` flag.
        | "glide_to" "=" NOTE_NAME -> fx_glide_to
+       // Stated-command placement (arrangement): this editor row carries
+       // an explicit duration / instrument / volume command (dcmd / icmd /
+       // vcmd), or N no-hard-restart mode toggles (softcmd), even where the
+       // value did not change. Emitted only when an engine sonifies its
+       // pattern-position counter (DMC sectpos $1729 read off-table): the
+       // composer derives each row's byte width from row kind + these flags.
+       | "dcmd"                 -> fx_dcmd
+       | "icmd"                 -> fx_icmd
+       | "vcmd"                 -> fx_vcmd
+       | "softcmd" "=" INT      -> fx_softcmd
 
 // digi
 digi_body: "sample" ":" SAMPLE_PATH

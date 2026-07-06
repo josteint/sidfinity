@@ -81,6 +81,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | runtime param unreadable by py65 (init hangs / IRQ-set / bad opcode) · measure from libsidplayfp writelog | C9 | logged |
 | chip-global $D415-$D418 automation during a song · master vol / filter varies · global_track vs MasterVolConfig/filter_programs · explicit-event vs parametric | C10 | logged |
 | engine reads a table via an 8-bit index register (`base,Y` w/ Y=#*stride) · orig "reads garbage"/looks broken · extractor must wrap `(#*stride)&0xFF` · suspect OUR extractor not the packer | C11 | logged |
+| off-table read sonifies a "positional" byte counter (sector position / stream offset) · per-event deltas derive from row kind + stated commands → live shadow, stated-command flags = §8 arrangement (DMC sectpos) | C11 | logged |
 | accumulated per-step rounding drift in a round-trip · USF stores DELTAS (durations), player sums them to ABSOLUTE positions · a min/floor on each delta drifts over a long song · short tunes pass, long tunes length_fail · keep deltas EXACT (allow 0) | C12 | logged |
 | engine variant dispatch · player jump-table init offset shifted but play body at canonical offset · "no_jumptable"/code-mismatch reject · dispatch on the PLAY-body signature not init (we emit our own init) | C13 | logged |
 | command-per-row tracker effect (note + fx + param per row) · porta/vibrato/arp/filter/tempo on a row · NOT per-instrument · how to represent in NoteRow | C14 | recurring (FC + GoatTracker V1) |
@@ -623,6 +624,31 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   needed when the orig init wipes it and one writer runs unconditionally per
   voice per frame). Exposure census: 30 FULL idx-carriers held, 12 partials
   none-earlier / 3 improved.
+- **A "POSITIONAL" counter is shadowable when its per-event deltas DERIVE from
+  row content + stated-command flags (2026-07-06, Rodney/Intro_Music_2 —
+  sectpos $1729-$172B, overturning the round-22 REJECTED verdict).** DMC's
+  per-voice sector position (INC per consumed sector byte, reset 0 at the $7F
+  end check run in the same fetch) was rejected as "cumulative orig byte count,
+  needs per-event byte-widths in USF = C7 anti-pattern". The reframe: the
+  visible value during a row is a PER-ROW CONSTANT = cumulative width through
+  that row's fetch (0 on the pattern's last row), and width = base bytes of
+  the row kind (note/rest/switch 1, slide 2, glide 3) + the STATED dur/instr/
+  vol/soft commands. Statedness is a byte FACT of the sector (instance-
+  independent, so widths are pattern facts that survive dedup); a value-change
+  derivation reconstructs it EXCEPT for redundant re-statements — which are
+  the editor's command PLACEMENT = §8 arrangement (the exact class ratified
+  for redundant orderlist transpose commands, `otrk_rcmd`). So: the extract
+  records per-row `dcmd/icmd/vcmd/softcmd` fx_flags; the composer derives the
+  per-row visible values at BUILD time, embeds one byte per pattern event
+  (gated on `sectpos_shadow`, extract-set when an off-table freq read lands on
+  $1729-$172B), stores it to a live `sectpos,x` at every fetch, + a redirect
+  row (DMC_SECTPOS_ROW). NO byte offsets in USF. Default byte-identical
+  (event layout + BSS + redirect row all gated); non-gated members re-merge in
+  the composer's encoded-bytes pattern dedup even where the extract key split.
+  GENERAL RULE: before accepting a counter as positional-hard, ask whether its
+  per-event DELTAS are a function of (row kind, stated commands) — if yes, the
+  counter is derivable content, and only the stated-command placement (usually
+  = value changes, plus the rare redundant re-statements) needs carrying.
 - **A MAPPED var that does NOT init-track needs SEEDING, not removal (2026-07-05,
   commit 87bde4c, 98_Mix).** A redirect var is only correct if the composer's copy
   tracks the orig FROM INIT. DMC's SPARSE glide state (gla/glb/glsp, $1744/$1747/

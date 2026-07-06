@@ -90,6 +90,16 @@ class DmcRow:
     glide_speed: int = 0     # 0 = no glide
     glide_to: int | None = None   # raw target note (mode 0)
     glide_slide: bool = False     # mode 1: slide current note to `note`
+    # STATED-command flags: this editor row physically carries a duration /
+    # instrument / volume command (or N soft-start toggles) in the sector
+    # bytes — the composer's command PLACEMENT (arrangement, §8), incl. the
+    # redundant re-statements that a value-change derivation cannot see.
+    # Consumed by the sectpos shadow ($1729,x = per-byte sector position,
+    # read off-table): per-row byte width = base(kind) + stated commands.
+    dcmd: bool = False       # $80-$BF duration command on this row
+    icmd: bool = False       # $60-$7B instrument command on this row
+    vcmd: bool = False       # $Fx volume/sustain command on this row
+    softcmd: int = 0         # count of $7C soft-start toggles on this row
 
 
 @dataclass
@@ -253,6 +263,19 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
     pos = 0
     soft = False
     guard = 0
+    # pending STATED-command flags: prefix bytes consumed since the last row
+    # event belong to the NEXT row's fetch (each INCs $1729,x). Recorded as
+    # byte FACTS of the sector (not change-vs-sticky), so the same sector
+    # always yields the same flags regardless of entry context.
+    p_d = p_i = p_v = False
+    p_s = 0
+
+    def _take():
+        nonlocal p_d, p_i, p_v, p_s
+        d, i, v, s = p_d, p_i, p_v, p_s
+        p_d = p_i = p_v = False
+        p_s = 0
+        return {'dcmd': d, 'icmd': i, 'vcmd': v, 'softcmd': s}
 
     def peek_end():
         return mem[sec_addr + pos] == fmt.term
@@ -269,25 +292,27 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
         # VOL prefix (canon $F0+; family 2 has none)
         if fmt.vol_min is not None and b >= fmt.vol_min:
             st.vol = b & 0x0F
+            p_v = True
             pos += 1
             continue
         # soft-start toggle (canon $7C; family 2 has none)
         if fmt.soft is not None and b == fmt.soft:
             soft = not soft
+            p_s += 1
             pos += 1
             continue
         # rest / switch (exact bytes, checked before the glide range so
         # family 2's $FE/$FD are caught above $C0)
         if b == fmt.rest:
             rows.append(DmcRow(note=None, duration=st.dur, instr=st.instr,
-                               vol=st.vol))
+                               vol=st.vol, **_take()))
             pos += 1
             if peek_end():
                 return rows
             continue
         if b == fmt.switch:
             rows.append(DmcRow(note=None, duration=st.dur, instr=st.instr,
-                               vol=st.vol, gate_toggle=True))
+                               vol=st.vol, gate_toggle=True, **_take()))
             pos += 1
             if peek_end():
                 return rows
@@ -300,7 +325,8 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
                 pos += 2
                 rows.append(DmcRow(note=target, duration=st.dur,
                                    instr=st.instr, vol=st.vol,
-                                   glide_speed=speed, glide_slide=True))
+                                   glide_speed=speed, glide_slide=True,
+                                   **_take()))
                 if peek_end():
                     return rows
                 continue
@@ -310,24 +336,27 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
                 pos += 3
                 rows.append(DmcRow(note=a, duration=st.dur, instr=st.instr,
                                    vol=st.vol, soft=soft,
-                                   glide_speed=speed, glide_to=t))
+                                   glide_speed=speed, glide_to=t,
+                                   **_take()))
                 if peek_end():
                     return rows
                 continue
         # duration prefix
         if b >= fmt.dur_min:
             st.dur = b & 0x3F
+            p_d = True
             pos += 1
             continue
         # instrument prefix (a dispatched terminator falls here for
         # canon = instr 31, the ghost path) / note
         if b >= fmt.instr_lo:
             st.instr = b & 0x1F
+            p_i = True
             pos += 1
             continue
         # note
         rows.append(DmcRow(note=b, duration=st.dur, instr=st.instr,
-                           vol=st.vol, soft=soft))
+                           vol=st.vol, soft=soft, **_take()))
         pos += 1
         if peek_end():
             return rows
@@ -379,7 +408,8 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
         rows = _simulate_sector(mem, sec_addr, st, fmt)
         key = tuple((r.note, r.duration, r.instr, r.vol, r.soft,
                      r.gate_toggle, r.glide_speed, r.glide_to,
-                     r.glide_slide) for r in rows)
+                     r.glide_slide, r.dcmd, r.icmd, r.vcmd, r.softcmd)
+                    for r in rows)
         pid = pat_key_to_id.get(key)
         if pid is None:
             pid = len(v.patterns)
@@ -719,6 +749,19 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # members whose off-table reads are all init-constant skip the extra siddump.
     if varying:
         _correct_offtable_eventdriven(m, path)
+    # sectpos shadow gating: an off-table freq read landing on $1729-$172B
+    # (per-voice sector position — INC per consumed sector byte, reset at the
+    # $7F end check) cannot be served statically (the value cycles) nor by the
+    # event-driven capture (varies per key). The composer maintains a live
+    # sectpos,x shadow instead, its per-row values derived from row kind +
+    # the stated-command flags (dcmd/icmd/vcmd/softcmd) — enable it when any
+    # captured read hits those bytes (flo idx 226-228 / fhi idx 130-132).
+    _SECTPOS_IDX = {(0x1729 + k) - 0x16A7 for k in range(3)} \
+        | {(0x1729 + k) - 0x1647 for k in range(3)}
+    if any((off + note) & 0xFF in _SECTPOS_IDX
+           for ins in m.instruments.values()
+           for off, note, _lo, _hi in ins.offtable_freq):
+        m.extra_params['sectpos_shadow'] = '1'
     return m
 
 
@@ -971,9 +1014,11 @@ def _redirect_mapped_idx() -> set:
     init (round-25 gla/glb) — which must be the file-image LEFTOVER, never the
     deep runtime value. So the event-driven correction must skip these idx (a
     runtime override there breaks the seed — the Calimero regression)."""
-    from pipelines.dmc.composer_asm import DMC_OFFTABLE_STATE, ORIG_FHI
+    from pipelines.dmc.composer_asm import (DMC_OFFTABLE_STATE,
+                                            DMC_SECTPOS_ROW, ORIG_FHI)
     return {(addr + k - ORIG_FHI) & 0xFF
-            for addr, _label, n in DMC_OFFTABLE_STATE for k in range(n)}
+            for addr, _label, n in DMC_OFFTABLE_STATE + [DMC_SECTPOS_ROW]
+            for k in range(n)}
 
 
 def _correct_offtable_eventdriven(m: DmcModel, sid_path: str) -> None:

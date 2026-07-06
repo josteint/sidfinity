@@ -206,6 +206,17 @@ DMC_OFFTABLE_STATE = [
     # layout, not addable as a redirect entry. See ledger C11 / project_dmc.
 ]
 
+# sector-position shadow ($1729,x = INC per consumed sector byte, reset to 0
+# at the $7F end check). NOT in DMC_OFFTABLE_STATE: the redirect row + the
+# sectpos var + the extra per-event byte are emitted ONLY for members whose
+# off-table freq reads land on $1729-$172B (params sectpos_shadow, extract-
+# detected) — every other member stays byte-identical. Per-row visible values
+# are DERIVED at compose time from row kind + the stated-command fx_flags
+# (dcmd/icmd/vcmd/softcmd — the editor's command placement, §8 arrangement);
+# no byte offsets are carried in USF. The extract's event-driven capture
+# excludes these idx unconditionally (_redirect_mapped_idx).
+DMC_SECTPOS_ROW = (0x1729, 'sectpos', 3)
+
 
 def _gen_offtable_redirect(state_map, orig_base, win_min, static_load,
                            store_label):
@@ -310,28 +321,64 @@ def _row_event(row, inst_slot: dict) -> tuple:
     return ('note', soft, note, row.duration, slot, vol, 0, None)
 
 
-def _encode_pattern(rows_events: list) -> bytes:
+def _encode_pattern(rows_events: list, secvals: list | None = None) -> bytes:
+    """Encode one pattern. With `secvals` (sectpos shadow on), each event
+    carries the row's visible orig sector-position right after the opcode —
+    every handler stores it to sectpos,x at fetch, mirroring the orig's
+    per-byte INC + $7F reset settled value."""
     out = bytearray()
-    for ev in rows_events:
+    for k, ev in enumerate(rows_events):
         kind = ev[0]
+        sp = [] if secvals is None else [secvals[k] & 0xFF]
         if kind == 'rest':
-            out += bytes([0x02, ev[1] & 0x3F])
+            out += bytes([0x02] + sp + [ev[1] & 0x3F])
         elif kind == 'switch':
-            out += bytes([0x03, ev[1] & 0x3F])
+            out += bytes([0x03] + sp + [ev[1] & 0x3F])
         elif kind == 'slide':
             _, gspd, note, dur = ev
-            out += bytes([0x04, gspd, note, dur & 0x3F])
+            out += bytes([0x04] + sp + [gspd, note, dur & 0x3F])
         else:
             _, soft, note, dur, slot, vol, gspd, target = ev
             # glide tail keyed on TARGET PRESENCE, not speed truthiness: a
             # mode-0 glide with speed 0 is the engine's glide-cancel (glsp
             # gets STORED 0), which must reach ev_note's glide path (C22).
             f = soft | (2 if target is not None else 0)
-            out += bytes([0x01, f, note, dur & 0x3F, slot, vol])
+            out += bytes([0x01] + sp + [f, note, dur & 0x3F, slot, vol])
             if target is not None:
                 out += bytes([gspd, target])
     out.append(0x00)
     return bytes(out)
+
+
+def _row_secwidth(row) -> int:
+    """Orig byte width of one row's fetch: base bytes of the event kind
+    (note/rest/switch 1, slide 2, glide 3 — each byte INCs $1729,x) plus the
+    stated dur/instr/vol commands and $7C toggles consumed in the same fetch
+    (the dcmd/icmd/vcmd/softcmd fx_flags). Mirrors _row_event's kind logic."""
+    flags = {f.split('=')[0]: (f.split('=')[1] if '=' in f else True)
+             for f in row.fx_flags}
+    extra = (('dcmd' in flags) + ('icmd' in flags) + ('vcmd' in flags)
+             + int(flags.get('softcmd', 0) or 0))
+    if row.pitch.is_rest:
+        return 1 + extra                     # $7E rest / $7D switch
+    if 'noretrig' in flags and 'glide' in flags and 'glide_to' not in flags:
+        return 2 + extra                     # mode-1 slide: $Dx + target
+    if 'glide_to' in flags:
+        return 3 + extra                     # mode-0 glide: $Cx + A + B
+    return 1 + extra                         # plain note
+
+
+def _pattern_secvals(rows) -> list:
+    """Per-row visible sectpos: cumulative width through the row's fetch;
+    the LAST row reads 0 (the trailing $7F resets $1729,x in the same tick,
+    sub_11E6 -> $11F2)."""
+    vals, cum = [], 0
+    for r in rows:
+        cum += _row_secwidth(r)
+        vals.append(cum)
+    if vals:
+        vals[-1] = 0
+    return vals
 
 
 class _Model:
@@ -339,6 +386,10 @@ class _Model:
 
     def __init__(self, usf: UsfFile):
         self.usf = usf
+        # sectpos shadow: off-table freq reads sonify $1729-$172B (per-voice
+        # sector position); each event then carries its visible value.
+        self.sectpos = str(usf.params.fields.get('sectpos_shadow',
+                                                 '0')) == '1'
         self.instruments = list(usf.instruments)
         self.inst_slot = {i.id: k for k, i in enumerate(self.instruments)}
         # filter defs: program key -> slot = orig def# (key-1). The def table
@@ -392,7 +443,9 @@ class _Model:
                         off, cur, red = pad, cur0, 0  # physical-track boundary
                     enc = _encode_pattern(
                         [_row_event(r, self.inst_slot)
-                         for r in pat_by_local[e].rows])
+                         for r in pat_by_local[e].rows],
+                        _pattern_secvals(pat_by_local[e].rows)
+                        if self.sectpos else None)
                     gid = pat_ids.get(enc)
                     if gid is None:
                         gid = len(self.patterns)
@@ -655,6 +708,27 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     pw_hi_const = str(usf.params.fields.get('pw_hi_const', '') or '')
     pw_hi_load = ('        lda pwhic,x                  ; patched PW-hi source'
                   if pw_hi_const else '        lda pwh,x')
+    # sectpos shadow (params sectpos_shadow): each pattern event carries its
+    # row's visible orig sector-position after the opcode; every handler
+    # stores it to sectpos,x at fetch and all event field/advance offsets
+    # shift by one. Default (no shadow) is byte-identical to the un-gated
+    # composer. See DMC_SECTPOS_ROW.
+    sectpos_on = m.sectpos
+    g = 1 if sectpos_on else 0
+    sp_fetch = ('        ldy #$01\n'
+                '        lda ($f8),y                  ; per-row sectpos value\n'
+                '        sta sectpos,x                ; live $1729 shadow\n'
+                if sectpos_on else '')
+    sectpos_bss = ('sectpos:  .dsb 3, 0                  '
+                   '; orig sector-position shadow (= $1729)\n'
+                   if sectpos_on else '')
+    ev1 = f'#${1 + g:02X}'               # first event field (after opcode)
+    ev3 = f'#${3 + g:02X}'               # note event: duration field
+    ev6 = f'#${6 + g:02X}'               # note event: glide-speed field
+    adv2 = f'#${2 + g:02X}'              # rest/switch event length
+    adv4 = f'#${4 + g:02X}'              # slide event length
+    adv6 = f'#${6 + g:02X}'              # note event length
+    adv8 = f'#${8 + g:02X}'              # note+glide event length
     # hard-restart-patch variant (The_Syndrom / Tragic_Error / Gaston): a
     # canon player with two note-init wedges. $1230 JSRs $125A, which parks
     # the SR byte and passes #$99 to sub_184B, whose first STA now targets
@@ -1007,10 +1081,11 @@ def compose_dmc_asm(usf: UsfFile) -> str:
 
     # Off-table read-redirect (per-engine map -> shared generator). lo reads
     # hit state for idx 192-255; hi reads for idx 96-255.
+    otmap = DMC_OFFTABLE_STATE + ([DMC_SECTPOS_ROW] if sectpos_on else [])
     ws_lo_redirect = _gen_offtable_redirect(
-        DMC_OFFTABLE_STATE, ORIG_FLO, 192, 'lda freqlo,y', 'ws_rd_los')
+        otmap, ORIG_FLO, 192, 'lda freqlo,y', 'ws_rd_los')
     ws_hi_redirect = _gen_offtable_redirect(
-        DMC_OFFTABLE_STATE, ORIG_FHI, 96, 'lda freqhi,y', 'ws_rd_his')
+        otmap, ORIG_FHI, 96, 'lda freqhi,y', 'ws_rd_his')
 
     return f"""
 SLIDE_PHASE = ${slide_phase:02X}
@@ -1190,30 +1265,30 @@ adv:                                 ; pattern ptr += A (16-bit)
         rts
 
 ev_rest:
-        ldy #$01
+{sp_fetch}        ldy {ev1}
         lda ($f8),y
         sta dur,x
         sta durrel,x                 ; live $173E shadow
-        lda #$02
+        lda {adv2}
         jsr adv
         jsr peekend
         jmp {rest_jmp}
 
 ev_switch:
-        ldy #$01
+{sp_fetch}        ldy {ev1}
         lda ($f8),y
         sta dur,x
         sta durrel,x                 ; live $173E shadow
         lda gatemask,x
         eor #$01
         sta gatemask,x
-        lda #$02
+        lda {adv2}
         jsr adv
         jsr peekend
         jmp {rest_jmp}
 
 ev_slide:                            ; glide mode 1: current -> target
-        ldy #$01
+{sp_fetch}        ldy {ev1}
         lda ($f8),y                  ; speed
         sta glsp,x
         iny
@@ -1227,13 +1302,13 @@ ev_slide:                            ; glide mode 1: current -> target
         lda ($f8),y                  ; duration
         sta dur,x
         sta durrel,x                 ; live $173E shadow
-        lda #$04
+        lda {adv4}
         jsr adv
         jsr peekend
         jmp {rest_jmp}
 
 ev_note:
-        ldy #$01
+{sp_fetch}        ldy {ev1}
         lda ($f8),y                  ; flags (1=soft 2=glide)
         sta evflags
         iny
@@ -1246,7 +1321,7 @@ ev_note:
         sta fbl,x
         lda freqhi,y
         sta fbh,x
-        ldy #$03
+        ldy {ev3}
         lda ($f8),y                  ; duration
         sta dur,x
         sta durrel,x                 ; live $173E shadow
@@ -1259,7 +1334,7 @@ ev_note:
         lda evflags
         and #$02
         beq ev_n_noglide
-        ldy #$06
+        ldy {ev6}
         lda ($f8),y                  ; glide speed
         sta glsp,x
         iny
@@ -1269,11 +1344,11 @@ ev_note:
         sta glb,x
         lda curnote,x                ; glide start = this note
         sta gla,x
-        lda #$08
+        lda {adv8}
         jsr adv
         jmp ev_n_softq
 ev_n_noglide:
-        lda #$06
+        lda {adv6}
         jsr adv
 ev_n_softq:
         lda evflags
@@ -1814,7 +1889,7 @@ otrk:     .dsb 3, 0                  ; orig track byte-offset shadow (= $1726)
 wnote:    .dsb 3, 0                  ; orig arp-note shadow (= $1783)
 durrel:   .dsb 3, 0                  ; orig duration-reload shadow (= $173E)
 ioff:     .dsb 3, 0                  ; orig instrument-offset shadow (= $174D)
-state_end:
+{sectpos_bss}state_end:
 {hr_test_var}        .byt $00
 """
 
