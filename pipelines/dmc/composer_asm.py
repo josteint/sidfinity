@@ -645,6 +645,16 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     # stall at each tie boundary).
     rest_effects = str(usf.params.fields.get('rest_effects', 'run'))
     rest_jmp = 'wavestep' if rest_effects == 'skip' else 'run_effects'
+    # PW-hi register source (C19 wedge, Olsen/Lame — 1 family-1 carrier):
+    # the sidwrite tail's `LDA $1753,x / STA $D403,y` is re-pointed at
+    # another per-voice byte ($1707,x = the track-ptr lo triple, constant
+    # after init), pinning each voice's AUDIBLE PW hi at a per-voice
+    # constant while the internal PWM state machine still runs on $1753
+    # (note-init store + bound compares untouched). pw_hi_const = 'a,b,c'
+    # carries the post-init constants; absent -> canon (byte-identical).
+    pw_hi_const = str(usf.params.fields.get('pw_hi_const', '') or '')
+    pw_hi_load = ('        lda pwhic,x                  ; patched PW-hi source'
+                  if pw_hi_const else '        lda pwh,x')
     # hard-restart-patch variant (The_Syndrom / Tragic_Error / Gaston): a
     # canon player with two note-init wedges. $1230 JSRs $125A, which parks
     # the SR byte and passes #$99 to sub_184B, whose first STA now targets
@@ -913,6 +923,9 @@ def compose_dmc_asm(usf: UsfFile) -> str:
         data.append(f'{name}:\n' + _byt(arr))
     data.append('isteps:\n' + _byt(isteps))
     data.append('irawsp:\n' + _byt(irawsp))
+    if pw_hi_const:
+        data.append('pwhic:\n' + _byt(
+            [int(t) & 0xFF for t in pw_hi_const.split(',')]))
     for name, arr in [('fdres', fdres), ('fdmode', fdmode),
                       ('fdinit', fdinit), ('fdrep', fdrep),
                       ('fdstop', fdstop)]:
@@ -1723,7 +1736,7 @@ sidwrite:
 pwwrite:
         lda pwl,x
         sta $d402,y
-        lda pwh,x
+{pw_hi_load}
         sta $d403,y
         lda wctrl,x
         and gatemask,x

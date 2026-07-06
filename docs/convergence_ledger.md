@@ -1079,9 +1079,18 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   by opcode shape (layout-blind, C13 corollary) and classifies the byte
   after the gate-mask STA. The param (`hold_gateoff='mask_only'`) already
   existed for family-2 — the probe just feeds it for family-1 carriers.
+- **3rd occurrence (round 32):** the PW-hi SOURCE patch (Olsen/Lame, 1
+  family-1 carrier): the sidwrite tail's `LDA $1753,x / STA $D403,y`
+  operand re-pointed at base+$707 (the track-ptr lo triple, constant after
+  init) — each voice's audible PW hi pinned at a per-voice constant while
+  the internal PWM machine still runs on $1753. `factory._pw_hi_const_probe`
+  anchors on the `$D402/$D403` store pair + the canon PW-accum-lo operand,
+  captures the POST-INIT bytes at the patched operand → `pw_hi_const='a,b,c'`
+  param; composer swaps the pwwrite source to a 3-byte table. Default
+  byte-identical; base-relative census proved exactly 1 carrier.
 - **Consumers:** DMC v4 `factory._hr_patch_probe` + composer_asm
   hr_patch/hr_test_init gating; `factory._hold_gateoff_probe` →
-  `hold_gateoff` param. Sibling of C18 (wrapper OUTSIDE the player) —
+  `hold_gateoff` param; `factory._pw_hi_const_probe` → `pw_hi_const` param. Sibling of C18 (wrapper OUTSIDE the player) —
   C19 is patches INSIDE the canon body. The round-14 $D418 play-vector prefix
   (`LDA #imm/STA $D418/JMP base+3`, factory `_d418_play_wrapper` →
   `d418_every_play`, +6 FULL, commit efbf639) is the degenerate stateless

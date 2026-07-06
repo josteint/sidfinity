@@ -769,6 +769,35 @@ def _hold_gateoff_probe(path: str):
     return None
 
 
+_PW_HI_WRITE = re.compile(rb'\xBD(..)\x99\x02\xD4\xBD(..)\x99\x03\xD4',
+                          re.DOTALL)
+
+
+def _pw_hi_const_probe(path: str, base: int):
+    """PW-hi source patch probe (STATIC opcode probe, C19 — Olsen/Lame, the
+    only family-1 carrier): the sidwrite tail is canonically
+    `LDA $1750,x / STA $D402,y / LDA $1753,x / STA $D403,y`; the wedge
+    re-points the second LDA's operand at another per-voice byte (Lame:
+    base+$707 = the track-ptr lo triple, set once at init — so each voice's
+    audible PW hi is pinned at a per-voice constant while the internal PWM
+    state machine still runs on $1753). Anchor on the $D402/$D403 stores +
+    the canon PW-accum-lo operand (base+$750, layout-blind wrt relocation);
+    if the hi operand differs from canon, capture the POST-INIT runtime
+    bytes at operand..+2 (init rewrites them; file image is the fallback)
+    and return them as 'a,b,c'. Canon operand -> None (build unchanged)."""
+    mem, s = _load(path)
+    m = _PW_HI_WRITE.search(bytes(mem))
+    if not m:
+        return None
+    oplo = m.group(1)[0] | (m.group(1)[1] << 8)
+    ophi = m.group(2)[0] | (m.group(2)[1] << 8)
+    if oplo != base + 0x750 or ophi == base + 0x753:
+        return None
+    ram = _post_init_ram(path, s['start'] - 1)
+    src = ram if ram is not None else mem
+    return ','.join(str(src[ophi + i]) for i in range(3))
+
+
 def _d418_play_wrapper(path: str, base: int):
     """$D418 play-vector wrapper probe: the PSID play address points at
     `LDA #imm / STA $D418 / JMP base+3` (PVCF / Zyron / Signor) — a constant
@@ -901,6 +930,9 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     pur = _play_unit_repeat_probe(os.path.join(hvsc_root, sid_path), cfg.base)
     if pur is not None:
         cfg.extra_params['play_unit_repeat'] = pur
+    pwc = _pw_hi_const_probe(os.path.join(hvsc_root, sid_path), cfg.base)
+    if pwc is not None:
+        cfg.extra_params['pw_hi_const'] = pwc
     return cfg
 
 
