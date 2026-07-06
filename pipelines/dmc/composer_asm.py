@@ -1354,8 +1354,8 @@ ev_n_softq:
         lda evflags
         and #$01
         beq ev_n_hard
-        jsr peekend                  ; soft (no retrigger) - effects run now
-        jmp run_effects
+        jsr peekend                  ; soft (no retrigger) - orig funnels via
+        jmp {rest_jmp}               ; the $117D tail, same JMP as rest/slide
 ev_n_hard:
         lda #$00                     ; hard restart prep
         sta accl,x

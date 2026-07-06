@@ -1114,6 +1114,17 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   captures the POST-INIT bytes at the patched operand → `pw_hi_const='a,b,c'`
   param; composer swaps the pwwrite source to a 3-byte table. Default
   byte-identical; base-relative census proved exactly 1 carrier.
+- **COROLLARY — a probed knob must be honored on EVERY orig path that funnels
+  through the patched site (2026-07-06, Chojnow_Music_Compo_1).** A wedge is
+  ONE instruction, so every orig code path reaching it inherits the variant
+  behaviour; the composer's re-architected handlers must EACH route through
+  the parametrized target. The `rest_effects='skip'` JMP ($117D → $1591) is
+  shared by rest, switch, slide AND the $7C soft-note fetch — composer's
+  `ev_n_softq` hard-coded `jmp run_effects`, so soft-note fetch frames stepped
+  the pulse where the orig held it (V2 PW one step ahead from the first soft
+  fetch, flat div 266023). Fix = `jmp {rest_jmp}` (byte-identical for canon
+  'run'). When landing a knob, grep the composer for ALL jumps to the
+  canon-target label and check each against the orig's funnel paths.
 - **Consumers:** DMC v4 `factory._hr_patch_probe` + composer_asm
   hr_patch/hr_test_init gating; `factory._hold_gateoff_probe` →
   `hold_gateoff` param; `factory._pw_hi_const_probe` → `pw_hi_const` param. Sibling of C18 (wrapper OUTSIDE the player) —
