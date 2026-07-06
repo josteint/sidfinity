@@ -473,6 +473,12 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   variant RAISED wave_marker_chain = 13 false detect-rejects). Fix routes both
   underflow cases to `_resolve_wave_chain` (the existing mod-256 walk simulator) —
   canonical-form compliant: only previously-wrong/refused paths change.
+  ALSO DMC v4 CHAINED marker in the pre-start loop region (family-1 round 29,
+  Tichelmann_03 +1 FULL 0 regr): `_slice_wave`'s loop-target-before-start branch
+  concatenated `ctrl_tab[loop_pos:start]` UNSCANNED — a marker there (inst 12:
+  `$14,$14,$14,$94`; $94 hops to $91 which hops to the settled $41/freq $00 hold
+  step) was emitted as a literal wave step. Same canonical fix: gate on
+  `any(b >= 0x90)` in the copied region → delegate to `_resolve_wave_chain`.
 - **Boundary / watch-list:** the SAME class applies to ANY 8-bit-indexed engine
   table — e.g. the DMC wave POSITION ($177A is 8-bit, so a wave program crossing
   $FF wraps to wctab[0]; `_slice_wave` reads linearly past it — a candidate

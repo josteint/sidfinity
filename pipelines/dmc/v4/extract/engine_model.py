@@ -466,6 +466,12 @@ def _slice_wave(ctrl_tab: list, freq_tab: list, start: int, n_inbound=None):
     # loop target before the start: cycle = [loop_pos..end-1]; the
     # heard sequence is [start..end-1] then the cycle repeating, which
     # equals list [start..end-1]+[loop_pos..start-1] with loop=0.
+    if any(b >= 0x90 for b in ctrl_tab[loop_pos:start]):
+        # the pre-start region holds ANOTHER marker (chained hop, e.g.
+        # $94 -> $91 -> settle) — the flat concatenation would emit the
+        # marker byte as a step; simulate the engine's walk instead
+        # (Tichelmann_03 inst 12: [$14,$14,$14,$94] settles on $41/hold).
+        return _resolve_wave_chain(ctrl_tab, freq_tab, start)
     return (ctrl_tab[start:end] + ctrl_tab[loop_pos:start],
             freq_tab[start:end] + freq_tab[loop_pos:start], 0)
 
