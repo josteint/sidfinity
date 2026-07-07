@@ -27,11 +27,12 @@ all musical content comes from the USF.
 from __future__ import annotations
 
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from src.usf.types import UsfFile, Pitch
+from src.usf.types import UsfFile, Pitch, MusicSubtune, InitState
 from src.composer_runtime.xa65 import assemble
 from src.composer_runtime.psid import build_header
 from pipelines.dmc.engine_constants import FREQ_LO, FREQ_HI, VIBDEPTH
@@ -651,7 +652,37 @@ def _byt(data, per=16) -> str:
     return '\n'.join(lines) if lines else '        .byt $00'
 
 
-def compose_dmc_asm(usf: UsfFile) -> str:
+def _reloc_sid_regs(asm: str, reg_delta: int, keep_res: bool = True) -> str:
+    """Relocate the SID register operands ($D400-$D418) by `reg_delta` — used
+    to point a second/third player instance at chip 2 ($D420) / chip 3
+    ($D440). Only 4-hex-digit `$d4NN` words with NN in $00-$18 are register
+    writes (verified: no data literal takes that form — the freq table etc.
+    emit single bytes `$D4`, never words), so a targeted rewrite is safe.
+
+    `keep_res`: the resonance/routing write ($D417) is NOT relocated on the
+    2SID members observed (the editor left that one operand un-offset, so
+    both players' res/route land on chip 1 — a per-instance write-stream
+    quirk, reproduced faithfully). Cutoff ($16) and vol/mode ($18) DO
+    relocate."""
+    if reg_delta == 0:
+        return asm
+    # safety: no $d4NN word may hide in a data line
+    for ln in asm.split('\n'):
+        code = ln.split(';')[0]
+        if re.search(r'\.(byt|word|dsb)\b', code, re.I) and \
+                re.search(r'\$d4[0-9a-f]{2}\b', code, re.I):
+            raise AssertionError(f'$d4xx word in data line: {ln!r}')
+
+    def _sub(mobj):
+        nn = int(mobj.group(1), 16)
+        if nn > 0x18 or (keep_res and nn == 0x17):
+            return mobj.group(0)
+        return f'${(0xD400 + nn + reg_delta):04x}'
+    return re.sub(r'\$d4([0-9a-f]{2})\b', _sub, asm, flags=re.I)
+
+
+def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
+                    reg_delta: int = 0) -> str:
     m = _Model(usf)
     insts = m.instruments
     n = len(insts)
@@ -1413,10 +1444,10 @@ fx_dual_up:
     ws_hi_redirect = _gen_offtable_redirect(
         otmap, ORIG_FHI, 96, 'lda freqhi,y', 'ws_rd_his')
 
-    return f"""
+    asm = f"""
 SLIDE_PHASE = ${slide_phase:02X}
 CIA_PERIOD = ${cia_period:04X}
-        * = $1000
+        * = ${origin:04X}
         jmp init
         jmp {play_entry}
 
@@ -2182,6 +2213,7 @@ ioff:     .dsb 3, 0                  ; orig instrument-offset shadow (= $174D)
 {sectpos_bss}state_end:
 {hr_test_var}{dual_vars}        .byt $00
 """
+    return _reloc_sid_regs(asm, reg_delta)
 
 
 def _sanitize_asm(asm: str) -> str:
@@ -2196,7 +2228,113 @@ def _sanitize_asm(asm: str) -> str:
     return '\n'.join(out).encode('ascii', 'replace').decode('ascii')
 
 
+def _split_chip_usf(usf: UsfFile, ci: int) -> UsfFile:
+    """Carve chip `ci`'s standalone 3-voice DMC USF out of a merged multi-SID
+    USF — the exact inverse of merge_2sid_usf. Each chip's instruments +
+    filter programs occupy a fixed-stride disjoint id block (chip c shifted
+    by c*STRIDE); select that block and renumber it back to the chip's
+    standalone form (so the sub-USF is byte-for-byte what a single-chip
+    extraction of that player would produce), take its 3 voices (renumbered
+    1-3, note refs un-shifted), and its own priming. freq_table / wave
+    programs / params are shared."""
+    import dataclasses
+    from pipelines.dmc.v4.extract.to_usf import (
+        MULTISID_INSTR_STRIDE as ISTR, MULTISID_FILTER_STRIDE as FSTR,
+        _offset_note_refs)
+    sub = usf.subtunes[0]
+    ilo, ihi = ci * ISTR, (ci + 1) * ISTR       # id in (ilo, ihi]
+    flo, fhi = ci * FSTR, (ci + 1) * FSTR
+    instrs = []
+    for i in usf.instruments:
+        if ilo < i.id <= ihi:
+            fp = i.filter_prog
+            if fp and fp.program:
+                fp = dataclasses.replace(fp, program=fp.program - flo)
+            instrs.append(dataclasses.replace(i, id=i.id - ilo, filter_prog=fp))
+    filters = {p - flo: d for p, d in usf.filter_programs.items()
+               if flo < p <= fhi}
+    vren = [dataclasses.replace(v, id=k + 1,
+                                patterns=[dataclasses.replace(
+                                    p, rows=_offset_note_refs(p.rows, -ilo))
+                                    for p in v.patterns])
+            for k, v in enumerate(sub.voices[ci * 3: ci * 3 + 3])]
+    ivs = [dataclasses.replace(iv, id=iv.id - ci * 3)
+           for iv in usf.init.voices if ci * 3 < iv.id <= ci * 3 + 3]
+    chip_sid = [usf.init.sid, usf.init.sid2, usf.init.sid3][ci]
+    tempo = [sub.tempo, sub.tempo2, sub.tempo3][ci]
+    if tempo is None:
+        tempo = sub.tempo
+    init = InitState(voices=ivs, sid=chip_sid)
+    subt = MusicSubtune(id=1, tempo=tempo, voices=vren, init=init)
+    return dataclasses.replace(usf, instruments=instrs,
+                               filter_programs=filters, subtunes=[subt],
+                               init=init)
+
+
+def build_dmc_2sid_sid(usf: UsfFile) -> bytes:
+    """Multi-SID build: emit one independent DMC player per chip (each at its
+    own origin, chip k>0 writing $D400+k*$20 via reg_delta), then a dispatch
+    stub at $1000 whose init/play call each player in turn. The merged
+    write-log = [chip1's stream][chip2's stream] (players run sequentially),
+    which is exactly the original's per-frame ordering."""
+    n_chips = len(usf.subtunes[0].voices) // 3
+    origin = 0x1100                       # players sit above the dispatcher
+    blobs = []                            # (origin, bytes)
+    entries = []                          # (init_addr, play_addr) per chip
+    for ci in range(n_chips):
+        sub_usf = _split_chip_usf(usf, ci)
+        asm = _sanitize_asm(
+            compose_dmc_asm(sub_usf, origin=origin, reg_delta=ci * 0x20))
+        blob = assemble(asm)
+        blobs.append((origin, blob))
+        entries.append((origin, origin + 3))
+        origin = (origin + len(blob) + 1) & ~1     # word-align next player
+
+    # dispatcher at $1000: init (A=subtune) calls each player init; play
+    # calls each player play. Players run in chip order so their writes
+    # land chip1-then-chip2 within the frame (matches the original wrapper).
+    init_calls = '\n'.join(
+        f'        jsr ${e[0]:04X}\n        lda subsav'
+        for e in entries)
+    play_calls = '\n'.join(f'        jsr ${e[1]:04X}' for e in entries)
+    disp = f"""        * = $1000
+        jmp cinit
+        jmp cplay
+cinit:
+        sta subsav
+{init_calls}
+        rts
+cplay:
+{play_calls}
+        rts
+subsav: .byt $00
+"""
+    dblob = assemble(disp)
+    blobs.insert(0, (0x1000, dblob))
+    end = max(o + len(b) for o, b in blobs)
+    image = bytearray(end - LOAD)
+    for o, b in blobs:
+        image[o - LOAD:o - LOAD + len(b)] = b
+
+    clock = {'PAL': 1, 'NTSC': 2, 'both': 3}.get(usf.psid.clock, 0)
+    sidm = {6581: 1, 8580: 2, 'both': 3}.get(usf.psid.sid, 0)
+    m2 = {6581: 1, 8580: 2, 'both': 3}.get(usf.psid.sid2, 0)
+    m3 = {6581: 1, 8580: 2, 'both': 3}.get(usf.psid.sid3, 0)
+    header = build_header(
+        load=0, init=LOAD, play=LOAD + 3,
+        songs=len(usf.subtunes), start_song=usf.psid.start_song,
+        title=usf.psid.title, author=usf.psid.author,
+        released=usf.psid.released,
+        flags=(clock << 2) | (sidm << 4) | (m2 << 6) | (m3 << 8),
+        sid2_addr=0xD420 if n_chips >= 2 else 0,
+        sid3_addr=0xD440 if n_chips >= 3 else 0)
+    return header + bytes([LOAD & 0xFF, LOAD >> 8]) + bytes(image)
+
+
 def build_dmc_sid(usf: UsfFile) -> bytes:
+    if usf.subtunes and getattr(usf.subtunes[0], 'voices', None) \
+            and len(usf.subtunes[0].voices) > 3:
+        return build_dmc_2sid_sid(usf)
     asm = _sanitize_asm(compose_dmc_asm(usf))
     code = assemble(asm)
     # CIA multispeed: set the PSID speed bit for every subtune so

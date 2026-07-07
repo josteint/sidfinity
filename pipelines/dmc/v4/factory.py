@@ -1078,6 +1078,77 @@ def _play_unit_repeat_probe(path: str, base: int):
     return ','.join(str(u) for u in units)
 
 
+def _sid_header_multi(sid_path: str):
+    """Read the PSID v3/v4 multi-SID header fields. Returns
+    (n_chips, sid2_addr, sid3_addr, sid2_model, sid3_model). Addresses are
+    full $Dxx0 chip bases (0 = chip absent); models are 6581/8580/'both' or
+    None (Unknown = same as first SID, per the SID_file_format spec)."""
+    with open(sid_path, 'rb') as f:
+        h = f.read(0x7C)
+    if len(h) < 0x7C or h[:4] not in (b'PSID', b'RSID'):
+        return (1, 0, 0, None, None)
+    flags = int.from_bytes(h[0x76:0x78], 'big')
+    models = {0: None, 1: 6581, 2: 8580, 3: 'both'}
+
+    def _addr(b):
+        return (0xD000 + b * 0x10) if (b and b % 2 == 0
+                                       and (0x42 <= b <= 0x7E
+                                            or 0xE0 <= b <= 0xFE)) else 0
+    a2, a3 = _addr(h[0x7A]), _addr(h[0x7B])
+    n = 1 + (1 if a2 else 0) + (1 if a3 else 0)
+    return (n, a2, a3, models[(flags >> 6) & 3], models[(flags >> 8) & 3])
+
+
+def _config_at_base(sid_path: str, hvsc_root: str, base: int,
+                    name: str) -> DMCV4Config:
+    """Construct a DMCV4Config for a canonical/2entry DMC v4 player at a
+    KNOWN base (used for multi-SID sub-players, where the dispatch wrapper
+    overwrote one player's jump table so base-detection can't find it). All
+    operand + fixed-table sites are canon-relative; the write-log verify is
+    the gate on a mislocation."""
+    d = base - 0x1000
+    at = lambda a: a + d                                       # noqa: E731
+    return DMCV4Config(
+        sid_path=sid_path, name=name, base=base,
+        op_instr=at(0x1227), op_wavectrl=at(0x159C), op_wavefreq=at(0x15B9),
+        op_filtdef=at(0x1296), op_tunetab=at(0x180E),
+        op_secp_lo=at(0x1103), op_secp_hi=at(0x1108),
+        freq_lo_addr=at(0x1647), freq_hi_addr=at(0x16A7),
+        vibdepth_addr=at(0x1888), d417_shadow_addr=at(0x1018))
+
+
+def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
+    """Multi-SID (2SID/3SID) DMC member: a dispatch wrapper calls two/three
+    independent DMC player instances, one per chip. Returns a list of
+    per-chip DMCV4Config (chip order = wrapper JSR order = header chip
+    order), or None if this isn't a multi-SID DMC member. The play vector
+    at load is `JMP play_wrapper`; the play wrapper is a run of
+    `JSR <player_play>` — each target names a player (base = target-3 when a
+    jump table sits there, else the 2entry play handler at target-$50)."""
+    path = os.path.join(hvsc_root, sid_path)
+    n_chips = _sid_header_multi(path)[0]
+    if n_chips < 2:
+        return None
+    mem, s = _load(path)
+    if mem[s['play']] != 0x4C:
+        return None
+    play_wrap = _rd16(mem, s['play'] + 1)
+    bases = []
+    a = play_wrap
+    while mem[a] == 0x20:                       # JSR <player play>
+        t = _rd16(mem, a + 1)
+        if t - 3 >= 0 and mem[t - 3] == 0x4C and mem[t] == 0x4C:
+            bases.append(t - 3)                 # play = JT entry (base+3)
+        else:
+            bases.append(t - 0x50)              # direct 2entry play handler
+        a += 3
+    if len(bases) != n_chips:
+        return None
+    base0 = os.path.splitext(os.path.basename(sid_path))[0]
+    return [_config_at_base(sid_path, hvsc_root, b, f'{base0}_chip{i + 1}')
+            for i, b in enumerate(bases)]
+
+
 def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     """Primary canonical-layout build; on a moved-layout rejection, fall back
     to the layout-independent dataflow extractor (pipelines.dmc.v4.dataflow).

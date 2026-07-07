@@ -66,9 +66,12 @@ def run_member(rel: str) -> dict:
                   lambda *a: (_ for _ in ()).throw(TimeoutError()))
     signal.alarm(1500)
     try:
-        from pipelines.dmc.v4.factory import (dmc_v4_config, DMCV4Unsupported,
+        from pipelines.dmc.v4.factory import (dmc_v4_config,
+                                              dmc_v4_config_2sid,
+                                              DMCV4Unsupported,
                                               frames_clear_adsr)
-        from pipelines.dmc.v4.extract.to_usf import write_dmc_usf
+        from pipelines.dmc.v4.extract.to_usf import (write_dmc_usf,
+                                                     write_dmc_2sid_usf)
         from pipelines.dmc.composer_asm import build_dmc_sid
         from pipelines.hubbard.verify_cycle import (
             writelog_capture, writelog_per_irq_capture,
@@ -78,11 +81,17 @@ def run_member(rel: str) -> dict:
         from seed_disassembly import parse_psid
 
         hvsc = os.path.join(ROOT, 'hvsc84')
-        try:
-            cfg = dmc_v4_config(rel, hvsc_root=hvsc)
-        except DMCV4Unsupported as e:
-            return {'path': rel, 'status': 'unsupported',
-                    'reason': e.reason, 'detail': e.detail[:80]}
+        # multi-SID (2SID/3SID): two/three independent DMC players, one per
+        # chip. Extract each, merge into a 6/9-voice USF; the composer emits
+        # one player instance per chip (chip N -> $D400+N*$20).
+        cfgs2 = dmc_v4_config_2sid(rel, hvsc_root=hvsc)
+        cfg = None
+        if cfgs2 is None:
+            try:
+                cfg = dmc_v4_config(rel, hvsc_root=hvsc)
+            except DMCV4Unsupported as e:
+                return {'path': rel, 'status': 'unsupported',
+                        'reason': e.reason, 'detail': e.detail[:80]}
         orig = os.path.join(hvsc, rel)
         with tempfile.TemporaryDirectory() as td:
             durs = get_durations(orig, _db)
@@ -102,7 +111,11 @@ def run_member(rel: str) -> dict:
                 origs[sub] = (cap(orig, subtune=sub, duration=dur), dur, cia)
 
             def build_and_verify(hold_gateoff=None):
-                usf = parse_file(write_dmc_usf(cfg, td, hvsc_root=hvsc))
+                if cfgs2 is not None:
+                    usf = parse_file(
+                        write_dmc_2sid_usf(cfgs2, td, hvsc_root=hvsc))
+                else:
+                    usf = parse_file(write_dmc_usf(cfg, td, hvsc_root=hvsc))
                 if hold_gateoff:
                     usf.params.fields['hold_gateoff'] = hold_gateoff
                 tmp_sid = os.path.join(td, 'r.sid')

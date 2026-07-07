@@ -341,3 +341,113 @@ def write_dmc_usf(cfg: DMCV4Config, out_dir: str,
     out = os.path.join(out_dir, base + '.usf')
     write_file(usf, out)
     return out
+
+
+def _offset_note_refs(rows, di: int):
+    """Return rows with every instrument reference (note.instr + a
+    `set_instr=N` fx flag) shifted by `di` — used to move a chip's
+    instruments into a disjoint id range in the merged multi-SID USF."""
+    import dataclasses
+    out = []
+    for r in rows:
+        instr = r.instr
+        if instr is not None and getattr(instr, 'id', None) is not None:
+            instr = dataclasses.replace(instr, id=instr.id + di)
+        flags = []
+        for f in r.fx_flags:
+            if f.startswith('set_instr='):
+                flags.append(f'set_instr={int(f.split("=")[1]) + di}')
+            else:
+                flags.append(f)
+        out.append(dataclasses.replace(r, instr=instr, fx_flags=flags))
+    return out
+
+
+# Per-chip id strides in the MERGED multi-SID USF: chip c's instruments +
+# filter programs are shifted by c*STRIDE so a fixed-arithmetic split
+# recovers each chip's standalone sub-USF exactly (ids well above any real
+# DMC per-player count — instruments and 17-record filter windows). Only
+# appear in multi-SID files; single-chip USFs are unchanged.
+MULTISID_INSTR_STRIDE = 100
+MULTISID_FILTER_STRIDE = 100
+
+
+def merge_2sid_usf(models, sid2_model=None, sid3_model=None) -> UsfFile:
+    """Merge per-chip DmcModels (one per SID chip) into ONE multi-SID USF:
+    voices number through the chips (1-3 = chip 1, 4-6 = chip 2, ...), each
+    chip's instruments + filter programs live in a disjoint id range (chip
+    c shifted by c*STRIDE), and per-chip priming rides init.sid /
+    init.sid2 / init.sid3. freq_table + idle wave are shared (verified
+    identical across a member's chips). Chip I/O addresses are NOT carried —
+    the composer standardises them (chip 2 = $D420, chip 3 = $D440).
+    Single-subtune members only (the 2SID corpus)."""
+    import dataclasses
+    usfs = [model_to_usf(m) for m in models]
+    assert all(len(u.subtunes) == 1 for u in usfs), \
+        'multi-SID merge supports single-subtune members only'
+    # shared musical content must coincide across chips (they're one tune)
+    assert all(u.freq_table == usfs[0].freq_table for u in usfs), \
+        'multi-SID chips disagree on the freq table'
+
+    merged_instruments = []
+    merged_filters = {}
+    all_voices = []
+    init_voices = []
+    chip_sids = []          # per-chip InitSid priming
+    tempos = []
+    for ci, u in enumerate(usfs):
+        ioff = ci * MULTISID_INSTR_STRIDE
+        foff = ci * MULTISID_FILTER_STRIDE
+        sub = u.subtunes[0]
+        tempos.append(sub.tempo)
+        for inst in u.instruments:
+            fp = inst.filter_prog
+            if fp and fp.program:
+                fp = dataclasses.replace(fp, program=fp.program + foff)
+            merged_instruments.append(
+                dataclasses.replace(inst, id=inst.id + ioff, filter_prog=fp))
+        for prog, dfn in u.filter_programs.items():
+            merged_filters[prog + foff] = dfn
+        # voices renumbered through the chips; note refs shifted
+        for v in sub.voices:
+            pats = [dataclasses.replace(p, rows=_offset_note_refs(p.rows, ioff))
+                    for p in v.patterns]
+            all_voices.append(dataclasses.replace(
+                v, id=ci * 3 + v.id, patterns=pats))
+        # per-voice idle priming (top-level init.voices), voices renumbered
+        for iv in u.init.voices:
+            init_voices.append(dataclasses.replace(iv, id=ci * 3 + iv.id))
+        # per-chip SID priming (master vol + $D417 routing shadow) rides the
+        # subtune init.sid in the per-chip USF
+        chip_sids.append(sub.init.sid if sub.init else None)
+
+    base = usfs[0]
+    init = InitState(
+        voices=init_voices,
+        sid=chip_sids[0],
+        sid2=chip_sids[1] if len(chip_sids) > 1 else None,
+        sid3=chip_sids[2] if len(chip_sids) > 2 else None)
+    subtune = MusicSubtune(
+        id=1, tempo=tempos[0], voices=all_voices, init=init,
+        tempo2=tempos[1] if len(tempos) > 1 and tempos[1] != tempos[0]
+        else None,
+        tempo3=tempos[2] if len(tempos) > 2 and tempos[2] != tempos[0]
+        else None)
+    psid = dataclasses.replace(base.psid, sid2=sid2_model, sid3=sid3_model)
+    return dataclasses.replace(
+        base, psid=psid, init=init,
+        instruments=merged_instruments,
+        filter_programs=merged_filters,
+        subtunes=[subtune])
+
+
+def write_dmc_2sid_usf(cfgs, out_dir: str, hvsc_root: str = 'hvsc84') -> str:
+    from pipelines.dmc.v4.factory import _sid_header_multi
+    models = [extract(c, hvsc_root=hvsc_root) for c in cfgs]
+    _, _, _, m2, m3 = _sid_header_multi(
+        os.path.join(hvsc_root, cfgs[0].sid_path))
+    usf = merge_2sid_usf(models, sid2_model=m2, sid3_model=m3)
+    base = os.path.splitext(os.path.basename(cfgs[0].sid_path))[0]
+    out = os.path.join(out_dir, base + '.usf')
+    write_file(usf, out)
+    return out
