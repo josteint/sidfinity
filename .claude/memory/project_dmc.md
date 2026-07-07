@@ -7,6 +7,35 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 44 (2026-07-07): CIA cycle-budget overrun — off-table redirect chain fast path (+2 FULL restored, 0 regr) [ledger C25 NEW]
+The round-43 closeout sweep (fresh f1 batch, 5031 FULL / 154 partial) surfaced
+5 FULL→partial "losses". C20 triage: 3 were palimpsests (old rows said
+status=full while their OWN subs said is_full=False, code_hash None, no
+artifacts — Compotune_1/2, Falu_Mix); 2 were REAL (Revolution-Evolution,
+Ucieczka_z_Tropiku: stored artifacts still verify, fresh builds fail).
+Signature: PERFECT play-stream prefix + state match, ONLY a ~0.5% length tail =
+RATE drift, no content divergence (trichotomy: an ENVIRONMENT failure).
+/amend run: initial suspect (round-41 cia_period) EXONERATED (param unchanged);
+measured avg play-entry period (--per-irq-debug) orig 2456.9 == stored 2457.3,
+fresh 2464.1 → the play body chronically OVERRUNS the 8x latch (2456), delaying
+IRQs. Lens-1 root cause: `_gen_offtable_redirect`'s compare chain sits on the
+per-voice per-frame wave-step path at ~4-5 cyc/row for in-table reads, and
+rounds 31→39 grew the map to 48 rows (wjmp/sectpos/wavepos/fxf/fsz) — each
+round taxed EVERY member; tight-latch members finally tipped over. FIX (C25):
+one leading `cpy #min_off / bcs chain` fast-paths the common in-table read
+straight to the static load — content-identical BY CONSTRUCTION (fast path
+serves exactly the Ys that fell through every row), pure cycle timing. Both
+members FULL (768571 + 1576978 overlap); full tools/regression.py green.
+MIRRORED residue class: orig ITSELF overrunning its latch (Compotune_1 latch
+4913, orig ≈5393) needs an exactly-as-slow rebuild — never-FULL, honest
+residue. TRAPS: (a) editing shared composer code MID-SWEEP stales the whole
+running batch (code_hash) — the f2 leg was killed + the complete sweep
+restarted under the final code; (b) pkill -f 'dmc_family_batch' matched my own
+verify batch's argv (the self-matching tripwire — kill orphans by explicit
+PID); (c) a same-name glob (Harti vs Praiser Ucieczka_z_Tropiku) diffed the
+wrong stored USF — use exact paths. GUARD (ledger C25): any addition to a
+per-voice per-frame path costs ×3 voices × the tightest corpus latch.
+
 ## ✅ ROUND 43 (2026-07-06): notestart_arm window escalation 12→96 (+1 FULL Wavefrontline, 0 regr) [ledger C23 refinement 2]
 Random partial Aomeba/Wavefrontline (CIA 2x, P_F123): per-IRQ first div pos 21,
 V1 ctrl orig $00 vs mine $40 — the note-start chirp's gate-mask 0→$FE

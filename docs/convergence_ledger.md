@@ -96,6 +96,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | AMBIGUOUS round-trip flag encoding · two distinct engine ops render to OVERLAPPING USF flag sets · the decoder's branch test uses a SUBSET of the discriminator → misroutes one op onto the other's path · matches for most content (paths coincide when inputs coincide), diverges on the distinguishing case | C22 | canonicalized (2×) |
 | a play-phase/schedule TOKEN hides a per-member behavioural ambiguity · same P_F123 token = note-init-on-F vs deferred 2-frame arm · fixing one class REGRESSES same-token FULLs · NOT derivable from the token/multispeed → OBSERVE the distinguishing write-footprint per member · regression-safe when the "changed" verdict has no false positive | C23 | logged |
 | play-body UNIT-repeat · play body runs ONE of its 4 units (v0/v1/v2/filter-tail) N× per play() (JSR-to-N-call stub; JMP-tail form re-runs the filter tail) · "double-speed voice" · unified play_unit_repeat=[v0,v1,v2,filter] list · distinct from play_repeat (whole play()) + C18 play_phases (whole calls) · static byte-probe (C19 method) | C24 | recurring |
+| composer play body OVERRUNS a tight CIA latch · perfect play-stream prefix + length tail ~0.5% (rate drift, no content divergence) · common-path cost creep (per-row compare chains growing with each round's shadow additions) · fast-path the common case O(1) · the rebuild's play must FIT the smallest latch it ships under | C25 | logged |
 
 ---
 
@@ -1503,3 +1504,37 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   static-probe + factory-param canonical form (a WRITE-STREAM difference, not the
   same wedge shape). FACTOR at Move 1 if a 3rd variant appears (a voice ×3, or a
   unit-repeat on a relocated/2-entry layout the STX-$1720 probe can't locate).
+
+### C25 — The composer's play body must FIT the tightest CIA latch it ships under
+- **The problem class:** a high-multispeed CIA member (latch ≪ a PAL frame, e.g.
+  Revolution-Evolution 2456 = 8×) gives the play() handler a hard cycle budget.
+  When the composer's body chronically exceeds it, the next CIA IRQ is delayed
+  (fires immediately after RTI) — the rebuild's effective play rate slips below
+  the latch rate. **Presentation:** a batch "regression" with a PERFECT
+  play-stream prefix over the full overlap, state match, and ONLY a length tail
+  (~0.5%) beyond the CIA close tolerance. No `(reg,val)` content divergence
+  exists — per the trichotomy this is an ENVIRONMENT (rate) failure, so don't
+  chase effect emitters; measure the average play-entry period
+  (`--per-irq-debug`, sum nentries / cycle span) of orig vs stored artifact vs
+  fresh build. Orig == latch, fresh > latch is the tell (Revolution: 2456.9 vs
+  2464.1).
+- **Root cause seen (2026-07-07):** common-path cycle CREEP — the off-table
+  redirect compare chain (`_gen_offtable_redirect`) sat on the per-voice
+  per-frame wave-step read path and cost ~4-5 cycles PER MAPPED ROW for every
+  in-table read; rounds 31→39 grew the map (wjmp/sectpos/wavepos/fxf/fsz), each
+  row taxing EVERY member. The accumulation pushed tight-latch members over
+  budget while all content stayed exact.
+- **Canonical fix:** make the COMMON case O(1) — one leading bounds check
+  (`cpy #min_mapped_off / bcs chain`) jumps straight to the static in-table
+  load; the full chain runs only for mapped-window candidates. Content-identical
+  BY CONSTRUCTION (the fast path serves exactly the Ys that fell through every
+  row anyway) — the change is pure cycle timing, free under Mode 1 within a
+  frame, and restores the entry rate (2456.9/2810.0 == latch on both carriers).
+- **Boundary / the mirrored class:** members whose ORIG play chronically
+  overruns its own latch (Compotune_1: latch 4913, orig runs ≈5393) need the
+  rebuild to be exactly-as-slow — rate-matching an overrunning handler is NOT
+  covered by this entry (those members were never FULL; honest residue).
+  Guard when adding ANY code to a per-voice per-frame path: ask what it costs ×
+  3 voices × the tightest corpus latch.
+- **Status:** logged (1×, DMC family-1: Revolution-Evolution + Ucieczka_z_Tropiku
+  both FULL after the fast path; regression green).

@@ -245,13 +245,34 @@ def _gen_offtable_redirect(state_map, orig_base, win_min, static_load,
     the off-table window [win_min, 255], emit a range check that reads our live
     variable; else fall through to ``static_load``. Y holds the rebased index.
     Returns asm text; the caller places the ``store_label:`` that the in-range
-    branches jmp to. Engine-blind — reused per engine with its own map."""
-    parts = []
-    i = 0
+    branches jmp to. Engine-blind — reused per engine with its own map.
+
+    The COMMON case (an in-table read, Y below every mapped offset) takes a
+    single leading bounds check straight to ``static_load`` instead of walking
+    the whole compare chain. The chain is on the per-voice per-frame wave-step
+    path, so its cost scales with the map size for EVERY member — the row
+    growth across rounds (wjmp/sectpos/wavepos/fxf/fsz) accumulated enough
+    cycles to overrun tight high-multispeed CIA budgets (Revolution-Evolution,
+    latch 2456: the play body must FIT the latch or play() entries slip and
+    the rebuild runs measurably slow). The fast path serves exactly the Ys
+    that fell through every row anyway — content-identical by construction."""
+    rows = []
     for addr, label, nb in state_map:
         off = addr - orig_base
         if off < win_min or off + nb > 256:
             continue                     # not in this read's off-table window
+        rows.append((off, label, nb))
+    if not rows:
+        return f'        {static_load}'
+    min_off = min(off for off, _, _ in rows)
+    parts = [
+        f'        cpy #{min_off}\n'
+        f'        bcs {store_label}_chain     ; mapped-window candidate\n'
+        f'        {static_load}          ; common case: in-table\n'
+        f'        jmp {store_label}\n'
+        f'{store_label}_chain:']
+    i = 0
+    for off, label, nb in rows:
         nxt = f'{store_label}_n{i}'
         # upper-bound check is unnecessary when the range runs to idx 255
         # (off+nb == 256): idx is a byte, so `cpy #256` is both invalid and
