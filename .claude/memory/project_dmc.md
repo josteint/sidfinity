@@ -7,6 +7,31 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 47 (2026-07-07): INIT-UNPACKER CLASS SOLVED — unsupported 5 → 1 (+4 FULL) [ledger C26 NEW] — commit 0d60bd14
+The Flash trio (Haste/Kan-Kan/Wind_of_Dead, `nonstandard_instr_base`) +
+Itinerant (`nonstandard_vectors`) all FULL in one session. The trio: 2entry
+players whose init GENERATES all six data tables in high RAM (instr
+$B961/$A70B/$ACEA, tunetab $7DC9, ... — ALL operands outside the loaded
+image). FIX (C26): factory accepts the operand-named instr base iff EVERY
+data operand is out-of-image (all-or-nothing signature; mixed layouts stay
+refused), skips the packing-order check for that class, checks _INST_SAT
+against the operand-named base, sets `DMCV4Config.data_post_init`; extract
+then swaps its WHOLE memory for `_postinit_window(s, 0, 0x10000)` — read
+what the engine reads. Itinerant composes the class with a banking wrapper:
+play = `LDA #$35/STA $01/JSR $1050/LDA #$37/STA $01/RTS`, JT overwritten by
+the wrapper/init code → new base candidate base = t−$50 (2entry) / t−$85
+(canonical) from the wrapper's JSR target, validated by the masked identity
+compare. Both paths only run where the extractor previously refused
+(regression-impossible); full tools/regression.py green; artifacts
+mass-written; truth rows refreshed via --members mini-batch. f1 = **5129
+FULL / 271 partial / 1 unsupported (95.0%)**. THE LAST UNSUPPORTED:
+Surgeon Nice_Dream_2SID = TWO complete 2entry player instances ($1000
+JT-less via wrapper JSRs $1807/$1050 + $3000 with JT, second driving the
+2nd SID chip) — needs second-chip support (USF/composer/verify), shared
+blocker with the round-45 2SID partials. NEXT: the 271-partial residue
+(first-divergence chases: $D418 mvol-transform class, 2SID partials,
+freq-drift/otrk_legacy tail) or the 2SID design.
+
 ## ✅ ROUND 46 (2026-07-07): no_jumptable BUCKET EMPTIED — 62 → 0 (+31 FULL, +31 partial) [ledger C13 note] — commit 2ac58cbb
 The bucket was NOT "no jump table" for 54/62 — it was near-canon players with
 a RESTRUCTURED INIT header whose rewritten code broke the dataflow path's

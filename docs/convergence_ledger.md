@@ -97,6 +97,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | a play-phase/schedule TOKEN hides a per-member behavioural ambiguity · same P_F123 token = note-init-on-F vs deferred 2-frame arm · fixing one class REGRESSES same-token FULLs · NOT derivable from the token/multispeed → OBSERVE the distinguishing write-footprint per member · regression-safe when the "changed" verdict has no false positive | C23 | logged |
 | play-body UNIT-repeat · play body runs ONE of its 4 units (v0/v1/v2/filter-tail) N× per play() (JSR-to-N-call stub; JMP-tail form re-runs the filter tail) · "double-speed voice" · unified play_unit_repeat=[v0,v1,v2,filter] list · distinct from play_repeat (whole play()) + C18 play_phases (whole calls) · static byte-probe (C19 method) | C24 | recurring |
 | composer play body OVERRUNS a tight CIA latch · perfect play-stream prefix + length tail ~0.5% (rate drift, no content divergence) · common-path cost creep (per-row compare chains growing with each round's shadow additions) · fast-path the common case O(1) · the rebuild's play must FIT the smallest latch it ships under | C25 | logged |
+| song data ABSENT from file image · init generates/unpacks tables in RAM · operands point outside the loaded image · extract from POST-INIT RAM (py65), all-or-nothing signature · banking-wrapper JT-less base from the wrapper JSR target | C26 | logged |
 
 ---
 
@@ -1566,3 +1567,35 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   3 voices × the tightest corpus latch.
 - **Status:** logged (1×, DMC family-1: Revolution-Evolution + Ucieczka_z_Tropiku
   both FULL after the fast path; regression green).
+
+### C26 — Song data ABSENT from the file image (init GENERATES/unpacks it in RAM)
+
+- **Problem shape:** the player is a known variant (canon/2entry body matches),
+  its data-table operands are internally CONSISTENT — but they point OUTSIDE
+  the loaded image (or at zero fill): the member's init generates or unpacks
+  the song data into high RAM at runtime. Any file-image extraction reads
+  nothing. Seen as `nonstandard_instr_base` refusals (DMC family-1 Flash trio:
+  instr $B961/$A70B/$ACEA, ALL six table operands out of image) and, composed
+  with a banking wrapper, `nonstandard_vectors` (Itinerant: init copies
+  $1900→$7100 behind `LDA #$35/STA $01`).
+- **Canonical fix:** read what the ENGINE reads — run the member's OWN init
+  under py65 and extract every data table + priming byte from the POST-INIT
+  RAM (`DMCV4Config.data_post_init` → extract swaps its whole memory for
+  `_postinit_window(s, 0, 0x10000)`). Detection signature is all-or-nothing:
+  EVERY data operand outside the image ⇒ unpacker (a mixed layout stays
+  refused). Skip the canonical packing-order (layout) check for this class —
+  the unpacked tables sit wherever the unpacker put them. Verify-gated; both
+  acceptance paths run only where the extractor previously refused, so FULL
+  regressions are impossible by construction.
+- **Related prior forms (same principle, narrower scope):** `_postinit_window`
+  on the filter defs (Ed members' init stamps res/cutoff over the records),
+  `post_init_state` priming capture (dataflow members whose init clears
+  leftovers), round-40 filter_mod contour (init-generated triangle table).
+  This entry is the WHOLESALE form: all tables at once.
+- **Banking-wrapper base candidate (C13 tier, same session):** a play vector
+  `LDA #$35/STA $01/JSR t/LDA #$37/STA $01/RTS` whose jump table was
+  overwritten by the wrapper/init code names the play handler explicitly:
+  base = t−$50 (2entry) / t−$85 (canonical), validated by the masked identity
+  compare downstream.
+- **Status:** logged (1× wholesale, 4 members: Haste/Kan-Kan/Wind_of_Dead
+  303301+53319+484596 FULL, Itinerant 174180 FULL; narrower forms 3× prior).
