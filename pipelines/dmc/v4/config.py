@@ -81,6 +81,11 @@ class DMCV4Config:
     # helper), so the factory probes each from the member's code rather
     # than hardcoding. Empty for canonical V4 (canon defaults apply).
     extra_params: dict = field(default_factory=dict)
+    # INIT-UNPACKER member (factory-detected): every data-table operand
+    # points outside the loaded image — init GENERATES the song data in
+    # high RAM. The extract must read its tables from post-init RAM
+    # (py65 init run), not the file image. Extract-only (never USF).
+    data_post_init: bool = False
     # POST-INIT leftover values (dataflow/re-assembled members only; None =
     # read the file image). Canon's leftover priming (d417 shadow, idle
     # notes/masks, dual phase) reads the FILE IMAGE because canon init never

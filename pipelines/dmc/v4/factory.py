@@ -1388,6 +1388,26 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
                     base, layout = b, lay
                     break
     if base is None:
+        # BANKING-WRAPPER JT-less (Itinerant): the PSID play vector is a
+        # ROM-banking wrapper `LDA #$35/STA $01/JSR t/LDA #$37/STA $01/RTS`
+        # and the jump table at the handler's base was OVERWRITTEN by the
+        # wrapper/init code itself (the member's init tail `JMP base+$807`
+        # is the 2entry init handler). Trust the wrapper's JSR target:
+        # t-$50 = the 2entry play-handler offset, t-$85 = canonical. The
+        # masked identity compare downstream validates the base (a wrong
+        # base fails cleanly as player_code_mismatch).
+        p = s['play']
+        if (bytes(mem[p:p + 4]) == bytes.fromhex('a9358501')
+                and mem[p + 4] == 0x20
+                and bytes(mem[p + 7:p + 11]) == bytes.fromhex('a9378501')
+                and mem[p + 11] == 0x60):
+            t = _rd16(mem, p + 5)
+            for off, lay in ((0x50, '2entry'), (0x85, 'canonical')):
+                b = t - off
+                if s['load'] <= b and b + 0x8E7 < 0x10000:
+                    base, layout = b, lay
+                    break
+    if base is None:
         b = s['play'] - 3
         reason = ('no_jumptable' if 0 < b and s['load'] <= b
                   else 'nonstandard_vectors')
@@ -1572,7 +1592,18 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
             raise DMCV4Unsupported('operand_inconsistent',
                                    f'{name}: {sorted(hex(v) for v in vs)}')
         vals[name] = vs.pop()
-    if vals['instr'] != reloc(0x18F0):
+    # INIT-UNPACKER members (the Flash trio): EVERY data-table operand
+    # points OUTSIDE the loaded image — the init GENERATES the song data
+    # in high RAM (the file bytes there don't exist), and the editor
+    # placed the unpacked tables in its own order. Accept the
+    # operand-named instr base and skip the canonical packing-order
+    # check for this class only; the extract reads the tables from
+    # post-init RAM (cfg.data_post_init) and the verify gates a
+    # mislocation. A member with a mixed in/out-of-image layout stays
+    # rejected — the signature is all-or-nothing.
+    img_hi = min(0x10000, s['load'] + len(s['payload']))
+    unpacked = all(not (s['load'] <= v < img_hi) for v in vals.values())
+    if vals['instr'] != reloc(0x18F0) and not unpacked:
         raise DMCV4Unsupported('nonstandard_instr_base', hex(vals['instr']))
     for a, off in _FILT_SAT:
         if _rd16(mem, at(a)) != vals['filtdef'] + off:
@@ -1581,9 +1612,10 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         if _rd16(mem, at(a)) != vals['tunetab'] + off:
             raise DMCV4Unsupported('operand_inconsistent', f'tunetab+{off}')
     for a, off in _INST_SAT:
-        if _rd16(mem, at(a)) != reloc(0x18F0) + off:
+        if _rd16(mem, at(a)) != vals['instr'] + off:
             raise DMCV4Unsupported('operand_inconsistent', f'instr+{off}')
-    if not (reloc(0x18F0) < vals['wavectrl'] < vals['wavefreq']
+    if not unpacked and not (
+            reloc(0x18F0) < vals['wavectrl'] < vals['wavefreq']
             < vals['filtdef'] <= vals['tunetab'] < vals['secp_lo']
             < vals['secp_hi']):
         raise DMCV4Unsupported(
@@ -1616,6 +1648,7 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         vibdepth_addr=at(0x1888), d417_shadow_addr=at(0x1018),
         track_loop_target=loop_target, cia_period=cia_period,
         play_repeat=play_repeat,
+        data_post_init=unpacked,
         extra_params=extra,
     )
 
