@@ -1017,6 +1017,8 @@ def _play_unit_repeat_probe(path: str, base: int):
     stx = None
     a = body
     for _ in range(80):
+        if a + 2 > 0xFFFF:        # scan ran off the 64K image: not a
+            return None           # recognisable body — fail-open (no param)
         if mem[a] == 0x8E and (mem[a + 1] | (mem[a + 2] << 8)) == fclaim:
             stx = a
             break

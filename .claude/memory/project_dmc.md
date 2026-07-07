@@ -7,6 +7,32 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 45 (2026-07-07): ERROR CLUSTER CLEARED — f1 errors 25 → 0 (+1 FULL, +24 partial) [ledger C11 note]
+User-staged goal "unsupported/error → partial first; errors first". Census: 20×
+"track never settles" (Bayliss ×11, Pinov_Vox ×2, Rayden-2SID ×5, +2) + 4×
+IndexError + 1× 2SID assert. ONE root cause behind the first two clusters:
+header-overstated subtunes (Bayliss PSID says 6 songs; the tune table has 1
+real record — subtunes 1-5 point at zero fill/text bytes) walk terminator-less
+tracks/sectors, and the engine's track pos ($1726) + sector pos ($1729) are
+BOTH one byte → hardware wraps mod 256 and plays a 256-byte cycle forever.
+The extractor walked full-width → RuntimeError at 8192 (or IndexError past
+the 64K image). FIX (C11 canonical): mirror the 8-bit wrap in `_walk_track`
+(+ mod-256 cycle detection engaging only after an actual wrap) and
+`_simulate_sector` (unterminated sector → `('endless', lead, period)`; the
+voice self-loops on the period entry). Regression-IMPOSSIBLE: both paths
+previously hard-errored. +2 small unblockers: `_play_unit_repeat_probe` scan
+bounds guard (Mission_Moon: play body near $FFFF), and the instr_base sanity
+floor widened to the LOADED image (Mothafucka_2SID: data prefix below the
+player, instruments at $0A00 — genuine records; operand-trust + verify-gated).
+RESULT: 25 errors → 1 FULL (Axel_F_Remix, artifacts written) + 24 partial,
+0 errors left. f1 = **5038 FULL / 172 partial / 191 unsupported / 0 error**.
+The 24 new partials' first divergences are fresh residue (e.g. garbage-subtune
+$D418 mvol transform: orig writes 15 where the record byte is 126 — engine
+transforms it somewhere; 2SID members need second-chip support to go further).
+NEXT: unsupported buckets (sector_decode 81 → no_jumptable 62 →
+player_code_mismatch 23 → nonstandard_instr_base 12 → loop_site_unknown 11),
+one representative per bucket first.
+
 ## ✅ COMPLETE SWEEP (2026-07-07): all families re-verified under commit a3fbf06d — the authoritative counts
 User-requested full sweep (f1+f2+v5, 9,785 members, 6h20m sequential on the
 8-core host; the first attempt was killed mid-f2 when the round-44 composer

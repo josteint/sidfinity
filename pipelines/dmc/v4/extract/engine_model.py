@@ -294,11 +294,23 @@ _SECFMT = {
 def _simulate_sector(mem, sec_addr: int, st: _Sticky,
                      fmt: _SecFmt = _SECFMT['v4']) -> list:
     """Walk one sector with the player's dispatch; mutate `st`; return
-    the row list. Parametric over `fmt` (the command byte map)."""
+    the row list. Parametric over `fmt` (the command byte map).
+
+    The player's sector position is ONE byte (`LDY $1729,x / LDA ($f8),y`),
+    so a sector with no terminator wraps mod 256 and plays forever — the
+    voice never fetches another track entry (ledger C11: mirror the 8-bit
+    wrap). Seen on header-overstated subtunes whose garbage track selects a
+    sector number past the real pointer table (address $0000, zero fill).
+    For that case the walk detects the wrapped cycle by (pos, sticky, soft,
+    pending-prefix) state repeat and returns `('endless', lead, period)` —
+    the rows before the first repeated state, and one full period. A
+    terminated sector never revisits a loop-top state (pos is strictly
+    increasing until the terminator), so the terminated path is untouched."""
     rows = []
     pos = 0
     soft = False
     guard = 0
+    seen = {}               # loop-top (pos, sticky, soft, pending) -> len(rows)
     # pending STATED-command flags: prefix bytes consumed since the last row
     # event belong to the NEXT row's fetch (each INCs $1729,x). Recorded as
     # byte FACTS of the sector (not change-vs-sticky), so the same sector
@@ -313,8 +325,11 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
         p_s = 0
         return {'dcmd': d, 'icmd': i, 'vcmd': v, 'softcmd': s}
 
+    def rd(off):
+        return mem[sec_addr + (off & 0xFF)]     # 8-bit sectpos, as the player
+
     def peek_end():
-        return mem[sec_addr + pos] == fmt.term
+        return rd(pos) == fmt.term
 
     while True:
         guard += 1
@@ -324,7 +339,13 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
             # member). Refuse cleanly rather than crash.
             raise RuntimeError(
                 f'unsupported:sector_decode no end at ${sec_addr:04X}')
-        b = mem[sec_addr + pos]
+        pos &= 0xFF
+        key = (pos, st.key(), soft, p_d, p_i, p_v, p_s)
+        if key in seen:
+            i = seen[key]
+            return ('endless', rows[:i], rows[i:])
+        seen[key] = len(rows)
+        b = rd(pos)
         # VOL prefix (canon $F0+; family 2 has none)
         if fmt.vol_min is not None and b >= fmt.vol_min:
             st.vol = b & 0x0F
@@ -357,7 +378,7 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
         if b >= fmt.glide_min:
             speed = b & 0x0F
             if b & 0x10:             # mode 1: slide current note to target
-                target = mem[sec_addr + pos + 1]
+                target = rd(pos + 1)
                 pos += 2
                 rows.append(DmcRow(note=target, duration=st.dur,
                                    instr=st.instr, vol=st.vol,
@@ -367,8 +388,8 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
                     return rows
                 continue
             else:                    # mode 0: play A, glide to B
-                a = mem[sec_addr + pos + 1]
-                t = mem[sec_addr + pos + 2]
+                a = rd(pos + 1)
+                t = rd(pos + 2)
                 pos += 3
                 rows.append(DmcRow(note=a, duration=st.dur, instr=st.instr,
                                    vol=st.vol, soft=soft,
@@ -404,24 +425,45 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
     """Walk one voice's track (orderlist), path-resolving every sector
     instance. Unrolls $FF loops until (wrap position, sticky state)
     repeats. `loop_target`: the JSR-$1042 player variant reads the byte
-    after $FF as the loop position (canonical loops to 0)."""
+    after $FF as the loop position (canonical loops to 0).
+
+    The engine's track position is ONE byte (`LDY $1726,x` / `INC $1726,x`),
+    so a track with no $FF/$FE terminator wraps mod 256 in hardware and the
+    walk becomes a 256-byte loop (ledger C11: mirror the 8-bit index wrap in
+    the extractor). Seen on header-overstated subtunes (Bayliss: PSID says 6
+    songs, the tune table has 1 real record; subtunes 1-5 point at zero-fill
+    and march sector 0 forever). The wrap is a NO-OP for every track that
+    terminates before pos 256 — a real track walking past 255 unwrapped
+    could never have verified — and the mod-256 cycle detection engages only
+    after an actual wrap, so terminated tracks take the exact old path."""
     v = DmcVoice()
     pat_key_to_id = {}
     st = _Sticky()
     transpose = 0
     pos = 0
     wrap_states = {}        # (pos, sticky) at wrap -> entry index
+    mod_states = {}         # (pos, sticky, transpose) after a mod-256 wrap
+    wrapped = False
     guard = 0
     while True:
         guard += 1
         if guard > 8192:
             raise RuntimeError(f'track at ${track_addr:04X} never settles')
+        if pos > 0xFF:                 # 8-bit otrk: wrap like the hardware
+            pos &= 0xFF
+            wrapped = True
+        if wrapped:
+            key = (pos, st.key(), transpose)
+            if key in mod_states:
+                v.loop_to = mod_states[key]
+                return v
+            mod_states[key] = len(v.entries)
         b = mem[track_addr + pos]
         if b == 0xFE:
             v.stop = True
             return v
         if b == 0xFF:
-            tgt = mem[track_addr + pos + 1] if loop_target else 0
+            tgt = mem[track_addr + ((pos + 1) & 0xFF)] if loop_target else 0
             key = (tgt, st.key())
             if key in wrap_states:
                 v.loop_to = wrap_states[key]
@@ -437,11 +479,24 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 t8 = ((((b - 0xA0) & 0xFF) ^ 0x1F) + 1) & 0xFF
                 transpose = t8 - 256 if t8 >= 128 else t8
             pos += 1
+            if pos > 0xFF:
+                pos &= 0xFF
+                wrapped = True
             b = mem[track_addr + pos]
         sec = b
         v.entry_offsets.append(pos)
         sec_addr = mem[secp_lo + sec] | (mem[secp_hi + sec] << 8)
         rows = _simulate_sector(mem, sec_addr, st, fmt)
+        if isinstance(rows, tuple) and rows[0] == 'endless':
+            # unterminated sector (8-bit sectpos wrap): the voice never
+            # leaves it — encode lead rows (once) + one period, self-loop.
+            _, lead, period = rows
+            for chunk in ([lead] if lead else []) + [period]:
+                v.patterns.append(chunk)
+                v.entries.append(len(v.patterns) - 1)
+                v.transposes.append(transpose)
+            v.loop_to = len(v.entries) - 1
+            return v
         key = tuple((r.note, r.duration, r.instr, r.vol, r.soft,
                      r.gate_toggle, r.glide_speed, r.glide_to,
                      r.glide_slide, r.dcmd, r.icmd, r.vcmd, r.softcmd)
@@ -657,9 +712,11 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     secp_hi = _rd16(mem, cfg.op_secp_hi)
     # canon/2-entry put the instrument table at base+$8F0; family 2
     # relocates it ($17B0). Trust the operand read, bounded to the
-    # player's data region as a sanity floor (the factory validates the
-    # player identity separately).
-    assert cfg.base + 0x600 <= instr_base < cfg.base + 0x1000, \
+    # LOADED IMAGE as a sanity floor (the factory validates the player
+    # identity separately; the verify gates a mislocation). Members with a
+    # data prefix below the player put the table there (Mothafucka_2SID:
+    # load $0900, instruments at $0A00 — a genuine record array).
+    assert s['load'] <= instr_base < 0x10000, \
         f'non-standard instrument base ${instr_base:04X}'
 
     n_wave = wavefreq - wavectrl

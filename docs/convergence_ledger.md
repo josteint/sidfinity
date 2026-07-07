@@ -817,6 +817,17 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   redirect vars: `gla`/`glb` (87bde4c). Event-driven capture:
   `_offtable_eventdriven` + `_redirect_mapped_idx` (8eb86a4).
 
+  ALSO DMC v4 TRACK + SECTOR positions (2026-07-07, error-cluster triage,
+  25 errors → 0: +1 FULL +24 partial): the track position (`LDY $1726,x`) and
+  sector position (`LDY $1729,x / LDA ($f8),y`) are BOTH one byte — a
+  terminator-less track/sector (header-overstated subtunes: Bayliss PSID says
+  6 songs, the tune table has 1 real record; subtunes 1-5 point at zero fill)
+  wraps mod 256 in hardware and plays a 256-byte cycle forever. `_walk_track`
+  walked pos full-width → RuntimeError 'never settles' (or IndexError past the
+  64K image). Fix mirrors the wrap + detects the wrapped cycle by loop-top
+  state repeat; an unterminated SECTOR returns `('endless', lead, period)` and
+  the voice self-loops on the period entry. Regression-impossible: both paths
+  previously HARD-ERRORED, no FULL member can carry them.
 
 ### C14 — Command-per-row tracker effects (note + effect + param per row)
 - **The problem class:** unlike instrument-effect-driven engines (Hubbard / DMC
