@@ -191,6 +191,23 @@ def locate(mem: bytearray, base: int, play: int | None = None) -> dict | None:
         if len(vals) == 1:
             sites['wavectrl'] = vals.popitem()[1]
 
+    # secp lo/hi: LDA (zp),y / TAY / LDA lo,y / STA zp / LDA hi,y / STA zp —
+    # the sector-pointer fetch; one anchor recovers both sites (a variant may
+    # use a non-canon lo/hi spacing, e.g. Cotton_Eye_Joe $1E8F/$1E9A).
+    if sites['secp_lo'] is None or sites['secp_hi'] is None:
+        pairs = {}
+        for i in range(len(vI) - 5):
+            if [vI[i + k][1] for k in range(6)] == \
+                    [0xB1, 0xA8, 0xB9, 0x85, 0xB9, 0x85]:
+                pairs.setdefault((vI[i + 2][2], vI[i + 4][2]),
+                                 (vI[i + 2][0] + 1, vI[i + 4][0] + 1))
+        if len(pairs) == 1:
+            lo_site, hi_site = pairs.popitem()[1]
+            if sites['secp_lo'] is None:
+                sites['secp_lo'] = lo_site
+            if sites['secp_hi'] is None:
+                sites['secp_hi'] = hi_site
+
     # tunetab: the paired lo/hi track-pointer load LDA t,y / STA / LDA t+1,y /
     # STA. filtdef's chained +1/+2 reads share the shape, so exclude any pair
     # whose base lands inside an already-located table's record window.

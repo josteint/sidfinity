@@ -1310,6 +1310,11 @@ def _dataflow_knob_probes(mem, load: int) -> dict:
                 and mem[tgt + 4] == 0x01 and mem[tgt + 5] == 0xD0):
             extra['rest_effects'] = 'skip'      # wave-step target
             break
+        if (mem[tgt] == 0xA9 and mem[tgt + 1] == 0x00 and mem[tgt + 2] == 0x9D
+                and mem[tgt + 5] == 0xBD and mem[tgt + 8] == 0x49
+                and mem[tgt + 9] == 0x01):
+            extra['rest_effects'] = 'vibflip'   # vibrato half-cycle entry
+            break
         if (mem[tgt] == 0xBD and mem[tgt + 3] == 0xF0
                 and mem[tgt + 5] == 0xDE):
             break                               # effects target = canon 'run'
@@ -1531,6 +1536,10 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         tgt = _rd16(mem, at(0x1180) + 1)
         if tgt == reloc(0x1591):
             extra['rest_effects'] = 'skip'
+        elif tgt == reloc(0x1567):
+            # mid-routine vibrato half-cycle entry (L_1567): rest frames
+            # flip the vibrato direction, then wave-step (Acid_Dance).
+            extra['rest_effects'] = 'vibflip'
         elif tgt != reloc(0x1322):
             raise DMCV4Unsupported('rest_dispatch_unknown', hex(tgt))
         for i in range(0x1180, 0x1183):

@@ -821,8 +821,11 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     # straight to the wave step ('skip', the original's JMP $1591) — so the
     # vibrato + pulse program hold for that one frame (a one-frame modulator
     # stall at each tie boundary).
+    # a third sub-build JMPs the mid-routine vibrato half-cycle entry (canon
+    # $1567, 'vibflip'): rest frames flip the vibrato direction + wave-step.
     rest_effects = str(usf.params.fields.get('rest_effects', 'run'))
-    rest_jmp = 'wavestep' if rest_effects == 'skip' else 'run_effects'
+    rest_jmp = {'skip': 'wavestep', 'vibflip': 'vib_half'}.get(
+        rest_effects, 'run_effects')
     # PW-hi register source (C19 wedge, Olsen/Lame — 1 family-1 carrier):
     # the sidwrite tail's `LDA $1753,x / STA $D403,y` is re-pointed at
     # another per-voice byte ($1707,x = the track-ptr lo triple, constant
@@ -2011,6 +2014,7 @@ fx_vib_c:
         lda vibctr,x
         cmp vibwid,x
         bne wavestep
+vib_half:                            ; rest_effects='vibflip' entry (canon $1567)
         lda #$00                     ; half-cycle boundary
         sta vibctr,x
         lda vibdir,x
