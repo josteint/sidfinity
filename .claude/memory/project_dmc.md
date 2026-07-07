@@ -7,6 +7,46 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 48 (2026-07-08): 2SID/3SID SUPPORT — f1 unsupported 1 → 0 (Nice_Dream_2SID → partial) [ledger C27 NEW] — commits 7db09b2d / 368f2a46 / 6b222ca8
+USER-REQUESTED feature: full 2SID/3SID support, canary = the last f1
+unsupported (Surgeon Nice_Dream_2SID). KEY INSIGHT: a multi-SID tune = N
+INDEPENDENT single-chip tunes played simultaneously; the dispatch wrapper
+runs the players SEQUENTIALLY (JSR p1; JSR p2), so the merged write-log per
+frame = [p1's chip-1 stream][p2's chip-2 stream] — each sub-player uses the
+EXISTING single-chip machinery, only chip-TAGGED. THREE pieces:
+(1) **write-log** (7db09b2d): siddump logs EVERY installed chip, merged
+cycle-ordered with reg = chip*$20+reg; single-chip output byte-identical so
+all flat (reg,val) comparators unchanged (verify_cycle state arrays widened
+to 0x60, find_first_divergence decodes the chip tag). Multi-SID skip guard
+removed.
+(2) **USF schema** (368f2a46): voices number THROUGH the chips (1-3=chip1,
+4-6=chip2); chip count derives from voice-block count; optional
+`tempo N`/`global N`/`sid N` + `psid.sid2/sid3` MODEL (only when the header
+states one). CHIP ADDRESSES ARE NOT IN USF — pipeline constants ($D420/$D440)
+wired to the verdict (user: addresses are non-musical hardware tokens that
+hurt ML; auto-translate orig→standard, chip-tag the verdict). Elidable:
+single-chip files byte-identical round-trip. build_header stamps
+secondSIDAddress + PSID v3.
+(3) **DMC extract+compose** (6b222ca8): dmc_v4_config_2sid parses the play
+wrapper's JSR chain into per-chip bases (one JT overwritten by the wrapper →
+base from the play target), builds a DMCV4Config per chip; merge_2sid_usf
+combines the per-chip models (fixed-stride disjoint instrument/filter id
+blocks so the composer's _split_chip_usf inverts it EXACTLY = each chip's
+standalone extraction); compose_dmc_asm gains origin + reg_delta;
+build_dmc_2sid_sid emits one player blob per chip + a dispatcher. Per-instance
+QUIRK reproduced as config: Nice_Dream leaves BOTH players' res/route $D417
+write on chip 1 (editor didn't relocate that one operand → keep $D417
+un-relocated; chip 2 never gets $D437).
+RESULT: Nice_Dream_2SID unsupported → **partial**, chip-tagged write-log
+matches **3221 writes across BOTH chips** (res-quirk exact); first divergence
+= player-1's own chip-1 res write at frame 103 = an ordinary DMC
+filter-def-walk res-timing detail (single-chip-class, NOT multi-SID). **f1 =
+5129 FULL / 272 partial / 0 unsupported / 0 error — EVERY family-1 member is
+now at least partial.** Full regression green (0 single-chip regressions).
+Infra is engine-neutral (corpus: 314 2SID + 27 3SID; also unblocks the
+round-45 2SID partials). NEXT: chase the Nice_Dream filter-res-timing to FULL
+(shared with single-chip filter partials), or the 272-partial residue.
+
 ## ✅ ROUND 47 (2026-07-07): INIT-UNPACKER CLASS SOLVED — unsupported 5 → 1 (+4 FULL) [ledger C26 NEW] — commit 0d60bd14
 The Flash trio (Haste/Kan-Kan/Wind_of_Dead, `nonstandard_instr_base`) +
 Itinerant (`nonstandard_vectors`) all FULL in one session. The trio: 2entry

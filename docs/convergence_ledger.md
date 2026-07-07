@@ -98,6 +98,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | play-body UNIT-repeat · play body runs ONE of its 4 units (v0/v1/v2/filter-tail) N× per play() (JSR-to-N-call stub; JMP-tail form re-runs the filter tail) · "double-speed voice" · unified play_unit_repeat=[v0,v1,v2,filter] list · distinct from play_repeat (whole play()) + C18 play_phases (whole calls) · static byte-probe (C19 method) | C24 | recurring |
 | composer play body OVERRUNS a tight CIA latch · perfect play-stream prefix + length tail ~0.5% (rate drift, no content divergence) · common-path cost creep (per-row compare chains growing with each round's shadow additions) · fast-path the common case O(1) · the rebuild's play must FIT the smallest latch it ships under | C25 | logged |
 | song data ABSENT from file image · init generates/unpacks tables in RAM · operands point outside the loaded image · extract from POST-INIT RAM (py65), all-or-nothing signature · banking-wrapper JT-less base from the wrapper JSR target | C26 | logged |
+| multi-SID (2SID/3SID) · N chips, one player each behind a dispatch wrapper · players run sequentially -> merged log = [chip1][chip2] · extract/compose/verify each with single-chip machinery, chip-TAGGED (reg=chip*$20+reg) · voices number through chips, addresses are pipeline constants not USF | C27 | logged |
 
 ---
 
@@ -1599,3 +1600,41 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   compare downstream.
 - **Status:** logged (1× wholesale, 4 members: Haste/Kan-Kan/Wind_of_Dead
   303301+53319+484596 FULL, Itinerant 174180 FULL; narrower forms 3× prior).
+
+### C27 — Multi-SID (2SID/3SID): N independent players, one per chip
+
+- **Problem shape:** a member declares 2/3 SID chips (PSID v3/v4 header
+  +$7A/+$7B) and its play vector is a dispatch WRAPPER calling two/three
+  complete sub-players, each writing a different chip ($D400 / $D420 /
+  $D440). The player families are otherwise ordinary (DMC 2entry here). One
+  sub-player's jump table is often overwritten by the wrapper.
+- **Decomposition (the key insight):** a multi-SID tune = N independent
+  single-chip tunes playing simultaneously. Because the wrapper runs the
+  players SEQUENTIALLY (JSR p1; JSR p2), the merged write-log per frame =
+  [p1's chip-1 stream][p2's chip-2 stream] — so each sub-player is extracted
+  + composed + verified with the EXISTING single-chip machinery, only
+  chip-TAGGED.
+- **Verify:** siddump logs every installed chip, merged into one
+  cycle-ordered stream with reg encoded `chip*$20 + reg`; single-chip output
+  is byte-identical, so all flat `(reg,val)` comparators work unchanged.
+- **USF:** voices number THROUGH the chips (1-3 = chip 1, 4-6 = chip 2, ...);
+  chip count derives from the voice-block count; per-chip tempo/global/init
+  ride optional `tempo N`/`global N`/`sid N` forms; the extra chips' SID
+  MODELS ride `psid.sid2/sid3` (only when the header states one). Chip I/O
+  ADDRESSES are NOT in USF — they are pipeline constants (chip 2 = $D420,
+  chip 3 = $D440), the I/O-space analogue of "the composer always emits the
+  player at $1000" (they'd be opaque hardware tokens hurting ML). Merge
+  gives each chip's instruments + filter window a fixed-stride disjoint id
+  block so the composer's split inverts it exactly (each chip's sub-USF ==
+  its standalone extraction).
+- **Compose:** one clean player instance per chip (own origin; chip k>0
+  writes $D400+k*$20 via a register-operand relocation) + a dispatcher whose
+  init/play call each in turn. Per-instance write-stream QUIRKS are config,
+  not mechanism (Nice_Dream: the res/route $D417 write is left on chip 1 for
+  BOTH players — an editor relocation quirk, reproduced by keeping $D417
+  un-relocated).
+- **Status:** logged (1×, DMC family-1 Nice_Dream_2SID: unsupported ->
+  partial, chip-tagged write-log matches 3221 writes across both chips; the
+  residual divergence is an ordinary DMC filter-def-walk res-timing detail,
+  not a multi-SID concern). Infrastructure is engine-neutral (314 2SID + 27
+  3SID members corpus-wide).
