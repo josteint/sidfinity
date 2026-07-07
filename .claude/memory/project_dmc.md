@@ -32,6 +32,12 @@ transforms it somewhere; 2SID members need second-chip support to go further).
 NEXT: unsupported buckets (sector_decode 81 → no_jumptable 62 →
 player_code_mismatch 23 → nonstandard_instr_base 12 → loop_site_unknown 11),
 one representative per bucket first.
+ADDENDUM (same day): the sector_decode bucket (81) was the SAME guard the
+wrap fix rewrote — re-verified all 81: **+32 FULL + 49 partial, bucket
+emptied** (artifacts mass-written). f1 = **5070 FULL / 221 partial /
+110 unsupported / 0 error** (93.9%). Remaining unsupported: no_jumptable 62,
+player_code_mismatch 23, nonstandard_instr_base 12, loop_site_unknown 11,
+nonstandard_vectors 1, rest_dispatch_unknown 1.
 
 ## ✅ COMPLETE SWEEP (2026-07-07): all families re-verified under commit a3fbf06d — the authoritative counts
 User-requested full sweep (f1+f2+v5, 9,785 members, 6h20m sequential on the
