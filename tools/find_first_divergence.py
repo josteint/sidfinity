@@ -62,13 +62,18 @@ _FILTER_ROLES = {
 
 
 def describe_reg(reg: int) -> str:
-    """Return 'V1 PW hi' / 'vol/filter mode' / etc. for a $D4xx reg."""
-    if 0x00 <= reg <= 0x14:
-        voice = reg // 7 + 1
-        role = _VOICE_ROLES[reg % 7]
-        return f'V{voice} {role}'
-    if reg in _FILTER_ROLES:
-        return _FILTER_ROLES[reg]
+    """Return 'V1 PW hi' / 'vol/filter mode' / etc. for a $D4xx reg.
+    Multi-SID writelogs tag each write's chip as reg = chip*0x20 + reg;
+    chip 2/3 regs get a 'chip N' prefix (voices numbered through the
+    chips: chip 2 V1 = global voice 4)."""
+    chip, r = reg >> 5, reg & 0x1F
+    prefix = f'chip {chip + 1} ' if 0 < chip < 3 else ''
+    if chip < 3:
+        if 0x00 <= r <= 0x14:
+            voice = r // 7 + 1
+            return f'{prefix}V{voice} {_VOICE_ROLES[r % 7]}'
+        if r in _FILTER_ROLES:
+            return prefix + _FILTER_ROLES[r]
     return f'reg ${reg:02X}'
 
 

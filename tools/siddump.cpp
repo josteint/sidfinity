@@ -25,6 +25,7 @@
  *   --digi         Enable intra-frame write logging
  */
 
+#include <algorithm>
 #include <csignal>
 #include <cstdint>
 #include <cstdio>
@@ -237,11 +238,8 @@ int main(int argc, char* argv[])
         return 3;
     }
 
-    // Skip multi-SID files
-    if (info->sidChips() > 1) {
-        fprintf(stderr, "Skipping multi-SID (%d chips): %s\n", info->sidChips(), filename);
-        return 3;
-    }
+    // Multi-SID files (PSID v3/v4 2SID/3SID) are supported: every chip's
+    // writes land in the write log, tagged reg = chip*0x20 + reg.
 
     // Select subtune
     if (subtune == 0) subtune = info->startSong();
@@ -362,10 +360,36 @@ int main(int argc, char* argv[])
         printf("\n");
     }
 
-    // Enable write logging if requested
+    // Enable write logging if requested. Multi-SID tunes (PSID v3/v4
+    // 2SID/3SID) log EVERY installed chip; each write is tagged with its
+    // chip by encoding reg as chip*0x20 + (reg & 0x1F), so a single-chip
+    // tune's output is byte-identical to the untagged format and the
+    // flat (reg, val) comparators key multi-chip streams correctly.
+    const int nChips = info->sidChips();
     if (digi || writelog) {
-        engine.enableWriteLog(0, true);
+        for (int c = 0; c < nChips; c++)
+            engine.enableWriteLog(c, true);
     }
+
+    // Merged, chip-tagged write log for one frame: every chip's writes in
+    // one cycle-ordered stream (ties resolve by chip index — deterministic).
+    // For a single-chip tune this is exactly chip 0's log.
+    struct TaggedWrite { uint32_t cycle; uint8_t reg; uint8_t value; };
+    std::vector<TaggedWrite> mergedLog;
+    auto mergeWriteLogs = [&engine, nChips, &mergedLog]() {
+        mergedLog.clear();
+        for (int c = 0; c < nChips; c++) {
+            const auto& log = engine.getWriteLog(c);
+            for (const auto& w : log)
+                mergedLog.push_back({w.cycle,
+                                     (uint8_t)(c * 0x20 + (w.reg & 0x1F)),
+                                     w.value});
+        }
+        std::stable_sort(mergedLog.begin(), mergedLog.end(),
+            [](const TaggedWrite& a, const TaggedWrite& b) {
+                return a.cycle < b.cycle;
+            });
+    };
 
     // Enable memory read tracing if requested
     if (memtrace) {
@@ -428,7 +452,8 @@ int main(int argc, char* argv[])
             }
         }
         if (digi || writelog) {
-            engine.clearWriteLog(0);
+            for (int c = 0; c < nChips; c++)
+                engine.clearWriteLog(c);
         }
         if (memtrace) {
             engine.clearReadLog();
@@ -466,13 +491,14 @@ int main(int argc, char* argv[])
 
         // Append digi writes if any register was written more than once
         if (digi && !writelog) {
-            const auto& log = engine.getWriteLog(0);
-            int writeCounts[32] = {};
+            mergeWriteLogs();
+            const auto& log = mergedLog;
+            int writeCounts[0x60] = {};
             for (const auto& w : log) {
                 writeCounts[w.reg]++;
             }
             bool hasMultiWrites = false;
-            for (int r = 0; r < NUM_REGS; r++) {
+            for (int r = 0; r < 0x60; r++) {
                 if (writeCounts[r] > 1) { hasMultiWrites = true; break; }
             }
             if (hasMultiWrites) {
@@ -520,7 +546,8 @@ int main(int argc, char* argv[])
         //     (the writes that occurred during that invocation), split
         //     by the play-entry cycle markers. Eliminates Trap C.
         if (writelog) {
-            const auto& log = engine.getWriteLog(0);
+            mergeWriteLogs();
+            const auto& log = mergedLog;
             if (writelog_per_irq) {
                 const auto& irqCycles = engine.getPlayEntryCycles();
                 // Play-entry cycles are ABSOLUTE (PHI1 clock); write-log

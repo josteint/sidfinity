@@ -315,15 +315,19 @@ def _trichotomy_compare(fa: list, fb: list, close_tol: int = 176,
     #    candidate whose end-of-init STATE also matches (Check A), falling
     #    back to the first window match. The state at the TRUE boundary is
     #    reached once the whole strobe is inside the init prefix.
+    # Multi-chip: writelog regs are chip-tagged (chip*0x20 + reg), so the
+    # state spans 3 chips' register files; a single-chip stream only ever
+    # touches [0, 0x19) and the extra entries cancel (equal defaults both
+    # sides).
     def _state_at(end_a, end_b):
-        sa_ = [0] * 0x19
-        sa_[0x18] = 0x0F
+        sa_ = [0] * 0x60
+        sa_[0x18] = sa_[0x38] = sa_[0x58] = 0x0F
         sb_ = list(sa_)
         for reg, val in fa[:end_a]:
-            if 0 <= reg < 0x19:
+            if 0 <= reg < 0x60 and (reg & 0x1F) < 0x19:
                 sa_[reg] = val
         for reg, val in fb[:end_b]:
-            if 0 <= reg < 0x19:
+            if 0 <= reg < 0x60 and (reg & 0x1F) < 0x19:
                 sb_[reg] = val
         return sa_ == sb_
 
@@ -370,15 +374,15 @@ def _trichotomy_compare(fa: list, fb: list, close_tol: int = 176,
     # deferred-init engine (zero frame-0 writes) really sits at $D418=$0F —
     # identical to a rebuild that explicitly primes $0F.
     def end_state(flat, end):
-        st = [0] * 0x19
-        st[0x18] = 0x0F
+        st = [0] * 0x60
+        st[0x18] = st[0x38] = st[0x58] = 0x0F
         for reg, val in flat[:end]:
-            if 0 <= reg < 0x19:
+            if 0 <= reg < 0x60 and (reg & 0x1F) < 0x19:
                 st[reg] = val
         return st
     sa, sb = end_state(fa, ia), end_state(fb, ib)
     state_match = sa == sb
-    state_diff = [(r, sa[r], sb[r]) for r in range(0x19) if sa[r] != sb[r]]
+    state_diff = [(r, sa[r], sb[r]) for r in range(0x60) if sa[r] != sb[r]]
 
     # Audio-equivalence guarantee: if the init boundary is canonical (gates
     # off + freq 0) on BOTH sides, the chip's internal analog state is pinned
@@ -467,17 +471,17 @@ def compare_instruction_stream(a: list[Frame], b: list[Frame],
         # value written to each $D400-$D418 register during frame 0
         # (default 0 if unwritten in that frame).
         def end_state(frames):
-            state = [0] * 0x19
+            state = [0] * 0x60
             if frames:
                 for _, reg, val in frames[0]:
-                    if 0 <= reg < 0x19:
+                    if 0 <= reg < 0x60 and (reg & 0x1F) < 0x19:
                         state[reg] = val
             return state
         state_a = end_state(a)
         state_b = end_state(b)
         state_match = state_a == state_b
         state_diff = [
-            (r, state_a[r], state_b[r]) for r in range(0x19)
+            (r, state_a[r], state_b[r]) for r in range(0x60)
             if state_a[r] != state_b[r]]
 
         # Check B: play stream from frame 1 onward.
