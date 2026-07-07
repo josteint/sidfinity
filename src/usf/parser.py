@@ -106,6 +106,18 @@ class _T(Transformer):
     def psid_sid_name(self, items):
         return ('sid', str(items[0]))          # 'both' (PSID flag 3)
 
+    def psid_sid2(self, items):
+        return ('sid2', int(items[0]))
+
+    def psid_sid2_name(self, items):
+        return ('sid2', str(items[0]))
+
+    def psid_sid3(self, items):
+        return ('sid3', int(items[0]))
+
+    def psid_sid3_name(self, items):
+        return ('sid3', str(items[0]))
+
     def psid_start_song(self, items):
         return ('start_song', int(items[0]))
 
@@ -176,10 +188,19 @@ class _T(Transformer):
 
     def init_block(self, items):
         voices = [it for it in items if isinstance(it, InitVoice)]
-        sids = [it for it in items if isinstance(it, InitSid)]
-        if len(sids) > 1:
-            raise UsfParseError('init { sid { ... } } can appear at most once')
-        return InitState(voices=voices, sid=sids[0] if sids else None)
+        sids = {}
+        for it in items:
+            if isinstance(it, tuple) and it and it[0] == '_init_sid':
+                _, chip, sid = it
+                if chip not in (1, 2, 3):
+                    raise UsfParseError(f'init sid chip must be 2 or 3, '
+                                        f'got {chip}')
+                if chip in sids:
+                    raise UsfParseError(
+                        f'init sid block for chip {chip} appears twice')
+                sids[chip] = sid
+        return InitState(voices=voices, sid=sids.get(1),
+                         sid2=sids.get(2), sid3=sids.get(3))
 
     # ----- init.sid -----
     def ifilt_lo(self, items):  return ('cutoff_lo', items[0])
@@ -215,13 +236,18 @@ class _T(Transformer):
         return ('voice', v)
 
     def init_sid_block(self, items):
+        # optional leading INT = chip index (multi-SID); bare form = chip 1
+        chip = 1
+        if items and not isinstance(items[0], tuple):
+            chip = int(items[0])
+            items = items[1:]
         sid = InitSid()
         for k, val in items:
             if k == 'voice':
                 sid.voices.append(val)
             else:
                 setattr(sid, k, val)
-        return sid
+        return ('_init_sid', chip, sid)
 
     # ----- instruments -----
     def instrument_name(self, items):
@@ -531,12 +557,30 @@ class _T(Transformer):
         return GlobalEvent(step=int(items[0]), **dict(items[1:]))
 
     def global_block(self, items):
-        return ('_global', list(items))
+        # optional leading INT = chip index (multi-SID); bare form = chip 1
+        chip = 1
+        if items and not isinstance(items[0], GlobalEvent):
+            chip = int(items[0])
+            items = items[1:]
+        return ('_global', chip, list(items))
+
+    def tempo_chip(self, items):
+        return ('_tempo_chip', int(items[0]), int(items[1]))
 
     def music_body(self, items):
-        # 'tempo' ':' INT is_sfx_field? params_block? init_block? voice*3 global_block?
+        # 'tempo' ':' INT tempo_chip* is_sfx_field? params_block?
+        #   init_block? voice_block+ global_block*
         tempo = int(items[0])
         rest = list(items[1:])
+        tempos = {}
+        while rest and isinstance(rest[0], tuple) \
+                and rest[0][0] == '_tempo_chip':
+            _, chip, t = rest.pop(0)
+            if chip not in (2, 3):
+                raise UsfParseError(f'tempo chip must be 2 or 3, got {chip}')
+            if chip in tempos:
+                raise UsfParseError(f'tempo {chip}: appears twice')
+            tempos[chip] = t
         is_sfx = False
         if rest and isinstance(rest[0], tuple) and rest[0][0] == 'is_sfx':
             is_sfx = rest.pop(0)[1]
@@ -546,13 +590,41 @@ class _T(Transformer):
             params = rest.pop(0)
         if rest and isinstance(rest[0], InitState):
             init = rest.pop(0)
-        global_track = []
-        if rest and isinstance(rest[-1], tuple) and rest[-1][0] == '_global':
-            global_track = rest.pop()[1]
+        globals_ = {}
+        while rest and isinstance(rest[-1], tuple) \
+                and rest[-1][0] == '_global':
+            _, chip, evs = rest.pop()
+            if chip not in (1, 2, 3):
+                raise UsfParseError(f'global chip must be 2 or 3, got {chip}')
+            if chip in globals_:
+                raise UsfParseError(f'global block for chip {chip} '
+                                    'appears twice')
+            globals_[chip] = evs
         voices = rest
+        # Multi-SID validation: exactly 3 voices per chip, numbered
+        # consecutively 1..3N (chip of voice v = (v-1)//3 + 1).
+        if len(voices) not in (3, 6, 9):
+            raise UsfParseError(
+                f'music subtune has {len(voices)} voice blocks; '
+                'expected 3 (one chip), 6 (2SID) or 9 (3SID)')
+        ids = [v.id for v in voices]
+        if ids != list(range(1, len(voices) + 1)):
+            raise UsfParseError(
+                f'voice blocks must be numbered 1..{len(voices)} '
+                f'in order, got {ids}')
+        n_chips = len(voices) // 3
+        for chip in list(tempos) + list(globals_):
+            if chip > n_chips:
+                raise UsfParseError(
+                    f'chip {chip} referenced but subtune has only '
+                    f'{n_chips * 3} voices')
         return ('music', {'tempo': tempo, 'voices': voices,
                           'params': params, 'init': init,
-                          'is_sfx': is_sfx, 'global_track': global_track})
+                          'is_sfx': is_sfx,
+                          'global_track': globals_.get(1, []),
+                          'tempo2': tempos.get(2), 'tempo3': tempos.get(3),
+                          'global_track2': globals_.get(2, []),
+                          'global_track3': globals_.get(3, [])})
 
     def digi_body(self, items):
         return ('digi', {'sample': str(items[0])})
@@ -645,7 +717,11 @@ class _T(Transformer):
                 params=body_data.get('params'),
                 init=body_data.get('init'),
                 is_sfx=body_data.get('is_sfx', False),
-                global_track=body_data.get('global_track', []))
+                global_track=body_data.get('global_track', []),
+                tempo2=body_data.get('tempo2'),
+                tempo3=body_data.get('tempo3'),
+                global_track2=body_data.get('global_track2', []),
+                global_track3=body_data.get('global_track3', []))
         elif kind == 'digi':
             return DigiSubtune(id=sub_id, sample=body_data['sample'])
         else:

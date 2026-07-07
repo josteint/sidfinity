@@ -121,7 +121,19 @@ PSID/RSID metadata reproduced in the rebuilt SID file. Fields:
 | `released`   | string  | release info (year + label)              |
 | `clock`      | keyword | `PAL`, `NTSC`, `both`, or `unknown`      |
 | `sid`        | keyword | `6581`, `8580`, `both`, or `unknown`     |
+| `sid2`       | keyword | second chip's SID model (multi-SID only) |
+| `sid3`       | keyword | third chip's SID model (3SID only)       |
 | `start_song` | integer | 1-indexed default subtune                |
+
+`sid2` / `sid3` appear ONLY when the original header states the extra
+chip's model explicitly (PSID flags bits 6-7 / 8-9); the spec value
+Unknown means "same as the first SID" and is elided. Chip COUNT is
+never declared — it derives from the subtunes' voice-block count (see
+Multi-SID below). Chip I/O ADDRESSES are pipeline constants (chip 2 =
+`$D420`, chip 3 = `$D440`, stamped into the rebuilt header, which is
+PSID v3/v4 for 2SID/3SID) — the original's addresses are environment
+plumbing, normalized away at extract (the I/O-space analogue of "the
+composer always emits the player at $1000").
 
 ## `params` block
 
@@ -364,7 +376,32 @@ subtune 0 music {
 ```
 
 - `tempo` is the frames-per-tick value.
-- Three voices required. Each voice is a brace-block.
+- Three voices per chip. An ordinary tune has exactly `voice 1..3`; a
+  2SID tune `voice 1..6`; a 3SID tune `voice 1..9` (any other count is
+  a parse error).
+
+### Multi-SID (2SID / 3SID)
+
+The chip dimension is fully **elidable**: a single-chip USF never
+mentions chips at all, and every chip-1 form is the bare form. A
+multi-SID tune extends the same shapes:
+
+- **Voices number through the chips**: voices 4-6 play on chip 2,
+  7-9 on chip 3 (`chip = (voice-1)//3 + 1`). No `chip:` keyword
+  exists anywhere.
+- **`tempo N: T`** (N = 2/3), directly after `tempo:` — that chip's
+  tempo when it differs from chip 1's; omitted = same.
+- **`global N { ... }`** — chip N's master-volume/filter automation
+  track (each chip has its own `$D415-$D418`); bare `global` = chip 1.
+- **`init { sid N { ... } }`** — chip N's SID priming; bare `sid` =
+  chip 1.
+- **`psid.sid2` / `psid.sid3`** — the extra chips' SID models, only
+  when explicitly flagged in the original header.
+
+Verification is chip-tagged: the write-log encodes each write's chip
+as `reg = chip*$20 + reg`, so single-chip streams are unchanged and
+the flat `(reg, val)` comparators key multi-chip streams correctly
+regardless of the original's chip addresses.
 
 ### Voice block
 

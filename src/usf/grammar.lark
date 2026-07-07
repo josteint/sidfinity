@@ -94,6 +94,16 @@ psid_field: "title" ":" STRING       -> psid_title
           | "clock" ":" CNAME        -> psid_clock
           | "sid" ":" INT            -> psid_sid
           | "sid" ":" CNAME          -> psid_sid_name
+          // Multi-SID (2SID/3SID): the SID MODEL of the second/third chip,
+          // present ONLY when the header states one explicitly (Unknown =
+          // "same as the first SID" per the PSID spec, elided here). Chip
+          // COUNT is derived from the subtunes' voice-block count; chip
+          // ADDRESSES are pipeline constants (chip 2 = $D420, chip 3 =
+          // $D440), never USF content.
+          | "sid2" ":" INT           -> psid_sid2
+          | "sid2" ":" CNAME         -> psid_sid2_name
+          | "sid3" ":" INT           -> psid_sid3
+          | "sid3" ":" CNAME         -> psid_sid3_name
           | "start_song" ":" INT     -> psid_start_song
           | "speed" ":" number       -> psid_speed
 
@@ -130,7 +140,9 @@ init_value: number           -> init_number
 // universal init reads these and emits the corresponding SID writes
 // after the silence-clear reset. All sub-fields are optional;
 // missing fields mean "don't prime that slot."
-init_sid_block: "sid" "{" init_sid_field* "}"
+// The optional INT is the chip index (2/3) for multi-SID members; chip 1
+// (the only chip of an ordinary SID) is always the bare `sid { }` form.
+init_sid_block: "sid" INT? "{" init_sid_field* "}"
 init_sid_field: "master_vol" ":" number                       -> isid_master_vol
               | "filter" "{" init_filter_field+ "}"           -> isid_filter
               | "voice" INT "{" isid_voice_field+ "}"         -> isid_voice
@@ -386,7 +398,13 @@ subtune_body: music_body
 // `is_sfx`: FC family — distinguishes SFX-kind subtunes that are
 // structurally identical to music (3-voice note streams) but whose
 // runtime semantics differ (engine doesn't sustain gate on song-end).
-music_body: "tempo" ":" INT is_sfx_field? params_block? init_block? voice_block voice_block voice_block global_block?
+// Multi-SID: 3 voice blocks per chip (voices 1-3 = chip 1, 4-6 = chip 2,
+// 7-9 = chip 3 — the chip is derived from the voice number, never stated);
+// the parser validates the count is exactly 3, 6 or 9 and the numbering
+// consecutive. `tempo N:` (N = 2/3) is that chip's tempo when it differs
+// from chip 1's; one `global` block per chip, the bare form = chip 1.
+music_body: "tempo" ":" INT tempo_chip* is_sfx_field? params_block? init_block? voice_block+ global_block*
+tempo_chip: "tempo" INT ":" INT
 is_sfx_field: "is_sfx" ":" bool
 
 // ----- global automation track (optional) -----
@@ -397,7 +415,8 @@ is_sfx_field: "is_sfx" ":" bool
 // names the fields that change (running-state carry for the rest). The
 // composer re-packs these into the $D415-$D418 bytes at the template
 // positions: $D418=(mode<<4)|dyn, $D417=(res<<4)|route, $D416=cutoff.
-global_block: "global" "{" global_event* "}"
+// The optional INT is the chip index (2/3); bare `global { }` = chip 1.
+global_block: "global" INT? "{" global_event* "}"
 global_event: "at" INT g_field+
 g_field: "dyn" "=" number      -> g_dyn
        | "cutoff_lo" "=" number  -> g_cutoff_lo

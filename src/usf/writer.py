@@ -83,8 +83,14 @@ def _write_psid(p: PsidMeta) -> list[str]:
         f'  released:   {_quote(p.released)}',
         f'  clock:      {p.clock}',
         f'  sid:        {p.sid}',
-        f'  start_song: {p.start_song}',
     ]
+    # Multi-SID chip models — only when the header states one explicitly
+    # (None = Unknown = "same as the first SID", elided).
+    if p.sid2 is not None:
+        lines.append(f'  sid2:       {p.sid2}')
+    if p.sid3 is not None:
+        lines.append(f'  sid3:       {p.sid3}')
+    lines.append(f'  start_song: {p.start_song}')
     if p.speed:
         lines.append(f'  speed:      ${p.speed:08X}')
     lines.append('}')
@@ -138,8 +144,9 @@ def _write_init_sid_voice(v: InitSidVoice) -> str:
     return f'    voice {v.id} {{ ' + '  '.join(parts) + ' }'
 
 
-def _write_init_sid(sid: InitSid) -> list[str]:
-    lines = ['  sid {']
+def _write_init_sid(sid: InitSid, chip: int = 1) -> list[str]:
+    # chip 1 is always the bare `sid {` form; 2/3 name the chip
+    lines = ['  sid {' if chip == 1 else f'  sid {chip} {{']
     if sid.master_vol is not None:
         lines.append(f'    master_vol: {_hex(sid.master_vol)}')
     if sid.filter is not None:
@@ -166,6 +173,10 @@ def _write_init(state: InitState) -> list[str]:
     lines = ['init {']
     if state.sid is not None:
         lines.extend(_write_init_sid(state.sid))
+    if getattr(state, 'sid2', None) is not None:
+        lines.extend(_write_init_sid(state.sid2, 2))
+    if getattr(state, 'sid3', None) is not None:
+        lines.extend(_write_init_sid(state.sid3, 3))
     for v in sorted(state.voices, key=lambda x: x.id):
         lines.append(_write_init_voice(v))
     lines.append('}')
@@ -505,6 +516,10 @@ def _write_subtune(s) -> list[str]:
     if isinstance(s, MusicSubtune):
         lines = [f'subtune {s.id} music {{']
         lines.append(f'  tempo: {s.tempo}')
+        if getattr(s, 'tempo2', None) is not None:
+            lines.append(f'  tempo 2: {s.tempo2}')
+        if getattr(s, 'tempo3', None) is not None:
+            lines.append(f'  tempo 3: {s.tempo3}')
         if s.is_sfx:
             lines.append('  is_sfx: true')
         if s.params is not None and s.params.fields:
@@ -517,9 +532,14 @@ def _write_subtune(s) -> list[str]:
                 lines.append('  ' + line)
         for v in s.voices:
             lines.extend(_write_voice(v))
-        if s.global_track:
-            lines.append('  global {')
-            for e in s.global_track:
+        # one global block per chip; chip 1 is always the bare form
+        for chip, track in ((1, s.global_track),
+                            (2, getattr(s, 'global_track2', [])),
+                            (3, getattr(s, 'global_track3', []))):
+            if not track:
+                continue
+            lines.append('  global {' if chip == 1 else f'  global {chip} {{')
+            for e in track:
                 parts = [f'{k}={_hex(v)}' for k, v in
                          (('dyn', e.dyn), ('cutoff', e.cutoff),
                           ('cutoff_lo', getattr(e, 'cutoff_lo', None)),

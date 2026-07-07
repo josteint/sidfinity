@@ -223,6 +223,13 @@ class MusicSubtune:
     # Chip-global automation (master volume + filter). Empty for engines that
     # don't use it; basic_program tunes that vary $D418/$D415-17 per note fill it.
     global_track: list[GlobalEvent] = field(default_factory=list)
+    # Multi-SID: chip 2/3's tempo when it differs from chip 1's (None =
+    # same), and chip 2/3's global automation track. Voices 4-6/7-9 in
+    # `voices` belong to chip 2/3 (chip = (voice_id-1)//3 + 1).
+    tempo2: 'int | None' = None
+    tempo3: 'int | None' = None
+    global_track2: list[GlobalEvent] = field(default_factory=list)
+    global_track3: list[GlobalEvent] = field(default_factory=list)
     kind: str = 'music'
 
 
@@ -714,6 +721,9 @@ class InitSid:
 class InitState:
     voices: list[InitVoice] = field(default_factory=list)
     sid: Optional[InitSid] = None           # SID-chip priming (new schema)
+    # Multi-SID: chip 2/3's priming (`sid 2 { }` / `sid 3 { }` blocks).
+    sid2: Optional[InitSid] = None
+    sid3: Optional[InitSid] = None
 
 
 @dataclass
@@ -855,6 +865,13 @@ class PsidMeta:
     released: str = ''
     clock: str = 'PAL'           # 'PAL' | 'NTSC' | 'both' | 'unknown'
     sid: int = 6581              # 6581 | 8580 (0 = unknown, both = ?)
+    # Multi-SID: the second/third chip's SID model, carried ONLY when the
+    # original header states one explicitly (header bits 6-7 / 8-9; the
+    # spec's Unknown value means "same as the first SID" and is elided as
+    # None). Chip COUNT derives from the subtunes' voice count; chip I/O
+    # ADDRESSES are pipeline constants ($D420/$D440), never USF content.
+    sid2: 'int | str | None' = None   # 6581 | 8580 | 'both' | None
+    sid3: 'int | str | None' = None
     start_song: int = 1
     # PSID v2 speed field: 32-bit bitmask, bit N = subtune (N+1)'s
     # play() dispatch. 0 = VBI (50/60 Hz), 1 = CIA1 timer (typically

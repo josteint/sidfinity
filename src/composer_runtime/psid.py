@@ -49,6 +49,8 @@ def build_header(
     author: str | bytes = '',
     released: str | bytes = '',
     flags: int = FLAGS_PAL_6581,
+    sid2_addr: int = 0,
+    sid3_addr: int = 0,
 ) -> bytes:
     """Build a 124-byte PSID v2 header.
 
@@ -64,8 +66,24 @@ def build_header(
     `speed` is the PSID speed bitfield: one bit per subtune
     (LSB = subtune 1), 0 = VBI (50Hz), 1 = CIA timer A.
     """
+    # Multi-SID (PSID v3/v4): `sid2_addr`/`sid3_addr` are full chip base
+    # addresses ($D420-$D7E0 / $DE00-$DFE0, even middle byte per the spec);
+    # they encode to the header's one-byte $Dxx0 form at +$7A/+$7B, and
+    # their presence bumps the header version (2SID => v3, 3SID => v4).
+    # Extra-chip SID models ride `flags` bits 6-7 / 8-9 (caller-composed).
+    def _sid_addr_byte(addr: int, which: str) -> int:
+        if addr == 0:
+            return 0
+        b = (addr >> 4) & 0xFF
+        if (addr & 0xF00F) != 0xD000 or b % 2 or not (
+                0x42 <= b <= 0x7E or 0xE0 <= b <= 0xFE):
+            raise ValueError(f'invalid {which} SID address ${addr:04X}')
+        return b
+    b2 = _sid_addr_byte(sid2_addr, 'second')
+    b3 = _sid_addr_byte(sid3_addr, 'third')
+    version = 4 if b3 else (3 if b2 else 2)
     h = bytearray(b'PSID')
-    h += struct.pack('>HH', 2, 124)
+    h += struct.pack('>HH', version, 124)
     h += struct.pack('>H', load)
     h += struct.pack('>H', init)
     h += struct.pack('>H', play)
@@ -76,7 +94,7 @@ def build_header(
     h += _pad32(author)
     h += _pad32(released)
     h += struct.pack('>H', flags)
-    h += struct.pack('>BBH', 0, 0, 0)
+    h += struct.pack('>BBBB', 0, 0, b2, b3)
     assert len(h) == 124, len(h)
     return bytes(h)
 
