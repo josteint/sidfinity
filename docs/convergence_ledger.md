@@ -955,6 +955,23 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 - **Consumers:** `pipelines/dmc/v4/factory.py` `_jt_layout`. WATCH-LIST: any
   feature-driven family whose detection compares init/dispatch code — the
   verdict is the play stream, so dispatch should key on the play body.
+- **NOTE — signature LOCATORS are dispatch too (2026-07-07, f1 no_jumptable
+  62→0, commit 2ac58cbb).** The dataflow path's opcode-WINDOW signatures are
+  a form of init-adjacent dispatch: a read site whose surrounding window
+  includes rewritten init/preamble code fails every window width even though
+  the read's own inner shape is intact. Four fixes, all "key on the play
+  body / the read itself, not the neighborhood": (a) `_sigs_op` tries ALL
+  canon reference sites for a data operand, not the first (d417's first ref
+  is in the rewritten preamble; its RMW sites still match); (b) per-table
+  INNER-SHAPE fallbacks with value-dedup (tunetab paired lo/hi read; wavectrl
+  `LDY pos,x / LDA t,y / CMP #$90`; d417 `LDA v / ORA / STA $D417|v`);
+  (c) base candidates from wrapper `JMP` targets carrying a strict `4C..4C`
+  table + loose `4C`-only tables, each judged by locate-success (never a
+  full-image loose scan — an interior 4C..4C pair locates from the wrong
+  base); (d) when the jump-table play entry points at zeroed RAM (ripper
+  artifact), retrace from the PSID header's play. +31 FULL / +31 partial,
+  0 false-accepts, regression-impossible (all four only run on paths that
+  previously refused).
 - **COROLLARY — variant-KNOB probes must be layout-independent too (2026-07-02,
   DMC family-1 dataflow path).** Accepting a re-assembled member is only half
   the job: the canon path's sub-build KNOB probes (rest-skip dispatch, $D418

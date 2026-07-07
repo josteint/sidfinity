@@ -7,6 +7,32 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 46 (2026-07-07): no_jumptable BUCKET EMPTIED — 62 → 0 (+31 FULL, +31 partial) [ledger C13 note] — commit 2ac58cbb
+The bucket was NOT "no jump table" for 54/62 — it was near-canon players with
+a RESTRUCTURED INIT header whose rewritten code broke the dataflow path's
+opcode-WINDOW signatures around one read site (tunetab 25 Doxx, wavectrl 18
+Wodnik/Heinmueck, d417 9+1); 8 were CIA-wrapper/mixed-table members (player at
+$1000 behind `JMP $1000`, or `4C init/20 85 10/4C 85 10` mixed JSR/JMP table);
+1 (Silent_Memories) had a ripper-rotted JT play entry (JMP $3AF5 = zeroed RAM)
+with the real play in the PSID header. FIXES (all extract-side, in
+`dataflow.py` + `_build_via_dataflow`, ONLY on previously-refusing paths):
+(a) `_sigs_op` = all canon reference sites for a data operand, not first-only;
+(b) inner-shape fallbacks with value-dedup (tunetab paired lo/hi read
+excluding filtdef's chained +1 reads; wavectrl BC/B9/C9-#$90; d417
+LDA/ORA/STA-$D417); (c) tiered base candidates: wrapper-JMP targets with
+strict 4C..4C table first, then loose 4C-only at play-3/load, each judged by
+locate-success — NO full-image loose scan (interior 4C..4C pairs, e.g. table
+entries 3+4, locate from the wrong base); (d) locate(play=header_play) retry.
+State-addr loop kept first-occurrence-only (widening could flip verified
+members' state addrs). RESULT: 31 FULL (mass-written) + 31 partial, full
+regression green. f1 = **5101 FULL / 252 partial / 48 unsupported / 0 error
+(94.4%)**. Remaining unsupported: player_code_mismatch 23,
+nonstandard_instr_base 12, loop_site_unknown 11, rest_dispatch_unknown 1,
+nonstandard_vectors 1. TRAPS re-hit: mid-batch shared-code edits staled the
+running batch TWICE (kill+relaunch under final code), and a `pkill -f`/
+`pgrep -f` waiter self-matched its own argv AGAIN — wait on a log marker
+(grep the FILE), kill by explicit PID.
+
 ## ✅ ROUND 45 (2026-07-07): ERROR CLUSTER CLEARED — f1 errors 25 → 0 (+1 FULL, +24 partial) [ledger C11 note]
 User-staged goal "unsupported/error → partial first; errors first". Census: 20×
 "track never settles" (Bayliss ×11, Pinov_Vox ×2, Rayden-2SID ×5, +2) + 4×
