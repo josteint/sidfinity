@@ -1156,9 +1156,47 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str):
             if 0 < cb and load <= cb and mem[cb] == 0x4C and mem[cb + 3] == 0x4C:
                 base = cb
                 break
+    loc = None
+    if base is None:
+        # WRAPPER-PREFIX / MIXED-TABLE members (the residual no_jumptable
+        # bucket): a CIA-setup wrapper at load ends in `JMP $1000` with the
+        # real jump table at the target, or the table itself mixes JSR/JMP
+        # entries (`4C init / 20 85 10 / 4C 85 10`) so the strict 4C@+3 check
+        # misses it. Tiered candidates, each judged by dataflow.locate
+        # succeeding (and the verify gate downstream): (1) wrapper JMP
+        # targets that carry a strict 4C..4C table — the wrapper names the
+        # player entry explicitly, the strongest base signal; (2) play-3 /
+        # load with only the leading 4C (mixed table). No full-image loose
+        # scan — an interior `4C..4C` pair (e.g. entries 3+4 of a mixed
+        # table) can locate from the wrong base.
+        hi = min(0x10000, load + len(s['payload']))
+        cands = []
+        for a in range(load, min(load + 64, hi - 2)):
+            if mem[a] == 0x4C:
+                t = mem[a + 1] | (mem[a + 2] << 8)
+                if (load <= t < hi - 6 and mem[t] == 0x4C
+                        and mem[t + 3] == 0x4C and t not in cands):
+                    cands.append(t)
+        for cb in (s['play'] - 3, load):
+            if (0 < cb and load <= cb < hi - 6 and mem[cb] == 0x4C
+                    and cb not in cands):
+                cands.append(cb)
+        for cb in cands:
+            try:
+                loc = dataflow.locate(mem, cb)
+            except Exception:
+                loc = None
+            if loc is not None:
+                base = cb
+                break
     if base is None:
         return None
-    loc = dataflow.locate(mem, base)
+    if loc is None:
+        loc = dataflow.locate(mem, base)
+    if loc is None and s['play'] != base + 3:
+        # jump-table play entry rotted (ripper artifact: JMP into zeroed RAM)
+        # while the PSID header names the real play body — trace from there.
+        loc = dataflow.locate(mem, base, play=s['play'])
     if loc is None:
         return None
     # CIA multispeed (same as the canon path): if the speed bit is set, run the

@@ -101,15 +101,19 @@ def _sig_at(addr: int, w: int):
     return tuple(cI[i][1] for i in range(lo, hi)), idx - lo
 
 
-def _sig_op(addr: int, w: int):
-    """Signature of the canon instruction whose OPERAND is `addr` (data tables
-    with no fixed read site)."""
+def _sigs_op(addr: int, w: int) -> list:
+    """Signatures of ALL canon instructions whose OPERAND is `addr` (data
+    tables with no fixed read site). The first occurrence alone is fragile:
+    a variant with a rewritten init/play-preamble breaks that one window
+    while later reference sites (e.g. the d417 shadow's RMW at $1270/$12C0)
+    still match — so the caller tries each in canon order."""
     cI = _canon_instrs()
-    idx = next((i for i, (a, o, v) in enumerate(cI) if v == addr), None)
-    if idx is None:
-        return None
-    lo, hi = max(0, idx - w), min(len(cI), idx + w + 1)
-    return tuple(cI[i][1] for i in range(lo, hi)), idx - lo
+    out = []
+    for idx, (a, o, v) in enumerate(cI):
+        if v == addr:
+            lo, hi = max(0, idx - w), min(len(cI), idx + w + 1)
+            out.append((tuple(cI[i][1] for i in range(lo, hi)), idx - lo))
+    return out
 
 
 def _locate_site(vI: list, vseq: list, sig):
@@ -126,14 +130,20 @@ def _locate_site(vI: list, vseq: list, sig):
     return sites.pop() if len(sites) == 1 else None
 
 
-def locate(mem: bytearray, base: int) -> dict | None:
+def locate(mem: bytearray, base: int, play: int | None = None) -> dict | None:
     """Locate every DMC v4 table by opcode-skeleton signature in the player at
     `base`. Returns {op_instr, op_wavectrl, op_wavefreq, op_filtdef, op_tunetab,
     op_secp_lo, op_secp_hi, freq_lo_addr, freq_hi_addr, vibdepth_addr,
     d417_shadow_addr, track_loop_target} (operand SITES for the _SITES tables,
     absolute ADDRESSES for the data tables) or None if any required table can't
-    be uniquely located. Verify-gated downstream."""
-    vI = _instrs(mem, base, base + 3, (base + 6, base + 9))
+    be uniquely located. Verify-gated downstream.
+
+    `play` overrides the base+3 play entry for the trace — a ripped member's
+    jump-table play entry can point at zeroed RAM while the PSID header names
+    the real play body (Silent_Memories: table JMP $3AF5 = zeros, header play
+    $1085)."""
+    vI = _instrs(mem, base, base + 3 if play is None else play,
+                 (base + 6, base + 9))
     vseq = [o for a, o, v in vI]
 
     def rd16(a):
@@ -149,28 +159,83 @@ def locate(mem: bytearray, base: int) -> dict | None:
                     break
             if site is not None:
                 break
-        if site is None:
-            return None
         sites[name] = site
-    data = {}
+    dsites = {}
     for name, addr in _CANON_DATA.items():
         site = None
         for w in (6, 9, 12):
-            site = _locate_site(vI, vseq, _sig_op(addr, w))
+            for sig in _sigs_op(addr, w):
+                site = _locate_site(vI, vseq, sig)
+                if site is not None:
+                    break
             if site is not None:
                 break
-        if site is None:
-            return None
-        data[name] = rd16(site)
+        dsites[name] = site
+
+    # ---- anchored fallbacks for the restructured-init family (the former
+    # no_jumptable bucket): near-canon players whose init header is rewritten
+    # around a read site, breaking every opcode WINDOW while the read's own
+    # inner shape is intact. Each fallback keys on that inner shape + a
+    # value-dedup (all matching sites must read the SAME table); ambiguity
+    # returns None as before. Verify-gated downstream like everything here.
+
+    # wavectrl: LDY wavepos,x / LDA wavectrl,y / CMP #$90 (the wave-step
+    # marker test — the immediate $90 pins it; a variant may duplicate the
+    # routine, both copies read the same table).
+    if sites['wavectrl'] is None:
+        vals = {}
+        for i in range(len(vI) - 2):
+            (a0, o0, v0), (a1, o1, v1), (a2, o2, v2) = vI[i], vI[i+1], vI[i+2]
+            if o0 == 0xBC and o1 == 0xB9 and o2 == 0xC9 and mem[a2 + 1] == 0x90:
+                vals.setdefault(v1, a1 + 1)
+        if len(vals) == 1:
+            sites['wavectrl'] = vals.popitem()[1]
+
+    # tunetab: the paired lo/hi track-pointer load LDA t,y / STA / LDA t+1,y /
+    # STA. filtdef's chained +1/+2 reads share the shape, so exclude any pair
+    # whose base lands inside an already-located table's record window.
+    if sites['tunetab'] is None:
+        known = {rd16(s) for s in list(sites.values()) + list(dsites.values())
+                 if s is not None}
+        vals = {}
+        for i in range(len(vI) - 3):
+            (a0, o0, v0), (a1, o1, v1), (a2, o2, v2), (a3, o3, v3) = \
+                vI[i], vI[i+1], vI[i+2], vI[i+3]
+            if (o0 == 0xB9 and o1 in (0x8D, 0x9D) and o2 == 0xB9
+                    and o3 in (0x8D, 0x9D) and v2 == v0 + 1
+                    and not any(k <= v0 <= k + 0x20 for k in known)):
+                vals.setdefault(v0, a0 + 1)
+        if len(vals) == 1:
+            sites['tunetab'] = vals.popitem()[1]
+
+    # d417 shadow: LDA v / ORA (abs | abs,x | and-abs,x) / STA (D417 | v) —
+    # the play-tail merge or the shadow's own RMW update.
+    if dsites['d417'] is None:
+        vals = {}
+        for i in range(len(vI) - 2):
+            (a0, o0, v0), (a1, o1, v1), (a2, o2, v2) = vI[i], vI[i+1], vI[i+2]
+            if (o0 == 0xAD and o1 in (0x0D, 0x1D, 0x3D) and o2 == 0x8D
+                    and (v2 == 0xD417 or v2 == v0)):
+                vals.setdefault(v0, a0 + 1)
+        if len(vals) == 1:
+            dsites['d417'] = vals.popitem()[1]
+
+    if any(s is None for s in sites.values()) or \
+            any(s is None for s in dsites.values()):
+        return None
+    data = {name: rd16(site) for name, site in dsites.items()}
 
     # per-voice STATE blocks (curnote / gatemask): locate the variant's address
     # so the extract reads the right idle note / idle mask. Falls back to the
     # canon base-offset (None) if not locatable; the verify gate is the net.
     state = {}
     for name, addr in _CANON_STATE.items():
+        # first canon occurrence ONLY (not _sigs_op): a None here falls back
+        # to the canon base-offset, and widening the search could flip an
+        # already-verified member's state addr — no gain, regression risk.
         site = None
         for w in (6, 9, 12):
-            site = _locate_site(vI, vseq, _sig_op(addr, w))
+            site = _locate_site(vI, vseq, next(iter(_sigs_op(addr, w)), None))
             if site is not None:
                 break
         state[name] = rd16(site) if site is not None else None
