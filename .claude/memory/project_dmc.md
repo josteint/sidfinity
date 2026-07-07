@@ -7,6 +7,26 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ COMPLETE SWEEP (2026-07-07): all families re-verified under commit a3fbf06d — the authoritative counts
+User-requested full sweep (f1+f2+v5, 9,785 members, 6h20m sequential on the
+8-core host; the first attempt was killed mid-f2 when the round-44 composer
+fix landed — code_hash staleness — and restarted under the final code).
+**ZERO losses in all three families.** Counts (code_hash 0c127d5cbba2619b era):
+- **family-1: 5037 FULL / 148 partial / 191 unsupported / 25 error of 5401
+  (93.3%)** — +6 vs the pre-C25 run: Revolution-Evolution + Ucieczka (C25)
+  + I_Wont_Write_Happy_Song/Zak_2/Bilinski/Extazcia (borderline rate/tolerance
+  members the faster body pulled inside the CIA close tolerance).
+- **family-2: 2507 FULL / 325 partial / 45 unsupported / 12 error of 2889
+  (86.8%)** — +94 vs the 2413 recorded at the last f2 sweep (the accumulated
+  shared-composer rounds since; 0 losses).
+- **v5 fam-3/5: 1098 FULL / 202 partial / 154 unsupported / 41 error of 1495
+  (73.4%)** — +10 vs 1088.
+DMC total FULL = **8642**. All three families' FULL artifacts mass-written
+fresh (current-hash gate). Truth files: tmp/dmc_wide_results.jsonl /
+dmc_f2_full.jsonl / dmc_v5_results.jsonl. Residue heads: f1 148 partial
+(freq-drift in_table + otrk_legacy + orig-overruns-latch C25 mirror class),
+f2 325 partial, v5 202 partial + 113 player_code_mismatch unsupported.
+
 ## ✅ ROUND 44 (2026-07-07): CIA cycle-budget overrun — off-table redirect chain fast path (+2 FULL restored, 0 regr) [ledger C25 NEW]
 The round-43 closeout sweep (fresh f1 batch, 5031 FULL / 154 partial) surfaced
 5 FULL→partial "losses". C20 triage: 3 were palimpsests (old rows said
