@@ -99,6 +99,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | composer play body OVERRUNS a tight CIA latch · perfect play-stream prefix + length tail ~0.5% (rate drift, no content divergence) · common-path cost creep (per-row compare chains growing with each round's shadow additions) · fast-path the common case O(1) · the rebuild's play must FIT the smallest latch it ships under | C25 | logged |
 | song data ABSENT from file image · init generates/unpacks tables in RAM · operands point outside the loaded image · extract from POST-INIT RAM (py65), all-or-nothing signature · banking-wrapper JT-less base from the wrapper JSR target | C26 | logged |
 | multi-SID (2SID/3SID) · N chips, one player each behind a dispatch wrapper · players run sequentially -> merged log = [chip1][chip2] · extract/compose/verify each with single-chip machinery, chip-TAGGED (reg=chip*$20+reg) · voices number through chips, addresses are pipeline constants not USF | C27 | logged |
+| multi-SID VERDICT · rebuild is per-chip correct but the merged chip-tagged stream diverges on a CROSS-CHIP adjacency (chip1 vs chip2 write order) · cross-chip order is physically UNobservable (independent hardware, Trap-B analogue) · split by reg//0x20, require each chip's substream to pass · compare_instruction_stream(n_chips=N) · do NOT chase cycle precision / straddle-free capture | C28 | logged |
 
 ---
 
@@ -1634,7 +1635,48 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   BOTH players — an editor relocation quirk, reproduced by keeping $D417
   un-relocated).
 - **Status:** logged (1×, DMC family-1 Nice_Dream_2SID: unsupported ->
-  partial, chip-tagged write-log matches 3221 writes across both chips; the
-  residual divergence is an ordinary DMC filter-def-walk res-timing detail,
-  not a multi-SID concern). Infrastructure is engine-neutral (314 2SID + 27
-  3SID members corpus-wide).
+  partial). Infrastructure is engine-neutral (314 2SID + 27 3SID members
+  corpus-wide). NB the round-48 "residual = filter-def-walk res-timing at
+  write 3221" was a MISDIAGNOSIS — it is a cross-chip ordering artifact of
+  comparing the merged stream flat; see **C28** for the correct verdict
+  (compare per chip). After C28 the true blocker is a single-chip
+  note-duration drift at ~74s, not multi-SID.
+
+### C28 — Multi-SID verdict: compare each chip's stream INDEPENDENTLY
+
+- **Problem shape:** a multi-SID rebuild (C27) that is per-chip CORRECT still
+  shows a `(reg,val)` divergence when the merged chip-tagged stream is
+  prefix-compared flat. The first divergence is a CROSS-CHIP adjacency: orig
+  has `[chip1 write][chip2 write]`, rebuild has `[chip2 write][chip1 write]`
+  (or a chip-1 write lands on the other side of a chip-2 block).
+- **Root cause:** two SID chips are INDEPENDENT hardware — each latches only
+  its own register writes and evolves only from them. So the ORDER of a write
+  to chip 1 vs a write to chip 2 within a frame is PHYSICALLY UNOBSERVABLE
+  (the multi-SID analogue of within-frame cycle position, Trap B). The merged
+  write-log is cycle-SORTED, and siddump's per-chip write cycles are not
+  reliable to sub-write precision for cross-chip interleaving (chip-2 writes
+  cluster at one cycle value), so a rebuild with a few-cycle timing delta
+  places a cross-chip write on the other side of the boundary. Classic
+  trigger: an editor quirk that routes chip 2's res write onto chip 1's
+  $D417 (Nice_Dream), whose position vs chip 2's body then flips.
+- **Fix (canonical):** split the merged stream by chip (`reg // 0x20`) and
+  require EVERY chip's own substream to pass the single-chip verdict.
+  Within-chip order and every value stay fully checked; only cross-chip
+  interleaving is dropped, so nothing real is masked. `compare_instruction_
+  stream(..., n_chips=N)` runs the compare per chip and aggregates (localise
+  on the first failing chip; when all pass, report the worst tail + AND of
+  audio_guaranteed so a caller's playback-safety gate sees the worst chip).
+  `verify.verify_all` routes on `_n_chips` (PSID v3+ header +$7A/+$7B) via
+  `_music_ok_multichip`; `dmc_family_batch` passes `n_chips=len(cfgs2)` and
+  localises flat_div per chip. Single-chip (`n_chips=1`) is byte-identical.
+- **Do NOT** try to fix this by making the capture straddle-free (a siddump
+  per-irq global-abs rewrite was tried and REVERTED — it does not fix the
+  cross-chip reorder and it perturbs the shared CIA verdict path). The order
+  is unobservable; drop it from the verdict, don't chase cycle precision.
+- **Trap:** a pc-trace per-CPU-invocation capture (program order,
+  straddle-free) OR any short (2-6s) capture can show "byte-perfect" while a
+  real blocker sits deeper — always verify at FULL songlength (× ~1.1)
+  before declaring FULL.
+- **Status:** logged (1×, DMC Nice_Dream_2SID: match 3221 -> 63496 writes;
+  full regression green, single-chip byte-identical). Generalises to all
+  314 2SID + 27 3SID corpus members (per-chip works for n_chips=3).

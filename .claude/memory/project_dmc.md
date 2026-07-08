@@ -7,6 +7,46 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 49 (2026-07-08): MULTI-SID PER-CHIP VERDICT — Nice_Dream_2SID false-partial fixed (3221 → 63496 match) [ledger C28 NEW] — commit b7849284
+Continued the round-48 Nice_Dream_2SID chase. The round-48 "first
+divergence = filter-def-walk res-timing at frame 103 (write 3221)" was a
+**MISDIAGNOSIS**: it's a CROSS-CHIP ORDERING artifact, NOT a real bug.
+Two SID chips are INDEPENDENT hardware → the order of a write to chip 1
+($D417) vs chip 2 ($D420) within a frame is PHYSICALLY UNOBSERVABLE (each
+chip evolves only from its own writes; cross-chip order is the multi-SID
+analogue of within-frame cycle position, Trap B). Nice_Dream redirects
+chip 2's res onto chip 1's $D417 (editor quirk); the cycle-sorted merge
+(siddump's multi-chip write-log) places that res write's position vs
+chip 2's body INCONSISTENTLY between orig and a rebuild with a few-cycle
+delta — a false partial. PROOF: pc-trace per-CPU-invocation buckets
+(program order, straddle-free) = 129/129 exact over the first ~2.8s;
+per-chip flat compare = each chip's own stream matches. DIAGNOSTIC TRAP I
+HIT: pc-trace/short captures (2.8-6s) showed "byte-perfect" — the REAL
+blocker is 74s deep; always verify at FULL songlength before declaring
+FULL. FIX (C28): compare each chip's stream INDEPENDENTLY (split merged
+chip-tagged stream by reg//0x20). `compare_instruction_stream` gains
+`n_chips` (per-chip run + conservative safety-field aggregation: worst
+tail, AND of audio_guaranteed); `verify.verify_all` gains `_n_chips`
+(PSID v3+ secondSIDAddress byte 0x7A / third 0x7B) + `_music_ok_multichip`;
+`dmc_family_batch` passes `n_chips=len(cfgs2)` + localizes flat_div
+per-chip. Single-chip (n_chips=1) path BYTE-IDENTICAL (branch skipped) →
+full regression green (0 regressed all 7 families). Considered but
+REVERTED a siddump.cpp per-irq straddle-free rewrite (global absolute-
+cycle bucketing) — it did NOT fix this (per-irq still cross-chip-reorders
+at the drift point) and touched the shared CIA verdict path; per-chip on
+the EXISTING flat capture is the correct minimal fix (user-ratified).
+REMAINING (Nice_Dream still PARTIAL): a GENUINE single-chip note-duration/
+wave-timing drift at frame 3834 (~74s): reb inserts extra V3 note-inits
+(ADSR=00/00 + wave restart) where orig plays one continuous downward-glide
+note (empty V3 rest frame at f3834 in orig; gate-off+next-note one frame
+early in reb). Wave-step VALUES match (CC,08,06,04,03,02,01,01,00) — only
+the note BOUNDARY timing is off by ~1 frame. This is RE_NOTES bucket 9
+(the freq-drift/note-duration tail, ~140 partials), a deep single-chip
+chase, NOT multi-SID. Infra note: fix also correctly handles all 314 2SID
++ 27 3SID corpus members (per-chip generalizes to n_chips=3). NEXT for
+Nice_Dream FULL: the note-duration-boundary chase (shared root w/ the
+freq-drift tail); or move to the 272-partial residue.
+
 ## ✅ ROUND 48 (2026-07-08): 2SID/3SID SUPPORT — f1 unsupported 1 → 0 (Nice_Dream_2SID → partial) [ledger C27 NEW] — commits 7db09b2d / 368f2a46 / 6b222ca8
 USER-REQUESTED feature: full 2SID/3SID support, canary = the last f1
 unsupported (Surgeon Nice_Dream_2SID). KEY INSIGHT: a multi-SID tune = N
