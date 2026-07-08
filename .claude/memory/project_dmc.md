@@ -7,6 +7,38 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 61 (2026-07-09): arm F-phase ENTRY variant — wavestep vs vib_half — Acid_Dance +1 partial → FULL (0 regr) [ledger C18 note]
+First f1 partial by hvsc path (user-picked; End_of_1992_intro row stale =
+round 60): Bakewell_Dwayne/Acid_Dance (CIA 4x, P_F123_F123_F123,
+notestart_arm, the round-46 rest_effects='vibflip' singleton). Flat localizer
+pos 0 = the CIA init-phase artifact — per-IRQ first div at play pos 51198:
+V2 flo $6C vs $64 on a HELD note; orig's vibrato = a ±4 SQUARE
+($268↔$26C, 4 IRQs per level), rebuild = a free-running ±16 triangle.
+Memwatch ground truth: orig V2 vibdir FLIPS + vibctr resets on every F call
+(3 flips between full plays); acc only moves on P. ROOT: the wrapper's F
+phase enters the player at canon **$1567 = the vibrato half-cycle boundary**
+(vibctr=0, flip vibdir, swell, FALL THROUGH wavestep) — not $1591 (plain
+wavestep) as the composer's notestart_arm F target assumed. Wrapper: SMC
+JSR-operand table $1D50 → JT slot $1006 → JMP $162F = `LDX#0/JSR $1567 ×3`.
+The two entries emit IDENTICAL writes on the F call itself — the difference
+is vibrato STATE, observable only later as the vibrato's shape, so it's a
+C18 entry-reachability observation, not a footprint one. FIX:
+`factory._detect_fx_entry_vibhalf` (shape-locates $1567 `a9 00 9d ?? ?? bd
+?? ?? 49 01 9d` reloc-invariant; pctrace watch_pcs; vib_half iff EVERY F
+invocation (voice writes, no $D416) executes a candidate — a wavestep-entry
+F call can never reach $1567 ⇒ no false positive, gated on notestart_arm at
+both factory sites) → USF param `fx_entry: vibflip` (vocabulary shared with
+rest_effects='vibflip' = the $1180 rest-tail patch this member ALSO carries;
+two INDEPENDENT edits, not derived from each other) → composer `voice_fx`
+JMPs its own `vib_half` label (falls through wavestep = orig control flow).
+Acid_Dance FULL 360120/360120 state ✓. EXPOSURE: all 19 stored
+notestart_arm FULLs probe False → builds byte-identical; full
+tools/regression.py green (0 regr all 7 families). CENSUS (probe over all
+224 stored partials): exactly 2 carriers — Acid_Dance + Odysseus/
+Hear_Circa_2_Minutes (unswept; the fix applies to it iff its config also
+detects play_phases+arm). Post-fix sweep SKIPPED per user (next batch
+accounts via code_hash). f1 ≈ 5159 FULL / 242 partial.
+
 ## ✅ ROUND 60 (2026-07-09): PW-DIRECTION reset redirect wedge — End_of_1992_intro +1 partial → FULL (0 regr) [ledger C19 8th occurrence]
 First f1 partial by hvsc path (user-picked): Artlace/End_of_1992_intro (CIA,
 single sub, flat div 6637 stable across 4 code eras; flat localizer said pos 0

@@ -704,6 +704,61 @@ def _detect_notestart_arm(sid_path: str, subtune: int, play_addr: int) -> bool:
     return False
 
 
+def _vibhalf_candidates(payload, load: int) -> set:
+    """Locate the vibrato half-cycle entry ($1567) by shape, reloc/re-assembly
+    invariant: `LDA #$00 / STA ctr,x / LDA dir,x / EOR #$01 / STA dir,x` =
+    bytes `a9 00 9d ?? ?? bd ?? ?? 49 01 9d` (the same shape the rest-tail
+    vibflip target check keys on)."""
+    b = bytes(payload)
+    return {load + i for i in range(len(b) - 11)
+            if b[i] == 0xa9 and b[i + 1] == 0x00 and b[i + 2] == 0x9d
+            and b[i + 5] == 0xbd and b[i + 8] == 0x49
+            and b[i + 9] == 0x01 and b[i + 10] == 0x9d}
+
+
+def _detect_fx_entry_vibhalf(sid_path: str, subtune: int,
+                             play_addr: int) -> bool:
+    """Does the wrapper's F phase enter the player at the VIBRATO HALF-CYCLE
+    boundary ($1567: vibctr=0, flip vibdir, swell, fall through wavestep)
+    instead of the plain wave step ($1591)? The two entries emit IDENTICAL
+    writes on the F call itself (wavestep + sidwrite) — the difference is
+    vibrato STATE only, observable later as the vibrato's shape (Acid_Dance:
+    3 flips between full plays -> a +/-vstep square, where the wavestep entry
+    free-runs the triangle). Not derivable from the write footprint, so watch
+    ENTRY REACHABILITY (C18 canonical form): classify each observed play()
+    invocation P (writes $D416) or F (voice writes, no $D416) off the same
+    pc-trace, and answer vib_half iff EVERY F invocation executed a
+    shape-located $1567 candidate. A wavestep-entry F call can never reach
+    $1567 (it lies upstream of $1591, nothing jumps back), so a True verdict
+    has no false positive on the arm members this probe is gated to
+    (notestart_arm=1: entry is past note-init by observation) —
+    regression-safe by construction."""
+    try:
+        from pipelines.hubbard.verify_cycle import pctrace_per_play_capture
+        from seed_disassembly import parse_psid
+    except Exception:
+        return False
+    try:
+        s = parse_psid(sid_path)
+        cands = _vibhalf_candidates(s['payload'], s['load'])
+        if not cands:
+            return False
+        plays, hits = pctrace_per_play_capture(sid_path, subtune, play_addr,
+                                               n_frames=12, watch_pcs=cands)
+    except Exception:
+        return False
+    f_hits = []
+    for fr, hit in zip(plays, hits):
+        if not fr:
+            continue
+        regs = {r for r, _ in fr}
+        if 0x16 in regs:
+            continue                       # P (full play body)
+        if regs & set(range(0x15)):
+            f_hits.append(hit)             # F (per-voice, no $D416 tail)
+    return len(f_hits) >= 4 and all(f_hits)
+
+
 def _detect_play_repeat(mem, play: int, base: int, load: int) -> int:
     """INTERNAL multispeed: a play vector that is N consecutive `JSR T` (same
     target T) terminated by RTS runs the engine N times per VBI (e.g. High_Speed
@@ -1461,6 +1516,12 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str):
                     _detect_notestart_arm(os.path.join(hvsc_root, sid_path),
                                           s['start'] - 1, s['play']):
                 cfg.extra_params['notestart_arm'] = '1'
+                # Arm entry-point variant: F phase enters the vibrato
+                # half-cycle boundary ($1567) instead of the wave step.
+                if _detect_fx_entry_vibhalf(
+                        os.path.join(hvsc_root, sid_path),
+                        s['start'] - 1, s['play']):
+                    cfg.extra_params['fx_entry'] = 'vibflip'
     # POST-INIT leftover capture: canon's leftover priming (d417 shadow,
     # idle notes/masks, dual phase) reads the file image because canon init
     # never touches those bytes. A re-assembled init MAY clear/rewrite them
@@ -1762,6 +1823,12 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
                 _detect_notestart_arm(os.path.join(hvsc_root, sid_path),
                                       s['start'] - 1, s['play']):
             extra['notestart_arm'] = '1'
+            # Arm entry-point variant: F phase enters the vibrato half-cycle
+            # boundary ($1567: flip+swell, falls through wavestep) instead of
+            # the wave step ($1591) — Acid_Dance's wrapper JSRs $1567 x3.
+            if _detect_fx_entry_vibhalf(os.path.join(hvsc_root, sid_path),
+                                        s['start'] - 1, s['play']):
+                extra['fx_entry'] = 'vibflip'
     # rest/switch/slide-tail dispatch ($1180): canon JMP $1322 (run
     # effects); a sub-build JMP $1591 (wavestep) — the modulators hold one
     # frame at each tie (the family-2 rest_effects='skip' behavior).

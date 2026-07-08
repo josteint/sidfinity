@@ -1098,7 +1098,14 @@ fx_dual_up:
     # Words and F.A.K.E are both P_F123 but differ). Default 0 = note-init on the
     # F call (orig $11F9 -> frame_entry), the immediate-note-start majority.
     notestart_arm = str(usf.params.fields.get('notestart_arm', '0')) == '1'
-    voice_fx_target = 'wavestep' if notestart_arm else 'frame_entry'
+    # fx_entry='vibflip': the arm F phase enters at the vibrato half-cycle
+    # boundary (canon $1567: vibctr=0, flip vibdir, swell, fall through the
+    # wave step) instead of the plain wave step — the F call's own writes are
+    # identical, but the flips reshape the vibrato (3 flips between full
+    # plays => a +/-vstep square where wavestep entry free-runs the triangle).
+    fx_entry = str(usf.params.fields.get('fx_entry', '') or '')
+    voice_fx_target = ('vib_half' if fx_entry == 'vibflip' else 'wavestep') \
+        if notestart_arm else 'frame_entry'
     if (tokens and 'P' in tokens and len(tokens) > 1
             and all(t == 'P' or t == 'S'
                     or (t[0] in 'FR' and t[1:]

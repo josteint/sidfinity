@@ -89,7 +89,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | INAUDIBLE writes · idle/gate-off voice freewheels · "audio-equivalence" verdict relaxation | C15 | ⛔ REMOVED (user decision 2026-07-01): every SID gets STRICT write-stream match, always — never propose relaxing the verdict during per-engine work. If an idle-freewheel divergence blocks a member, REPRODUCE the writes (core tenet permits reproducing the mechanism). Design parked in `refactor_1_remaining.md` as a Move-1-era-ONLY consideration. |
 | per-frame WRITE-ORDER differs · orig batches note-on writes (SR/AD/CTRL) separately from wave-step writes (freq/PW/CTRL) or uses a different voice interleave · rebuild emits a different order · NOT a wholesale composer rewrite — PARAMETRIZE the composer's EMISSION order (precedent: FC `nextvoice_write_order`) | C16 | logged |
 | HETEROGENEOUS per-step write shapes in a trace-lift · one superset order can't embed all steps (conflicting reg orders / intra-step dups / sections) · cluster steps by EXACT write shape → K positional templates + per-step template id | C17 | logged |
-| play-vector WRAPPER with per-call PHASE behaviour · slow-tempo / multispeed-effects cycler · every Nth call runs the full play, others run effects-only / register-refresh / nothing · wrapper shapes vary (SMC, DEC+dual-JMP, parity AND) — OBSERVE entry-point reachability under py65, don't parse | C18 | logged |
+| play-vector WRAPPER with per-call PHASE behaviour · slow-tempo / multispeed-effects cycler · every Nth call runs the full play, others run effects-only / register-refresh / nothing · wrapper shapes vary (SMC, DEC+dual-JMP, parity AND) — OBSERVE entry-point reachability under py65, don't parse · arm F-ENTRY variant: wavestep ($1591) vs vibrato half-cycle ($1567, flips reshape vibrato to a square) → `fx_entry: vibflip` | C18 | logged |
 | TRICHOTOMY VERDICT alignment · rebuild emits its OWN init (universal reset+priming) so streams differ by an init prefix · Check A end-of-init state + aligned play-stream compare · TWO implementations exist: `verify_cycle._trichotomy_compare` (FC, shift recovery) + `usf_roundtrip._compare_music/_split_aligned` (basic_program, known-init-length + probe search) — CONSULT MISS, factor at Move 1 | C21 | factor-candidate (2×) |
 | hand-patched player WEDGE inside the canon body · SMC opcode toggle · 1-byte opcode patch · JMP over canonical loads · runtime state ≠ static file byte · PWM bound-shift (LSR count) wedge · STATIC opcode probe, never a bounded stream scan · census carriers both sides · reproduce semantics behind a factory-probed param (EXTRACT-only when the wedge changes a derived musical value) | C19 | canonicalized (8×) |
 | stale-FULL palimpsest · recorded 'full' the current code can't reproduce · hides members from residue censuses · verify the STORED build first, then USF-diff/param-bisect to attribute · never mass-write with code that didn't produce the verdict | C20 | canonicalized |
@@ -1316,9 +1316,31 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   byte-identical; flip census over all 236 f1 partials = exactly 1 carrier
   (My_Rusty_Love, → FULL 388489/388489 state ✓). Round-53 lesson applied:
   detect the minority (F-behind-R-disguise) positively; never flip a default.
+- **F-ENTRY-POINT variant — vib_half instead of wavestep (2026-07-09,
+  Acid_Dance +1 FULL, 0 regr):** on a notestart_arm member the F phase enters
+  PAST the note-init check — but there are TWO such entries with IDENTICAL
+  F-call write footprints: the plain wave step (canon $1591) and the vibrato
+  half-cycle boundary (canon $1567: vibctr=0, flip vibdir, run the swell,
+  fall through $1591). The difference is vibrato STATE only, observable later
+  as the vibrato's SHAPE: 3 flips between full plays turn the triangle into a
+  ±vstep SQUARE (Acid_Dance V2: orig $268↔$26C alternation vs the rebuild's
+  free-running $268→$258 triangle; wrapper = SMC JSR-operand table → JT slot 3
+  → `LDX #0/JSR $1567/INX/JSR $1567/INX/JSR $1567`). Not derivable from the
+  footprint, so OBSERVE entry reachability (the C18 canonical form):
+  `factory._detect_fx_entry_vibhalf` shape-locates $1567 (`a9 00 9d ?? ?? bd
+  ?? ?? 49 01 9d`, reloc/re-assembly invariant) and answers vib_half iff EVERY
+  observed F invocation (voice writes, no $D416) executes a candidate — a
+  wavestep-entry F call can never reach $1567 (it lies upstream; nothing jumps
+  back) ⇒ no false positive ⇒ regression-safe by construction. Param
+  `fx_entry: vibflip` (vocabulary shared with `rest_effects='vibflip'`, the
+  $1180 rest-tail patch this member ALSO carries — two INDEPENDENT edits, do
+  not derive one from the other); composer's `voice_fx` JMPs its own
+  `vib_half` label. Exposure: all 19 stored notestart_arm FULLs probe False
+  (builds byte-identical).
 - **Status:** logged (DMC family-1, 2026-07-02: P/F/S round +5 FULL, R round
   +26 FULL → 4198/5401; 2026-07-04 straddle-free pc-trace observer, +0 FULL but
-  fixes the `P_S` mis-observation; 2026-07-08 frame-entry reachability, +1).
+  fixes the `P_S` mis-observation; 2026-07-08 frame-entry reachability, +1;
+  2026-07-09 F-entry vib_half variant, +1).
 - **Consumers:** DMC v4 `factory._observe_play_phases` (canon, py65) +
   `_observe_play_phases_writes` (dataflow, py65) + `_observe_play_phases_pctrace`
   (ground-truth fallback) → `composer_asm` play_phases dispatcher. Sibling of C9
