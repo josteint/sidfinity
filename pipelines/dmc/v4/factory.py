@@ -918,6 +918,28 @@ def _pw_hi_const_probe(path: str, base: int):
     return ','.join(str(src[ophi + i]) for i in range(3))
 
 
+def _pw_dir_persist_probe(path: str, base: int):
+    """PW-direction reset redirect (STATIC opcode probe, C19). The note-init
+    pulse reset canonically ends `LDA #$00 / STA $1762,x (phase) / STA $1765,x
+    (direction=up)`; the wedge re-points the second STA at an unused state
+    byte (Artlace: $17AB, in the $179E-$17AF gap), so the sweep DIRECTION
+    persists across note-inits while value/bounds/step/phase still reset.
+    Anchor on `A9 00 9D <base+$762> 9D <op>` (relocation-aware: the state page
+    rides on base). Positive minority signature: return 1 iff exactly one
+    site matches and its second operand != base+$765; canon or ambiguous ->
+    None (build unchanged). Carrier: Artlace/End_of_1992_intro."""
+    mem, _ = _load(path)
+    a = base + 0x762
+    pat = re.compile(
+        rb'\xA9\x00\x9D' + bytes([a & 0xFF, (a >> 8) & 0xFF]) + rb'\x9D(..)',
+        re.DOTALL)
+    ms = pat.findall(bytes(mem))
+    if len(ms) != 1:
+        return None
+    op = ms[0][0] | (ms[0][1] << 8)
+    return 1 if op != base + 0x765 else None
+
+
 def _pw_bound_shift_probe(path: str, base: int):
     """PWM bound-A extraction shift (STATIC opcode probe, C19). The note-init
     derives the pulse-width sweep bounds from instrument byte+2: canonically
@@ -1312,6 +1334,9 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     pbs = _pw_bound_shift_probe(os.path.join(hvsc_root, sid_path), cfg.base)
     if pbs is not None:
         cfg.extra_params['pw_bound_shift'] = pbs
+    pdp = _pw_dir_persist_probe(os.path.join(hvsc_root, sid_path), cfg.base)
+    if pdp is not None:
+        cfg.extra_params['pw_dir_persist'] = pdp
     return cfg
 
 

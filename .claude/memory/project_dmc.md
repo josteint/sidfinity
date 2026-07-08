@@ -7,6 +7,28 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 60 (2026-07-09): PW-DIRECTION reset redirect wedge — End_of_1992_intro +1 partial → FULL (0 regr) [ledger C19 8th occurrence]
+First f1 partial by hvsc path (user-picked): Artlace/End_of_1992_intro (CIA,
+single sub, flat div 6637 stable across 4 code eras; flat localizer said pos 0
+= the CIA init-phase artifact — re-localized per-IRQ). Divergence: V2 note-init
+at play 387 — both write PW=$0400 fresh, next frame orig sweeps DOWN ($03E0,
+continuing the pre-note direction) vs rebuild UP ($0420). ROOT: C19 wedge —
+canon $1266 `STA $1765,x` (PW direction=up in the note-init pulse reset) has
+its operand re-pointed at $17AB (the unused $179E-$17AF state gap), so the PWM
+sweep DIRECTION persists across note-inits while value/bounds/step/phase still
+reset. FIX (C19 canonical form): `factory._pw_dir_persist_probe` (static
+reloc-aware anchor `A9 00 9D <base+$762> 9D <op>`, positive minority op !=
+base+$765, ambiguous→None) → `pw_dir_persist` param → composer drops the one
+`sta pwdir,x` line from pw_base_reset. Census (anchored on the stepbase→phase
+delta-3 prefix; a loose `A9 00 9D .. 9D ..` scan false-positives on other canon
+LDA#0/STA/STA sites): exactly 2 carriers in 5808 site-bearing members, BOTH
+partial → 0 FULL exposure, regression-safe by construction. End_of_1992_intro
+FULL 125002/125002 state ✓. 2nd carrier Black_It: wedge redirects to base+$786
+= post-note guard — ALSO inert (note-init overwrites guard=2 right after);
+its own blocker is earlier (play_match 26 from the first note), per-sub
+divergences byte-identical before/after = no movement. Post-fix sweep SKIPPED
+per user (next batch accounts via code_hash). f1 ≈ 5158 FULL / 243 partial.
+
 ## ✅ ROUND 59 (2026-07-08): SUBTUNE-AWARE off-table post-init capture — Cool_Musax +1 partial → FULL (0 regr) [ledger C6 note]
 First f1 partial by hvsc path (user-picked): Akadem/Cool_Musax, sub 1 flat div
 3029, V2 freq-hi orig $17 vs reb $F8 on a note-init. pc-trace: wave off 60 +

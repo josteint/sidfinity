@@ -1049,11 +1049,15 @@ fx_dual_up:
         hr_test_write = ('        lda #$08\n'
                          '        sta $d404,y                  ; TEST bit\n')
         hr_arm = hr_disarm = hr_test_var = ''
+        # pw_dir_persist: C19 wedge — the canon `STA $1765,x` (direction=up)
+        # is re-pointed at an unused state byte, so the PWM sweep DIRECTION
+        # persists across note-inits while value/bounds/step/phase still reset.
         pw_base_reset = ('        lda ipwbase,y\n'
                          '        sta cpwbase,x\n'
                          '        lda #$00\n'
-                         '        sta pwphase,x\n'
-                         '        sta pwdir,x\n')
+                         '        sta pwphase,x\n')
+        if str(usf.params.fields.get('pw_dir_persist', '0')) != '1':
+            pw_base_reset += '        sta pwdir,x\n'
     # 'skip' wedge: the whole `JSR sub_17FB` is neutered ($20->$2C BIT), so the
     # fetch frame emits NO prep at all — drop the TEST write too (the ADSR was
     # already dropped above). Overrides the hr_patch conditional TEST.

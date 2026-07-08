@@ -91,7 +91,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | HETEROGENEOUS per-step write shapes in a trace-lift · one superset order can't embed all steps (conflicting reg orders / intra-step dups / sections) · cluster steps by EXACT write shape → K positional templates + per-step template id | C17 | logged |
 | play-vector WRAPPER with per-call PHASE behaviour · slow-tempo / multispeed-effects cycler · every Nth call runs the full play, others run effects-only / register-refresh / nothing · wrapper shapes vary (SMC, DEC+dual-JMP, parity AND) — OBSERVE entry-point reachability under py65, don't parse | C18 | logged |
 | TRICHOTOMY VERDICT alignment · rebuild emits its OWN init (universal reset+priming) so streams differ by an init prefix · Check A end-of-init state + aligned play-stream compare · TWO implementations exist: `verify_cycle._trichotomy_compare` (FC, shift recovery) + `usf_roundtrip._compare_music/_split_aligned` (basic_program, known-init-length + probe search) — CONSULT MISS, factor at Move 1 | C21 | factor-candidate (2×) |
-| hand-patched player WEDGE inside the canon body · SMC opcode toggle · 1-byte opcode patch · JMP over canonical loads · runtime state ≠ static file byte · PWM bound-shift (LSR count) wedge · STATIC opcode probe, never a bounded stream scan · census carriers both sides · reproduce semantics behind a factory-probed param (EXTRACT-only when the wedge changes a derived musical value) | C19 | canonicalized (6×) |
+| hand-patched player WEDGE inside the canon body · SMC opcode toggle · 1-byte opcode patch · JMP over canonical loads · runtime state ≠ static file byte · PWM bound-shift (LSR count) wedge · STATIC opcode probe, never a bounded stream scan · census carriers both sides · reproduce semantics behind a factory-probed param (EXTRACT-only when the wedge changes a derived musical value) | C19 | canonicalized (8×) |
 | stale-FULL palimpsest · recorded 'full' the current code can't reproduce · hides members from residue censuses · verify the STORED build first, then USF-diff/param-bisect to attribute · never mass-write with code that didn't produce the verdict | C20 | canonicalized |
 | AMBIGUOUS round-trip flag encoding · two distinct engine ops render to OVERLAPPING USF flag sets · the decoder's branch test uses a SUBSET of the discriminator → misroutes one op onto the other's path · matches for most content (paths coincide when inputs coincide), diverges on the distinguishing case | C22 | canonicalized (2×) |
 | a play-phase/schedule TOKEN hides a per-member behavioural ambiguity · same P_F123 token = note-init-on-F vs deferred 2-frame arm · fixing one class REGRESSES same-token FULLs · NOT derivable from the token/multispeed → OBSERVE the distinguishing write-footprint per member · regression-safe when the "changed" verdict has no false positive | C23 | logged |
@@ -1346,8 +1346,21 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
 - **Diagnosis tell:** runtime state ≠ file-image table byte while taint_source
   says the byte is STATIC ⇒ the READ SITE differs from canon — dump the
   operand/opcode at the canon site.
-- **Status:** CANONICALIZED (7 occurrences by round 55: DMC family-1 rounds
-  13 + 19 + 32 + 35 + 36 + 50 + 55). Canonical form: STATIC opcode probe (read the patched
+- **8th occurrence (round 60, 2026-07-09):** the PW-DIRECTION reset redirect
+  (Artlace/End_of_1992_intro + The_Syndrom/Black_It, only carriers in f1):
+  the note-init pulse reset's second store `LDA #$00 / STA phase,x /
+  STA dir,x` has its direction operand re-pointed at an INERT byte (Artlace:
+  the unused $179E-$17AF state gap; Black_It: the post-note guard, which
+  note-init unconditionally overwrites to 2 right after) → the PWM sweep
+  DIRECTION persists across note-inits while value/bounds/step/phase still
+  reset. Tell: at a note-init both streams write the same fresh PW value,
+  next frame orig sweeps DOWN (continuing the pre-note direction) where the
+  rebuild sweeps UP. `factory._pw_dir_persist_probe` (anchor `A9 00 9D
+  <base+$762> 9D <op>`, reloc-aware, positive minority: op != base+$765) →
+  `pw_dir_persist` param → composer drops the one `sta pwdir,x` line from
+  the pulse-reset block.
+- **Status:** CANONICALIZED (8 occurrences by round 60: DMC family-1 rounds
+  13 + 19 + 32 + 35 + 36 + 50 + 55 + 60). Canonical form: STATIC opcode probe (read the patched
   instruction itself — never a bounded write-stream scan, which can
   false-negative on members that exercise the path only late) → factory
   `extra_params` → an existing/new composer param; census carriers on BOTH
