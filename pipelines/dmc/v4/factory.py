@@ -834,6 +834,28 @@ def _hr_preset_probe(path: str):
     return m.group(1)[0]
 
 
+def _hr_prep_skip_probe(path: str, base: int):
+    """Hard-restart prep-CALL skip probe (STATIC opcode probe, C19 —
+    SilverFox/Seaside_99). The note-load primes the hard restart with
+    `LDA #$08 / JSR sub_17FB / LDA #$FF` at base+$1D9..base+$1DF (sub_17FB =
+    base+$7FB writes TEST $08 + AD/SR $0F0F on the fetch frame). A wedge
+    patches the JSR opcode $20->$2C (BIT $17FB), neutering the ENTIRE call:
+    the fetch frame writes NOTHING (no TEST, no AD/SR), while pending
+    (base+$74A via $11E3) is still set so the note inits normally next frame.
+    Anchor on the surrounding shape both sides (LDA #$08, the sub_17FB
+    operand = base+$7FB, LDA #$FF) so a non-canon layout fails open; return
+    'skip' iff the opcode byte is $2C, else None (canon $20 / not this
+    shape -> build unchanged)."""
+    mem, _ = _load(path)
+    b = base
+    if (mem[b + 0x1D9] == 0xA9 and mem[b + 0x1DA] == 0x08
+            and mem[b + 0x1DC] | (mem[b + 0x1DD] << 8) == b + 0x7FB
+            and mem[b + 0x1DE] == 0xA9 and mem[b + 0x1DF] == 0xFF
+            and mem[b + 0x1DB] == 0x2C):
+        return 'skip'
+    return None
+
+
 _PW_HI_WRITE = re.compile(rb'\xBD(..)\x99\x02\xD4\xBD(..)\x99\x03\xD4',
                           re.DOTALL)
 
@@ -1232,9 +1254,15 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         cfg.extra_params['hold_gateoff'] = hg
     # family-2 sets hard_restart='none' (no sub_17FB at all) — never override
     if 'hard_restart' not in cfg.extra_params:
-        hrv = _hr_preset_probe(os.path.join(hvsc_root, sid_path))
-        if hrv is not None:
-            cfg.extra_params['hard_restart'] = str(hrv)
+        # prep-CALL skip wedge (JSR $17FB -> BIT) takes precedence over the
+        # preset-immediate wedge; they patch different sites and don't co-occur.
+        hrs = _hr_prep_skip_probe(os.path.join(hvsc_root, sid_path), cfg.base)
+        if hrs is not None:
+            cfg.extra_params['hard_restart'] = hrs
+        else:
+            hrv = _hr_preset_probe(os.path.join(hvsc_root, sid_path))
+            if hrv is not None:
+                cfg.extra_params['hard_restart'] = str(hrv)
     pur = _play_unit_repeat_probe(os.path.join(hvsc_root, sid_path), cfg.base)
     if pur is not None:
         cfg.extra_params['play_unit_repeat'] = pur

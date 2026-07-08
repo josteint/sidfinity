@@ -847,9 +847,15 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # writes only the $08 TEST bit (its relocated instrument table clobbers
     # sub_17FB, so the hard restart drops the AD/SR=$0F0F writes). A numeric
     # value (C19 wedge, Stryyker: the sub_17FB `LDA #$0F` immediate patched
-    # to another byte) primes AD=SR=that value instead.
+    # to another byte) primes AD=SR=that value instead. 'skip' (C19 wedge,
+    # SilverFox/Seaside_99: the note-load's `JSR sub_17FB` opcode patched
+    # $20->$2C = BIT) neuters the ENTIRE prep call — the fetch frame writes
+    # NOTHING (no TEST bit, no AD/SR); pending is still set so the note inits
+    # normally next frame, and the old note rings through the fetch frame.
+    # Distinct from 'none', which keeps the $08 TEST write (hr_test_write
+    # forced '' below).
     hard_restart = str(usf.params.fields.get('hard_restart', 'preset'))
-    if hard_restart == 'none':
+    if hard_restart in ('none', 'skip'):
         hard_restart_adsr = ''
     else:
         hr_val = 0x0F if hard_restart == 'preset' else int(hard_restart) & 0xFF
@@ -1048,6 +1054,11 @@ fx_dual_up:
                          '        lda #$00\n'
                          '        sta pwphase,x\n'
                          '        sta pwdir,x\n')
+    # 'skip' wedge: the whole `JSR sub_17FB` is neutered ($20->$2C BIT), so the
+    # fetch frame emits NO prep at all — drop the TEST write too (the ADSR was
+    # already dropped above). Overrides the hr_patch conditional TEST.
+    if hard_restart == 'skip':
+        hr_test_write = ''
     # CIA multispeed: when the original drives play() via a CIA1 timer
     # (PSID speed bit set), the rebuild programs the SAME timer A latch
     # so libsidplayfp calls OUR play() at the identical rate. 0 = VBI.

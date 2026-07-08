@@ -266,6 +266,10 @@ from pipelines.hubbard.commando.config import COMMANDO
 print(verify_all([(COMMANDO, 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sidfinity.sid')]))
 "
 
+# Build + verify ONE DMC family-1 / 2SID member (build helper — the family
+# batch only runs in bulk; wraps dmc_v4_config -> write_dmc_usf -> build_dmc_sid)
+python3 tools/dmc_build_one.py MUSICIANS/S/SilverFox/Seaside_99.sid --verify --localize
+
 # Extract smoke tests
 pytest pipelines/
 ```

@@ -1,5 +1,39 @@
 # DMC V4 — RE notes / migration log
 
+## ✅ ROUND 55 (2026-07-08): HARD-RESTART PREP-CALL SKIP wedge — Seaside_99 +9 partial → FULL (0 regr) [ledger C19 7th occurrence]
+Random f1 partial SilverFox/Seaside_99 (vblank, flat div 197). Per-IRQ diff
+(Trap-C-free) of V3: at the note-FETCH frame (irq13) the rebuild emits an EXTRA
+prep block `D412=08 (TEST) / D413=0F (AD) / D414=0F (SR)` that the orig LACKS;
+the note-INIT frame (irq14: real ADSR + gate $81) is byte-identical. The
+memwatch showed the orig's pending ($174C) going FF = hard-restart path TAKEN,
+which contradicted "no prep" — so pc-trace was the ground truth: `$11DB = 2c fb
+17 = BIT $17FB`, NOT the canon `20 fb 17 = JSR $17FB`. A 1-byte opcode patch
+($20->$2C) neuters the WHOLE prep call: `BIT` reads $17FB but writes nothing, so
+the fetch frame emits NO writes (sub_17FB's TEST $08 + AD/SR $0F0F all skipped),
+while $11E3 still sets pending so the note inits normally next frame and the old
+note rings through the fetch frame. A classic C19 hand-patched wedge, STATIC in
+the file image (confirmed: body byte $11DB=$2C). DISTINCT from `hard_restart=
+'none'` (family-2, which KEEPS the $08 TEST write) and the 5th-occurrence numeric
+preset wedge (patches sub_17FB's immediate; call intact). FIX:
+`factory._hr_prep_skip_probe` (STATIC opcode probe, reloc-aware base+offset;
+verifies the shape both sides — LDA #$08, the $17FB operand = base+$7FB, LDA
+#$FF) → the EXISTING `hard_restart` param, domain extended to a 4th value 'skip';
+composer suppresses BOTH `hr_test_write` AND `hard_restart_adsr` in `ev_n_hard`
+(also fixed the `int('skip')` crash by grouping 'skip' with 'none' in the ADSR
+branch). CENSUS TRAP: some carriers ALSO patch sub_17FB's first byte $99->$60
+(RTS) — irrelevant since the call is neutered, so the base-independent census
+keys on the call-site opcode + the reloc-invariant `op - code_start == $622`,
+NOT on sub_17FB's shape (my first census keyed on the sub_17FB `99/B9` and
+false-negatived ALL carriers). Census over all 5401 f1: exactly 9 carriers
+(Welcome_to_Egypt, Bayliss ×4, DaFunk ×2, SilverFox ×2), ALL partial (0 FULL
+exposure) => regression-safe by construction; ALL 9 partial -> FULL (fresh
+full-songlength verify). 0 f2 carriers. Also promoted the scratch build helper
+to `tools/dmc_build_one.py` (build one member -> .sid + .usf, --verify /
+--localize). LESSON (repeats round 50): when a derived value's memwatch/runtime
+disagrees with "what should happen", pc-trace the ACTUAL executed opcode — the
+canonical disassembly.s can be locally patched in a given member. f1 ≈ 5155
+FULL / 246 partial.
+
 ## ✅ ROUND 54 (2026-07-08): FIRST-NOTE DURATION = post-init $173E (init CLEARS it to 0), not the _Sticky default 1 — +3 FULL, 0 regr [ledger C11 note]
 Random f1 partial Harti/Klepkomania (vblank, flat div 53, sub3 only; 6/7 subs
 already FULL). First-div chase (play-split of the flat write stream): at play 4

@@ -7,6 +7,62 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 55 (2026-07-08): HARD-RESTART PREP-CALL SKIP wedge — Seaside_99 +9 partial → FULL (0 regr) [ledger C19 7th occurrence]
+Random f1 partial SilverFox/Seaside_99 (vblank, flat div 197). Per-IRQ diff
+(Trap-C-free) localized it: at the note-FETCH frame the rebuild emits an EXTRA
+prep block `D40x=08/0F/0F` (TEST+AD/SR) the orig LACKS; the note-INIT frame is
+byte-identical. Memwatch showed orig pending ($174C)=FF = hard-restart path
+TAKEN — contradicted "no prep" until pc-trace gave ground truth: `$11DB = 2c fb
+17 = BIT $17FB`, NOT canon `20 fb 17 = JSR $17FB`. 1-byte opcode patch $20->$2C
+neuters the WHOLE prep call (BIT reads $17FB, writes nothing → fetch frame emits
+NO writes; pending still set so note inits next frame normally). Classic C19
+STATIC wedge. DISTINCT from `hard_restart='none'` (family-2 keeps the $08 TEST)
+and the round-36 numeric preset wedge (patches sub_17FB's immediate). FIX:
+`factory._hr_prep_skip_probe` (STATIC opcode probe, reloc-aware, verifies shape
+both sides) → EXISTING `hard_restart` param, 4th value 'skip'; composer
+suppresses BOTH hr_test_write + hard_restart_adsr in ev_n_hard (+ grouped 'skip'
+with 'none' in the ADSR branch to avoid `int('skip')` crash). CENSUS TRAP: some
+carriers ALSO patch sub_17FB byte $99->$60 (RTS) — irrelevant (call neutered),
+so census keys on the call-site opcode + reloc-invariant `op-code_start==$622`,
+NOT sub_17FB's shape (first census keyed on sub_17FB `99/B9` → false-negatived
+ALL 9). Census over 5401 f1: exactly 9 carriers (Welcome_to_Egypt, Bayliss ×4,
+DaFunk ×2, SilverFox ×2), ALL partial (0 FULL exposure) => regression-safe by
+construction; **ALL 9 partial → FULL**. 0 f2 carriers. Full tools/regression.py
+GREEN. Promoted the scratch build helper to `tools/dmc_build_one.py` (build one
+member → .sid+.usf, --verify/--localize) — user-requested. LESSON (repeats
+round 50): when a derived value's memwatch/runtime disagrees with expected,
+pc-trace the ACTUAL executed opcode — disassembly.s can be locally patched per
+member. f1 ≈ 5155 FULL / 246 partial (per-round accounting; baseline STALE).
+
+## ✅ ROUND 54 (2026-07-08): FIRST-NOTE DURATION = post-init $173E (init CLEARS it to 0), not the _Sticky default 1 — +3 FULL, 0 regr — commit be656cad [ledger C11 note]
+Random f1 partial Harti/Klepkomania (vblank, flat div 53, sub3 only; 6/7 subs
+FULL). PLAY-SPLIT of the flat write stream: at play 4 orig emits V1's full block,
+rebuild SKIPS V1 (jumps to V2) — V1 goes inactive one play EARLY, its free-running
+PW-sweep phase shifts vs V2/V3 forever (counts off by exactly 5 = one V1 block;
+V1's own value stream byte-identical). ROOT: sub3 V1 = a single decorative note
+(`[inst15][note][$7F]`, NO `$80-$BF` dur command). note-load reads reload $173E,x;
+init's `$1718-$179D` wipe zeros `$173E-$1740`, so a first note before any dur
+command plays for reload 0 (`$173B` DECs 0->$FF = held 256-tick note). `_Sticky`
+seeded dur=1 -> too-short -> hit the `$FE` terminator one play early -> `$FE`
+handler RTSs (skips frame_entry) one frame sooner than orig. FIX (1 line,
+`_Sticky` default dur 1->0). py65 POST-INIT($173E)=0 all subtunes + empirical
+dur-sweep (0/32/63 FULL, 1/6 partial) confirm. REGRESSION-SAFE BY CONSTRUCTION: a
+first row preceded by a dur command has st.dur OVERWRITTEN -> byte-identical
+(FULL-side flip-set = **0 of 1200 f1 FULLs change build**). Evidence: partial
+flip-set 30/253 changed -> **+3 partial->FULL** (Klepkomania 7/7, Compod/Nocturno,
+Wodnik/Narwana) + 26 first-div moved DEEPER + 0 regressions; full
+tools/regression.py GREEN (0 regr all 7 families). TRAP (amend, ~1h): first seeded
+from durrel_init = FILE IMAGE ($173E=8) — WRONG (init clears to 0), regressed
+another Klepkomania subtune; the file image, the default 1, AND the libsidplayfp
+runtime memwatch ($173E=6, a py65/libsidplayfp during-play divergence) all misled
+— only py65 POST-INIT + the empirical sweep gave 0. LESSON (ledger C11): a
+first-event param read from ENGINE STATE that INIT CLEARS must seed from the
+POST-INIT value, not the file-image leftover. Left round-31 durrel priming
+untouched. NB f2 uses the same `_walk_track`/`_Sticky` — the fix likely helps f2
+bare-first-row partials too but was NOT swept this session (f2 portfolio canaries
+green). f1 last-known ≈ 5149 FULL (baseline STALE — per-round accounting, no fresh
+full sweep since round 48's `code_hash 0c127d5`; all wide-results rows pre-current-hash).
+
 ## ✅ ROUND 53 (2026-07-08): RESET-ALL-VOICES loop hook = loop-to-0 — Unfinished_1 +6 partial → FULL (0 regr) [ledger C13 new note]
 Random f1 partial Bakewell/Unfinished_1 (CIA 2x, otrk_legacy). Trichotomy
 first-div at play pos 140688/142224 (98.9%, ×1.1 loop-tail ~89s), state ✓: V1

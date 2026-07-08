@@ -1307,8 +1307,8 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
 - **Diagnosis tell:** runtime state ≠ file-image table byte while taint_source
   says the byte is STATIC ⇒ the READ SITE differs from canon — dump the
   operand/opcode at the canon site.
-- **Status:** CANONICALIZED (6 occurrences by round 50: DMC family-1 rounds
-  13 + 19 + 32 + 35 + 36 + 50). Canonical form: STATIC opcode probe (read the patched
+- **Status:** CANONICALIZED (7 occurrences by round 55: DMC family-1 rounds
+  13 + 19 + 32 + 35 + 36 + 50 + 55). Canonical form: STATIC opcode probe (read the patched
   instruction itself — never a bounded write-stream scan, which can
   false-negative on members that exercise the path only late) → factory
   `extra_params` → an existing/new composer param; census carriers on BOTH
@@ -1398,9 +1398,39 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   already carry the music). Census: 1 carrier, 5400 canonical (shift=4 =
   byte-identical) => regression-safe by construction. 20_Years_of_NOP
   partial -> FULL 294517/294517.
+- **7th occurrence (round 55, 2026-07-08):** the hard-restart prep-CALL SKIP
+  wedge (SilverFox/Seaside_99 + 8 more, 9 family-1 carriers). The note-load's
+  hard-restart primer `LDA #$08 / JSR sub_17FB / LDA #$FF` (base+$1D9..$1DF;
+  sub_17FB writes TEST $08 + AD/SR $0F0F on the fetch frame) has its JSR opcode
+  patched $20->$2C = `BIT $17FB`, neutering the ENTIRE call: the fetch frame
+  writes NOTHING (no TEST, no AD/SR), while pending (base+$4A) is still set so
+  the note inits normally next frame and the old note rings through the fetch
+  frame. Presents as the rebuild emitting an EXTRA 3-write prep block
+  (D40x=08/0F/0F) at each note-fetch frame that the orig lacks — localize
+  per-IRQ (Trap-C-free) so the extra writes don't smear across frame buckets;
+  the pc-trace ($11DB = `2c fb 17` not `20 fb 17`) is the ground truth (the
+  memwatch showed pending going FF = hard-restart path taken, which
+  contradicted "no prep" until the pc-trace revealed the neutered opcode).
+  Distinct from 'none' (family-2, keeps the $08 TEST write) and the numeric
+  preset wedge (5th occ, patches sub_17FB's immediate, call intact). Fix:
+  `factory._hr_prep_skip_probe` (STATIC opcode probe, reloc-aware base+offset,
+  verifies the shape both sides: LDA #$08, the sub_17FB operand = base+$7FB,
+  LDA #$FF) → the EXISTING `hard_restart` param, domain extended to a 4th value
+  'skip'; composer suppresses BOTH `hr_test_write` and `hard_restart_adsr` in
+  `ev_n_hard`. NB some carriers ALSO patch sub_17FB's first byte $99->$60 (RTS)
+  — irrelevant since the call is neutered, so the census keys on the call-site
+  opcode + the reloc-invariant `op - code_start == $622`, never on sub_17FB's
+  shape. Census over all 5401 f1: exactly 9 carriers (Welcome_to_Egypt, Bayliss
+  DMC_Collection_3_intro / DMC_V4_0_Collection_note / Tarkus_4K /
+  Snowball_Caper_2, DaFunk I_Dont_Need_Love / 3-Speed, SilverFox Poison_Girl /
+  Seaside_99), ALL partial (0 FULL exposure) => regression-safe by
+  construction; ALL 9 partial -> FULL. 0 f2 carriers.
 - **Consumers:** DMC v4 `factory._hr_patch_probe` + composer_asm
   hr_patch/hr_test_init gating; `factory._hold_gateoff_probe` →
-  `hold_gateoff` param; `factory._pw_hi_const_probe` → `pw_hi_const` param. Sibling of C18 (wrapper OUTSIDE the player) —
+  `hold_gateoff` param; `factory._pw_hi_const_probe` → `pw_hi_const` param;
+  `factory._hr_preset_probe` (numeric) + `factory._hr_prep_skip_probe`
+  ('skip') → the shared `hard_restart` param (domain
+  preset/none/numeric/skip). Sibling of C18 (wrapper OUTSIDE the player) —
   C19 is patches INSIDE the canon body. The round-14 $D418 play-vector prefix
   (`LDA #imm/STA $D418/JMP base+3`, factory `_d418_play_wrapper` →
   `d418_every_play`, +6 FULL, commit efbf639) is the degenerate stateless
