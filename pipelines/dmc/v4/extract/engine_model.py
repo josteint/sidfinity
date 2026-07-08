@@ -525,6 +525,51 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
         pos += 1
 
 
+def _loops_offimage(mem, secp_lo: int, secp_hi: int, tunetab: int,
+                    n_sub: int, load: int, loop_target: bool) -> bool:
+    """Does any voice's track LOOP to a sector whose pointer resolves BELOW the
+    load address (out of the file image)?
+
+    Such a sector reads RAM the file image doesn't hold — for the '$0000' case
+    (a $FF loop into a garbage sector number past the pointer table → $0000) the
+    engine sonifies live ZEROPAGE as note data (the 6510 I/O port $2F/$37 at
+    offset 0/1, then static zp). The file image is all-zero there, so the naive
+    decode is note-0-forever; the extract must instead read the runtime low RAM.
+    This is the detector that gates that capture. Follows each $FF once (mirrors
+    _walk_track) and reports on the FIRST out-of-image sector it reaches; a
+    normal in-image track returns False immediately (byte-identical build)."""
+    for sub in range(n_sub):
+        rec = tunetab + sub * 8
+        for vi in range(3):
+            tp = _rd16(mem, rec + vi * 2)
+            pos = 0
+            guard = 0
+            seen_loop = set()
+            while guard < 1024:
+                guard += 1
+                pos &= 0xFF
+                b = mem[(tp + pos) & 0xFFFF]
+                if b == 0xFE:
+                    break
+                if b == 0xFF:
+                    tgt = mem[(tp + ((pos + 1) & 0xFF)) & 0xFFFF] if loop_target \
+                        else 0
+                    if tgt in seen_loop:
+                        break
+                    seen_loop.add(tgt)
+                    pos = tgt
+                    continue
+                if b >= 0x80:              # transpose byte, not a sector number
+                    pos += 1
+                    continue
+                sec_addr = mem[(secp_lo + b) & 0xFFFF] | \
+                    (mem[(secp_hi + b) & 0xFFFF] << 8)
+                if sec_addr < load:
+                    return True
+                pos += 1
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Instruments / wave / filter
 # ---------------------------------------------------------------------------
@@ -796,6 +841,34 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     )
 
     m.idle_wave = _slice_wave(ctrl_tab, freq_tab, 0, n_wave)
+
+    # OUT-OF-IMAGE loop sector ($0000 bucket): a $FF track loop lands on a
+    # garbage sector number past the pointer table whose pointer is $0000, so
+    # the sector reads live ZEROPAGE as note data. The file image is all-zero
+    # below the load address, so the naive decode is note-0-forever; the engine
+    # actually plays the 6510 I/O port ($00=$2F DDR, $01=$37 port under the PSID
+    # environment) then static zp bytes. Capture that low RAM from libsidplayfp
+    # (py65 can't reproduce the environment's zeropage — ledger C9) and overlay
+    # it so _walk_track / _simulate_sector read what the engine reads (C26: read
+    # the runtime RAM, not the image). Gated on an out-of-image loop, so every
+    # in-image track is byte-identical (the overlay only touches $00-$FF, which
+    # nothing else reads). Regression-safe by construction: a played out-of-image
+    # sector was always mis-decoded (image zeros != runtime), so any member this
+    # changes was already non-FULL; an unplayed sector's decode never reaches the
+    # write-log.
+    if _loops_offimage(mem, secp_lo, secp_hi, tunetab, s.get('songs', 1),
+                       s['load'], cfg.track_loop_target):
+        zpvals = _postinit_values(path, list(range(0x100)))
+        for a in range(0x100):
+            mem[a] = zpvals.get(a, 0)
+        # 6510 processor port: reads return the port register, not RAM. Standard
+        # PSID reset = DDR $2F / port $37 (this tune never banks; confirmed by
+        # pc-trace [0000]{2f}/[0001]{37}).
+        mem[0x00], mem[0x01] = 0x2F, 0x37
+        # the sector pointer ($F8/$F9) holds the sector base ($0000) during the
+        # read, so those two offsets read $00 (not the post-play snapshot value).
+        mem[0xF8], mem[0xF9] = 0x00, 0x00
+
     # decode subtunes; collect referenced instruments + filter defs as
     # they surface
     used_instr = set()

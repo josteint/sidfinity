@@ -354,6 +354,11 @@ def _build_tasks() -> list:
                 'MUSICIANS/B/Bakewell_Dwayne/Fury.sid',
                 'MUSICIANS/M/MAC2/Bells_Are_Sounding.sid'):
         add('dmc', sid.split('/')[-1][:24], 'cfg', sid, grp2)
+    # ledger C29: a track $FF loop into an out-of-image ($0000) sector that
+    # sonifies live zeropage — guards the libsidplayfp low-RAM overlay path.
+    add('dmc', 'Centric_tune_4_v8', 'cfg',
+        'MUSICIANS/P/PVCF/Worktunes/Centric_tune_4_version_8.sid',
+        'DMC family-1 out-of-image loop sector (ledger C29):')
     bpf = os.path.join(os.path.dirname(__file__), 'basic_program_regression_portfolio.json')
     if os.path.exists(bpf):
         grp = 'Basic_Program portfolio (round-trip feature-cover):'

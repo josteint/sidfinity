@@ -7,6 +7,43 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 56 (2026-07-08): OUT-OF-IMAGE loop sector = engine sonifies live ZEROPAGE — Killer_Beat +4 GENUINE partial → FULL (0 regr) [ledger C29 NEW]
+Random f1 partial Mephisto/Killer_Beat (vblank, flat div 93464 = 77%). V1 plays
+note47/note55 where reb plays note0, then both re-sync on the C-0 outro (a clean
+2-note substitution deep in the song; the notes are ABSENT from any V1 pattern).
+ROOT: V1's track ends `$FF`(loop)@pos39, next byte $A0=160 (track_loop_target,
+CORRECT per memwatch otrk 39→160); track pos 160 = sector 26 whose ptr =
+**$0000** (garbage sector# past the ptr table). File image is $00 below load, so
+the extract decoded 256×note-0; but at RUNTIME the sector reads live ZEROPAGE via
+`($F8),y`=$0000 → pc-trace `[0000]{2F}`=note47, `[0001]{37}`=note55 = the 6510
+I/O port (DDR $2F/port $37, PSID env defaults), then static zp ($67=instr-7 +
+$1C=note28 → the $FF00 off-table region). taint (160s): ONLY $F8/$F9 written, and
+those read $00 from V1's own $0000 ptr → the whole outro is STATIC/reproducible.
+FIX (ledger C29, extract-side): `_loops_offimage` gate ($FF loop → sector<load) →
+capture runtime low-RAM `_postinit_values(range(0x100))` (libsidplayfp; py65
+can't reproduce env zp = C9) → overlay onto `mem` before `_walk_track` with
+mem[$00/$01]=$2F/$37 (port, not RAM-under-it) + mem[$F8/$F9]=$00 (sector base).
+off-table reach model auto-captures note28/instr7→$FF00. REGRESSION-SAFE BY
+CONSTRUCTION: overlay only changes the decode of out-of-image sectors, which hits
+the write-log only if PLAYED — a played out-of-image sector was ALWAYS
+mis-decoded (image≠runtime) ⟹ member non-FULL; unplayed decode = byte-identical
+(no-OOB FULL builds identical MD5; full tools/regression.py green 0-regr all 7
+families). CENSUS (44 f1 STORED-partials carry the signature; batch flipped 14, but
+re-baselining vs PARENT b81785e5 — amend Step 3.4 / C20 — gives **4 GENUINE
+partial → FULL**: Killer_Beat 121386/121386, Axel_Foley, Remix_1995, PVCF
+Centric_tune_4). The other 10 batch-FULLs (9× Flash + Wodnik Narwana) were
+ALREADY FULL under parent = stale palimpsest rows predating round 55; my overlay
+is neutral (their OOB sector is UNPLAYED → byte-identical). 29 stay partial;
+1 pre-existing 2SID-multisubtune error (Leprechaun_Boot_V1_2SID, exonerated vs
+parent build). Resolves the RE_NOTES bucket-8 "sector at $0000 never ends" class
+for the static-zp majority. LESSONS: (1) a deep 2-note substitution that
+RE-SYNCS = a loop-target/sector-ptr bug — trace otrk (memwatch) + pc-trace the
+($F8),y effective address; if it lands in zeropage the engine sonifies the
+ENVIRONMENT (taint static-vs-dynamic, read runtime RAM not file image).
+(2) C20 re-confirmed: the stored jsonl before-status is NOT a baseline — 10 of
+the 14 batch-FULLs were palimpsests already FULL under parent; ALWAYS re-verify
+apparent flips vs a fresh PARENT-code build before counting.
+
 ## ✅ ROUND 55 (2026-07-08): HARD-RESTART PREP-CALL SKIP wedge — Seaside_99 +9 partial → FULL (0 regr) [ledger C19 7th occurrence]
 Random f1 partial SilverFox/Seaside_99 (vblank, flat div 197). Per-IRQ diff
 (Trap-C-free) localized it: at the note-FETCH frame the rebuild emits an EXTRA

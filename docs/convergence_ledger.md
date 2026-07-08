@@ -101,6 +101,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | song data ABSENT from file image · init generates/unpacks tables in RAM · operands point outside the loaded image · extract from POST-INIT RAM (py65), all-or-nothing signature · banking-wrapper JT-less base from the wrapper JSR target | C26 | logged |
 | multi-SID (2SID/3SID) · N chips, one player each behind a dispatch wrapper · players run sequentially -> merged log = [chip1][chip2] · extract/compose/verify each with single-chip machinery, chip-TAGGED (reg=chip*$20+reg) · voices number through chips, addresses are pipeline constants not USF | C27 | logged |
 | multi-SID VERDICT · rebuild is per-chip correct but the merged chip-tagged stream diverges on a CROSS-CHIP adjacency (chip1 vs chip2 write order) · cross-chip order is physically UNobservable (independent hardware, Trap-B analogue) · split by reg//0x20, require each chip's substream to pass · compare_instruction_stream(n_chips=N) · do NOT chase cycle precision / straddle-free capture | C28 | logged |
+| track $FF loop into an OUT-OF-IMAGE sector (garbage sector# past the ptr table → $0000) · engine sonifies live ZEROPAGE as notes (6510 port $00=$2F/$01=$37 then static zp, read via ($F8),y=$0000) · extract overlays libsidplayfp runtime low-RAM (C9, py65 can't reproduce env zp) gated on _loops_offimage · port + $F8/$F9 read-time corrections · regr-safe: unplayed decode = byte-identical | C29 | logged |
 
 ---
 
@@ -1828,3 +1829,61 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
 - **Status:** logged (1×, DMC Nice_Dream_2SID: match 3221 -> 63496 writes;
   full regression green, single-chip byte-identical). Generalises to all
   314 2SID + 27 3SID corpus members (per-chip works for n_chips=3).
+
+### C29 — Track LOOP into an OUT-OF-IMAGE sector → engine sonifies live ZEROPAGE as notes
+
+- **Problem shape:** a voice's track (orderlist) hits its `$FF` loop marker,
+  and the loop-target position holds a garbage sector number PAST the
+  sector-pointer table, so `secp_lo[n]|secp_hi[n]<<8` resolves to `$0000` (or
+  another address below the load addr). The file image is all-zero there, so the
+  naive sector decode is "note-0 forever"; the ORIGINAL, at runtime, reads live
+  LOW RAM as note data — for the `$0000` case that is the 6510 I/O port
+  (`$00=$2F` DDR / `$01=$37` port, the PSID environment defaults) then static
+  zeropage, read via `LDA ($F8),y` with the sector pointer `$F8/$F9=$0000`. The
+  write stream plays notes `$2F`(=47), `$37`(=55), then the static zp bytes as
+  notes/prefixes — a real, reproducible outro, NOT a bug to clamp (strict
+  write-stream policy). Presents as a deep first-divergence: a voice plays two
+  "impossible" high notes then a held low note, where the rebuild plays note-0.
+- **Canonical fix (extract-side; C26 shape but from LIBSIDPLAYFP not py65):**
+  read what the engine reads. Gated on `_loops_offimage` (a `$FF` loop reaching
+  a sector `< load`), capture the runtime low RAM
+  (`_postinit_values(path, range(0x100))` — py65 CANNOT reproduce the
+  emulator ENVIRONMENT's zeropage, ledger C9) and OVERLAY it onto the
+  file-image `mem` before `_walk_track`, with two read-time corrections:
+  (a) 6510 port offsets `$00/$01 = $2F/$37` (memwatch reads the RAM UNDER the
+  port, not the port register — hardcoded PSID reset value, pc-trace-confirmed
+  `[0000]{2f}`/`[0001]{37}`); (b) sector pointer `$F8/$F9 = $00` (during the
+  read they hold the `$0000` base). `_simulate_sector` then decodes the true
+  endless outro; the off-table reach model picks up the new notes/instruments
+  automatically (Killer_Beat's `$FF00` region = instr-7 note-28 off-table freq).
+- **Regression-safe BY CONSTRUCTION:** the overlay only changes the DECODE of
+  out-of-image sectors, and a sector's decode only affects the write-log if it
+  is PLAYED. A played out-of-image sector was always mis-decoded (image zeros ≠
+  runtime), so any member the change touches was already non-FULL; an unplayed
+  sector's decode change is byte-identical. The overlay writes only `$00-$FF`,
+  which nothing else in the extract reads → no FULL can regress (proven: full
+  `tools/regression.py` green 0-regr all 7 families; a no-OOB FULL builds
+  byte-identical MD5 old-vs-new).
+- **Combines** C26 (out-of-image data → read runtime RAM) + C9 (py65 can't
+  reproduce the environment → measure from libsidplayfp). Distinct from C26's
+  init-UNPACKER (there the member's OWN init generates the tables and py65 runs
+  it); here the sonified bytes are the EMULATOR ENVIRONMENT's zeropage + the
+  6510 port, which only libsidplayfp holds.
+- **Boundary / residue:** works when the sonified low RAM is STATIC during play
+  (taint-confirm `$0000-$00FF`: for the DMC player only `$F8/$F9` are written,
+  and those read `$00` from the voice's own `$0000` sector pointer). A member
+  whose sonified zp region has a byte WRITTEN during play (dynamic) keeps that
+  byte wrong (defaulted 0) = honest residue; the first divergence still moves
+  deeper (Lens 3 win). Off-table dynamic residue + the 2SID multi-subtune
+  limit (unrelated) account for the 29 members that stayed partial.
+- **Status:** logged (1×, DMC family-1). Census: 44 f1 STORED-partials carry the
+  signature; the batch flipped 14 to FULL, but re-baselining each against the
+  PARENT commit (b81785e5, amend Step 3.4 / C20) shows **4 GENUINE partial → FULL**
+  — Killer_Beat (121386/121386), Axel_Foley, Remix_1995, Centric_tune_4 — while
+  the other 10 (9 Flash + Narwana) were ALREADY FULL under parent (stale
+  palimpsest rows predating round 55; my overlay is neutral for them = their
+  out-of-image sector is UNPLAYED in the verify window → byte-identical). 29 stay
+  partial, 1 pre-existing 2SID-multisubtune error (exonerated vs a parent build).
+  0 regressions (full tools/regression.py green). LESSON (re-confirms C20): the
+  stored jsonl before-status is NOT a trustworthy baseline — re-verify each
+  apparent flip against a fresh PARENT-code build before counting it.

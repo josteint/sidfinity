@@ -1,5 +1,51 @@
 # DMC V4 — RE notes / migration log
 
+## ✅ ROUND 56 (2026-07-08): OUT-OF-IMAGE loop sector = engine sonifies live ZEROPAGE — Killer_Beat +4 GENUINE partial → FULL (0 regr) [ledger C29 NEW]
+Random f1 partial Mephisto/Killer_Beat (vblank, flat div 93464 = 77%). V1 plays
+note47(B-3)/note55(G-4) where reb plays note0(C-0), then both re-sync on the
+C-0 outro — a clean 2-note substitution deep in the song, notes ABSENT from any
+V1 pattern. ROOT: V1's track (orderlist) ends with `$FF` (loop) at pos 39; the
+byte after is `$A0`=160 (track_loop_target=True, CORRECT — memwatch confirms
+orig otrk 39→160), and track pos 160 holds byte `$1A`=sector 26, whose pointer
+`secp[26]` = **$0000** (a garbage sector# past the pointer table). The file
+image is all-$00 below load ($1000), so the extract decoded 256×note-0; but at
+RUNTIME the sector reads live ZEROPAGE via `LDA ($F8),y` with $F8/$F9=$0000 →
+pc-trace ground truth `[0000]{2F}`(=note47), `[0001]{37}`(=note55) = the 6510
+I/O port (DDR $2F / processor port $37, PSID env defaults), then static zp bytes
+(note0, then `$67`=instr-7 prefix + `$1C`=note28 → the `$FF00` off-table region).
+taint_source over 160s: only $F8/$F9 written during play, and those read $00
+from V1's own $0000 sector ptr → the whole sonified outro is STATIC/reproducible.
+FIX (ledger C29, extract-side): `_loops_offimage` gate (a $FF loop reaching a
+sector `< load`) → capture runtime low-RAM via `_postinit_values(range(0x100))`
+(libsidplayfp; py65 can't reproduce env zp = C9) → overlay onto `mem` before
+`_walk_track`, with read-time corrections mem[$00/$01]=$2F/$37 (port, not the
+RAM under it) + mem[$F8/$F9]=$00 (sector base). `_simulate_sector` decodes the
+true endless outro; the off-table reach model auto-captures the new note28/
+instr7 → $FF00. Killer_Beat FULL 121386/121386 (V1+V2 both loop $0000; V3
+in-image). REGRESSION-SAFE BY CONSTRUCTION: overlay only changes the decode of
+out-of-image sectors, which only affects the write-log if PLAYED — a played
+out-of-image sector was always mis-decoded (image≠runtime) so its member was
+non-FULL; unplayed decode = byte-identical (a no-OOB FULL builds identical MD5;
+full tools/regression.py green 0-regr all 7 families). CENSUS (44 f1
+STORED-partials carry the signature; the batch flipped 14 to FULL, but
+re-baselining each vs the PARENT commit b81785e5 — amend Step 3.4 / ledger C20 —
+gives **4 GENUINE partial → FULL**: Killer_Beat, Axel_Foley, Remix_1995, PVCF
+Centric_tune_4_v8). The other 10 batch-FULLs (9× Flash [Illusion/Keepsake/
+Last_Days/Mozart/Nice/Reallight/Shattered_Past/Together/Worm] + Wodnik Narwana)
+were ALREADY FULL under parent — their stored 'partial' rows are stale
+palimpsests predating round 55; my overlay is neutral for them (their
+out-of-image sector is UNPLAYED in the verify window → byte-identical). 29 stay
+partial (dynamic-zp / deeper blockers); 1 pre-existing error (Rayden
+Leprechaun_Boot_V1_2SID = 2SID + 3 subtunes, to_usf merge single-subtune-only —
+exonerated vs a parent build). This is the RE_NOTES bucket-8 "sector at $0000
+never ends" class, now RESOLVED for the static-zp majority. LESSONS: (1) a deep
+2-note substitution that re-syncs = a LOOP-target/sector-pointer bug — trace otrk
+(memwatch) + pc-trace the actual `($F8),y` effective address; when it lands in
+zeropage, the engine is sonifying the environment (taint-classify static vs
+dynamic, read the runtime RAM not the file image). (2) C20 re-confirmed: the
+stored jsonl before-status is NOT a baseline — re-verify each apparent flip vs a
+FRESH PARENT-code build before counting (10 of the 14 were palimpsests).
+
 ## ✅ ROUND 55 (2026-07-08): HARD-RESTART PREP-CALL SKIP wedge — Seaside_99 +9 partial → FULL (0 regr) [ledger C19 7th occurrence]
 Random f1 partial SilverFox/Seaside_99 (vblank, flat div 197). Per-IRQ diff
 (Trap-C-free) of V3: at the note-FETCH frame (irq13) the rebuild emits an EXTRA
