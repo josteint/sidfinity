@@ -92,6 +92,10 @@ def run_member(rel: str) -> dict:
             except DMCV4Unsupported as e:
                 return {'path': rel, 'status': 'unsupported',
                         'reason': e.reason, 'detail': e.detail[:80]}
+        # Multi-SID: each chip is independent hardware, so the verdict compares
+        # each chip's write stream on its own (cross-chip write order is
+        # unobservable). n_chips drives the per-chip comparison + localization.
+        nchips = len(cfgs2) if cfgs2 is not None else 1
         orig = os.path.join(hvsc, rel)
         with tempfile.TemporaryDirectory() as td:
             durs = get_durations(orig, _db)
@@ -135,7 +139,8 @@ def run_member(rel: str) -> dict:
                     if cia:
                         ctol = max(176, 256 * max(1, round(len(a) / (dur * 50.0))))
                     r = compare_instruction_stream(a, b, mode='trichotomy',
-                                                   close_tol=ctol)
+                                                   close_tol=ctol,
+                                                   n_chips=nchips)
                     is_full = bool(r['is_full'])
                     # PLAYBACK-SAFETY GATE: a recovery admitted ONLY by the
                     # scaled CIA tolerance (tail > the base 176) is accepted iff
@@ -169,17 +174,26 @@ def run_member(rel: str) -> dict:
                         # already DROPS the init prefix, so no frame-0 skip.
                         if flat_div is None:
                             skip0 = 0 if cia else 1
-                            fla = [(w[1], w[2]) for k, fr in enumerate(a)
-                                   if k >= skip0 for w in fr]
-                            flb = [(w[1], w[2]) for k, fr in enumerate(b)
-                                   if k >= skip0 for w in fr]
-                            mm = 0
-                            lim = min(len(fla), len(flb))
-                            while mm < lim and fla[mm] == flb[mm]:
-                                mm += 1
-                            if mm < lim:
-                                flat_div = [sub, mm, fla[mm][0], fla[mm][1],
-                                            flb[mm][1]]
+                            # Per-chip flat localization (chip = reg // 0x20);
+                            # single-chip = chip 0 only. Cross-chip order isn't
+                            # a divergence, so scan each chip's own stream and
+                            # report the first chip that actually diverges.
+                            for ch in range(nchips):
+                                lo, hi = ch * 0x20, ch * 0x20 + 0x20
+                                fla = [(w[1], w[2]) for k, fr in enumerate(a)
+                                       if k >= skip0 for w in fr
+                                       if lo <= w[1] < hi]
+                                flb = [(w[1], w[2]) for k, fr in enumerate(b)
+                                       if k >= skip0 for w in fr
+                                       if lo <= w[1] < hi]
+                                mm = 0
+                                lim = min(len(fla), len(flb))
+                                while mm < lim and fla[mm] == flb[mm]:
+                                    mm += 1
+                                if mm < lim:
+                                    flat_div = [sub, mm, fla[mm][0],
+                                                fla[mm][1], flb[mm][1]]
+                                    break
                 return subs, ok, first_diff, flat_div
 
             subs, ok, first_diff, flat_div = build_and_verify()

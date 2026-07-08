@@ -410,8 +410,24 @@ def _trichotomy_compare(fa: list, fb: list, close_tol: int = 176,
 def compare_instruction_stream(a: list[Frame], b: list[Frame],
                                 skip_init: bool = True,
                                 mode: str = 'legacy',
-                                close_tol: int = 176) -> dict:
+                                close_tol: int = 176,
+                                n_chips: int = 1) -> dict:
     """Compare the (reg, val) sequence the SID receives in two runs.
+
+    `n_chips > 1` (multi-SID: 2SID/3SID) compares EACH chip's stream
+    independently and reports full iff every chip is full. Two SID chips are
+    independent hardware, so the ORDER of a write to chip 1 vs chip 2 within a
+    frame is physically unobservable — the merged chip-tagged stream (reg =
+    chip*0x20 + reg&0x1F) must NOT be prefix-compared directly, or an inaudible
+    cross-chip reorder reads as a divergence (e.g. Nice_Dream_2SID redirects
+    chip 2's res write onto chip 1's $D417, whose position relative to chip 2's
+    body the cycle-sorted merge places inconsistently between orig and rebuild).
+    Splitting by chip removes cross-chip order from the verdict while keeping
+    every within-chip order and value fully checked. On a failing chip the
+    returned dict carries THAT chip's localisation fields; when all pass, the
+    tail/audio-safety fields are aggregated conservatively (worst tail, AND of
+    audio_guaranteed) so a caller's playback-safety gate still sees the worst
+    chip.
 
     Two modes:
 
@@ -452,6 +468,30 @@ def compare_instruction_stream(a: list[Frame], b: list[Frame],
     The `skip_init` argument is honored in legacy mode only; it
     has no effect in `play_plus_state` mode.
     """
+    if n_chips > 1:
+        def _chip(frames, ch):
+            lo, hi = ch * 0x20, ch * 0x20 + 0x20
+            return [[w for w in fr if lo <= w[1] < hi] for fr in frames]
+        rs = [compare_instruction_stream(_chip(a, ch), _chip(b, ch),
+                                         skip_init=skip_init, mode=mode,
+                                         close_tol=close_tol)
+              for ch in range(n_chips)]
+        fail = next((r for r in rs if not r['is_full']), None)
+        if fail is not None:
+            agg = dict(fail)                 # localise on the failing chip
+            agg['is_full'] = False
+        else:
+            agg = dict(rs[0])
+            if mode == 'trichotomy':
+                # Conservative aggregation for the caller's safety gates.
+                agg['audio_guaranteed'] = all(r['audio_guaranteed'] for r in rs)
+                worst = max(rs, key=lambda r: abs(r['len_post_a']
+                                                  - r['len_post_b']))
+                agg['len_post_a'] = worst['len_post_a']
+                agg['len_post_b'] = worst['len_post_b']
+        agg['per_chip_full'] = [r['is_full'] for r in rs]
+        return agg
+
     flat_all_a = [(reg, val) for frame in a for _, reg, val in frame]
     flat_all_b = [(reg, val) for frame in b for _, reg, val in frame]
     flat_post_a = [(reg, val) for k, frame in enumerate(a)

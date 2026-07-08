@@ -101,6 +101,20 @@ def _is_cia_subtune(speed: int, st: int) -> bool:
     return bool((speed >> min(st, 31)) & 1)
 
 
+def _n_chips(sid_path: str) -> int:
+    """Number of SID chips (1/2/3) from the PSID/RSID v3+ header's
+    secondSIDAddress/thirdSIDAddress bytes (0 = chip absent). v2/v1 headers
+    are always single-chip. Used to route multi-SID tunes through the
+    per-chip verdict (see _music_ok_multichip)."""
+    with open(sid_path, 'rb') as f:
+        h = f.read(0x7C)
+    if len(h) < 0x7C or h[:4] not in (b'PSID', b'RSID'):
+        return 1
+    if ((h[4] << 8) | h[5]) < 3:                 # version < 3: single SID
+        return 1
+    return 1 + (1 if h[0x7A] else 0) + (1 if h[0x7B] else 0)
+
+
 def _capture_music(args):
     """One music subtune -> its captured write-log frames (via siddump,
     libsidplayfp ground truth). The original is captured in its native
@@ -139,6 +153,30 @@ def _music_ok(orig_frames, reb_frames) -> bool:
     # not a snapshot fudge.
     close = abs(r['len_all_a'] - r['len_all_b']) <= 64
     return overlap_ok and close
+
+
+def _music_ok_multichip(orig_frames, reb_frames, n_chips: int) -> bool:
+    """Write-log verdict for a multi-SID (2SID/3SID) subtune: each chip's
+    own $D400-$D418 write stream must pass the single-chip _music_ok verdict.
+
+    The capture merges every chip into one cycle-ordered stream, each write
+    tagged reg = chip*0x20 + (reg & 0x1F). We split it back by chip and
+    compare each chip independently. This is correct AND necessary: two SID
+    chips are independent hardware, so the ORDER of a write to chip 1 vs a
+    write to chip 2 within a frame is physically UNobservable (each chip
+    evolves only from its own writes) — the merged flat stream's cross-chip
+    interleaving is not signal. Comparing the merged stream flat would fail
+    on inaudible cross-chip reorders (e.g. Nice_Dream_2SID redirects chip 2's
+    res write onto chip 1's $D417, whose position relative to chip 2's body
+    the cycle-sorted merge places inconsistently). Within-chip order and every
+    value are still checked in full, so nothing real is masked."""
+    for ch in range(n_chips):
+        lo, hi = ch * 0x20, ch * 0x20 + 0x20
+        o = [[w for w in fr if lo <= w[1] < hi] for fr in orig_frames]
+        b = [[w for w in fr if lo <= w[1] < hi] for fr in reb_frames]
+        if not _music_ok(o, b):
+            return False
+    return True
 
 
 def _checksum_digi(args):
@@ -206,6 +244,7 @@ def verify_all(engine_jobs, passes: float = 1.5,
         plan[config.name] = []
         digi_set = set(config.digi_subtunes or ())
         speed = _cia_speed(config.sid_path)
+        n_chips = _n_chips(config.sid_path)     # >1 => per-chip verdict
         for st, nf in enumerate(subtune_frames(config, passes, min_frames)):
             is_digi = st in digi_set
             # CIA-timed (non-digi) subtunes verify per-play() (Trap C); vblank
@@ -227,7 +266,7 @@ def verify_all(engine_jobs, passes: float = 1.5,
                                     (rb_key, rebuilt, rb_frsid)):
                 if key not in cache and key not in need:
                     need[key] = (sid, nf, st, frsid)
-            plan[config.name].append((st, ok_key, rb_key, kind))
+            plan[config.name].append((st, ok_key, rb_key, kind, n_chips))
 
     if need_music or need_music_irq or need_digi:
         with Pool(jobs) as pool:
@@ -255,9 +294,13 @@ def verify_all(engine_jobs, passes: float = 1.5,
     out = {}
     for name, subs in plan.items():
         results = []
-        for st, ok_key, rb_key, kind in subs:
+        for st, ok_key, rb_key, kind, n_chips in subs:
             if kind == 'digi':
                 ok = cache[ok_key] == cache[rb_key]
+            elif n_chips > 1:
+                # Multi-SID: compare each chip's stream independently
+                # (cross-chip write order is physically unobservable).
+                ok = _music_ok_multichip(cache[ok_key], cache[rb_key], n_chips)
             else:
                 # 'music_wl' (flat per-frame) and 'music_irq' (per-play(),
                 # init dropped) both yield Frame lists compared by the same
