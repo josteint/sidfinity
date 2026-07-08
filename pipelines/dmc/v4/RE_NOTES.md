@@ -1,5 +1,42 @@
 # DMC V4 — RE notes / migration log
 
+## ✅ ROUND 57 (2026-07-08): play-phase F misread as R on a HELD note — frame-entry reachability for the offset-blind observers — My_Rusty_Love_C64 +1 partial → FULL (0 regr) [ledger C18 new note]
+Random f1 partial Psych858o/My_Rusty_Love_C64 (CIA 6x, re-assembled layout,
+canon route rejects no_jumptable → dataflow). Trichotomy (per-IRQ): play_match
+1287, state ✗ — at the first HELD note the orig re-asserts `V1 AD=$00/SR=$00`
+EVERY play() call while the rebuild does it only on a `✓✓✗✓✗✗` 6-cycle.
+V1-block segmentation of the flat stream showed orig blocks n=7 (with AD/SR)
+vs reb alternating n=7/n=5. ROOT: the member's wrapper `$26CA` runs full play
+every 6th call and `$1006→$1937→$18F1` on the rest — `$18F1` = a 5-sub-phase
+dispatcher with per-voice MASK tables (V1 `[1,1,1,1,1]`, V3 `[0,0,1,1,1]`)
+whose per-voice call is `JSR $1944 = JMP $11FA` = the FULL frame entry (this
+re-assembled variant shifts it +1 off canon $11F9; state arrays individually
+re-laid-out too, pwstep base $175A). So the truth is `P_F1_F1_F13_F13_F13` —
+but the offset-blind writes-observer's chip-state R/F rule read
+`P_F1_R1_F13_R13_R13`: a HELD note's frame entry emits only IDEMPOTENT writes
+(freq/PW/ctrl re-emit held values) for the whole 12-call window, so nothing
+"advances" and the calls false-read as R; the composer's R emission
+(glide+write tail) then drops exactly the holding gate-off `AD/SR=$00`
+(sub_17EC fires every call while the duration counter sits at 1 — dur DECs
+only on TICK frames, so slow tempos hold it at 1 for many calls). FIX (ledger
+C18 note — restore the CANONICAL entry-reachability form on the offset-blind
+paths): `_frame_entry_candidates` locates the frame entry BY SHAPE
+(`bd ?? ?? d0 03 4c` = `LDA pending,X / BNE +3 / JMP`); the py65 writes
+observer watches those PCs per call, the pctrace fallback gets a `watch_pcs`
+param on `pctrace_per_play_capture`; F iff (frame-entry reached OR chip-state
+advanced) — a true refresh reaches no frame entry and can never advance, so
+no false F (round-53 lesson: detect the minority form positively, don't flip
+the default). EXPOSURE: 25 stored R-token FULLs corpus-wide (Finn ×20,
+Bakewell Toccata/Big_City, Quick_Tune_2, Demora, Use_Me) — all genuinely
+tail-only wrappers, tokens unchanged, 3 rebuilt byte-identical; flip census
+over all 236 current f1 partials = exactly 1 carrier (My_Rusty_Love → FULL
+388489/388489 state ✓); 1 py65-None partial (Cow_Anus_Fucked_2SID) → pctrace
+None both ways. Full tools/regression.py green. METHOD: the CIA flat pos-0
+artifact again — localize per-IRQ; then segment the flat stream into
+PER-VOICE BLOCKS (ctrl closes a block) and diff block SHAPES (has-AD/SR, n)
+— it turned 386k writes into a one-glance `✓✓✗✓✗✗` phase pattern that named
+the wrapper period immediately. f1 ≈ 5156 FULL / 245 partial.
+
 ## ✅ ROUND 56 (2026-07-08): OUT-OF-IMAGE loop sector = engine sonifies live ZEROPAGE — Killer_Beat +4 GENUINE partial → FULL (0 regr) [ledger C29 NEW]
 Random f1 partial Mephisto/Killer_Beat (vblank, flat div 93464 = 77%). V1 plays
 note47(B-3)/note55(G-4) where reb plays note0(C-0), then both re-sync on the

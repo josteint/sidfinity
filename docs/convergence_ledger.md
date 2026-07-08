@@ -1278,9 +1278,32 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   period fit on the collapsed F/R key. Empirically 0-drift: all 86 stored
   play_phases/cia_period carriers (incl. Compotune's genuine
   P_R123_R123_R123) reproduce identically. Supersedes the majority rule.
+- **FRAME-ENTRY REACHABILITY for the offset-blind observers (2026-07-08,
+  My_Rusty_Love_C64 +1 FULL, 0 regr):** the chip-state rule alone still
+  false-reads a HELD note's frame entry as R — ALL its writes are idempotent
+  for the whole observation window (freq/PW/ctrl re-emit the held values), so
+  nothing "advances", yet the orig runs the FULL frame entry every call and
+  re-asserts the holding gate-off `AD/SR=$00` (sub_17EC) whenever the duration
+  counter sits at 1. The rebuild's R emission (glide+write tail) drops exactly
+  those writes (My_Rusty_Love: re-assembled 6x-CIA member, wrapper `$18F1`
+  = per-sub-phase VOICE-MASK tables driving `JMP $11FA` = full frame entry;
+  misread `P_F1_R1_F13_R13_R13`, truth `P_F1_F1_F13_F13_F13`). FIX = restore
+  the CANONICAL C18 form (entry reachability) on the offset-blind paths:
+  locate the frame entry BY SHAPE (`LDA pending,X / BNE +3 / JMP` = `bd ?? ??
+  d0 03 4c`, `factory._frame_entry_candidates` — re-assembled variants shift
+  it off canon base+$1F9, e.g. $11FA) and classify F POSITIVELY iff the call
+  reaches a candidate, OR-ed with the chip-state advance (kept as fallback for
+  shapes the signature misses; a true refresh reaches no frame entry and can
+  never advance ⇒ still no false F). Wired in `_observe_play_phases_writes`
+  (py65 PC watch) + `_observe_play_phases_pctrace` (pc-trace `watch_pcs`).
+  Exposure proof: 25 stored R-token FULLs (Finn ×20, Bakewell ×2, +3) all
+  genuinely never reach a frame entry → tokens unchanged, builds
+  byte-identical; flip census over all 236 f1 partials = exactly 1 carrier
+  (My_Rusty_Love, → FULL 388489/388489 state ✓). Round-53 lesson applied:
+  detect the minority (F-behind-R-disguise) positively; never flip a default.
 - **Status:** logged (DMC family-1, 2026-07-02: P/F/S round +5 FULL, R round
   +26 FULL → 4198/5401; 2026-07-04 straddle-free pc-trace observer, +0 FULL but
-  fixes the `P_S` mis-observation).
+  fixes the `P_S` mis-observation; 2026-07-08 frame-entry reachability, +1).
 - **Consumers:** DMC v4 `factory._observe_play_phases` (canon, py65) +
   `_observe_play_phases_writes` (dataflow, py65) + `_observe_play_phases_pctrace`
   (ground-truth fallback) → `composer_asm` play_phases dispatcher. Sibling of C9

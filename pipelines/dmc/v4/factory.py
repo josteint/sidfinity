@@ -420,6 +420,20 @@ def _observe_play_phases(sid_path: str, subtune: int, base: int,
     return None
 
 
+def _frame_entry_candidates(payload, load: int) -> set:
+    """Locate the per-voice FRAME-ENTRY by shape for re-assembled members:
+    `LDA pending,X / BNE +3 / JMP effects` = bytes `bd ?? ?? d0 03 4c` (canon
+    $11F9; re-assembled variants shift it, e.g. My_Rusty_Love $11FA). Used by
+    the offset-blind phase observers to classify F POSITIVELY by entry
+    reachability — the value-advance heuristic alone false-reads a HELD note's
+    frame entry as R (all its writes are idempotent), dropping the holding
+    AD/SR=$00 re-assert (sub_17EC) from the rebuild's schedule."""
+    b = bytes(payload)
+    return {load + i for i in range(len(b) - 6)
+            if b[i] == 0xbd and b[i + 3] == 0xd0
+            and b[i + 4] == 0x03 and b[i + 5] == 0x4c}
+
+
 def _observe_play_phases_writes(sid_path: str, subtune: int,
                                 n_calls: int = 12,
                                 max_steps: int = 200_000):
@@ -452,15 +466,21 @@ def _observe_play_phases_writes(sid_path: str, subtune: int,
             mem[s['load'] + i] = b
     mpu.memory = mem
 
+    fe_cands = _frame_entry_candidates(s['payload'], s['load'])
+    fe_hit = [False]
+
     def run(pc, acc):
         mpu.stPush(0x00)
         mpu.stPush(0x00)           # RTS sentinel -> PC = $0001
         mpu.pc = pc
         mpu.a = acc
         del writes[:]
+        fe_hit[0] = False
         for _ in range(max_steps):
             if mpu.pc == 0x0001:
                 return list(writes)
+            if mpu.pc in fe_cands:
+                fe_hit[0] = True
             try:
                 mpu.step()
             except Exception:
@@ -470,13 +490,18 @@ def _observe_play_phases_writes(sid_path: str, subtune: int,
     init_writes = run(s['init'], subtune)
     if init_writes is None:
         return None
-    # R vs F by CHIP STATE, not the previous call's write set: a pure register
-    # refresh can only re-emit values already on the chip, while an effects
-    # call (wave-step) eventually writes a value that DIFFERS from the current
-    # register content (e.g. a chord program stepping +3). Comparing against
-    # the previous call misreads a wave-step whose early steps repeat values
-    # (chord [0,0,0,3,...]) as R — Bladeswede played its arpeggio's first tone
-    # forever. A true refresh can never be misread as F under this rule.
+    # R vs F: F POSITIVELY when the call REACHES the frame entry (signature-
+    # located; entry reachability is the C18 canonical form) OR when the chip
+    # state ADVANCES (a pure register refresh can only re-emit values already
+    # on the chip, so advance ⟹ effects ran — kept as the fallback for members
+    # whose frame entry doesn't match the shape). The advance heuristic ALONE
+    # is not enough: a HELD note's frame entry emits idempotent writes for the
+    # whole observation window (My_Rusty_Love), false-reading as R and losing
+    # the holding AD/SR=$00 re-assert. Chip-state (not previous-call) baseline:
+    # comparing against the previous call misreads a wave-step whose early
+    # steps repeat values (chord [0,0,0,3,...]) as R — Bladeswede played its
+    # arpeggio's first tone forever. A true refresh can never be misread as F
+    # under either signal (it reaches no frame entry and cannot advance).
     chip = {}
     for a, v in init_writes:
         chip[a & 0x1F] = v
@@ -489,7 +514,7 @@ def _observe_play_phases_writes(sid_path: str, subtune: int,
             seq.append('S')
             continue
         regs = {a & 0x1F for a, _ in w}
-        advancing = False
+        advancing = fe_hit[0]
         for a, v in w:
             if (a & 0x1F) in chip and chip[a & 0x1F] != v:
                 advancing = True
@@ -543,10 +568,14 @@ def _observe_play_phases_pctrace(sid_path: str, subtune: int, play_addr: int,
     the sequence doesn't settle into a clean period from call 0."""
     try:
         from pipelines.hubbard.verify_cycle import pctrace_per_play_capture
+        from seed_disassembly import parse_psid
+        s = parse_psid(sid_path)
+        fe_cands = _frame_entry_candidates(s['payload'], s['load'])
         # ~2 invocations per 50 Hz frame under 2x CIA; capture enough for a
         # period<=n_calls//2 fit plus headroom.
-        plays = pctrace_per_play_capture(sid_path, subtune, play_addr,
-                                         n_frames=max(10, n_calls))
+        plays, fe_hits = pctrace_per_play_capture(sid_path, subtune, play_addr,
+                                                  n_frames=max(10, n_calls),
+                                                  watch_pcs=fe_cands)
     except Exception:
         return None
     if len(plays) < 8:
@@ -563,9 +592,13 @@ def _observe_play_phases_pctrace(sid_path: str, subtune: int, play_addr: int,
     # arpeggio's first tone forever.
     chip = {}
     seq = []
-    for w in plays[:n_calls]:
+    for i, w in enumerate(plays[:n_calls]):
         regs = {r for r, _ in w}
-        advancing = False
+        # F POSITIVELY when the invocation reached the (signature-located)
+        # frame entry — the advance heuristic alone false-reads a HELD note's
+        # idempotent frame entry as R (My_Rusty_Love; see
+        # _observe_play_phases_writes).
+        advancing = bool(fe_hits[i]) if i < len(fe_hits) else False
         for r, v in w:
             if r in chip and chip[r] != v:
                 advancing = True

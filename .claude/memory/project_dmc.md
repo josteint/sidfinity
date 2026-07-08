@@ -7,6 +7,27 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 57 (2026-07-08): play-phase F misread as R on a HELD note — frame-entry reachability — My_Rusty_Love_C64 +1 partial → FULL (0 regr) [ledger C18 note]
+Random f1 partial Psych858o/My_Rusty_Love_C64 (CIA 6x, re-assembled, dataflow
+route). Per-IRQ trichotomy: at the first HELD note the orig re-asserts V1
+AD/SR=$00 EVERY call (sub_17EC — the holding gate-off fires every call while
+the duration counter sits at 1; dur DECs only on TICK frames), the rebuild
+only on a 6-cycle. ROOT: the wrapper's 5 non-P sub-phases run the FULL frame
+entry per voice-mask ($18F1 mask tables → JMP $11FA), but the offset-blind
+observers' chip-state R/F rule read 3 of them as R — a held note's frame entry
+emits only IDEMPOTENT writes for the whole window, so nothing "advances"; the
+composer's R emission (glide+write tail) then drops the AD/SR re-asserts. FIX:
+`factory._frame_entry_candidates` (shape `bd ?? ?? d0 03 4c`) + PC-watch in
+`_observe_play_phases_writes` + `watch_pcs` on `pctrace_per_play_capture`;
+F iff frame-entry reached OR advancing (a true refresh reaches neither → no
+false F; round-53 lesson: positive minority detection, no default flip).
+EXPOSURE: 25 stored R-token FULLs all genuinely tail-only (tokens unchanged,
+3 rebuilt byte-identical); flip census over ALL 236 f1 partials = exactly 1
+carrier → FULL 388489/388489 state ✓. Full regression green. METHOD: segment
+the flat stream into PER-VOICE BLOCKS (ctrl closes a block) and diff block
+shapes — 386k writes → a one-glance `✓✓✗✓✗✗` pattern naming the wrapper
+period. f1 ≈ 5156 FULL / 245 partial.
+
 ## ✅ ROUND 56 (2026-07-08): OUT-OF-IMAGE loop sector = engine sonifies live ZEROPAGE — Killer_Beat +4 GENUINE partial → FULL (0 regr) [ledger C29 NEW]
 Random f1 partial Mephisto/Killer_Beat (vblank, flat div 93464 = 77%). V1 plays
 note47/note55 where reb plays note0, then both re-sync on the C-0 outro (a clean

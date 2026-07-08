@@ -159,7 +159,7 @@ _PCT_ABS = re.compile(r'\bST[AXY]a?\s+d4([0-9a-fA-F]{2})\b', re.I)  # absolute
 
 
 def pctrace_per_play_capture(sid_path: str, subtune: int, play_addr: int,
-                             n_frames: int = 12) -> list[Frame]:
+                             n_frames: int = 12, watch_pcs=None) -> list[Frame]:
     """Straddle-free per-PSID-`play()` write buckets, read off the libsidplayfp
     pc-trace. Each returned frame is the ordered `(reg, val)` `$D400-$D418`
     stores executed by ONE play() invocation (writes between consecutive
@@ -169,7 +169,10 @@ def pctrace_per_play_capture(sid_path: str, subtune: int, play_addr: int,
     for indexed stores or the operand for absolute ones).
 
     `subtune` is 0-indexed. `n_frames` is siddump 50 Hz frames to trace (~2
-    play() invocations each under 2× CIA)."""
+    play() invocations each under 2× CIA). `watch_pcs` (optional set of code
+    addresses): when given, returns `(plays, hits)` where `hits[i]` is True
+    iff invocation i executed any watched PC — used by the DMC play-phase
+    observer to classify F by frame-entry reachability."""
     fd, tmp = tempfile.mkstemp(suffix='.pctrace')
     os.close(fd)
     try:
@@ -177,17 +180,22 @@ def pctrace_per_play_capture(sid_path: str, subtune: int, play_addr: int,
                         '--pc-trace', tmp, '0', str(n_frames)],
                        capture_output=True, text=True)
         plays: list[Frame] = []
+        hits: list[bool] = []
         cur = None
         with open(tmp) as f:
             for line in f:
                 m = _PCT_LINE.match(line)
                 if not m:
                     continue
-                if int(m.group(1), 16) == play_addr:
+                pc = int(m.group(1), 16)
+                if pc == play_addr:
                     cur = []
                     plays.append(cur)
+                    hits.append(False)
                 if cur is None:
                     continue
+                if watch_pcs and pc in watch_pcs:
+                    hits[-1] = True
                 st = _PCT_STORE.search(line)
                 if not st:
                     continue
@@ -206,7 +214,7 @@ def pctrace_per_play_capture(sid_path: str, subtune: int, play_addr: int,
                 mn = st.group(1).upper()
                 val = x if mn == 'STX' else y if mn == 'STY' else a
                 cur.append((reg, val))
-        return plays
+        return (plays, hits) if watch_pcs is not None else plays
     finally:
         try:
             os.unlink(tmp)
