@@ -666,6 +666,26 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   later. LESSON: when a caution names TWO co-mapped addresses, re-test them
   SEPARATELY — one may be the sole culprit. Still NOT mapped: $1720 fclaim
   (rejected f2) + $1721/$1722 (no composer cache var — read inline).
+- **INIT-CLEARED STATE seeds the FIRST event, NOT the file image (DMC v4 round 54,
+  Klepkomania +3 FULL, 0 regr).** A first-event parameter read from per-voice
+  ENGINE STATE that INIT CLEARS must be seeded from the POST-INIT (cleared) value,
+  never the file-image leftover and never a hardcoded default. DMC's note-load
+  reads the duration RELOAD $173E,x; init's $1718-$179D wipe zeros $173E-$1740, so
+  a first note with NO preceding sector $80-$BF duration command plays for reload
+  0 (a held 256-tick note, $173B DECs 0->$FF) — the `_Sticky` extract default of 1
+  gave it a too-short life, dropping one frame at the $FE terminator (the whole
+  free-running PW-sweep phase then shifts). Fix: `_Sticky` default dur 1->0.
+  REGRESSION-SAFE BY CONSTRUCTION: any voice whose first row is preceded by a
+  duration command has st.dur OVERWRITTEN -> byte-identical (FULL-side flip-set 0
+  of 1200 changed build). TELL / how it presents: a per-play "voice drops one
+  update at the track/pattern boundary" (counts off by exactly one voice-block,
+  the voice's own value stream identical). TRAP: the file-image byte ($173E=8),
+  the old default 1, AND the libsidplayfp runtime memwatch ($173E=6, a
+  py65/libsidplayfp during-play divergence) all mislead — only py65 POST-INIT +
+  an empirical duration-sweep give the true value 0. The durrel_init capture's
+  "orig init never writes $173E" comment is factually wrong (init clears it); the
+  round-31 durrel priming should also be post-init but was left untouched here
+  (it's gated + only surfaces on a $173E off-table read before the first note).
 - **HARD BOUNDARY — off-table reads sonifying DYNAMIC work-RAM (DMC family-2 freq
   tail, 2026-06-29).** 429/533 family-2 partials diverge on an off-table read; the
   dominant case (Death_Comes V2 first note, arp 121 → $1720) sonifies the FILTER

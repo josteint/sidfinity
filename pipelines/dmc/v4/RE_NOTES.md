@@ -1,5 +1,49 @@
 # DMC V4 — RE notes / migration log
 
+## ✅ ROUND 54 (2026-07-08): FIRST-NOTE DURATION = post-init $173E (init CLEARS it to 0), not the _Sticky default 1 — +3 FULL, 0 regr [ledger C11 note]
+Random f1 partial Harti/Klepkomania (vblank, flat div 53, sub3 only; 6/7 subs
+already FULL). First-div chase (play-split of the flat write stream): at play 4
+the orig emits V1's full block but the rebuild SKIPS V1 (jumps straight to V2) —
+V1 goes inactive one play EARLY and its whole free-running PW-sweep phase shifts
+vs V2/V3 forever (counts differ by exactly 5 = one V1 block; V1's own value
+stream is byte-identical). ROOT CAUSE: sub3 V1 = a single decorative note (sector
+= `[inst15][note C-7][$7F]`, NO `$80-$BF` duration command). The note-load reads
+the duration RELOAD `$173E,x`; the engine's INIT clears `$1718-$179D` (which
+SPANS `$173E-$1740`) to 0, so a first note reached before any duration command
+plays for reload 0 (`$173B` DECs 0->$FF = a held 256-tick note). The extraction's
+`_Sticky` seeded `dur=1` (default) -> too-short note -> hit the track `$FE`
+terminator one play early -> the `$FE` handler RTSs (skips frame_entry that play)
+one frame sooner than the orig. FIX (1 line, `_Sticky.__init__` default
+`dur=1`->`0`): the note's reload before any sector duration command is the
+post-init value, which is 0 for the whole DMC v4 engine (the `$1718-$179D` wipe).
+py65 post-init(`$173E`)=0 for every subtune + empirical dur-sweep (dur=0/32/63
+all FULL, dur=1/6 partial) both confirm the note holds. The durrel_init capture
+comment "orig init never writes $173E" is FACTUALLY WRONG — init clears it; left
+that (round-31 priming) untouched, changed only the sticky seed.
+
+REGRESSION-SAFE BY CONSTRUCTION: a voice whose first sector event is preceded by
+a duration command has `st.dur` OVERWRITTEN before the row -> BYTE-IDENTICAL
+build (proven: FULL-side flip-set = **0 of 1200 random f1 FULLs change build**);
+only a BARE first row (the decorative/degenerate case) changes, and 0 is exactly
+the value the orig reads there. Evidence: partial flip-set 30/253 changed ->
+re-verify = **+3 partial->FULL** (Klepkomania 7/7, Compod/Nocturno,
+Wodnik/Narwana) + 26 first-div moved DEEPER (deeper blockers, honest progress) +
+0 partial regressions; 1200-FULL flip-set 0 build changes; full
+tools/regression.py GREEN (0 regressed all 7 families: Hubbard 71 / Companion 44
+/ C64ME 15 / Jay_Derrett 17 / FC 31 / DMC 11 / Basic_Program 22).
+
+TRAP (amend Step 2, cost ~1h): first tried seeding from `durrel_init` = the FILE
+IMAGE (`$173E`=8) — WRONG (init clears it to 0), regressed another Klepkomania
+subtune (V1 seed 8 too long). The file image, the default 1, AND the LIBSIDPLAYFP
+memwatch runtime (`$173E`=6 during play — a py65/libsidplayfp divergence red
+herring) all misled; only py65 POST-INIT + the empirical dur-sweep gave the true
+value (0). LESSON (ledger C11 note): when a first-event parameter is read from
+ENGINE STATE that INIT CLEARS, the extract's seed/default must be the POST-INIT
+(cleared) value, not the file-image leftover (init overwrites it) and not a
+hardcoded default. Localize on the write-stream + the PLAY-SPLIT view (which
+play() drops the voice), NOT a memwatch of the reload register (Trap-C /
+py65-divergence confused). f1 ≈ 5149 FULL (baseline stale — see project note).
+
 ## ✅ ROUND 53 (2026-07-08): RESET-ALL-VOICES loop hook classified loop-to-0 — Unfinished_1 +6 → FULL (0 regr) [ledger C13 new note]
 
 Random f1 partial `MUSICIANS/B/Bakewell_Dwayne/Unfinished_1.sid` (CIA 2x,

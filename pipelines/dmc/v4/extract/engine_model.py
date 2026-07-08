@@ -258,10 +258,18 @@ def _postinit_window(s, lo: int, n: int):
 # ---------------------------------------------------------------------------
 
 class _Sticky:
-    """The state that crosses sector / loop boundaries."""
+    """The state that crosses sector / loop boundaries.
+
+    The duration reload defaults to 0, NOT 1: the note-load reads the duration
+    reload from $173E,x, and the engine's INIT clears $1718-$179D (which spans
+    $173E-$1740) to 0 — so a first note reached before any sector $80-$BF
+    duration command plays for reload 0 (the counter DECs 0->$FF, i.e. a held
+    256-tick note), not 1. The old default 1 gave such notes a too-short life,
+    hitting the track terminator one play early and dropping a frame (e.g.
+    Klepkomania's single-note decorative subtunes)."""
     __slots__ = ('dur', 'instr', 'vol')
 
-    def __init__(self, dur=1, instr=0, vol=0):
+    def __init__(self, dur=0, instr=0, vol=0):
         self.dur, self.instr, self.vol = dur, instr, vol
 
     def key(self):
