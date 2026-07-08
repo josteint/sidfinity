@@ -854,6 +854,47 @@ def _pw_hi_const_probe(path: str, base: int):
     return ','.join(str(src[ophi + i]) for i in range(3))
 
 
+def _pw_bound_shift_probe(path: str, base: int):
+    """PWM bound-A extraction shift (STATIC opcode probe, C19). The note-init
+    derives the pulse-width sweep bounds from instrument byte+2: canonically
+    `PLA / LSR LSR LSR LSR / STA $1756,x` => bound A = byte+2 >> 4 (its hi
+    nibble), bound B = A EOR $0F. A wedge variant swaps one LSR for a 2-byte
+    no-op opcode ($17 = SLO $4A,X — it ASLs an unused zp scratch byte and ORs 0
+    into A), so only >>2 applies: bound A = byte+2 >> 2, and the pulse hi-byte
+    sweeps over a much wider band before flipping direction. The bound VALUES
+    are musical content (they ride in USF min_hi/max_hi); this probe only tells
+    the extractor which shift produced them, so it stays extract-only.
+
+    Anchor on the STA $1756,x / EOR #$0F / STA $1759,x tail (relocation-aware:
+    the two store operands sit at base+$756 and base+$759). Decode the 4-byte
+    window between PLA and the first STA, counting LSR-A ($4A); $17 is the known
+    2-byte filler, any other opcode bails to canon. Return the shift when != 4,
+    else None (extract unchanged). Sole family-1 carrier: Aomeba/20_Years_of_NOP."""
+    mem, _ = _load(path)
+    a1 = base + 0x756
+    pat = re.compile(
+        rb'\x68(....)\x9D' + bytes([a1 & 0xFF, (a1 >> 8) & 0xFF]) +
+        rb'\x49\x0F\x9D' + bytes([(a1 + 3) & 0xFF, ((a1 + 3) >> 8) & 0xFF]),
+        re.DOTALL)
+    m = pat.search(bytes(mem))
+    if not m:
+        return None
+    window = m.group(1)                     # exactly 4 bytes (PLA's shift run)
+    oplen = {0x4A: 1, 0x17: 2}              # LSR-A / SLO zp,X (known no-op)
+    shift = 0
+    i = 0
+    while i < 4:
+        n = oplen.get(window[i])
+        if n is None:
+            return None                     # unknown opcode -> canon >>4 (safe)
+        if window[i] == 0x4A:
+            shift += 1
+        i += n
+    if i != 4 or shift == 4:
+        return None
+    return shift
+
+
 # Filter-def modulation play wrapper (Ed/Core_of_Acid, the only DMC carrier):
 # the play vector runs `JSR reader` — `LDA ptr1 / STA def+1 / LDA ptr2 /
 # STA def+3 / RTS` — then a double 16-bit SMC automaton that increments both
@@ -1198,6 +1239,9 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     fm = _filter_mod_probe(os.path.join(hvsc_root, sid_path), cfg.op_filtdef)
     if fm is not None:
         cfg.extra_params['filter_mod'] = fm
+    pbs = _pw_bound_shift_probe(os.path.join(hvsc_root, sid_path), cfg.base)
+    if pbs is not None:
+        cfg.extra_params['pw_bound_shift'] = pbs
     return cfg
 
 

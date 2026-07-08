@@ -7,6 +7,33 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 50 (2026-07-08): PWM bound-A SHIFT wedge — Aomeba/20_Years_of_NOP partial → FULL (+1, 0 regr) [ledger C19 6th occurrence]
+Picked one f1 partial (20_Years_of_NOP, vblank, flat div 58, V2 PW lo orig
+$D0 vs mine $E0). First-div chase: orig V2 PW ramps hi 7→8→9→10 (+$F0/frame,
+never flips); rebuild flips to down at pwh=8 then freezes (step 0). Memwatch
+ground-truth: orig V2 pulse bound A=$1D bound B=$12 ($1D EOR $0F), NOT the
+inst nibbles 7/8 the extract captured. pc-trace found the cause: note-init
+byte $124D patched $4A→$17 (LSR → the 2-byte illegal SLO $4A,X — ASLs the
+UNUSED zp $4A scratch + ORs 0 into A = inert; zp $4A-$4C unreferenced by the
+player), so bound-A extraction runs LSR×2 not ×4 → bound A = byte+2 >> 2
+(not hi nibble). A classic C19 hand-patched wedge, STATIC in the file image.
+CLEANEST C19 yet — EXTRACT-ONLY: the bounds ARE musical content (USF
+min_hi/max_hi), so the probe only fixes their DERIVATION; NO USF field, NO
+composer change. `factory._pw_bound_shift_probe` (anchor STA $1756,x / EOR
+#$0F / STA $1759,x tail, reloc-aware; decode the 4-byte PLA→STA window,
+count LSR-A; $17 = known 2-byte filler, unknown opcode bails to canon) →
+extract-only `cfg.extra_params['pw_bound_shift']`, POPPED before the USF
+params block (derivation knob must not leak to ML). `_decode_instrument`
+gains `pw_bound_shift=4` (default = byte-identical `>>4`). CENSUS over all
+5401 f1: exactly 1 carrier (`4a4a174a`), 5400 canonical (`4a4a4a4a`, shift=4)
+→ regression-safe by construction. 20_Years_of_NOP FULL 294517/294517
+(state_match ✓); full tools/regression.py green (0 regressed all 7 families).
+METHOD REMINDER that cracked it: memwatch $1756/$1759 (bound A/B) for ground
+truth, then pc-trace the actual executed note-init — the canonical
+disassembly.s said LSR×4 but the RUNNING member decoded `17 4A` = SLO. When a
+derived value's runtime ≠ what the canon disasm computes, trust the pc-trace,
+not disassembly.s.
+
 ## ✅ ROUND 49 (2026-07-08): MULTI-SID PER-CHIP VERDICT — Nice_Dream_2SID false-partial fixed (3221 → 63496 match) [ledger C28 NEW] — commit b7849284
 Continued the round-48 Nice_Dream_2SID chase. The round-48 "first
 divergence = filter-def-walk res-timing at frame 103 (write 3221)" was a

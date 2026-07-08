@@ -50,7 +50,7 @@ class DmcInstrument:
     ad: int
     sr: int
     pw_init_hi: int          # PW hi initial (byte2 lo nibble)
-    pw_bound_a: int          # byte2 hi nibble
+    pw_bound_a: int          # byte2 >> pulse-bound shift (canon 4 = hi nibble)
     pw_bound_b: int          # = bound_a EOR $0F
     pw_steps: list           # 6 effective per-phase step bytes
     pw_keep_running: bool    # flag $04
@@ -640,7 +640,8 @@ def _resolve_wave_chain(ctrl_tab: list, freq_tab: list, start: int):
 
 
 def _decode_instrument(mem, base: int, iid: int,
-                       ctrl_tab, freq_tab, n_inbound=None) -> DmcInstrument:
+                       ctrl_tab, freq_tab, n_inbound=None,
+                       pw_bound_shift: int = 4) -> DmcInstrument:
     # the player computes the record offset in the 8-bit accumulator
     # ($1213-$121F: CLC / ASL x3 / ADC #n x3), so it WRAPS mod 256 — but NOT
     # as a clean (iid*11) & 0xFF: the CLC runs only once, so a carry out of
@@ -673,8 +674,8 @@ def _decode_instrument(mem, base: int, iid: int,
     wc, wf, wl = _slice_wave(ctrl_tab, freq_tab, b[9], n_inbound)
     return DmcInstrument(
         id=iid, ad=b[0], sr=b[1],
-        pw_init_hi=b[2] & 0x0F, pw_bound_a=b[2] >> 4,
-        pw_bound_b=(b[2] >> 4) ^ 0x0F,
+        pw_init_hi=b[2] & 0x0F, pw_bound_a=b[2] >> pw_bound_shift,
+        pw_bound_b=(b[2] >> pw_bound_shift) ^ 0x0F,
         pw_steps=[(x + pw_base) & 0xFF for x in nibs],
         pw_keep_running=bool(fx & 0x04),
         filter_def=b[6] & 0x0F, filter_on=bool(fx & 0x20),
@@ -804,9 +805,14 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # idling before its first note runs record 0's pulse/wave mechanism.
     # Record 0 must therefore always ship (and sit first in the list).
     used_instr.add(0)
+    # PWM bound-A extraction shift: canon note-init does LSR x4 (bound A =
+    # byte+2 hi nibble); a wedge variant (factory._pw_bound_shift_probe) drops
+    # one LSR to >>2, widening the PWM sweep band. Extract-only knob — the
+    # resulting bound VALUES ride in USF min_hi/max_hi, so it never enters USF.
+    pw_shift = int(getattr(cfg, 'extra_params', {}).get('pw_bound_shift', 4))
     for iid in sorted(used_instr):
         inst = _decode_instrument(mem, instr_base, iid, ctrl_tab, freq_tab,
-                                  n_wave)
+                                  n_wave, pw_bound_shift=pw_shift)
         m.instruments[iid] = inst
     # Filter defs: capture the ENTIRE 8-bit walk window, not just the defs
     # instruments reference. The engine's repeat reload ($1719 = def+2) can be
@@ -838,7 +844,10 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # doubles the WIDTH). The composer derives the increment from the freq
     # table; the swell mechanism is the build-level params.vib_ramp flag.
     m.family2 = (cfg.sector_format == 'family2')
-    m.extra_params = dict(getattr(cfg, 'extra_params', {}))
+    # pw_bound_shift is consumed above (extract-only); keep it out of USF so
+    # the params block carries only musical content, never the derivation knob.
+    m.extra_params = {k: v for k, v in getattr(cfg, 'extra_params', {}).items()
+                      if k != 'pw_bound_shift'}
     if m.extra_params.get('dual_freq_generator'):
         # Dual-generator members (factory._dual_freq_gen_probe) force pwphase to
         # P0/P0+1 on every dual frame (P0 = $19 + ph_add), so the pulse

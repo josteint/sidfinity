@@ -91,7 +91,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | HETEROGENEOUS per-step write shapes in a trace-lift · one superset order can't embed all steps (conflicting reg orders / intra-step dups / sections) · cluster steps by EXACT write shape → K positional templates + per-step template id | C17 | logged |
 | play-vector WRAPPER with per-call PHASE behaviour · slow-tempo / multispeed-effects cycler · every Nth call runs the full play, others run effects-only / register-refresh / nothing · wrapper shapes vary (SMC, DEC+dual-JMP, parity AND) — OBSERVE entry-point reachability under py65, don't parse | C18 | logged |
 | TRICHOTOMY VERDICT alignment · rebuild emits its OWN init (universal reset+priming) so streams differ by an init prefix · Check A end-of-init state + aligned play-stream compare · TWO implementations exist: `verify_cycle._trichotomy_compare` (FC, shift recovery) + `usf_roundtrip._compare_music/_split_aligned` (basic_program, known-init-length + probe search) — CONSULT MISS, factor at Move 1 | C21 | factor-candidate (2×) |
-| hand-patched player WEDGE inside the canon body · SMC opcode toggle · 1-byte opcode patch · JMP over canonical loads · runtime state ≠ static file byte · STATIC opcode probe, never a bounded stream scan · census carriers both sides · reproduce semantics behind a factory-probed param | C19 | canonicalized (2×) |
+| hand-patched player WEDGE inside the canon body · SMC opcode toggle · 1-byte opcode patch · JMP over canonical loads · runtime state ≠ static file byte · PWM bound-shift (LSR count) wedge · STATIC opcode probe, never a bounded stream scan · census carriers both sides · reproduce semantics behind a factory-probed param (EXTRACT-only when the wedge changes a derived musical value) | C19 | canonicalized (6×) |
 | stale-FULL palimpsest · recorded 'full' the current code can't reproduce · hides members from residue censuses · verify the STORED build first, then USF-diff/param-bisect to attribute · never mass-write with code that didn't produce the verdict | C20 | canonicalized |
 | AMBIGUOUS round-trip flag encoding · two distinct engine ops render to OVERLAPPING USF flag sets · the decoder's branch test uses a SUBSET of the discriminator → misroutes one op onto the other's path · matches for most content (paths coincide when inputs coincide), diverges on the distinguishing case | C22 | canonicalized (2×) |
 | a play-phase/schedule TOKEN hides a per-member behavioural ambiguity · same P_F123 token = note-init-on-F vs deferred 2-frame arm · fixing one class REGRESSES same-token FULLs · NOT derivable from the token/multispeed → OBSERVE the distinguishing write-footprint per member · regression-safe when the "changed" verdict has no false positive | C23 | logged |
@@ -1229,8 +1229,8 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
 - **Diagnosis tell:** runtime state ≠ file-image table byte while taint_source
   says the byte is STATIC ⇒ the READ SITE differs from canon — dump the
   operand/opcode at the canon site.
-- **Status:** CANONICALIZED (2 occurrences, DMC family-1 rounds 13 + 19,
-  2026-07-03). Canonical form: STATIC opcode probe (read the patched
+- **Status:** CANONICALIZED (6 occurrences by round 50: DMC family-1 rounds
+  13 + 19 + 32 + 35 + 36 + 50). Canonical form: STATIC opcode probe (read the patched
   instruction itself — never a bounded write-stream scan, which can
   false-negative on members that exercise the path only late) → factory
   `extra_params` → an existing/new composer param; census carriers on BOTH
@@ -1300,6 +1300,26 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   fetch, flat div 266023). Fix = `jmp {rest_jmp}` (byte-identical for canon
   'run'). When landing a knob, grep the composer for ALL jumps to the
   canon-target label and check each against the orig's funnel paths.
+- **6th occurrence (round 50, 2026-07-08):** the PWM bound-A SHIFT wedge
+  (Aomeba/20_Years_of_NOP, the ONLY carrier in all 5401 family-1 members):
+  note-init byte $124D patched $4A->$17 (LSR -> the 2-byte illegal SLO $4A,X,
+  which ASLs an UNUSED zp scratch byte + ORs 0 into A = inert; zp $4A-$4C are
+  unreferenced by the player), so the bound-A extraction runs LSR x2 not x4:
+  bound A = byte+2 >> 2 (not its hi nibble), bound B = A EOR $0F. Effect: the
+  PWM sweep hi-byte bounces over a much WIDER band before flipping (inst
+  byte+2 $77 -> canon bounds 7/8, wedge bounds $1D/$12; the rebuild flipped at
+  pwh=8 where the orig ramps 7->8->9->10..., first div V2 PW frame 4). CLEANEST
+  C19 outcome yet — EXTRACT-ONLY: the bound values ARE musical content (USF
+  min_hi/max_hi), so the probe only fixes their DERIVATION; no USF field, no
+  composer change. `factory._pw_bound_shift_probe` anchors on the
+  STA $1756,x / EOR #$0F / STA $1759,x tail (reloc-aware, operands
+  base+$756/$759), decodes the 4-byte PLA->STA window counting LSR-A ($4A;
+  $17 = known 2-byte filler, any unknown opcode bails to canon). Threaded as
+  EXTRACT-ONLY `cfg.extra_params['pw_bound_shift']` (POPPED before the USF
+  params block so the derivation knob never leaks to ML — the derived bounds
+  already carry the music). Census: 1 carrier, 5400 canonical (shift=4 =
+  byte-identical) => regression-safe by construction. 20_Years_of_NOP
+  partial -> FULL 294517/294517.
 - **Consumers:** DMC v4 `factory._hr_patch_probe` + composer_asm
   hr_patch/hr_test_init gating; `factory._hold_gateoff_probe` →
   `hold_gateoff` param; `factory._pw_hi_const_probe` → `pw_hi_const` param. Sibling of C18 (wrapper OUTSIDE the player) —
