@@ -1,5 +1,47 @@
 # DMC V4 — RE notes / migration log
 
+## ✅ ROUND 52 (2026-07-08): DOUBLE-SPEED base+3 JMP wrapper — Scan_Collection_end +9 → FULL (+10, 0 regr) [ledger C24/play_repeat note]
+
+Random f1 partial `MUSICIANS/L/Lio/Scan_Collection_end.sid` (vblank). The
+batch row looked odd: `play_match == play_overlap == 215063` (a PERFECT
+prefix) yet `len_post_a=429373` vs `len_post_b=215063` — orig's play stream is
+~2× mine's over the SAME duration. Not a content divergence: counting writes
+per frame gave orig ≈34, mine ≈17 in steady state, and a steady-frame dump
+showed orig = **two full music updates back-to-back** (the PW sweep
+`$D402/$D403` advances `$2F/$0C → $B8/$0B` between the two halves). It is a
+DOUBLE-SPEED tune.
+
+Root cause: the play VECTOR is `$1003: JMP $2000` (the `$1000` page is just
+title text), and `$2000: JSR $1050 : JMP $1050` = the engine at `$1050` runs
+**twice per play()** — the classic `_detect_play_repeat` "`JSR T; JMP T` =
+n+1" wrapper. But the probe never reached that analysis: line-680
+`if play == base+3: return 1` short-circuited (play=$1003=base+3) BEFORE
+following the JMP. Note the canonical player ALSO has `$1003: JMP $1085`, but
+`$1085` is the plain play body (`DEC $1718` speed-counter) — the wrapper loop
+already follows a leading JMP once and returns 1 for a plain body; the
+short-circuit merely skipped that walk.
+
+FIX (one line): short-circuit only when `mem[base+3] != 0x4C` (base+3 is NOT a
+JMP); otherwise fall through to the existing loop, which follows the leading
+JMP once and detects the JSR-chain / JMP-tail wrapper (returns 2 here).
+REGRESSION-SAFE BY CONSTRUCTION: canon `base+3 = JMP → DEC play body` still
+returns 1 (byte-identical build); only a genuine `JSR T; JMP T` double-play
+wrapper returns ≥2 — and any such member, built single-speed, was ALWAYS a
+length partial (½ the writes), never a FULL, so no FULL can regress.
+
+Census over all 5401 f1 members: exactly **10** satisfy `play==base+3 AND new
+play_repeat≥2` (the other 27 `play_repeat≥2` members have `play≠base+3` and
+already went through the loop) — Lio Happy_Night / Msxs / Scan_Collection_end,
+Logan Black_Music, PRI Do_the_Note / Dreamland, The_Syndrom Double_Power /
+Other_One / Saturday_Night / Savage_Remix. **All 10 flip partial → FULL** on a
+fresh full-songlength verify. Full `tools/regression.py` green (0 regressed all
+7 families); artifacts mass-written.
+
+METHOD LESSON: a perfect play-stream PREFIX plus a clean ~2× length tail on a
+VBLANK tune is whole-play double-speed, not a missing effect — localize by
+counting writes/frame, then disassemble the play VECTOR and FOLLOW its JMP;
+don't stop at `base+3`.
+
 ## ✅ ROUND 51 (2026-07-08): WJMP-CHASE SHADOW — High_Tech partial → FULL (+1, 0 regr) [ledger C11 new note]
 
 Random f1 partial High_Tech (Dr_Piotr, vblank, flat div 32811, V3 freq-hi

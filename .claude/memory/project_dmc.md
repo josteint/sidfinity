@@ -7,6 +7,68 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 52 (2026-07-08): DOUBLE-SPEED base+3 JMP wrapper — Scan_Collection_end +9 partial → FULL (+10, 0 regr) [ledger C24/play_repeat note]
+Random f1 partial Scan_Collection_end (Lio, vblank). NOT a content divergence:
+play_match == play_overlap (perfect prefix) but len_post_a 429373 vs len_post_b
+215063 — orig emits ~2× writes/frame (steady 34 vs mine 17). Dumped a steady
+frame: orig = TWO full music updates back-to-back (PW sweep $D402/$D403
+advances $2F/$0C → $B8/$0B between the halves), mine = ONE. A DOUBLE-SPEED
+tune. ROOT CAUSE: play=$1003=base+3=`JMP $2000`, and $2000 = `JSR $1050 : JMP
+$1050` = the engine runs TWICE per play(). `_detect_play_repeat` short-circuited
+on `play == base+3` BEFORE following the JMP indirection into the wrapper. (Even
+CANON base+3 is `JMP $1085`, but $1085 = the plain play body starting `DEC
+$1718` — the existing loop follows the leading JMP once then returns 1; the
+short-circuit merely skipped that walk.) FIX (1 line, factory
+`_detect_play_repeat`): short-circuit only when `mem[base+3] != 0x4C` (not a
+JMP); otherwise fall through to the EXISTING wrapper loop, which follows the
+leading JMP once then detects the JSR-chain/JMP-tail (`JSR T; JMP T` → returns
+2). REGRESSION-SAFE BY CONSTRUCTION: canon base+3=JMP→DEC body returns 1
+(byte-identical build); only a genuine double-play wrapper returns ≥2, and such
+a member built single-speed was ALWAYS a length partial (½ the writes), never a
+FULL. CENSUS (all 5401 f1): exactly 10 members satisfy play==base+3 AND new
+pr≥2 (the other 27 pr≥2 members have play≠base+3, already handled) — Lio
+Happy_Night/Msxs/Scan_Collection_end, Logan Black_Music, PRI
+Do_the_Note/Dreamland, The_Syndrom Double_Power/Other_One/Saturday_Night/
+Savage_Remix — ALL 10 partial→FULL (fresh full-songlength verify). Full
+tools/regression.py green (0 regressed all 7 families); artifacts mass-written;
+10 truth rows appended (code_hash 0e528a58ec543575). METHOD LESSON: a perfect
+play-stream PREFIX + a clean ~2× length tail on a VBLANK tune = whole-play
+double-speed, NOT a missing effect (localize by counting writes/frame, then
+disassemble the play VECTOR and FOLLOW its JMP — don't stop at base+3). f1 ≈
+5140 FULL / 261 partial.
+
+## ✅ ROUND 51 (2026-07-08): WJMP-CHASE SHADOW — High_Tech partial → FULL (+1, 0 regr) [ledger C11 new note] — commit 58685a07
+Random f1 partial High_Tech (Dr_Piotr, vblank, flat div 32811, V3 freq-hi
+orig $01 vs mine $00). Off-table melodic read idx 120 → freqhi[120]=$171F
+(shared `wjmp` scratch, round-31 class). Diffed orig-vs-reb INPUTS
+(base/accum/slide/parity) at the same V3-fhi memwatch event: only base_hi
+diverged ($171F). pc-trace ground truth: $171F=$01 was written by **V1's wave
+marker-HOP** ($91→$01), and V1 plays instrument 7 whose wave_start=137 sits ON
+its own end-marker $91 (the "start at the loop marker" editor idiom). Orig
+chases back 1 EVERY note-init (writes $171F=1); the composer packs the SETTLED
+program (skips the transient chase), missing ONLY the note-init hop (every
+settled frame after hops naturally, pinned at the marker) — divergence shows
+only when a wjmp read lands on that frame before another voice overwrites
+$171F (V2 idle). TRIED wave_table_pos (round-38 layout-preserving pool) — did
+NOT fix it (the chase-skip phase persists); the correct fix is layout-
+INDEPENDENT. FIX (CORE TENET, reproduce the WRITE): extract detects own-end-
+marker chasers (loop 0, ctrl_tab[ws]==$90+n; gated on a wjmp read + canon
+geom) → per-instrument USF `wave_start_on_marker`; composer re-asserts
+`wjmp = n` at note-init (`iwchase` table + `ni_chase`), emitted only when some
+instrument chases. This LIFTS the round-38 `_wave_layout_verbatim` "reject if
+chasing + reads wjmp" carve-out, independently of the wavepos layout.
+REGRESSION-SAFE BY CONSTRUCTION: re-asserts a write the orig ALWAYS makes at
+that note-init, observable only where orig diverged — a FULL has no such read
+(6 random FULLs + portfolio byte-identical; full tools/regression.py green, 0
+regressed all 7 families). Census (partials): 4 f1 carriers — High_Tech FULL
+297s exact; Chwat + Solar_Energy first-div resolved → deeper blocker (Lens 3);
+King_of_Earth UNCHANGED (its wjmp read diverges for a non-chase reason =
+cross-voice $171F churn, honest residue). METHOD: for a global cross-voice
+scratch, memwatch the read value + diff orig-vs-reb INPUTS at the same event
+index; a chasing instrument's wave-loop PHASE leaks into another voice's $171F
+read even when its own output is a constant 1-step loop (unobservable in its
+own stream). f1 ≈ 5130 FULL / 271 partial.
+
 ## ✅ ROUND 50 (2026-07-08): PWM bound-A SHIFT wedge — Aomeba/20_Years_of_NOP partial → FULL (+1, 0 regr) [ledger C19 6th occurrence]
 Picked one f1 partial (20_Years_of_NOP, vblank, flat div 58, V2 PW lo orig
 $D0 vs mine $E0). First-div chase: orig V2 PW ramps hi 7→8→9→10 (+$F0/frame,

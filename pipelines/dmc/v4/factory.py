@@ -677,7 +677,16 @@ def _detect_play_repeat(mem, play: int, base: int, load: int) -> int:
     play=$1E80 = `JSR $1003` x4 : RTS). Returns N (>=2) or 1. A leading JMP at
     the play vector is followed once. Verify-gated: a misread N yields a partial.
     """
-    if play == base + 3:
+    # base+3 is the canonical play entry. In canon it is `JMP <play-body>`
+    # (the body starts with a DEC speed-counter — the loop follows the JMP and
+    # returns 1). But a few members redirect base+3 into a JSR-chain/JMP-tail
+    # double-play WRAPPER (Scan_Collection_end: $1003 = JMP $2000, and $2000 =
+    # `JSR $1050 : JMP $1050` = the engine twice per frame). So only
+    # short-circuit when base+3 is NOT a JMP; otherwise fall through and let the
+    # wrapper analysis follow the indirection (returns 1 for a plain body,
+    # N for a genuine repeat). Regression-safe: a plain body's first opcode is
+    # not JSR/JMP-to-target, so the loop returns 1 (byte-identical build).
+    if play == base + 3 and mem[play] != 0x4C:
         return 1
     pc = play
     target = None

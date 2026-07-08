@@ -96,6 +96,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | AMBIGUOUS round-trip flag encoding · two distinct engine ops render to OVERLAPPING USF flag sets · the decoder's branch test uses a SUBSET of the discriminator → misroutes one op onto the other's path · matches for most content (paths coincide when inputs coincide), diverges on the distinguishing case | C22 | canonicalized (2×) |
 | a play-phase/schedule TOKEN hides a per-member behavioural ambiguity · same P_F123 token = note-init-on-F vs deferred 2-frame arm · fixing one class REGRESSES same-token FULLs · NOT derivable from the token/multispeed → OBSERVE the distinguishing write-footprint per member · regression-safe when the "changed" verdict has no false positive | C23 | logged |
 | play-body UNIT-repeat · play body runs ONE of its 4 units (v0/v1/v2/filter-tail) N× per play() (JSR-to-N-call stub; JMP-tail form re-runs the filter tail) · "double-speed voice" · unified play_unit_repeat=[v0,v1,v2,filter] list · distinct from play_repeat (whole play()) + C18 play_phases (whole calls) · static byte-probe (C19 method) | C24 | recurring |
+| whole-play N-repeat (WHOLE play() body run N× per VBI = double-speed TUNE) via a play-VECTOR wrapper · perfect play-stream PREFIX + clean ~N× length tail on a VBLANK tune · `JSR T ×N :RTS` or `JSR T; JMP T` · `_detect_play_repeat` must FOLLOW a base+3 JMP indirection into the wrapper, not short-circuit on play==base+3 | C24 | note (recurring 10×) |
 | composer play body OVERRUNS a tight CIA latch · perfect play-stream prefix + length tail ~0.5% (rate drift, no content divergence) · common-path cost creep (per-row compare chains growing with each round's shadow additions) · fast-path the common case O(1) · the rebuild's play must FIT the smallest latch it ships under | C25 | logged |
 | song data ABSENT from file image · init generates/unpacks tables in RAM · operands point outside the loaded image · extract from POST-INIT RAM (py65), all-or-nothing signature · banking-wrapper JT-less base from the wrapper JSR target | C26 | logged |
 | multi-SID (2SID/3SID) · N chips, one player each behind a dispatch wrapper · players run sequentially -> merged log = [chip1][chip2] · extract/compose/verify each with single-chip machinery, chip-TAGGED (reg=chip*$20+reg) · voices number through chips, addresses are pipeline constants not USF | C27 | logged |
@@ -1581,6 +1582,26 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   static-probe + factory-param canonical form (a WRITE-STREAM difference, not the
   same wedge shape). FACTOR at Move 1 if a 3rd variant appears (a voice ×3, or a
   unit-repeat on a relocated/2-entry layout the STX-$1720 probe can't locate).
+- **SIBLING — whole-play N-repeat via a base+3 JMP indirection (2026-07-08,
+  round 52, +10 f1 FULL, 0 regr).** The WHOLE play() (all four units) run N× per
+  VBI = a double-speed TUNE, detected by `factory._detect_play_repeat` (the
+  `play_repeat` param, distinct from the per-UNIT C24 above). The probe follows a
+  play-VECTOR wrapper of `JSR T ×N :RTS` or `JSR T; JMP T` and returns N. BUG it
+  fixed: the guard `if play == base+3: return 1` short-circuited members whose
+  base+3 is itself a `JMP <double-play wrapper>` (Scan_Collection_end: $1003 =
+  `JMP $2000`, $2000 = `JSR $1050; JMP $1050`). Even the CANON player has
+  `$1003: JMP $1085`, but $1085 is the plain body (`DEC` speed-counter) — the
+  loop already follows a leading JMP once and returns 1 for a plain body, so the
+  short-circuit only skipped a walk that would have returned the same answer.
+  FIX: guard on `play == base+3 and mem[play] != 0x4C` — a non-JMP base+3 still
+  short-circuits; a JMP base+3 falls through and the existing loop follows the
+  indirection (1 for a plain body, N for a genuine wrapper). REGRESSION-SAFE BY
+  CONSTRUCTION: a double-play built single-speed is ALWAYS a length partial
+  (½ the writes), never a FULL, so no FULL can flip. Census over all 5401 f1:
+  exactly 10 carriers (Lio ×3 / Logan / PRI ×2 / The_Syndrom ×4), all
+  partial→FULL. TELL: perfect play-stream PREFIX + a clean ~N× length tail on a
+  VBLANK member ⇒ whole-play multispeed, not a missing effect — count
+  writes/frame, then disassemble the play VECTOR and FOLLOW its JMP.
 
 ### C25 — The composer's play body must FIT the tightest CIA latch it ships under
 - **The problem class:** a high-multispeed CIA member (latch ≪ a PAL frame, e.g.
