@@ -696,6 +696,15 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # instrument-record byte offset (orig inst# * 11, exact 6502 chain) — the
     # value the orig keeps in $174D,x; shadowed in ioff,x for off-table reads.
     ioffval = [_inst_offset(i.id - 1) for i in insts]
+    # wjmp chase shadow (extract wave_start_on_marker): an instrument the editor
+    # started ON its own loop marker chases back n on the first read every
+    # note-init, storing $171F=n. The composer packs the settled program (no
+    # transient chase), so it re-asserts wjmp=n at note-init for these (the hop
+    # then repeats every settled frame, matching the orig). Distance = program
+    # length n; 0 = no chase. Emitted + wired only when some instrument chases.
+    iwchase = [len(i.waveform) & 0xFF if getattr(i, 'wave_start_on_marker', False)
+               else 0 for i in insts]
+    _any_chase = any(iwchase)
     isteps = []
     ipwbase = []
     irawsp = []
@@ -1349,6 +1358,8 @@ fx_dual_up:
         data.append(f'{name}:\n' + _byt(arr))
     data.append('isteps:\n' + _byt(isteps))
     data.append('irawsp:\n' + _byt(irawsp))
+    if _any_chase:
+        data.append('iwchase:\n' + _byt(iwchase))
     if pw_hi_const:
         data.append('pwhic:\n' + _byt(
             [int(t) & 0xFF for t in pw_hi_const.split(',')]))
@@ -1430,6 +1441,15 @@ fx_dual_up:
             '        lda vibwid,x                 ; swell: width doubles\n'
             '        asl\n'
             '        sta vibwid,x')
+
+    # wjmp chase shadow (wave_start_on_marker): re-assert the shared $171F
+    # scratch = the chase distance n at note-init, the one hop the settled-pool
+    # packing skips (subsequent frames hop naturally). Empty (byte-identical)
+    # unless some instrument chases; Y = cinst here.
+    ni_chase = ('        lda iwchase,y\n'
+                '        beq ni_nochase\n'
+                '        sta wjmp                     ; chase hop: $171F = n\n'
+                'ni_nochase:\n') if _any_chase else ''
 
     # Off-table read-redirect (per-engine map -> shared generator). lo reads
     # hit state for idx 192-255; hi reads for idx 96-255. The whole map is
@@ -1844,7 +1864,7 @@ ni_vib:
         sta cvram,x
         lda iwst,y
         sta wavepos,x
-        lda iflag,y
+{ni_chase}        lda iflag,y
         sta fxf,x
 {ni_vib_depth}        lda #$02
         sta guard,x                  ; gate logic off for 2 frames

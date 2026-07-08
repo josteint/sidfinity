@@ -80,6 +80,12 @@ class DmcInstrument:
     # idx = (offset + note) & $FF; entry = (offset, note, lo, hi). Replaces the
     # conservative `offtable_live` rejection for the STABLE-when-read reads.
     offtable_freq: list = field(default_factory=list)
+    # The editor placed wave byte9 ON this program's own loop marker
+    # ($90+n, loop 0): the engine chases it back n on the first read every
+    # note-init, writing the shared $171F scratch (= n). Set only for members
+    # whose off-table freq reads sonify $171F (the wjmp window); the composer
+    # then re-asserts wjmp=n at note-init. See extract() + composer wchase.
+    wave_start_on_marker: bool = False
 
 
 @dataclass
@@ -938,6 +944,26 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
             for iid, c in pos.items():
                 m.instruments[iid].wave_pool_pos = c
             m.wavepos_layout = True
+    # wjmp chase shadow: an off-table freq read on $171F (fhi idx 120 / flo
+    # idx 216) sonifies the shared effect scratch — the LAST value written to
+    # it that frame. One writer is a chasing instrument's first-read hop: an
+    # instrument whose wave byte9 sits ON its own loop marker ($90+n, loop 0)
+    # chases back n every note-init, storing $171F=n. The composer packs the
+    # SETTLED program (skips the transient chase), so it misses that one write
+    # — mark such instruments so the composer re-asserts wjmp=n at note-init
+    # (the hop repeats every settled frame anyway; only note-init is missed).
+    # Canon geometry only; layout-independent (the value is the distance n,
+    # not a pool position), so unaffected by / orthogonal to wavepos_layout.
+    _WJMP_IDX = {(0x171F - 0x16A7) & 0xFF, (0x171F - 0x1647) & 0xFF}
+    if canon_geom and any((off + note) & 0xFF in _WJMP_IDX
+                          for ins in m.instruments.values()
+                          for off, note, _lo, _hi in ins.offtable_freq):
+        _wlim = min(n_wave, 256)
+        for ins in m.instruments.values():
+            ws, n = ins.wave_start, len(ins.wave_ctrl)
+            if (ins.wave_loop == 0 and n and ws < _wlim
+                    and ctrl_tab[ws] == 0x90 + n):
+                ins.wave_start_on_marker = True
     return m
 
 

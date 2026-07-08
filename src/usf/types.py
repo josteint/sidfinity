@@ -587,6 +587,16 @@ class Instrument:
     # equals the value the original sonifies. None = not carried (the
     # composer packs the pool however it likes).
     wave_table_pos: Optional[int] = None
+    # The editor placed this instrument's wave start ON its own loop marker
+    # (the "start at the loop marker" idiom: wave byte9 = loop-marker position,
+    # loop 0). On the first read the engine chases the marker back n positions,
+    # settling on the same one-shot span — musically the attack transient is
+    # skipped, the wave starts at its loop. That chase writes the shared $171F
+    # scratch (= the hop distance n) every note-init; when an off-table freq
+    # read sonifies $171F ($171F wjmp window) the composer must reproduce that
+    # write. Carried (True) only for such members' chasing instruments; the
+    # composer packs the settled program and re-asserts wjmp=n at note-init.
+    wave_start_on_marker: bool = False
     pwm: PwmConfig = field(default_factory=PwmConfig)
     adsr: tuple = (0, 0)             # (ad, sr)
     arp: ArpConfig = field(default_factory=ArpConfig)

@@ -272,6 +272,9 @@ class _T(Transformer):
     def inst_wave_table_pos(self, items):
         return ('wave_table_pos', int(items[0]))
 
+    def inst_wave_start_on_marker(self, items):
+        return ('wave_start_on_marker', bool(int(items[0])))
+
     def pwm_mode(self, items):
         return ('mode', str(items[0]))
 

@@ -109,6 +109,9 @@ def _instrument_to_usf(inst, wavepos_layout: bool = False) -> Instrument:
         # editor wave-table position (arrangement) — only for members whose
         # off-table reads sonify a live wave position (see DmcModel)
         wave_table_pos=inst.wave_pool_pos if wavepos_layout else None,
+        # editor "start at the loop marker" idiom — the first-read chase writes
+        # $171F=n; carried only when an off-table read sonifies that scratch
+        wave_start_on_marker=inst.wave_start_on_marker,
         pwm=PwmConfig(mode='bidirectional',
                       init=inst.pw_init_hi << 8,
                       min_hi=inst.pw_bound_a, max_hi=inst.pw_bound_b,

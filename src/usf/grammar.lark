@@ -261,6 +261,11 @@ instrument_field: "waveform" ":" byte_list                              -> inst_
                 // pool at these positions so its wave-position state equals
                 // the sonified value.
                 | "wave_table_pos" ":" INT                              -> inst_wave_table_pos
+                // The editor started this instrument's wave ON its own loop
+                // marker ("start at the loop marker" idiom); the engine's
+                // first-read chase writes the shared $171F scratch. Carried
+                // only when an off-table freq read sonifies that scratch.
+                | "wave_start_on_marker" ":" INT                        -> inst_wave_start_on_marker
 
 // off-table arpeggio freq entry: at(offset, note, freq_lo, freq_hi)
 ofreq_entry: "at" "(" number "," number "," number "," number ")"

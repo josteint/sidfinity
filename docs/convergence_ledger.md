@@ -594,6 +594,32 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   old-vs-new, Aktarus); 30-member exposure sweep: 12 FULLs hold, +5 FULL
   (Distant_Echoes/No_Name_Remix/In_die_Dunkelheit/Das_Remix/II-V3), 2
   partials moved LATER, 0 regressions.
+- **WJMP-CHASE SHADOW — the "reads wjmp with a chasing instrument" carve-out
+  above is now RESOLVED independently of the wavepos layout (2026-07-08,
+  High_Tech +1 FULL, 0 regr; USF `Instrument.wave_start_on_marker`).** A
+  member reads the wjmp window ($171F, fhi idx 120 / flo idx 216) AND has an
+  instrument the editor started ON its own loop marker ($90+n, loop 0 — "start
+  at the loop marker"). The orig chases that marker back n on the FIRST read
+  every note-init, storing $171F=n; the composer packs the SETTLED program
+  (skips the transient chase), so it misses exactly that one write — while
+  every SETTLED frame after still hops naturally (pinned at the marker),
+  writing wjmp=n. So the ONLY divergence is the note-init frame, and ONLY when
+  a wjmp read lands on it before another voice overwrites $171F (High_Tech: V1
+  inst-7 note-init frame, V2 doesn't overwrite, V3 reads idx-120=$171F).
+  FIX (CORE TENET — reproduce the WRITE not the mechanism, layout-independent):
+  extract detects own-end-marker chasers (gated on a wjmp read, canon geom) →
+  per-instrument `wave_start_on_marker`; composer re-asserts `wjmp = n` at
+  note-init (`iwchase` table + `ni_chase`), emitted only when some instrument
+  chases. REGRESSION-SAFE BY CONSTRUCTION: it re-asserts a write the orig
+  ALWAYS makes at that note-init, observable only where the orig itself
+  diverged — a FULL member has no such read, so its stream is unchanged (6
+  random FULLs + all portfolio byte-identical; full regression 0-regr).
+  Distinct from wavepos layout (`_wave_layout_verbatim` / `wave_table_pos`) —
+  that fixes the wavepos read via pool placement; this fixes the wjmp read via
+  a value re-assert and needs NO layout match. Exposure: 4 f1 partial carriers
+  (High_Tech FULL; Chwat + Solar_Energy first-div resolved -> deeper blocker;
+  King_of_Earth unchanged — its wjmp read diverges for a different, non-chase
+  reason = honest residue).
 - **Redirect-map consumer — durrel (2026-07-03, +26 FULL f1, 0 attributable
   regressions):** $173E duration-reload mapped as a live shadow; works because
   every composer EVENT's stored duration == the orig's reload at that row BY

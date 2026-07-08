@@ -1,5 +1,34 @@
 # DMC V4 — RE notes / migration log
 
+## ✅ ROUND 51 (2026-07-08): WJMP-CHASE SHADOW — High_Tech partial → FULL (+1, 0 regr) [ledger C11 new note]
+
+Random f1 partial High_Tech (Dr_Piotr, vblank, flat div 32811, V3 freq-hi
+orig $01 vs mine $00). First-div chase (memwatch + pc-trace ground truth):
+the V3 note's base freq = an OFF-TABLE melodic read at idx 120 → freqhi[120]
+= $171F, the shared `wjmp` scratch (round-31 class). All other inputs (accum,
+slide, parity) matched; only `wjmp` diverged (orig $01, mine $00). Root cause:
+`$171F` at that read = V1's wave marker-HOP distance ($91→$01), and V1 plays
+**instrument 7 whose wave_start=137 sits ON its own end-marker $91** (the
+"start at the loop marker" editor idiom). The orig, starting on the marker,
+chases back 1 EVERY note-init (writing $171F=1); the composer packs the
+SETTLED program (skips the transient chase) so it misses the note-init hop —
+every subsequent frame it hops naturally, so the ONLY missed write is the
+note-init one, and it only shows when a wjmp read lands on that frame before
+another voice overwrites $171F (V2 idle that frame). FIX (CORE TENET — layout-
+independent, reproduce the WRITE): extract `wave_start_on_marker` (own-end
+marker + loop 0, gated on a wjmp read + canon geom) → USF per-instrument flag
+→ composer re-asserts `wjmp = n` at note-init (`iwchase` table + `ni_chase`,
+emitted only when some instrument chases). REGRESSION-SAFE BY CONSTRUCTION:
+re-asserts a write the orig ALWAYS makes; observable only where orig diverged
+(6 random FULLs + all portfolio byte-identical; full tools/regression.py green,
+0 regressed all 7 families). Census: 4 f1 partial carriers — High_Tech FULL
+297/297s exact; Chwat + Solar_Energy first-div resolved → deeper blocker (Lens
+3); King_of_Earth's wjmp read diverges for a non-chase reason (honest residue).
+METHOD REMINDER: for a global cross-voice scratch, memwatch the read value +
+diff orig-vs-reb INPUTS (base/accum/slide/parity) at the same event index to
+isolate which term diverges; a chasing instrument's phase leaks into another
+voice's $171F read even when its own output is a constant 1-step loop.
+
 ## Status (2026-06-12)
 
 **✅ Geometrical_Zaks FULL** — all 3 subtunes instruction-sequence exact
