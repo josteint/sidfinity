@@ -7,6 +7,46 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 53 (2026-07-08): RESET-ALL-VOICES loop hook = loop-to-0 — Unfinished_1 +6 partial → FULL (0 regr) [ledger C13 new note]
+Random f1 partial Bakewell/Unfinished_1 (CIA 2x, otrk_legacy). Trichotomy
+first-div at play pos 140688/142224 (98.9%, ×1.1 loop-tail ~89s), state ✓: V1
+SR orig $F0 vs mine $F9 = a NOTE-FETCH divergence at the LOOP-BACK (orig plays
+fresh idle note curnote 254/instr 0; reb keeps looping instr 3). ROOT CAUSE: the
+$FF loop hook is a THIRD, unmodeled form. Runtime otrk ($1726) trajectory
+(`--memwatch-on-write D404 1726,1012,1015`, ≥2 passes) = clean periodic
+`1..21,1..21,1` → orig loops the WHOLE track to entry 0. But extract had V1
+loop_to=20 + a bogus entry 20 at byte 131, from `track_loop_target=True` reading
+pos21 $FF + pos22 $82=130 as a jump. Disasm: `$FF` handler = `CMP #$FF / NOP NOP
+/ JSR $1020 / JMP $10D2`, `$1020 = LDA #0/STA $1726 / LDA #0/STA $1727 / LDA #0/
+STA $1728` = RESET ALL 3 VOICES to 0 (a SYNC restart) = semantically loop-to-0.
+These members carry a wedge so they FAIL the canon masked-compare
+(`player_code_mismatch`) and build via the DATAFLOW path, whose rule
+`track_loop_target = loop_site is None` (canon-STA sig absent ⟹ assume read-next
+JSR) mislabeled reset-all as read-next=True. FIX (DATAFLOW ONLY): keep the base
+rule `loop_site is None` (read-next members keep True regardless of zp) + flip to
+False ONLY on a POSITIVE match of the exact reset-all 3-pair idiom (`A9 00 8D a /
+A9 00 8D a+1 / A9 00 8D a+2` to consecutive track-pos addrs) in the reachable
+trace. ⚠️ THE TRAP (amend Step 3.2): my FIRST fix flipped the DEFAULT (True only
+if a read-next `c8 b1 f8 9d` idiom is scanned, else False) — a census caught
+that as the SAME "not-A⟹B" mistake INVERTED: relocated read-next hooks use a
+different track-pointer zp ($58/$61/$68… not $f8) → a fixed-$f8 scan
+false-negatives them → a genuine read-next member REGRESSES to loop-to-0. The
+canonical form detects the MINORITY (reset-all) by a positive signature verified
+absent from the majority (0 occurrences in canon + all 848 read-next members) →
+NO false positive = regression-safety is a THEOREM. CENSUS (static, all DMC v4
+clusters): exactly 6 carriers, all Bakewell (Goodbye/Feelin_Blue/Survival/
+Toccata_v3/Techno_Inc_2/Unfinished_1) — ALL 6 partial→FULL; loop-hook form
+census over f1: canon_sta 3443, read_next 848 (all keep True), jsr_other 62,
+reset_all 6. f2 (bypasses the loop probe via `_family2_build`) + v5 (separate
+pipeline): 0 carriers, unaffected. Full tools/regression.py GREEN (0 regressed
+all 7 families). LESSONS: (1) a note-fetch divergence deep in the loop-tail
+(state ✓, perfect prefix) is a LOOP-BACK bug — trace the runtime otrk/curnote
+trajectory over ≥2 passes + read the orig $FF handler; don't trust walked
+entry_offsets when the runtime counter never reaches them (the otrk_legacy/
+off-table-131 framing was a RED HERRING). (2) When a probe splits variants with
+an "else⟹the other form" default, DON'T flip the default (you only move the
+blind spot) — detect the minority form positively. f1 ≈ 5146 FULL / 255 partial.
+
 ## ✅ ROUND 52 (2026-07-08): DOUBLE-SPEED base+3 JMP wrapper — Scan_Collection_end +9 partial → FULL (+10, 0 regr) [ledger C24/play_repeat note]
 Random f1 partial Scan_Collection_end (Lio, vblank). NOT a content divergence:
 play_match == play_overlap (perfect prefix) but len_post_a 429373 vs len_post_b

@@ -1640,7 +1640,10 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         masked[a - 0x1000] = masked[a - 0x1000 + 1] = 1
     # track-loop hook probe: the site holds STA (base+$726),x in the
     # canonical player; a JSR-hook variant reads the next track byte as
-    # the loop target. Both operands relocate with base.
+    # the loop target. Both operands relocate with base. (The reset-all-to-0
+    # JSR hook — LDA #0/STA $1726/$1727/$1728, a synchronized loop-to-start —
+    # is a wedge that fails the masked compare below with player_code_mismatch
+    # and is classified on the dataflow path; see dataflow.locate.)
     loop_target = False
     op = mem[at(_LOOP_SITE)]
     if op == 0x9D and _rd16(mem, at(_LOOP_SITE) + 1) == reloc(0x1726):

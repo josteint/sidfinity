@@ -1018,6 +1018,37 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   probes (D418 helper, all-off mask, hard-restart variant, filter-mode
   extraction) still canon-site-only — port them the same way when their
   clusters surface (~10 of the 29 still diverge early on other knobs).
+- **NOTE — a variant CLASSIFIER's binary "not-A ⟹ B" rule hides a THIRD form;
+  fix it by POSITIVE detection of the minority, never by flipping the default
+  (2026-07-08, DMC f1 loop hook, +6 FULL 0 regr).** The `track_loop_target`
+  probe split the `$FF` track-loop into TWO forms: canon `STA $1726,x`
+  (loop-to-0, False) vs the read-next-byte JSR hook `INY/LDA($f8),y/STA $1726,x`
+  (True), with `dataflow.locate` encoding it as `track_loop_target = loop_site
+  is None` (canon-STA sig absent ⟹ assume read-next). A THIRD form existed: a
+  JSR to `LDA #0/STA $1726 / LDA #0/STA $1727 / LDA #0/STA $1728` =
+  RESET-ALL-VOICES-to-0 (a SYNC restart), semantically loop-to-0 but mislabeled
+  read-next → the walk mis-read `$FF`+1 as a loop-target jump (Unfinished_1:
+  byte 21 `FF`, byte 22 `82`=130 → bogus entry at byte 131, loop_to=20 instead
+  of 0). Presents as a note-fetch divergence at the FIRST loop-back deep in the
+  ×1.1 tail (state ✓, perfect prefix). These members fail the canon
+  masked-compare (wedge bytes) so they reach the dataflow path; the canon
+  loop-hook probe is NOT involved (fix is dataflow-only).
+  **THE TRAP I NEARLY LANDED (amend Step 3.2):** the first fix flipped the
+  DEFAULT — `True` only when a read-next idiom (`c8 b1 f8 9d`) is scanned, else
+  `False`. That is the SAME "not-A ⟹ B" mistake inverted: a read-next hook whose
+  zp differs from `$f8` (relocated variants use `$58/$61/$68…`; the track-pointer
+  zp and track-pos addr both vary) false-NEGATIVEs the scan → a genuine read-next
+  member regresses to loop-to-0. **CANONICAL FIX:** keep the base rule
+  (`loop_site is None`) UNCHANGED — so every read-next member keeps `True`
+  regardless of zp — and flip to `False` ONLY on a POSITIVE match of the exact
+  reset-all 3-pair idiom (`A9 00 8D a / A9 00 8D a+1 / A9 00 8D a+2` to
+  consecutive track-pos addrs) in the reachable trace. That idiom has 0
+  occurrences in the canon player and in all 848 read-next members (census: 8
+  carriers in all HVSC-DMC, every one reset-all) → the "changed" verdict has NO
+  false positive = regression-safety is a THEOREM, not a hope. LESSON: when a
+  probe splits variants with an "else ⟹ the other form" default, DON'T flip the
+  default (you only move the blind spot) — detect the minority form by a POSITIVE
+  signature verified absent from the majority. `dataflow.locate` reset-all match.
 
 ### C15 — ⛔ REMOVED (audio-equivalence verdict relaxation)
 **User decision 2026-07-01: every SID always gets the STRICT write-stream match.**

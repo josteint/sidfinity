@@ -257,14 +257,37 @@ def locate(mem: bytearray, base: int, play: int | None = None) -> dict | None:
                 break
         state[name] = rd16(site) if site is not None else None
 
-    # track-loop hook: locate the canon STA $1726,x site; if found, the loop
-    # uses the loop-to-0 form (track_loop_target=False), else the JSR form.
+    # track-loop hook. Base rule (historical): the canon STA $1726,x site is
+    # located ⟹ loop-to-0 (False); absent ⟹ the JSR form (True = read-next
+    # track byte). This is correct for canon-STA and read-next members and must
+    # NOT be refined by a read-next signature scan — relocated members vary the
+    # track-pointer zp ($58/$61/$68… not $f8) and the track-pos address, so any
+    # fixed-shape read-next scan false-NEGATIVEs a genuine read-next hook and
+    # regresses it to loop-to-0.
+    #
+    # The one form the base rule mislabels is the RESET-ALL-to-0 JSR hook
+    # (LDA #0/STA $1726 / LDA #0/STA $1727 / LDA #0/STA $1728 — zero every
+    # voice's track pos = a SYNCHRONIZED loop-to-start): its loop site is a JSR
+    # so no canon STA sig is found ⟹ base rule says True, but it loops to 0.
+    # These members fail the canon masked-compare (wedge bytes) and reach this
+    # path. Flip to False ONLY on a POSITIVE match of that exact 3-pair idiom to
+    # CONSECUTIVE track-pos addresses — an idiom absent from the canon player
+    # and from every read-next member (census: 8 carriers in all of HVSC-DMC,
+    # all reset-all), so it never touches a read-next hook regardless of zp.
     loop_site = None
     for w in (6, 9, 12):
         loop_site = _locate_site(vI, vseq, _sig_at(_CANON_LOOP_SITE, w))
         if loop_site is not None:
             break
     track_loop_target = loop_site is None
+    if track_loop_target:
+        for i in range(len(vI) - 5):
+            s = vI[i:i + 6]
+            if (all(s[k][1] == 0xA9 and mem[s[k][0] + 1] == 0x00 for k in (0, 2, 4))
+                    and all(s[k][1] == 0x8D for k in (1, 3, 5))
+                    and s[3][2] == s[1][2] + 1 and s[5][2] == s[1][2] + 2):
+                track_loop_target = False    # reset-all-to-0 hook = loop-to-0
+                break
 
     return {
         'op_instr': sites['instr'], 'op_wavectrl': sites['wavectrl'],

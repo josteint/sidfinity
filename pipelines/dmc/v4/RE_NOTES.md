@@ -1,5 +1,64 @@
 # DMC V4 — RE notes / migration log
 
+## ✅ ROUND 53 (2026-07-08): RESET-ALL-VOICES loop hook classified loop-to-0 — Unfinished_1 +6 → FULL (0 regr) [ledger C13 new note]
+
+Random f1 partial `MUSICIANS/B/Bakewell_Dwayne/Unfinished_1.sid` (CIA 2x,
+`otrk_legacy`). Trichotomy first-div at play pos 140688 / 142224 (98.9%, in the
+×1.1 loop-tail ~89s of an 82s song), state_match ✓: V1 SR orig `$F0` vs mine
+`$F9` — a NOTE-FETCH divergence (orig plays a fresh idle note curnote=254/instr
+0; reb keeps looping instr 3). The whole song + 7s of the loop matched exactly,
+then the LOOP-BACK diverged.
+
+Ground truth (`--memwatch-on-write D404 1726,1012,1015`): the orig's V1 otrk
+($1726) trajectory is a clean periodic `1..20,21, 1..20,21, 1` — it **loops the
+whole track back to entry 0** every pass. But extract had V1 `loop_to=20` with a
+bogus entry 20 at byte offset **131**, from `track_loop_target=True` reading pos
+21 (`FF`) + pos 22 (`82`=130) as a jump to byte 131. So the reb looped to entry
+20 (a 256-row `note 0 inst 3` drone) forever; the orig replays from the top.
+
+ROOT CAUSE — the loop hook is a THIRD form the classifier didn't know. Disasm:
+the `$FF` handler is `$10D9: CMP #$FF / NOP NOP / JSR $1020 / JMP $10D2`, and
+`$1020 = A9 00 8D 26 17 / A9 00 8D 27 17 / A9 00 8D 28 17` = **reset all 3
+voices' track positions to 0** — a SYNCHRONIZED loop-to-start restart,
+semantically `track_loop_target=False`. These members carry a code wedge so they
+FAIL the canon masked-compare (`player_code_mismatch`) and build via the
+**dataflow** path, whose rule `track_loop_target = loop_site is None` (canon STA
+sig absent ⟹ assume the read-next JSR hook `INY/LDA($f8),y/STA $1726,x`)
+mislabeled the reset-all hook as read-next=True → the walk read `$FF`+1 as a
+loop-target jump. (The canon loop-hook probe is NOT the culprit — it never gets
+there.)
+
+THE TRAP I NEARLY LANDED (amend Step 3.2 — recorded so the next session doesn't
+repeat it): the first fix flipped the DEFAULT — `True` only when a read-next
+idiom (`c8 b1 f8 9d`) is scanned, else `False`. A census exposed that as the
+SAME "not-A ⟹ B" mistake inverted: relocated read-next hooks use a DIFFERENT
+track-pointer zp (`$58/$61/$68…` not `$f8`), so a fixed-`$f8` scan
+false-NEGATIVEs them → a genuine read-next member regresses to loop-to-0.
+
+CANONICAL FIX (dataflow-only, regression-safe as a THEOREM): keep the base rule
+`loop_site is None` UNCHANGED — every read-next member keeps `True` regardless
+of zp — and flip to `False` ONLY on a POSITIVE match of the exact reset-all
+3-pair idiom (`A9 00 8D a / A9 00 8D a+1 / A9 00 8D a+2` to consecutive track-pos
+addrs) in the reachable trace. That idiom has 0 occurrences in the canon player
+and in all 848 read-next members, so the "changed" verdict has NO false positive.
+
+CENSUS (static, all 5401 f1 + every other DMC v4 cluster): exactly **6** members
+carry the 3-voice reset-all hook — all Bakewell (Goodbye, Feelin_Blue, Survival,
+Toccata_v3, Techno_Inc_2, Unfinished_1) — **all 6 flip partial → FULL** on a
+fresh full-songlength verify. Loop-hook form census over all f1: canon_sta 3443,
+read_next 848 (all keep True), jsr_other 62, reset_all 6, no_base 1026. Family-2
+(bypasses the loop probe via `_family2_build`) and v5 (separate pipeline): 0
+carriers, unaffected. Full `tools/regression.py` GREEN (0 regressed all 7
+families).
+
+METHOD LESSON: a note-fetch divergence deep in the ×1.1 loop-tail (state ✓,
+perfect prefix) is a LOOP-BACK bug — trace the runtime otrk/curnote trajectory
+(`--memwatch-on-write D404 1726,1012,...`) over ≥2 passes to see the true loop
+period, then read the orig's `$FF` handler (don't trust the extract's walked
+`entry_offsets` when the runtime counter never reaches them). The
+`otrk_legacy`/off-table-131 framing was a RED HERRING — the real bug was one
+mis-probed variant flag.
+
 ## ✅ ROUND 52 (2026-07-08): DOUBLE-SPEED base+3 JMP wrapper — Scan_Collection_end +9 → FULL (+10, 0 regr) [ledger C24/play_repeat note]
 
 Random f1 partial `MUSICIANS/L/Lio/Scan_Collection_end.sid` (vblank). The
