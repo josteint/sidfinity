@@ -7,6 +7,35 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 58 (2026-07-08): gate hold+never-release = INDEPENDENT editor flags — lossy gate_mode enum — Strain_2 +1 partial → FULL (0 regr) [ledger C30 NEW] — commit 8850c74d
+Random f1 partial Phobos/Strain_2 (CIA, per-IRQ div 156750/439569, state ✓):
+ALL 2865 tail mismatches = ONE V3 note, fhi orig $18 vs reb $10 (flo matches).
+pc-trace: note-init eff. note $D8=216 → off-table freq-hi read $16A7+216 =
+$177F = V3's fx-flags cache (the round-39 fxf redirect row — the MECHANISM was
+right, the VAR VALUE wrong). ROOT: instr byte 10 = $18 = HOLDING($10) +
+NO-GATE-FX($08) BOTH set — the TND tutorial documents them as independent
+editor toggles; our 3-value gate_mode enum assumed exclusivity, iflags()
+rebuilt $10. Engine tests $10 first ($132D) so the co-set $08 is mechanically
+dead (audibly $18≡$10) — observable ONLY via the fxf state-as-data read. FIX
+(ledger C30): elidable `EnvelopeConfig.gate_open` bool (grammar/parser/writer/
+spec updated per usf_sync), extract `(fx&0x18)==0x18`, iflags() ORs bit 3
+back. NOT a 4th enum value (a categorical duplicating 'hold' hides the
+similarity the boolean makes explicit), NOT a raw byte (Pole B).
+REGRESSION-SAFE BY CONSTRUCTION: composer mirrors the orig's bit priority →
+the bit reaches the stream only via fxf reads, where the old build already
+diverged (a FULL with such a read couldn't exist). CENSUS (extract-level,
+235 stored partials): 25 both-bits carriers; sweep = Strain_2 FULL
+439569/439569 + Rem_Phase_2 first-div DEEPER 209955→254277 + 20 unchanged
+(deeper blockers) + 3 Bakewell "flips" = round-53 palimpsest rows (C20 —
+in the round-53 flip list, already FULL under parent). Full regression green
+(0 regr all 7 families); truth merged; mass-write ok=265 err=0. TRAP re-hit:
+`dmc_family_batch.py --help` RUNS the full batch (no argparse) — killed in
+time; its few appended rows carry the current hash (valid). LESSON: any USF
+enum derived from a FLAGS byte whose source bits are independent editor
+toggles is lossy-suspect — round-trip-verify the reconstruction per
+instrument (round-39 lesson, now with the failure case found). f1 ≈ 5157
+FULL / 244 partial.
+
 ## ✅ ROUND 57 (2026-07-08): play-phase F misread as R on a HELD note — frame-entry reachability — My_Rusty_Love_C64 +1 partial → FULL (0 regr) [ledger C18 note]
 Random f1 partial Psych858o/My_Rusty_Love_C64 (CIA 6x, re-assembled, dataflow
 route). Per-IRQ trichotomy: at the first HELD note the orig re-asserts V1
