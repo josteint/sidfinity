@@ -366,6 +366,10 @@ env_kv: "release_ctrl" "=" number      -> env_release_ctrl
       // few frames after attack; the tail rides the SID release —
       // DMC's percussive default), 'open' (gate never drops).
       | "gate_mode" "=" CNAME          -> env_gate_mode
+      // The never-release toggle is ALSO set alongside hold (the two
+      // are independent editor flags; hold takes articulation
+      // priority). Elidable — emitted only when true.
+      | "gate_open" "=" number         -> env_gate_open
 
 // Phase 1: per-instrument freq-slide config — replaces the per-
 // engine-parameterized `fx: freq_slide` flag.

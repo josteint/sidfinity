@@ -255,6 +255,8 @@ def _write_envelope(e: EnvelopeConfig) -> str | None:
         parts.append(f'release_ctrl={_hex(e.release_ctrl)}')
     if e.gate_mode != 'hold':
         parts.append(f'gate_mode={e.gate_mode}')
+    if e.gate_open:
+        parts.append('gate_open=1')
     if not parts:
         return None
     return 'envelope: ' + ' '.join(parts)

@@ -315,7 +315,13 @@ instrument 1 lead {
   - `arp`: `offsets=[...]` (list of semitone offsets including the
     base 0), `period=` (cycle length).
   - `vibrato`: `scale=` (depth).
-  - `envelope`: hard-restart timing fields.
+  - `envelope`: `release_ctrl=` (CTRL byte written during release),
+    `gate_mode=` one of `hold` (gate until note end, default),
+    `release_early` (gate drops a few frames after attack), `open`
+    (gate never drops), and `gate_open=1` (elidable; the never-release
+    toggle is ALSO set alongside `gate_mode=hold` — the two are
+    independent editor flags and hold takes articulation priority,
+    but the co-set flag is still composer-typed content).
   - `pulse_env` / `filter_env`: per-instrument pulse-width / filter-cutoff
     sweep envelopes (DMC V5) — the parameterized form that dissolves the
     engine's shared, fused sweep tables (the editor's packer overlaps

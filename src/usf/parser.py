@@ -377,6 +377,9 @@ class _T(Transformer):
     def env_gate_mode(self, items):
         return ('gate_mode', str(items[0]))
 
+    def env_gate_open(self, items):
+        return ('gate_open', bool(items[0]))
+
     def env_args(self, items):
         return EnvelopeConfig(**dict(items))
 

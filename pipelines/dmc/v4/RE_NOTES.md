@@ -459,3 +459,20 @@ Representation status (why this is residue, deliberately NOT schema):
   its arithmetic in USF is Pole B. The param transcript is the maximally
   principled form for chaos content: all determining constants in USF, one
   fixed mechanism in the composer.
+
+## Gate flags $10/$08 are INDEPENDENT editor toggles — `gate_open` (2026-07-08, ledger C30)
+
+Instrument byte 10 bit 4 (HOLDING FX) and bit 3 (NO GATE FX) are independent
+DMC editor toggles (TND tutorial), and the corpus carries instruments with
+BOTH set (fx = $18 shape; Strain_2 has 2 used carriers). The engine tests
+$10 first ($132D), so $08 is mechanically dead when $10 is set — audibly
+$18 ≡ $10 — but the raw byte is cached in $177D,x and read AS DATA by the
+off-table freq-hi lookup (idx 214-216 → the fxf redirect rows, round 39).
+The old `gate_mode` 3-value enum was LOSSY over this pair: `iflags()`
+rebuilt $10, the orig read $18, first-divergence at every off-table fxf read.
+
+Fix: `EnvelopeConfig.gate_open: bool` (elidable, default False) carries the
+co-set never-release flag alongside `gate_mode='hold'`; extract sets it from
+`(fx & 0x18) == 0x18`; `iflags()` ORs bit 3 back. Regression-safe by
+construction (the bit only reaches the stream via the fxf reads, where the
+old build already diverged). Strain_2 partial → FULL 439569/439569.

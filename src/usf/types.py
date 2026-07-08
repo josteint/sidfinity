@@ -490,9 +490,18 @@ class EnvelopeConfig:
     the classic tracker model, default), 'release_early' (gate drops
     a fixed few frames after attack; the note tail rides the SID
     release — DMC's percussive default), 'open' (gate never drops).
+
+    `gate_open` — the never-release toggle is ALSO set alongside
+    `gate_mode='hold'`. Hold and never-release are independent
+    editor flags; when both are set the engine gives hold priority,
+    so the effective articulation is 'hold' — but the flag is still
+    content the composer typed, and it is observable (the flag state
+    can be read back as data). Meaningful only with gate_mode='hold';
+    never-release alone is gate_mode='open'.
     """
     release_ctrl: int = 0
-    gate_mode: str = 'hold'      # 'hold' | 'release_early' | 'open' 
+    gate_mode: str = 'hold'      # 'hold' | 'release_early' | 'open'
+    gate_open: bool = False      # hold + never-release both set
 
 
 @dataclass

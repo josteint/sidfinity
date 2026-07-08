@@ -627,7 +627,7 @@ class _Model:
             f |= 0x02
         if inst.pwm.keep_running:
             f |= 0x04
-        if inst.envelope.gate_mode == 'open':
+        if inst.envelope.gate_mode == 'open' or inst.envelope.gate_open:
             f |= 0x08
         if inst.envelope.gate_mode == 'hold':
             f |= 0x10

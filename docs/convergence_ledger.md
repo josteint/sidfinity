@@ -102,6 +102,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | multi-SID (2SID/3SID) · N chips, one player each behind a dispatch wrapper · players run sequentially -> merged log = [chip1][chip2] · extract/compose/verify each with single-chip machinery, chip-TAGGED (reg=chip*$20+reg) · voices number through chips, addresses are pipeline constants not USF | C27 | logged |
 | multi-SID VERDICT · rebuild is per-chip correct but the merged chip-tagged stream diverges on a CROSS-CHIP adjacency (chip1 vs chip2 write order) · cross-chip order is physically UNobservable (independent hardware, Trap-B analogue) · split by reg//0x20, require each chip's substream to pass · compare_instruction_stream(n_chips=N) · do NOT chase cycle precision / straddle-free capture | C28 | logged |
 | track $FF loop into an OUT-OF-IMAGE sector (garbage sector# past the ptr table → $0000) · engine sonifies live ZEROPAGE as notes (6510 port $00=$2F/$01=$37 then static zp, read via ($F8),y=$0000) · extract overlays libsidplayfp runtime low-RAM (C9, py65 can't reproduce env zp) gated on _loops_offimage · port + $F8/$F9 read-time corrections · regr-safe: unplayed decode = byte-identical | C29 | logged |
+| LOSSY ENUM over independently-toggleable flag bits · USF enum assumed two editor flags mutually exclusive (gate hold $10 / never-release $08) · engine gives one priority so the co-set bit is MECHANICALLY DEAD · but the raw flags byte is OBSERVABLE via a state-as-data read (off-table fxf) → reconstruction misses the dead bit · carry the masked flag as an elidable boolean CO-FIELD, keep the enum = the EFFECTIVE articulation | C30 | logged |
 
 ---
 
@@ -1910,3 +1911,31 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   0 regressions (full tools/regression.py green). LESSON (re-confirms C20): the
   stored jsonl before-status is NOT a trustworthy baseline — re-verify each
   apparent flip against a fresh PARENT-code build before counting it.
+
+### C30 — Lossy enum over independently-toggleable editor flag bits (dead bit observable via state-as-data read)
+- **First sight (2026-07-08, DMC v4, Phobos/Strain_2 → FULL):** USF
+  `EnvelopeConfig.gate_mode` modeled DMC instrument byte 10's two gate bits
+  ($10 HOLDING FX, $08 NO GATE FX — the TND tutorial documents them as
+  independent editor toggles) as a 3-value enum, assuming mutual exclusivity.
+  The corpus falsifies it: instruments carry BOTH bits ($18). The engine tests
+  $10 first ($132D) so $08 is mechanically dead when $10 is set — audibly
+  $18 ≡ $10 — but the RAW flags byte is cached in $177D,x and READ AS DATA by
+  the off-table freq-hi lookup (C6 idx 216 → $177F), so the composer's
+  reconstructed byte (`iflags()`, missing the dead bit) diverges the stream.
+- **Canonical form:** keep the enum = the EFFECTIVE articulation (engine
+  priority applied), and carry the masked co-set flag as an **elidable boolean
+  co-field** (`gate_open: bool = False`, emitted only when true). Extract sets
+  it from `(fx & 0x18) == 0x18`; reconstruction ORs it back in. Do NOT mint a
+  4th enum value ('open_hold') — a categorical token duplicating 'hold' hides
+  the similarity the boolean makes explicit; do NOT store the raw byte (Pole B).
+- **Regression-safety argument (by construction):** the composed engine mirrors
+  the orig's bit priority, so the added bit changes the write stream ONLY at
+  state-as-data reads of the flags byte — exactly where the orig already
+  diverged from the old rebuild. A FULL whose stream contained such a read
+  would have mismatched → no FULL can regress. Default False → writer elides →
+  all existing USFs byte-identical.
+- **The general smell:** any USF enum derived from a FLAGS byte where the
+  source bits are independent editor toggles. Round-trip-verify the
+  reconstruction against the raw byte per instrument (the round-39 lesson);
+  a failure means the enum is lossy, not that the data is dirty.
+- **Status:** `logged` (1×).

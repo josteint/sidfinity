@@ -119,7 +119,8 @@ def _instrument_to_usf(inst, wavepos_layout: bool = False) -> Instrument:
                       keep_running=inst.pw_keep_running),
         arp=ArpConfig(offsets=[]),
         vibrato=vib,
-        envelope=EnvelopeConfig(gate_mode=inst.gate_mode),
+        envelope=EnvelopeConfig(gate_mode=inst.gate_mode,
+                                gate_open=inst.gate_open),
         freq_slide_config=slide,
         filter_prog=FilterProgConfig(
             program=(inst.filter_def + 1) if inst.filter_on else 0,

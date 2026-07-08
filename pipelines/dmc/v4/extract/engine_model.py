@@ -64,6 +64,10 @@ class DmcInstrument:
     slide_step: int          # byte8 & $7F (when dual)
     slide_dir: str           # 'up' (byte8 bit7 set) | 'down'
     gate_mode: str           # 'release_early' | 'hold' ($10) | 'open' ($08)
+    gate_open: bool          # $10 AND $08 both set — independent editor
+                             # flags; hold wins in the engine ($132D tests
+                             # $10 first), but the raw flags byte is
+                             # observable via the off-table fxf read
     drum: bool               # flag $01 — wave freq bytes are absolute
     noise_attack: bool       # flag $80 — cymbal
     wave_start: int          # byte9 (raw index into the shared wave table)
@@ -742,7 +746,7 @@ def _decode_instrument(mem, base: int, iid: int,
         vib_delay=(b[7] >> 4) * 8, vib_width=b[7] & 0x0F,
         vib_ramp=b[8], dual=bool(fx & 0x40),
         slide_step=b[8] & 0x7F, slide_dir='up' if b[8] & 0x80 else 'down',
-        gate_mode=gate, drum=bool(fx & 0x01),
+        gate_mode=gate, gate_open=(fx & 0x18) == 0x18, drum=bool(fx & 0x01),
         noise_attack=bool(fx & 0x80), wave_start=b[9],
         wave_ctrl=wc, wave_freq=wf, wave_loop=wl)
 
