@@ -1138,17 +1138,27 @@ def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
     from collections import defaultdict
     recs = defaultdict(set)            # inst id -> {(off, note, lo, hi)}
     vibovr = {}                        # note>95 -> off-table vibdepth byte
+    # Song attribution: which subtunes REACH each record. The off-table bytes
+    # can be per-subtune init-written engine state (the $1707-$170C track-ptr
+    # slots are set from the tune record at init), so the post-init correction
+    # must sample the subtune that actually makes the read — the default
+    # start-song sample serves the wrong subtune's init state (Cool_Musax
+    # sub 1: idx 96 = V1 track-ptr lo, start-song $F8 vs reading-song $17).
+    songmap = defaultdict(set)         # (inst id, off, note) -> {song idx}
+    vibsongs = defaultdict(set)        # note -> {song idx}
 
-    def add_note(n, inst_id):
+    def add_note(n, inst_id, si):
         inst = m.instruments.get(inst_id)
         if n > 95:
             # the note's OWN off-table freq (offset-0 base read): the pitch the
             # note plays at when it overshoots the 96-entry table (via transpose).
             recs[inst_id].add((0, n & 0xFF, mem[(flo_addr + n) & 0xFFFF],
                                mem[(fhi_addr + n) & 0xFFFF]))
+            songmap[(inst_id, 0, n & 0xFF)].add(si)
             # the note's off-table VIBDEPTH read (vibdepth[note], note>95) —
             # lands on static instr-record bytes, used as the vibrato step.
             vibovr[n & 0xFF] = mem[(vibdepth_addr + n) & 0xFFFF]
+            vibsongs[n & 0xFF].add(si)
         if inst is None or inst.drum:
             return
         for off in inst.wave_freq:
@@ -1157,8 +1167,9 @@ def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
                 recs[inst_id].add((off & 0xFF, n & 0xFF,
                                    mem[(flo_addr + y) & 0xFFFF],
                                    mem[(fhi_addr + y) & 0xFFFF]))
+                songmap[(inst_id, off & 0xFF, n & 0xFF)].add(si)
 
-    for song in m.songs:
+    for si, song in enumerate(m.songs):
         for v in song.voices:
             # `running` = the instrument whose wave program is LIVE before a
             # row's note-init runs. Notes are FETCHED on a P call (curnote +
@@ -1176,13 +1187,13 @@ def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
                 tr = v.transposes[ei] if v.transposes else 0
                 for r in v.patterns[e]:
                     if r.note is not None:
-                        add_note(r.note + tr, r.instr)
+                        add_note(r.note + tr, r.instr, si)
                         if running is not None and running != r.instr:
-                            add_note(r.note + tr, running)
+                            add_note(r.note + tr, running, si)
                         if not r.soft:
                             running = r.instr
                     if r.glide_to is not None:
-                        add_note(r.glide_to + tr, r.instr)
+                        add_note(r.glide_to + tr, r.instr, si)
     # IDLE-WAVE off-table reads: a voice that starts on rests freewheels the
     # idle wave (m.idle_wave, the cleared-cache path) with curnote = its idle
     # note — and the idle-wave freq offsets + idle note can overshoot the
@@ -1202,9 +1213,14 @@ def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
         if iid in m.instruments:
             m.instruments[iid].offtable_freq = sorted(s)
     m.offtable_vibdepth = vibovr
+    # idle-wave records deliberately get NO songmap entry (their song
+    # attribution is imprecise) -> the correction falls back to the
+    # start-song sample, exactly the pre-song-aware behavior.
+    m.offtable_songs = dict(songmap)
+    m.offtable_vib_songs = dict(vibsongs)
 
 
-def _postinit_values(sid_path: str, addrs) -> dict:
+def _postinit_values(sid_path: str, addrs, subtune: int | None = None) -> dict:
     """Post-init values of work-RAM bytes via siddump --memwatch (libsidplayfp
     = ground truth). The off-table source bytes live in the engine's work RAM
     AFTER the freq tables; the engine's INIT writes them, so the value the
@@ -1220,9 +1236,10 @@ def _postinit_values(sid_path: str, addrs) -> dict:
     sd = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..',
                       'tools', 'siddump')
     al = sorted(set(a & 0xFFFF for a in addrs))
+    st = [] if subtune is None else ['--subtune', str(subtune + 1)]
     try:
         out = subprocess.run(
-            [sd, sid_path, '--duration', '6', '--raw',
+            [sd, sid_path, '--duration', '6', '--raw', *st,
              '--memwatch', ','.join(f'{a:04X}' for a in al)],
             capture_output=True, text=True, timeout=90).stdout
     except Exception:
@@ -1242,7 +1259,16 @@ def _correct_offtable_postinit(m: DmcModel, sid_path: str, flo_addr: int,
                                fhi_addr: int, vibdepth_addr: int) -> None:
     """Replace the file-image off-table values with the original's POST-INIT
     values (the bytes the engine actually reads). Recovers the
-    init-written-then-constant reads that the file-image capture got wrong."""
+    init-written-then-constant reads that the file-image capture got wrong.
+
+    SUBTUNE-AWARE: the off-table bytes can be per-subtune init state (track-ptr
+    slots $1707-$170C, set from the tune record at init — constant within a
+    subtune, different across subtunes). Sample post-init values on every
+    subtune that REACHES a record (m.offtable_songs) and use that value only
+    when all reaching subtunes were sampled and agree; otherwise fall back to
+    the START-SONG sample — exactly the pre-song-aware behavior, so records
+    reached from the start song (and idle records, which carry no attribution)
+    are byte-identical to before."""
     addrs = set()
     for ins in m.instruments.values():
         for off, note, lo, hi in ins.offtable_freq:
@@ -1252,23 +1278,57 @@ def _correct_offtable_postinit(m: DmcModel, sid_path: str, flo_addr: int,
                 addrs.add(fhi_addr + idx)
     for note in m.offtable_vibdepth:
         addrs.add(vibdepth_addr + note)
-    post = _postinit_values(sid_path, addrs)
-    if not post:
-        return addrs                      # siddump failed → all unresolved
-    for ins in m.instruments.values():
+    if not addrs:
+        return set()
+    songmap = getattr(m, 'offtable_songs', {})
+    vibsongs = getattr(m, 'offtable_vib_songs', {})
+    start_si = max(0, (getattr(m, 'start_song', 1) or 1) - 1)
+    need = {start_si}
+    for songs in songmap.values():
+        need |= songs
+    for songs in vibsongs.values():
+        need |= songs
+    n_songs = max(1, len(m.songs))
+    need = {si for si in need if 0 <= si < n_songs}
+    post_by_song = {si: _postinit_values(sid_path, addrs, subtune=si)
+                    for si in sorted(need)}
+    post = post_by_song.get(start_si, {})
+    if not any(post_by_song.values()):
+        return {a & 0xFFFF for a in addrs}  # siddump failed → all unresolved
+    resolved = set()
+
+    def pick(addr, songs):
+        a = addr & 0xFFFF
+        if songs:
+            vals = [post_by_song.get(si, {}).get(a) for si in songs]
+            if all(v is not None for v in vals) and len(set(vals)) == 1:
+                resolved.add(a)
+                return vals[0]
+        v = post.get(a)
+        if v is not None:
+            resolved.add(a)
+        return v
+
+    for iid, ins in m.instruments.items():
         new = []
         for off, note, lo, hi in ins.offtable_freq:
             idx = (off + note) & 0xFF
-            new.append((off, note, post.get((flo_addr + idx) & 0xFFFF, lo),
-                        post.get((fhi_addr + idx) & 0xFFFF, hi)))
+            songs = songmap.get((iid, off, note), ())
+            plo = pick(flo_addr + idx, songs)
+            phi = pick(fhi_addr + idx, songs)
+            new.append((off, note, lo if plo is None else plo,
+                        hi if phi is None else phi))
         ins.offtable_freq = sorted(set(new))
-    m.offtable_vibdepth = {n: post.get((vibdepth_addr + n) & 0xFFFF, d)
-                           for n, d in m.offtable_vibdepth.items()}
-    # addrs whose byte VARIED over the post-init time-sample (post omitted them,
+    vd = {}
+    for n, d in m.offtable_vibdepth.items():
+        v = pick(vibdepth_addr + n, vibsongs.get(n, ()))
+        vd[n] = d if v is None else v
+    m.offtable_vibdepth = vd
+    # addrs whose byte VARIED over the post-init time-sample (unresolved,
     # keeping the file image). These are the candidates for the event-driven
     # correction below: a globally-varying byte can still be STABLE at the moment
     # a given note reads it (e.g. sector-position $1729).
-    return {a & 0xFFFF for a in addrs} - set(post)
+    return {a & 0xFFFF for a in addrs} - resolved
 
 
 _SL_DB: dict = {}

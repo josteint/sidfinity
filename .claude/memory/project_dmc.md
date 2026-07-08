@@ -7,6 +7,32 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 59 (2026-07-08): SUBTUNE-AWARE off-table post-init capture — Cool_Musax +1 partial → FULL (0 regr) [ledger C6 note]
+First f1 partial by hvsc path (user-picked): Akadem/Cool_Musax, sub 1 flat div
+3029, V2 freq-hi orig $17 vs reb $F8 on a note-init. pc-trace: wave off 60 +
+note 36 = idx 96 → fhi read $1707 = V1 TRACK-PTR LO — per-subtune INIT-WRITTEN
+state (subtune values F8/17/26/2E/53; taint STATIC during play). ROOT: the
+ENTIRE off-table value capture was SUBTUNE-BLIND — `_postinit_values` +
+`_offtable_eventdriven` sample only the DEFAULT start song, so records reached
+only from another subtune inherit the wrong subtune's init state (idx 96 kept
+start-song $F8; idx 98 likewise wrong, 101/103 coincidentally right). FIX
+(extract-only): `_assign_offtable_freq` tracks which songs REACH each
+(inst,off,note) record (`m.offtable_songs` + `m.offtable_vib_songs`; idle
+records deliberately unattributed); `_postinit_values` gains `subtune=`;
+`_correct_offtable_postinit` samples per reaching subtune and uses that value
+only when ALL reaching songs are sampled and AGREE — any ambiguity falls back
+to the start-song sample = old behavior. REGRESSION-SAFE BY CONSTRUCTION: a
+FULL's served value already matched every subtune's stream → per-subtune
+capture returns the same value → byte-identical. Cool_Musax FULL 5/5 subs
+(sub 1 42107/42107). Full tools/regression.py green (0 regr all 7 families);
+10-member multi-subtune-FULL exposure sample all FULL. Partials sweep STOPPED
+by user at 51/231 (accounting deferred to the next family batch via code_hash;
+7 batch-FULLs of which Bakewell ×3 + Nocturno = known C20 palimpsests; likely
+genuine new: Under_the_Ground_preview, Megahardcoretrancetechnorave_95).
+Event-driven correction left subtune-blind (still default-song) — a member
+needing a non-start-song event-driven value stays residue; extend if a chase
+finds one. NB: extract now runs one 6s memwatch siddump PER reaching subtune.
+
 ## ✅ ROUND 58 (2026-07-08): gate hold+never-release = INDEPENDENT editor flags — lossy gate_mode enum — Strain_2 +1 partial → FULL (0 regr) [ledger C30 NEW] — commit 8850c74d
 Random f1 partial Phobos/Strain_2 (CIA, per-IRQ div 156750/439569, state ✓):
 ALL 2865 tail mismatches = ONE V3 note, fhi orig $18 vs reb $10 (flo matches).

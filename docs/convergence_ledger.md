@@ -314,6 +314,20 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   RUNNING instrument per voice during enumeration; for every note row also
   add_note(note, running); soft rows don't update `running`. The existing
   post-init correction then captures init-set state bytes.
+- **SUBTUNE-AWARE post-init correction (2026-07-08, Cool_Musax, DMC v4):** the
+  off-table byte can be PER-SUBTUNE init-written state (track-ptr slots
+  $1707-$170C are set from the tune record at init — constant within a subtune,
+  different across subtunes), and the post-init capture sampled only the
+  DEFAULT start song (Cool_Musax sub 1: off 60 + note 36 = idx 96 → $1707 =
+  V1 track-ptr lo, start-song $F8 vs reading-song $17). Extract fix: the reach
+  model records WHICH songs reach each `(inst, off, note)` record
+  (`m.offtable_songs`); `_correct_offtable_postinit` samples `_postinit_values`
+  per reaching subtune (`--subtune`) and uses a record's reaching-song value
+  only when every reaching song was sampled and they AGREE; any ambiguity
+  (idle records carry no attribution, disagreement, missing sample) falls back
+  to the start-song sample = the old behavior. Regression-safe by construction:
+  a FULL member's served value already matched every subtune's stream, so the
+  reaching-subtune capture returns the same value → byte-identical build.
 - **GT V1 consumer (2026-06-30, commit 8a743d1):** `extract/to_usf._offtable_freq` —
   per-inst reachable reads (wave/arp/**bare-note** idx≥96, via a cross-pattern
   instrument-carry walk; the bare-note read `freq[note]` for note+transpose≥96 was the
