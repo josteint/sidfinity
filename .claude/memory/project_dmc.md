@@ -7,6 +7,40 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 63 (2026-07-09): INIT-PREFIX subtune force — extract walked the DUMMY tune record — Sans_intro +1 partial → FULL (0 regr) [ledger C19 9th occurrence]
+Picked from the census's LARGEST partial bucket ("$D406 V1 SR @<64", 27 members) —
+but the wide batch is fully STALE (0 rows at the current code_hash; mostly the
+round-48 0c127d5 era), so every stored flat_div is stale and pos-0 on CIA tunes is
+the CIA-init artifact. Re-cut: 25/27 vblank (13 Bayliss = round-45 garbage
+subtunes), 2 CIA (Rayden remakes). Fresh per-IRQ localization showed the bucket is
+NOT one root cause — it's an aggregate of "first divergence lands in an early V1
+note-init." Picked a clean single-sub vblank rep: Stryyker/Sans_intro (flat div 0,
+V1 SR). ROOT (ground truth): rebuild's V1 played a static gate-off note where orig
+plays a gliding gated note; the extracted USF had `voice 1 { orderlist: stop }` —
+the whole V1 (+V2) part DROPPED. Runtime track ptr $1707/$170A (memwatch) = $1A36 =
+tune-table RECORD 1; extract walked RECORD 0 ($1A28 = `$FE` stop dummy). WHY: the
+PSID init = $0FFE = base−2 = `A9 01` (LDA #$01) falling through into `$1000:
+4C 1D 10` (JMP $101D = tune-select, `A*8→Y`), hard-forcing record 1 for EVERY play
+regardless of the song number (pc-trace `$101d f 01`, `$180d ... 1ac6,Y [1ace]`
+Y=8 confirm). A C19 hand-patched wedge, but a 2-byte INIT WRAPPER not a body patch,
+and a DERIVATION wedge (changes WHICH record is content) → EXTRACT-ONLY:
+`factory._forced_subtune_probe` (init≠base + `mem[init]==$A9` + base is the canon
+`JMP base+$1D` dispatch + the LDA#imm reaches it by fall-through or `JMP base`) →
+new `DMCV4Config.forced_subtune` → `engine_model.extract` walks `rec = tunetab +
+forced*8` (+ threaded to `_loops_offimage`). NO USF field, NO composer change (the
+composer plays the walked content; forced index = engine artifact per principle
+§8). REGRESSION-SAFE BY CONSTRUCTION: `forced` None for canon init==base
+(byte-identical); imm==0 = record-0 walk; dispatch guard rejects banking/other
+LDA#-leading wrappers. Census over 5833 f1: exactly 2 carriers, both previously
+partial (Sans_intro fall-through + Devilock/Sub_Effect JMP-to-base) ⇒ 0 FULL
+exposure. Sans_intro FULL 255559/255559 state ✓. Full tools/regression.py GREEN
+(0 regr all 8 families: Hubbard 71, Companion 44, C64ME 15, Jay_Derrett 17, FC 31,
+DMC 12, Basic 22). Post-fix bucket sweep SKIPPED per user (next batch accounts via
+code_hash — Sub_Effect the census-confirmed +1 likely partial→FULL). TELL: a
+rebuild playing a voice's PRIMED IDLE NOTE under `orderlist: stop` while orig plays
+a full part = wrong-tune-record walk — memwatch runtime track-ptr $1707/$170A +
+pc-trace the init A at the tune-select. f1 ≈ 5161 FULL / 240 partial.
+
 ## ✅ ROUND 62 (2026-07-09): RESET-ALL hook target need NOT be 0 — loop-to-N — Action_G +1 partial → FULL (0 regr) [ledger C13 refinement]
 First f1 partial by hvsc path (user-picked; End_of_1992_intro=round60,
 Acid_Dance=round61 both now FULL): Bakewell_Dwayne/Action_G (vblank, single sub,

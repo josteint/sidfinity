@@ -995,6 +995,41 @@ def _pw_dir_persist_probe(path: str, base: int):
     return 1 if op != base + 0x765 else None
 
 
+def _forced_subtune_probe(path: str, base: int):
+    """Hand-crafted init WRAPPER `LDA #imm` that HARD-FORCES the played tune
+    record, overriding the PSID subtune arg (STATIC opcode probe, C19).
+
+    Sans_intro: init $0FFE = `A9 01` (LDA #$01) falling through to base $1000
+    (`4C 1D 10` = JMP $101D = the tune-select dispatch, which does `A*8 -> Y`),
+    so EVERY play forces record 1 no matter the PSID song number — but the
+    extract walks record 0, a dummy record whose V1/V2 tracks are `$FE` (stop),
+    dropping the whole tune. Return the forced record index so the extract
+    walks the PLAYED record. None = no such prefix (canon init == base).
+
+    Regression-safe by construction: imm==0 reproduces the default record-0
+    walk (byte-identical) so a false match on it is a no-op; the guard that
+    `base` itself is the standard `JMP base+$1D` dispatch AND the `LDA #imm`
+    reaches it (fall-through, or a `JMP base`) rejects banking / other
+    LDA#-leading wrappers whose immediate is not a subtune index. Census over
+    5833 f1 members: exactly 2 carriers, both imm=1 and both previously partial
+    — Sans_intro (fall-through form) + Devilock/Sub_Effect (JMP-to-base form)."""
+    mem, s = _load(path)
+    init = s['init']
+    if init == base or not (0 <= init and init + 4 <= 0xFFFF):
+        return None
+    if mem[init] != 0xA9:                          # LDA #imm
+        return None
+    # base must be the standard tune-select dispatch: JMP base+$1D
+    if not (mem[base] == 0x4C and
+            (mem[base + 1] | (mem[base + 2] << 8)) == (base + 0x1D) & 0xFFFF):
+        return None
+    nxt = init + 2                                 # LDA #imm must REACH base
+    reaches = (nxt == base or
+               (mem[nxt] == 0x4C and
+                (mem[nxt + 1] | (mem[nxt + 2] << 8)) == base))
+    return mem[init + 1] if reaches else None
+
+
 def _pw_bound_shift_probe(path: str, base: int):
     """PWM bound-A extraction shift (STATIC opcode probe, C19). The note-init
     derives the pulse-width sweep bounds from instrument byte+2: canonically
@@ -1392,6 +1427,9 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     pdp = _pw_dir_persist_probe(os.path.join(hvsc_root, sid_path), cfg.base)
     if pdp is not None:
         cfg.extra_params['pw_dir_persist'] = pdp
+    fs = _forced_subtune_probe(os.path.join(hvsc_root, sid_path), cfg.base)
+    if fs:                                  # 0 == the default record-0 walk
+        cfg.forced_subtune = fs
     return cfg
 
 

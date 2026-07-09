@@ -93,6 +93,14 @@ class DMCV4Config:
     # high RAM. The extract must read its tables from post-init RAM
     # (py65 init run), not the file image. Extract-only (never USF).
     data_post_init: bool = False
+    # Hand-crafted init WRAPPER that HARD-FORCES the played tune record
+    # (factory-probed `LDA #imm` prefix, ledger C19). Sans_intro: init $0FFE =
+    # `A9 01` falling through to base $1000 (JMP $101D = tune-select), so every
+    # play forces record 1 regardless of the PSID song number — but record 0 is
+    # a dummy (V1/V2 tracks = $FE stop). None = the PSID subtune indexes the
+    # record normally (walk record = sub index). Extract-only: the composer
+    # plays the walked content; the forced index is an engine artifact, not USF.
+    forced_subtune: int = None
     # POST-INIT leftover values (dataflow/re-assembled members only; None =
     # read the file image). Canon's leftover priming (d417 shadow, idle
     # notes/masks, dual phase) reads the FILE IMAGE because canon init never

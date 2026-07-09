@@ -539,7 +539,8 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
 
 
 def _loops_offimage(mem, secp_lo: int, secp_hi: int, tunetab: int,
-                    n_sub: int, load: int, loop_target: bool) -> bool:
+                    n_sub: int, load: int, loop_target: bool,
+                    forced: int | None = None) -> bool:
     """Does any voice's track LOOP to a sector whose pointer resolves BELOW the
     load address (out of the file image)?
 
@@ -552,7 +553,7 @@ def _loops_offimage(mem, secp_lo: int, secp_hi: int, tunetab: int,
     _walk_track) and reports on the FIRST out-of-image sector it reaches; a
     normal in-image track returns False immediately (byte-identical build)."""
     for sub in range(n_sub):
-        rec = tunetab + sub * 8
+        rec = tunetab + (sub if forced is None else forced) * 8
         for vi in range(3):
             tp = _rd16(mem, rec + vi * 2)
             pos = 0
@@ -869,8 +870,12 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # sector was always mis-decoded (image zeros != runtime), so any member this
     # changes was already non-FULL; an unplayed sector's decode never reaches the
     # write-log.
+    # A hand-crafted init wrapper can HARD-FORCE the played record (cfg.
+    # forced_subtune, factory C19 probe: Sans_intro's `LDA #$01` prefix forces
+    # record 1 — record 0 is a $FE-stop dummy). Walk the played record then.
+    forced = getattr(cfg, 'forced_subtune', None)
     if _loops_offimage(mem, secp_lo, secp_hi, tunetab, s.get('songs', 1),
-                       s['load'], cfg.track_loop_target):
+                       s['load'], cfg.track_loop_target, forced=forced):
         zpvals = _postinit_values(path, list(range(0x100)))
         for a in range(0x100):
             mem[a] = zpvals.get(a, 0)
@@ -886,7 +891,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # they surface
     used_instr = set()
     for sub in range(m.n_subtunes):
-        rec = tunetab + sub * 8
+        rec = tunetab + (sub if forced is None else forced) * 8
         voices = []
         for vi in range(3):
             tp = _rd16(mem, rec + vi * 2)

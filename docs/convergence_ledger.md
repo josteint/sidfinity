@@ -91,7 +91,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | HETEROGENEOUS per-step write shapes in a trace-lift · one superset order can't embed all steps (conflicting reg orders / intra-step dups / sections) · cluster steps by EXACT write shape → K positional templates + per-step template id | C17 | logged |
 | play-vector WRAPPER with per-call PHASE behaviour · slow-tempo / multispeed-effects cycler · every Nth call runs the full play, others run effects-only / register-refresh / nothing · wrapper shapes vary (SMC, DEC+dual-JMP, parity AND) — OBSERVE entry-point reachability under py65, don't parse · arm F-ENTRY variant: wavestep ($1591) vs vibrato half-cycle ($1567, flips reshape vibrato to a square) → `fx_entry: vibflip` | C18 | logged |
 | TRICHOTOMY VERDICT alignment · rebuild emits its OWN init (universal reset+priming) so streams differ by an init prefix · Check A end-of-init state + aligned play-stream compare · TWO implementations exist: `verify_cycle._trichotomy_compare` (FC, shift recovery) + `usf_roundtrip._compare_music/_split_aligned` (basic_program, known-init-length + probe search) — CONSULT MISS, factor at Move 1 | C21 | factor-candidate (2×) |
-| hand-patched player WEDGE inside the canon body · SMC opcode toggle · 1-byte opcode patch · JMP over canonical loads · runtime state ≠ static file byte · PWM bound-shift (LSR count) wedge · STATIC opcode probe, never a bounded stream scan · census carriers both sides · reproduce semantics behind a factory-probed param (EXTRACT-only when the wedge changes a derived musical value) | C19 | canonicalized (8×) |
+| hand-patched player WEDGE inside the canon body · SMC opcode toggle · 1-byte opcode patch · JMP over canonical loads · runtime state ≠ static file byte · PWM bound-shift (LSR count) wedge · init-PREFIX `LDA #imm` hard-forces the played tune record (extract walks the wrong record) · STATIC opcode probe, never a bounded stream scan · census carriers both sides · reproduce semantics behind a factory-probed param (EXTRACT-only when the wedge changes a derived musical value) | C19 | canonicalized (9×) |
 | stale-FULL palimpsest · recorded 'full' the current code can't reproduce · hides members from residue censuses · verify the STORED build first, then USF-diff/param-bisect to attribute · never mass-write with code that didn't produce the verdict | C20 | canonicalized |
 | AMBIGUOUS round-trip flag encoding · two distinct engine ops render to OVERLAPPING USF flag sets · the decoder's branch test uses a SUBSET of the discriminator → misroutes one op onto the other's path · matches for most content (paths coincide when inputs coincide), diverges on the distinguishing case | C22 | canonicalized (2×) |
 | a play-phase/schedule TOKEN hides a per-member behavioural ambiguity · same P_F123 token = note-init-on-F vs deferred 2-frame arm · fixing one class REGRESSES same-token FULLs · NOT derivable from the token/multispeed → OBSERVE the distinguishing write-footprint per member · regression-safe when the "changed" verdict has no false positive | C23 | logged |
@@ -1407,8 +1407,34 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   <base+$762> 9D <op>`, reloc-aware, positive minority: op != base+$765) →
   `pw_dir_persist` param → composer drops the one `sta pwdir,x` line from
   the pulse-reset block.
-- **Status:** CANONICALIZED (8 occurrences by round 60: DMC family-1 rounds
-  13 + 19 + 32 + 35 + 36 + 50 + 55 + 60). Canonical form: STATIC opcode probe (read the patched
+- **9th occurrence (round 63, 2026-07-09) — INIT-PREFIX subtune force:** the
+  wedge is a 2-byte init WRAPPER, not a body patch. Sans_intro's PSID init =
+  `$0FFE` (base $1000 − 2): `A9 01` (LDA #$01) falling straight through into
+  the canon `$1000: 4C 1D 10` (JMP $101D = tune-select, `A*8→Y`). So EVERY
+  play hard-forces tune record 1 regardless of the PSID song number — but the
+  extract's `for sub in range(n_subtunes): rec = tunetab + sub*8` walked record
+  0, a DUMMY record whose V1/V2 tracks are `$FE` (immediate stop), so V1/V2
+  were dropped and the rebuild played the primed idle note under an empty
+  orderlist (`orderlist: stop`). This is a DERIVATION wedge (changes WHICH
+  record is musical content, not a value), so EXTRACT-ONLY: `_forced_subtune_probe`
+  (init≠base + `mem[init]==$A9` + `base` is the canon `JMP base+$1D` dispatch +
+  the `LDA #imm` reaches it by fall-through or `JMP base`) → `DMCV4Config.
+  forced_subtune` → `extract` walks `rec = tunetab + forced*8`. NO USF field,
+  NO composer change (the composer plays the walked content; the forced index
+  is an engine artifact per the principle §8). Ground truth: memwatch $1707/
+  $170A (runtime track ptr lo/hi) = $1A36 = record 1; pc-trace `$101d f 01`
+  (A=1) + `$180d ... 1ac6,Y [1ace]` (Y=8) confirm the force. REGRESSION-SAFE
+  BY CONSTRUCTION: `forced` is None for canon init==base (byte-identical) and
+  imm==0 reproduces the record-0 walk; the dispatch guard rejects banking /
+  other LDA#-leading wrappers. Census over 5833 f1: exactly 2 carriers, both
+  previously partial (Sans_intro fall-through form, Devilock/Sub_Effect
+  JMP-to-base form) ⇒ 0 FULL exposure. Sans_intro FULL 255559/255559 state ✓;
+  full `tools/regression.py` green (0 regr all 8 families). TELL: a rebuild
+  that plays a voice's PRIMED IDLE NOTE under an empty orderlist while orig
+  plays a full part on that voice = a wrong-tune-record walk — memwatch the
+  runtime track-ptr ($1707/$170A) + pc-trace the init A at the tune-select.
+- **Status:** CANONICALIZED (9 occurrences by round 63: DMC family-1 rounds
+  13 + 19 + 32 + 35 + 36 + 50 + 55 + 60 + 63). Canonical form: STATIC opcode probe (read the patched
   instruction itself — never a bounded write-stream scan, which can
   false-negative on members that exercise the path only late) → factory
   `extra_params` → an existing/new composer param; census carriers on BOTH
