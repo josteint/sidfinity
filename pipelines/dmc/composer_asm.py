@@ -223,7 +223,7 @@ DMC_OFFTABLE_STATE = [
 # off-table freq reads land on $1729-$172B (params sectpos_shadow, extract-
 # detected) — every other member stays byte-identical. Per-row visible values
 # are DERIVED at compose time from row kind + the stated-command fx_flags
-# (dcmd/icmd/vcmd/softcmd — the editor's command placement, §8 arrangement);
+# (dur_cmd/instr_cmd/vol_cmd/soft_cmd — the editor's command placement, §8 arrangement);
 # no byte offsets are carried in USF. The extract's event-driven capture
 # excludes these idx unconditionally (_redirect_mapped_idx).
 DMC_SECTPOS_ROW = (0x1729, 'sectpos', 3)
@@ -424,11 +424,11 @@ def _row_secwidth(row) -> int:
     """Orig byte width of one row's fetch: base bytes of the event kind
     (note/rest/switch 1, slide 2, glide 3 — each byte INCs $1729,x) plus the
     stated dur/instr/vol commands and $7C toggles consumed in the same fetch
-    (the dcmd/icmd/vcmd/softcmd fx_flags). Mirrors _row_event's kind logic."""
+    (the dur_cmd/instr_cmd/vol_cmd/soft_cmd fx_flags). Mirrors _row_event's kind logic."""
     flags = {f.split('=')[0]: (f.split('=')[1] if '=' in f else True)
              for f in row.fx_flags}
-    extra = (('dcmd' in flags) + ('icmd' in flags) + ('vcmd' in flags)
-             + int(flags.get('softcmd', 0) or 0))
+    extra = (('dur_cmd' in flags) + ('instr_cmd' in flags) + ('vol_cmd' in flags)
+             + int(flags.get('soft_cmd', 0) or 0))
     if row.pitch.is_rest:
         return 1 + extra                     # $7E rest / $7D switch
     if 'noretrig' in flags and 'glide' in flags and 'glide_to' not in flags:
@@ -774,7 +774,7 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # (static bytes, captured extract-side as dual_gen_steps =
     # 'usfid:rawA:rawB:rawC,...'); extend both tables with the equivalent
     # entries — everything in between stays 0.
-    dhs = str(usf.params.fields.get('dual_gen_steps', '') or '')
+    dhs = str(usf.params.fields.get('dual_generator_steps', '') or '')
     dh_param = str(usf.params.fields.get('dual_freq_generator', '') or '')
     if dhs and dh_param:
         p0 = (0x19 + int(dh_param.split(',')[1])) & 0xFF
@@ -921,7 +921,7 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # constant while the internal PWM state machine still runs on $1753
     # (note-init store + bound compares untouched). pw_hi_const = 'a,b,c'
     # carries the post-init constants; absent -> canon (byte-identical).
-    pw_hi_const = str(usf.params.fields.get('pw_hi_const', '') or '')
+    pw_hi_const = str(usf.params.fields.get('pulsewidth_hi_const', '') or '')
     pw_hi_load = ('        lda pwhic,x                  ; patched PW-hi source'
                   if pw_hi_const else '        lda pwh,x')
     # Dual-effect freq-generator wedge (C19 4th occurrence, Taurus/Taurus_02,
@@ -1073,8 +1073,8 @@ fx_dual_up:
     # forever) and the PW phase/direction reset (both persist across
     # notes). hr_test_init = the file-image opcode at $17FB ($99 -> 1),
     # i.e. the toggle state before the first note-init.
-    hr_patch = str(usf.params.fields.get('hr_patch', '0')) == '1'
-    hr_test_init = int(usf.params.fields.get('hr_test_init', 1)) & 1
+    hr_patch = str(usf.params.fields.get('hardrestart_smc_variant', '0')) == '1'
+    hr_test_init = int(usf.params.fields.get('hardrestart_test_init', 1)) & 1
     if hr_patch:
         hr_test_write = ('        lda hrtest\n'
                          '        beq hr_notest\n'
@@ -1098,7 +1098,7 @@ fx_dual_up:
                          '        sta cpwbase,x\n'
                          '        lda #$00\n'
                          '        sta pwphase,x\n')
-        if str(usf.params.fields.get('pw_dir_persist', '0')) != '1':
+        if str(usf.params.fields.get('pulsewidth_dir_persist', '0')) != '1':
             pw_base_reset += '        sta pwdir,x\n'
     # 'skip' wedge: the whole `JSR sub_17FB` is neutered ($20->$2C BIT), so the
     # fetch frame emits NO prep at all — drop the TEST write too (the ADSR was
@@ -1139,13 +1139,13 @@ fx_dual_up:
     # DMC 2-frame note-start. Factory-observed per member (not schedule-derived:
     # Words and F.A.K.E are both P_F123 but differ). Default 0 = note-init on the
     # F call (orig $11F9 -> frame_entry), the immediate-note-start majority.
-    notestart_arm = str(usf.params.fields.get('notestart_arm', '0')) == '1'
+    notestart_arm = str(usf.params.fields.get('noteinit_deferred', '0')) == '1'
     # fx_entry='vibflip': the arm F phase enters at the vibrato half-cycle
     # boundary (canon $1567: vibctr=0, flip vibdir, swell, fall through the
     # wave step) instead of the plain wave step — the F call's own writes are
     # identical, but the flips reshape the vibrato (3 flips between full
     # plays => a +/-vstep square where wavestep entry free-runs the triangle).
-    fx_entry = str(usf.params.fields.get('fx_entry', '') or '')
+    fx_entry = str(usf.params.fields.get('effect_entry_variant', '') or '')
     voice_fx_target = ('vib_half' if fx_entry == 'vibflip' else 'wavestep') \
         if notestart_arm else 'frame_entry'
     if (tokens and 'P' in tokens and len(tokens) > 1
@@ -1213,7 +1213,7 @@ fx_dual_up:
     # original's PSID play vector points at `LDA #imm / STA $D418 / JMP
     # base+3` — a constant master-vol|filter-mode assertion on EVERY play()
     # call, before the play body (factory-probed at the PSID play address).
-    d418_every_play = usf.params.fields.get('d418_every_play', None)
+    d418_every_play = usf.params.fields.get('master_vol_every_play', None)
     if d418_every_play is not None:
         play_wrapper = (
             'playd418:\n'
@@ -1314,7 +1314,7 @@ fx_dual_up:
     # filter's mode in `d418mode` (set at note-init instead of writing $D418)
     # and re-asserts it here. Default None -> canonical (note-init writes
     # $D418), byte-identical.
-    d418_filter_tail = usf.params.fields.get('d418_filter_tail', None)
+    d418_filter_tail = usf.params.fields.get('master_vol_reassert_filter_tail', None)
     if d418_filter_tail is not None:
         d418_init_mode = int(d418_filter_tail) & 0xFF
         ni_d418 = ('        sta d418mode                 ; mode tracked; '

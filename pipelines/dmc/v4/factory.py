@@ -1429,14 +1429,14 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         cfg.extra_params['cymbal_burst'] = cb
     hr = _hr_patch_probe(os.path.join(hvsc_root, sid_path), cfg.base)
     if hr is not None:
-        cfg.extra_params['hr_patch'] = 1
-        cfg.extra_params['hr_test_init'] = hr
+        cfg.extra_params['hardrestart_smc_variant'] = 1
+        cfg.extra_params['hardrestart_test_init'] = hr
     dp = _d418_play_wrapper(os.path.join(hvsc_root, sid_path), cfg.base)
     if dp is not None:
-        cfg.extra_params['d418_every_play'] = dp
+        cfg.extra_params['master_vol_every_play'] = dp
     dft = _d418_filter_tail_probe(os.path.join(hvsc_root, sid_path), cfg.base)
     if dft is not None:
-        cfg.extra_params['d418_filter_tail'] = dft
+        cfg.extra_params['master_vol_reassert_filter_tail'] = dft
     hg = _hold_gateoff_probe(os.path.join(hvsc_root, sid_path))
     if hg is not None:
         cfg.extra_params['hold_gateoff'] = hg
@@ -1456,7 +1456,7 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         cfg.extra_params['play_unit_repeat'] = pur
     pwc = _pw_hi_const_probe(os.path.join(hvsc_root, sid_path), cfg.base)
     if pwc is not None:
-        cfg.extra_params['pw_hi_const'] = pwc
+        cfg.extra_params['pulsewidth_hi_const'] = pwc
     dh = _dual_freq_gen_probe(os.path.join(hvsc_root, sid_path), cfg.base,
                           cfg.freq_lo_addr)
     if dh is not None:
@@ -1469,7 +1469,7 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         cfg.extra_params['pw_bound_shift'] = pbs
     pdp = _pw_dir_persist_probe(os.path.join(hvsc_root, sid_path), cfg.base)
     if pdp is not None:
-        cfg.extra_params['pw_dir_persist'] = pdp
+        cfg.extra_params['pulsewidth_dir_persist'] = pdp
     fs = _forced_subtune_probe(os.path.join(hvsc_root, sid_path), cfg.base)
     if fs:                                  # 0 == the default record-0 walk
         cfg.forced_subtune = fs
@@ -1596,13 +1596,13 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str):
             if any(t and t[0] == 'F' for t in ph.split('_')) and \
                     _detect_notestart_arm(os.path.join(hvsc_root, sid_path),
                                           s['start'] - 1, s['play']):
-                cfg.extra_params['notestart_arm'] = '1'
+                cfg.extra_params['noteinit_deferred'] = '1'
                 # Arm entry-point variant: F phase enters the vibrato
                 # half-cycle boundary ($1567) instead of the wave step.
                 if _detect_fx_entry_vibhalf(
                         os.path.join(hvsc_root, sid_path),
                         s['start'] - 1, s['play']):
-                    cfg.extra_params['fx_entry'] = 'vibflip'
+                    cfg.extra_params['effect_entry_variant'] = 'vibflip'
     # POST-INIT leftover capture: canon's leftover priming (d417 shadow,
     # idle notes/masks, dual phase) reads the file image because canon init
     # never touches those bytes. A re-assembled init MAY clear/rewrite them
@@ -1903,13 +1903,13 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         if any(t and t[0] == 'F' for t in play_phases.split('_')) and \
                 _detect_notestart_arm(os.path.join(hvsc_root, sid_path),
                                       s['start'] - 1, s['play']):
-            extra['notestart_arm'] = '1'
+            extra['noteinit_deferred'] = '1'
             # Arm entry-point variant: F phase enters the vibrato half-cycle
             # boundary ($1567: flip+swell, falls through wavestep) instead of
             # the wave step ($1591) — Acid_Dance's wrapper JSRs $1567 x3.
             if _detect_fx_entry_vibhalf(os.path.join(hvsc_root, sid_path),
                                         s['start'] - 1, s['play']):
-                extra['fx_entry'] = 'vibflip'
+                extra['effect_entry_variant'] = 'vibflip'
     # rest/switch/slide-tail dispatch ($1180): canon JMP $1322 (run
     # effects); a sub-build JMP $1591 (wavestep) — the modulators hold one
     # frame at each tie (the family-2 rest_effects='skip' behavior).

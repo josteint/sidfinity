@@ -395,12 +395,26 @@ place by #5 (Phase D) for legibility; the structural move waits for the de-unrol
 - [ ] INV-4 sync (both).
 - [ ] **Gate:** `golden_sid_diff.py` → zero diffs; `regression.py` green. Commit (one each).
 
-### Phase D — #5 (rename)
+### Phase D — #5 (rename) — ✅ DONE 2026-07-10
 
-- [ ] Apply Appendix B renames atomically (extract emit + composer read, same commit),
-      survivors only; `d418_*`→`master_vol_*`; verify `fx_flags` grammar handling.
-- [ ] **Gate:** `golden_sid_diff.py` → zero `.sid` diffs (renames don't reach composer
-      output); `.usf` reparses (INV-5); `regression.py` green. Commit.
+- [x] Renamed 9 param keys + 4 row-flag keywords (Appendix B), atomically (factory/extract
+      set-site + composer read-site): `d418_*`→`master_vol_*` (fixes the 2SID/3SID
+      ambiguity), `hr_*`→`hardrestart_*`, `pw_*`→`pulsewidth_*`, `fx_entry`→
+      `effect_entry_variant`, `notestart_arm`→`noteinit_deferred`, `dual_gen_steps`→
+      `dual_generator_steps`; row flags `dcmd/icmd/vcmd/softcmd`→`dur_cmd/instr_cmd/
+      vol_cmd/soft_cmd` (grammar keyword + parser return + emit + read).
+- [x] **Two scope decisions:** (a) **only USF-visible tokens renamed** — internal Python
+      names deliberately KEPT (`DmcRow.dcmd` attributes, the `{'dcmd':...}` model dict,
+      `fx_dcmd` grammar-rule aliases, `_hr_patch_probe` function names) since they are not
+      ML-visible and renaming them is churn/risk. (b) **`otrk_*` NOT renamed** — those keys
+      are slated for restructuring in the deferred de-unroll (#2), so renaming now would be
+      double churn; they get their final names there.
+- [x] INV-7: propagated old→new across `convergence_ledger.md`, `refactor_1_remaining.md`,
+      `usf_format.md`, `project_dmc.md`, `feedback_uready_vocabulary.md`, + code comments
+      (76 doc + 4 comment refs). The plan's Appendix B table keeps the old names (it
+      documents the mapping).
+- [ ] **Gate:** `golden_sid_diff.py` → zero `.sid` diffs; `.usf` reparses; `regression.py`
+      green. (Running.)
 
 ### Phase E — #6 (comments; writer-only)
 

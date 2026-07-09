@@ -59,12 +59,12 @@ init + note-init $12A8). ROOT (C19 wedge, disasm): play-body filter routine
 STA $D418 / RTS`) = per-frame $D418; note-init `$12A8: STA $D418` neutered to
 `BIT $D418`, preceding `STA $2004` self-modifies the wrapper's mode imm per
 note-init. FIX (CORE TENET reproduce the WRITE, COMPOSER param not extract-only
-since it's a write TIMING): `factory._d418_filter_tail_probe` (static opcode
+since it's a write TIMING): `factory._master_vol_reassert_filter_tail_probe` (static opcode
 probe anchored on the LIVE play-body routine `STA $D416 / LDA abs / ORA abs /
-JSR-wrapper`, reloc-invariant hardware addrs) → USF param `d418_filter_tail`
+JSR-wrapper`, reloc-invariant hardware addrs) → USF param `master_vol_reassert_filter_tail`
 (init mode imm) → composer: note-init stores `fdmode` to a `d418mode` shadow
 (SUPPRESS note-init $D418), filter tail appends `lda d418mode / ora mvol / sta
-$d418`, init primes `d418mode`. Sibling of `d418_every_play` (play-START form);
+$d418`, init primes `d418mode`. Sibling of `master_vol_every_play` (play-START form);
 this is the filter-tail END form + C10 master-vol-every-frame. Default None →
 byte-identical. TRAP CAUGHT (why the probe is ANCHORED): the first LOOSE probe
 (`STA $D417..STA $D418` anywhere) false-fired on Qbhead_01's aux routine $1CA8
@@ -180,7 +180,7 @@ DATA to capture. f1 ≈ 5160 FULL / 241 partial.
 ## ✅ ROUND 61 (2026-07-09): arm F-phase ENTRY variant — wavestep vs vib_half — Acid_Dance +1 partial → FULL (0 regr) [ledger C18 note]
 First f1 partial by hvsc path (user-picked; End_of_1992_intro row stale =
 round 60): Bakewell_Dwayne/Acid_Dance (CIA 4x, P_F123_F123_F123,
-notestart_arm, the round-46 rest_effects='vibflip' singleton). Flat localizer
+noteinit_deferred, the round-46 rest_effects='vibflip' singleton). Flat localizer
 pos 0 = the CIA init-phase artifact — per-IRQ first div at play pos 51198:
 V2 flo $6C vs $64 on a HELD note; orig's vibrato = a ±4 SQUARE
 ($268↔$26C, 4 IRQs per level), rebuild = a free-running ±16 triangle.
@@ -188,21 +188,21 @@ Memwatch ground truth: orig V2 vibdir FLIPS + vibctr resets on every F call
 (3 flips between full plays); acc only moves on P. ROOT: the wrapper's F
 phase enters the player at canon **$1567 = the vibrato half-cycle boundary**
 (vibctr=0, flip vibdir, swell, FALL THROUGH wavestep) — not $1591 (plain
-wavestep) as the composer's notestart_arm F target assumed. Wrapper: SMC
+wavestep) as the composer's noteinit_deferred F target assumed. Wrapper: SMC
 JSR-operand table $1D50 → JT slot $1006 → JMP $162F = `LDX#0/JSR $1567 ×3`.
 The two entries emit IDENTICAL writes on the F call itself — the difference
 is vibrato STATE, observable only later as the vibrato's shape, so it's a
 C18 entry-reachability observation, not a footprint one. FIX:
-`factory._detect_fx_entry_vibhalf` (shape-locates $1567 `a9 00 9d ?? ?? bd
+`factory._detect_effect_entry_variant_vibhalf` (shape-locates $1567 `a9 00 9d ?? ?? bd
 ?? ?? 49 01 9d` reloc-invariant; pctrace watch_pcs; vib_half iff EVERY F
 invocation (voice writes, no $D416) executes a candidate — a wavestep-entry
-F call can never reach $1567 ⇒ no false positive, gated on notestart_arm at
-both factory sites) → USF param `fx_entry: vibflip` (vocabulary shared with
+F call can never reach $1567 ⇒ no false positive, gated on noteinit_deferred at
+both factory sites) → USF param `effect_entry_variant: vibflip` (vocabulary shared with
 rest_effects='vibflip' = the $1180 rest-tail patch this member ALSO carries;
 two INDEPENDENT edits, not derived from each other) → composer `voice_fx`
 JMPs its own `vib_half` label (falls through wavestep = orig control flow).
 Acid_Dance FULL 360120/360120 state ✓. EXPOSURE: all 19 stored
-notestart_arm FULLs probe False → builds byte-identical; full
+noteinit_deferred FULLs probe False → builds byte-identical; full
 tools/regression.py green (0 regr all 7 families). CENSUS (probe over all
 224 stored partials): exactly 2 carriers — Acid_Dance + Odysseus/
 Hear_Circa_2_Minutes (unswept; the fix applies to it iff its config also
@@ -218,9 +218,9 @@ continuing the pre-note direction) vs rebuild UP ($0420). ROOT: C19 wedge —
 canon $1266 `STA $1765,x` (PW direction=up in the note-init pulse reset) has
 its operand re-pointed at $17AB (the unused $179E-$17AF state gap), so the PWM
 sweep DIRECTION persists across note-inits while value/bounds/step/phase still
-reset. FIX (C19 canonical form): `factory._pw_dir_persist_probe` (static
+reset. FIX (C19 canonical form): `factory._pulsewidth_dir_persist_probe` (static
 reloc-aware anchor `A9 00 9D <base+$762> 9D <op>`, positive minority op !=
-base+$765, ambiguous→None) → `pw_dir_persist` param → composer drops the one
+base+$765, ambiguous→None) → `pulsewidth_dir_persist` param → composer drops the one
 `sta pwdir,x` line from pw_base_reset. Census (anchored on the stepbase→phase
 delta-3 prefix; a loose `A9 00 9D .. 9D ..` scan false-positives on other canon
 LDA#0/STA/STA sites): exactly 2 carriers in 5808 site-bearing members, BOTH
@@ -755,7 +755,7 @@ PID); (c) a same-name glob (Harti vs Praiser Ucieczka_z_Tropiku) diffed the
 wrong stored USF — use exact paths. GUARD (ledger C25): any addition to a
 per-voice per-frame path costs ×3 voices × the tightest corpus latch.
 
-## ✅ ROUND 43 (2026-07-06): notestart_arm window escalation 12→96 (+1 FULL Wavefrontline, 0 regr) [ledger C23 refinement 2]
+## ✅ ROUND 43 (2026-07-06): noteinit_deferred window escalation 12→96 (+1 FULL Wavefrontline, 0 regr) [ledger C23 refinement 2]
 Random partial Aomeba/Wavefrontline (CIA 2x, P_F123): per-IRQ first div pos 21,
 V1 ctrl orig $00 vs mine $40 — the note-start chirp's gate-mask 0→$FE
 transition lands one call LATER in orig = the C23 2-frame arm, visible from the
@@ -766,7 +766,7 @@ frames ONLY when the short pass is inconclusive (a voice with no HR, or no emit
 within hr+6); all-voices-definitive-immediate stops escalation → members the
 short window decides are byte-identical. GATES: 0 verdict drift over all 76
 stored F-token carriers (NB census regex trap: stored USF writes
-`notestart_arm: "1"` QUOTED — an unquoted-regex census reported 14 phantom
+`noteinit_deferred: "1"` QUOTED — an unquoted-regex census reported 14 phantom
 flips, all of them the known carriers); partials sweep = exactly 1 new arm
 carrier (Wavefrontline; the other 8 arm partials already detected at 12 frames,
 builds unchanged, deeper blockers); full tools/regression.py green (DMC
@@ -782,7 +782,7 @@ principle corners?") found NO §7/§8 leaks; its one LEAK-adjacent flag
 filter_mod comparison was a CATEGORY ERROR — filter_mod is C10 (recoverable
 structure → typed contour), the dual wedge is C19 (probe → param IS the
 canonical form). Decision (user-ratified) = C7-(b) document-and-minimize:
-rename `dual_hack`/`dual_hack_steps` → `dual_freq_generator`/`dual_gen_steps`
+rename `dual_hack`/`dual_hack_steps` → `dual_freq_generator`/`dual_generator_steps`
 (behavior naming was the one real defect; probe → `_dual_freq_gen_probe`),
 steps-derivability checked = unavailable (raws land in wavectrl, layout not
 in USF), the "lift to `law: random` musical enum" recorded as a §8 trap in
@@ -941,7 +941,7 @@ orig $0A vs mine $0F at a note-fetch frame). The member patches ONE byte:
 sub_17FB's `LDA #$0F` operand ($17FF) → $0A, so the hard-restart prime writes
 AD=SR=$0A. Simplest C19 form yet. FIX: `factory._hr_preset_probe` (static
 opcode-shape regex `[99|B9] 04 D4 A9 vv 99 05 D4 99 06 D4 60`, layout-blind;
-first opcode admits $B9 for the hr_patch SMC variant) → value fed through the
+first opcode admits $B9 for the hardrestart_smc_variant SMC variant) → value fed through the
 EXISTING `hard_restart` param (domain extended 'preset'/'none'/numeric — NO
 new schema field); composer renders `lda #$vv`; guarded so family-2's preset
 'none' is never overridden. Default renders identical asm text →
@@ -1030,7 +1030,7 @@ vol/soft commands. Statedness is a sector-byte FACT (instance-independent →
 pattern-fact, survives dedup); value-change derivation reconstructs it except
 REDUNDANT re-statements = the editor's command placement = §8 arrangement
 (exact otrk_rcmd precedent). NO byte offsets in USF. FIX: extract records
-per-row `dcmd/icmd/vcmd/softcmd` fx_flags (new USF grammar tokens; emitted
+per-row `dur_cmd/instr_cmd/vol_cmd/soft_cmd` fx_flags (new USF grammar tokens; emitted
 only for carriers) + sets `sectpos_shadow` when any offtable_freq idx ∈
 {130-132, 226-228}; composer embeds 1 derived byte/event after the opcode
 (all handler offsets +1, gated), stores it to `sectpos,x` at every fetch,
@@ -1058,10 +1058,10 @@ canon). Byte dump: the member's `LDA $1753,x` operand is patched to
 **$1707,x = the track-ptr lo triple** (set once at init = $DB/$0C/$3D),
 pinning each voice's AUDIBLE PW hi at a constant while the internal PWM
 machine still runs on $1753 (note-init store + bound compares untouched). FIX
-(C19 canonical form): `factory._pw_hi_const_probe` — static opcode probe
+(C19 canonical form): `factory._pulsewidth_hi_const_probe` — static opcode probe
 anchored on the `BD..99 02 D4 BD..99 03 D4` store pair, canon PW-accum-lo
 operand (base+$750) as the layout-blind base anchor; patched hi operand →
-capture POST-INIT bytes at op..+2 → `pw_hi_const='a,b,c'`; composer pwwrite
+capture POST-INIT bytes at op..+2 → `pulsewidth_hi_const='a,b,c'`; composer pwwrite
 swaps `lda pwh,x` → `lda pwhic,x` + 3-byte table. Default byte-identical;
 base-relative census (anchor on the PW-LO operand in the SAME match, NOT the
 load addr — load-shifted members false-positive otherwise) proved Lame is the
@@ -1097,16 +1097,16 @@ rewritten (round-25 precedent). NEXT: more wjmp-blocked partials may flip at
 the next batch sweep (Saturday_Dance/King_of_Earth/Deceased-class members whose
 FIRST div was the $171F read are now past it); freq-drift tail continues.
 
-## ✅ ROUND 30 (2026-07-06): notestart_arm detector per-voice gap — partial F phase (Dresden_Party_95_II FULL, 4830/5401) — commit 17fd27e
+## ✅ ROUND 30 (2026-07-06): noteinit_deferred detector per-voice gap — partial F phase (Dresden_Party_95_II FULL, 4830/5401) — commit 17fd27e
 Random partial Dresden_Party (PVCF, CIA, `play_phases='P_F3'`): per-IRQ first
 div at pos 13 — orig's V3 first note block = freq+PW+ctrl with NO AD/SR (the
 C23 deferred-arm footprint) while the rebuild did a full note-init. ROOT CAUSE:
-`_detect_notestart_arm` returned the verdict of the FIRST voice with an
+`_detect_noteinit_deferred` returned the verdict of the FIRST voice with an
 observed HR — with a partial F phase only the F-phase voice (V3) defers; V1
 soft-starts (skipped) and V2 note-inits immediately on P calls, so the detector
 read V2's "immediate" and never inspected V3. FIX (C23 refinement): check ALL
 voices, ANY arm footprint ⇒ deferred (no false positive — note-init always
-carries AD/SR). Validated: forced notestart_arm=1 matched 30465/30465 before
+carries AD/SR). Validated: forced noteinit_deferred=1 matched 30465/30465 before
 touching the detector; old-vs-new detector verdicts over all 62 stored F-token
 `play_phases` carriers = ZERO drift; full tools/regression.py green (DMC
 14ok+0regr). Dresden_Party_95_II FULL 130254/130254 (same P_F3 cluster, fix
@@ -1310,16 +1310,16 @@ P_F123 (SAME token as F.A.K.E) yet needs the OLD behaviour. Not derivable from
 the schedule string OR the multispeed factor (Words & F.A.K.E both P_F123 AND
 both 1.82 calls/frame). A genuine per-member play-routine ambiguity (C22 sibling:
 the token is the ambiguous "encoding").
-**THE FIX (observe, don't parse — C18/C23):** `factory._detect_notestart_arm`
+**THE FIX (observe, don't parse — C18/C23):** `factory._detect_noteinit_deferred`
 reads the OPENING write footprint (reloc-invariant, no PCs): after a voice's HR
 call (ctrl=$08, AD=SR=$0F), the first call re-emitting its freq/ctrl is the
 note-init IFF it ALSO writes AD/SR; freq/ctrl with NO AD/SR = the ARM ⇒
 deferred. note-init ALWAYS carries AD/SR ⇒ "deferred" has NO false positive ⇒
-regression-safe by construction. Sets `notestart_arm=1` (BOTH factory build
+regression-safe by construction. Sets `noteinit_deferred=1` (BOTH factory build
 paths — canon @~L1122 + dataflow @~L849, F-token schedules only); composer routes
 `voice_fx → wavestep` when set, `frame_entry` otherwise.
 **RESULT (full family-1 closeout, 607 non-FULL re-verified):** +5 FULL →
-**family-1 4794→4799**. 4 carry notestart_arm=1 (2_Speed / Voices_in_My_Head /
+**family-1 4794→4799**. 4 carry noteinit_deferred=1 (2_Speed / Voices_in_My_Head /
 Canned_with_canned_beer / Compotune — the o=flo/m=SR cluster WAS the whole
 reachable deferring class); +1 non-arm (Ucieczka_z_Tropiku = a stale-partial a
 prior round already fixed, byte-identical build now verifies full). 0
@@ -1327,7 +1327,7 @@ regressions: all 56 currently-FULL F-token members held + full
 tools/regression.py green; 5 artifacts mass-written (the 4795 byte-identical
 round-23 FULLs correctly skipped, stale code_hash). 5 gains merged into
 tmp/dmc_wide_results.jsonl.
-**13 notestart_arm=1 members total: 4 flipped, 9 have a DEEPER blocker** now
+**13 noteinit_deferred=1 members total: 4 flipped, 9 have a DEEPER blocker** now
 exposed (the note-start first-divergence is RESOLVED for all 13 — "focus on
 first divergence" progress): mostly V1/V2/V3 FREQ-DRIFT (Real_Hardcore V1flo
 24→0, Hexzakk V3flo 49→96, Noising_Funk V1fhi 73→0, McBurger V1fhi 2→86,
@@ -1434,7 +1434,7 @@ per-member in_table drift, (c) family-2/V5 have their own fresh levers.
 ## ✅ ROUND 21 (2026-07-04): full closeout (authoritative count + palimpsest cure) + cpwmax/cpwmin swap → family-1 4710/5401 (87.2%), family-2 2413/2889 (83.5%) — commits 09f8034/d1636b1
 1. **Typed-init cleanup (09f8034):** durrel priming moved from `durrel_init*`
    params → typed `InitVoice.dur_reload` (§4.5 engine-state priming; the params
-   form was the "cite hr_test_init to defend the easy choice" drift-tell caught
+   form was the "cite hardrestart_test_init to defend the easy choice" drift-tell caught
    on a principle re-read). 46 builds byte-identical; 136 stale-params USFs
    rewritten; on-disk verify + full regression green.
 2. **Full family-1 closeout re-verify (5401, tier-2 milestone):** authoritative
@@ -1584,7 +1584,7 @@ off-table hi read wnote idx 182 → orig $175D = V2's CURRENT PW STEP ($175C,x
 NEW map row (0x175C,'pwstep',3) + fx_pulse stores its step into pwstep,x
 (guard+freewheel frames run fx_pulse ✓ lockstep; init-wiped both sides).
 Brendas 100% → FULL. ALSO fixed round-13 latent: hrtest sat INSIDE the
-state0..state_end wipe → init cleared the hr_test_init priming; moved after
+state0..state_end wipe → init cleared the hardrestart_test_init priming; moved after
 state_end (orig $17FB persists through init); all 24 hr-patch members hold.
 Gate: 25-member re-verify + full regression green. NOTE: the running partials
 sweep uses round-16 code — its newly-FULL members must be RE-VERIFIED with
@@ -1650,7 +1650,7 @@ play() call before the canon body (imm $3F/$1F; the value = last-note-init
 $D418 & $7F for Bernds but it's just a CONSTANT from the wrapper). The factory
 found the canon JT at load and never looked at what the play vector executes.
 Factory `_d418_play_wrapper` probe (shape + JMP target==base+3) → param
-`d418_every_play`; composer prepends a `playd418` vector wrapper OUTSIDE the
+`master_vol_every_play`; composer prepends a `playd418` vector wrapper OUTSIDE the
 play_repeat/play_phases dispatch. Census: exactly 6 carriers, all partial.
 6/6 FULL, regression green. Class residue: Super_Seven = a CONDITIONAL
 game-mute wrapper (LDA flag/BNE/JMP base+3, diverges on SUB 1); Scratch_It =
@@ -1672,8 +1672,8 @@ $99=STA → TEST written / $B9=LDA → skipped); the pulse-reset path's $1262
 wedge then writes $B9 — net: the NEXT hard restart writes $D404=$08 iff the
 last note-init instrument has the $04 no-pulse-reset flag. Initial toggle =
 file-image opcode at $17FB (differs per member — Headache $B9, Atlantis $99).
-IMPL: factory `_hr_patch_probe` (base-relative byte probe after canon/dataflow
-build) → params `hr_patch`/`hr_test_init`; composer gates fe_ni (hr_arm/
+IMPL: factory `_hardrestart_smc_variant_probe` (base-relative byte probe after canon/dataflow
+build) → params `hardrestart_smc_variant`/`hardrestart_test_init`; composer gates fe_ni (hr_arm/
 hr_disarm on a global `hrtest` var) + ev_n_hard TEST write; canon emit
 byte-identical when off. **23/24 FULL** (Mountys_Escape re-localizes 24→24802
 deep V1-freq-hi, separate cause); full regression green; mass-written; DB

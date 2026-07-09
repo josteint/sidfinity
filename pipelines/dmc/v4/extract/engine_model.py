@@ -987,7 +987,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
                     for k in range(3)]
             ents.append(':'.join([str(iid + 1)] + [str(r) for r in raws]))
         if ents:
-            m.extra_params['dual_gen_steps'] = ','.join(ents)
+            m.extra_params['dual_generator_steps'] = ','.join(ents)
     _assign_offtable_freq(m, mem, cfg.freq_lo_addr, cfg.freq_hi_addr,
                           cfg.vibdepth_addr)
     # off-table source bytes are in the engine's work RAM; init writes them, so
@@ -1027,7 +1027,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # $7F end check) cannot be served statically (the value cycles) nor by the
     # event-driven capture (varies per key). The composer maintains a live
     # sectpos,x shadow instead, its per-row values derived from row kind +
-    # the stated-command flags (dcmd/icmd/vcmd/softcmd) — enable it when any
+    # the stated-command flags (dur_cmd/instr_cmd/vol_cmd/soft_cmd) — enable it when any
     # captured read hits those bytes (flo idx 226-228 / fhi idx 130-132),
     # canon geometry only (see the probe above).
     # Canon state geometry is stored on the model (NOT serialized as a geometry

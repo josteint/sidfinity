@@ -959,16 +959,16 @@ class _T(Transformer):
         return 'noretrig'
 
     def fx_dcmd(self, _):
-        return 'dcmd'
+        return 'dur_cmd'
 
     def fx_icmd(self, _):
-        return 'icmd'
+        return 'instr_cmd'
 
     def fx_vcmd(self, _):
-        return 'vcmd'
+        return 'vol_cmd'
 
     def fx_softcmd(self, items):
-        return f'softcmd={int(items[0])}'
+        return f'soft_cmd={int(items[0])}'
 
     def freq_table_block(self, items):
         # items[0] is a byte_list (= list[int])

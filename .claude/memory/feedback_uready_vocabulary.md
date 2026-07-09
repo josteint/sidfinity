@@ -84,7 +84,7 @@ exemplary, `dur_reload` typed, sectpos fx_flags borderline-accepted) with ONE
 LEAK-ADJACENT item: `dual_hack`/`dual_hack_steps` — RESOLVED same day
 (user-ratified): the filter_mod comparison was a category error (C10 vs C19);
 decision = C7-(b) document-and-minimize, renamed `dual_freq_generator`/
-`dual_gen_steps`, Taurus_02 re-verified FULL; see ledger C7 note (which also
+`dual_generator_steps`, Taurus_02 re-verified FULL; see ledger C7 note (which also
 records why the "lift to musical form" direction is a §8 trap).
 **C4 still GAP:** f1 ≈5019/5401 but closeout batch pending; f2 count STALE
 (2413/2889, Jul 4 — rounds 22-41 all landed f1; a f2 recovery sweep over the

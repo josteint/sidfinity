@@ -80,13 +80,13 @@ def _row_to_usf(r: DmcRow, cmd_flags: bool = False) -> NoteRow:
         # ($1729-$172B) — the composer derives each row's orig byte width
         # (base + stated commands) to keep a live sectpos,x shadow.
         if r.dcmd:
-            flags.append('dcmd')
+            flags.append('dur_cmd')
         if r.icmd:
-            flags.append('icmd')
+            flags.append('instr_cmd')
         if r.vcmd:
-            flags.append('vcmd')
+            flags.append('vol_cmd')
         if r.softcmd:
-            flags.append(f'softcmd={r.softcmd}')
+            flags.append(f'soft_cmd={r.softcmd}')
     if r.gate_toggle:
         flags.append('gate_toggle')
     if r.soft or r.glide_slide:
@@ -273,7 +273,7 @@ def _emit_otrk_fields(m) -> dict:
 
 def model_to_usf(m: DmcModel) -> UsfFile:
     pad_fields = _emit_otrk_fields(m)
-    # row command flags (dcmd/icmd/vcmd/softcmd) feed the composer's sectpos
+    # row command flags (dur_cmd/instr_cmd/vol_cmd/soft_cmd) feed the composer's sectpos
     # shadow — emit them iff a canon-geometry off-table read sonifies the sector
     # position window (matches the composer's derived sectpos_on).
     cmd_flags = m.offtable_canon and any(

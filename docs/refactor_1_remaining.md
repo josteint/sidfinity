@@ -240,7 +240,7 @@ Criterion-5 feature accounting (new since 06-18):
 - **`wave_table_pos`** — §8-arrangement (editor-typed table placement);
   single-consumer, gate is load-bearing (emit only for off-table-sonified
   verbatim layouts). Watch: never widen "for uniformity".
-- **sectpos fx_flags (`dcmd/icmd/vcmd/softcmd`)** — stated-command
+- **sectpos fx_flags (`dur_cmd/instr_cmd/vol_cmd/soft_cmd`)** — stated-command
   arrangement, same class as `otrk_rcmd`; borderline-accepted. Watch: any
   new `*cmd` token needs a fresh principle review (§9.4 generalization risk).
 - **`play_unit_repeat`** (C24) — genuine generalization of voice_tick +
@@ -250,7 +250,7 @@ Pending decisions added for the human (also in ledger C7 note):
 1. ~~`dual_hack`/`dual_hack_steps`~~ **RESOLVED 2026-07-06 (user-ratified):
    the filter_mod comparison was a category error (C10 recoverable-structure
    vs C19 wedge — each got its class's canonical form). Decision = C7-(b)
-   document-and-minimize; renamed `dual_freq_generator`/`dual_gen_steps`
+   document-and-minimize; renamed `dual_freq_generator`/`dual_generator_steps`
    (behavior naming was the one real defect); steps-derivability checked and
    unavailable; the "lift to musical form" direction recorded as a §8 trap in
    ledger C7. Taurus_02 re-verified FULL 86118/86118 under the new names.

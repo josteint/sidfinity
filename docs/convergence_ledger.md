@@ -89,7 +89,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | INAUDIBLE writes · idle/gate-off voice freewheels · "audio-equivalence" verdict relaxation | C15 | ⛔ REMOVED (user decision 2026-07-01): every SID gets STRICT write-stream match, always — never propose relaxing the verdict during per-engine work. If an idle-freewheel divergence blocks a member, REPRODUCE the writes (core tenet permits reproducing the mechanism). Design parked in `refactor_1_remaining.md` as a Move-1-era-ONLY consideration. |
 | per-frame WRITE-ORDER differs · orig batches note-on writes (SR/AD/CTRL) separately from wave-step writes (freq/PW/CTRL) or uses a different voice interleave · rebuild emits a different order · NOT a wholesale composer rewrite — PARAMETRIZE the composer's EMISSION order (precedent: FC `nextvoice_write_order`) | C16 | logged |
 | HETEROGENEOUS per-step write shapes in a trace-lift · one superset order can't embed all steps (conflicting reg orders / intra-step dups / sections) · cluster steps by EXACT write shape → K positional templates + per-step template id | C17 | logged |
-| play-vector WRAPPER with per-call PHASE behaviour · slow-tempo / multispeed-effects cycler · every Nth call runs the full play, others run effects-only / register-refresh / nothing · wrapper shapes vary (SMC, DEC+dual-JMP, parity AND) — OBSERVE entry-point reachability under py65, don't parse · arm F-ENTRY variant: wavestep ($1591) vs vibrato half-cycle ($1567, flips reshape vibrato to a square) → `fx_entry: vibflip` | C18 | logged |
+| play-vector WRAPPER with per-call PHASE behaviour · slow-tempo / multispeed-effects cycler · every Nth call runs the full play, others run effects-only / register-refresh / nothing · wrapper shapes vary (SMC, DEC+dual-JMP, parity AND) — OBSERVE entry-point reachability under py65, don't parse · arm F-ENTRY variant: wavestep ($1591) vs vibrato half-cycle ($1567, flips reshape vibrato to a square) → `effect_entry_variant: vibflip` | C18 | logged |
 | TRICHOTOMY VERDICT alignment · rebuild emits its OWN init (universal reset+priming) so streams differ by an init prefix · Check A end-of-init state + aligned play-stream compare · TWO implementations exist: `verify_cycle._trichotomy_compare` (FC, shift recovery) + `usf_roundtrip._compare_music/_split_aligned` (basic_program, known-init-length + probe search) — CONSULT MISS, factor at Move 1 | C21 | factor-candidate (2×) |
 | hand-patched player WEDGE inside the canon body · SMC opcode toggle · 1-byte opcode patch · JMP over canonical loads · runtime state ≠ static file byte · PWM bound-shift (LSR count) wedge · init-PREFIX `LDA #imm` hard-forces the played tune record (extract walks the wrong record) · STATIC opcode probe, never a bounded stream scan · census carriers both sides · reproduce semantics behind a factory-probed param (EXTRACT-only when the wedge changes a derived musical value; COMPOSER param when it changes a write-stream TIMING, e.g. $D418 re-asserted every frame) | C19 | canonicalized (10×) |
 | stale-FULL palimpsest · recorded 'full' the current code can't reproduce · hides members from residue censuses · verify the STORED build first, then USF-diff/param-bisect to attribute · never mass-write with code that didn't produce the verdict | C20 | canonicalized |
@@ -260,7 +260,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   field as a B-class candidate. (Distinct from C6, which is the off-table-freq
   TECHNIQUE; C7 is the anti-pattern lens over it + extended_freq + the freq_table tail.)
 - **B-class audit RESOLVED (2026-07-06, user-ratified): `dual_freq_generator` +
-  `dual_gen_steps`** (round 35, Taurus_02, sole corpus carrier; renamed from
+  `dual_generator_steps`** (round 35, Taurus_02, sole corpus carrier; renamed from
   `dual_hack`/`dual_hack_steps` — behavior naming was the one uready criterion it
   failed). The `/uready-review` first flagged it LEAK-adjacent by comparison with
   the same week's `filter_mod`; the full re-anchor OVERTURNED that comparison as a
@@ -275,7 +275,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   TRAP, recorded so it isn't re-litigated: a `law: random` enum value would NOT
   determine the write stream (the chaos generator would be hidden per-member
   composer mechanism = the §8 disease proper); putting the generator arithmetic
-  in USF = Pole B. `dual_gen_steps` derivability was checked and is genuinely
+  in USF = Pole B. `dual_generator_steps` derivability was checked and is genuinely
   unavailable (Taurus_02's inst-6 raws land past the table end in the wavectrl
   region, whose layout is not in USF for this member) → justified-minimal C2-class
   capture. Lower-stakes siblings flagged same review — **RESOLVED 2026-07-09**
@@ -483,7 +483,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   - **PARAMETRIC** (mechanism + a few knobs; the engine GENERATES the per-frame
     values) when a formula/table drives it: `MasterVolConfig` (fade formula, e.g.
     Confuzion `clamp(BASE − voice1_orderpos)`), `master_vol_every_frame`/`_every_note`
-    (re-assert a fixed value; DMC `d418_filter_tail` re-asserts `$D418 = filter-mode
+    (re-assert a fixed value; DMC `master_vol_reassert_filter_tail` re-asserts `$D418 = filter-mode
     | mvol` every frame with the mode tracked from filter note-inits — C19 round 65),
     `FilterProgConfig`/`filter_programs` + DMC
     `default_filter` + instrument `filter_env` (filter cutoff-ENVELOPE programs ≈
@@ -680,7 +680,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   only for window-reading members. SCHEMA HOME: the pre-first-event leftover
   is §4.5 engine-state PRIMING (trichotomy report) — a TYPED
   `InitVoice.dur_reload` field alongside `guard`, NOT a params scalar (the
-  first landing used `durrel_init*` params citing the hr_test_init precedent;
+  first landing used `durrel_init*` params citing the hardrestart_test_init precedent;
   re-reading the principle doc flagged that as the "cite a precedent to defend
   the easy choice" drift-tell and it was moved to the typed init block, 46
   builds byte-identical → provably neutral). EXONERATION LESSON: the one 'regression'
@@ -849,7 +849,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   derivation reconstructs it EXCEPT for redundant re-statements — which are
   the editor's command PLACEMENT = §8 arrangement (the exact class ratified
   for redundant orderlist transpose commands, `otrk_rcmd`). So: the extract
-  records per-row `dcmd/icmd/vcmd/softcmd` fx_flags; the composer derives the
+  records per-row `dur_cmd/instr_cmd/vol_cmd/soft_cmd` fx_flags; the composer derives the
   per-row visible values at BUILD time, embeds one byte per pattern event
   (gated on `sectpos_shadow`, extract-set when an off-table freq read lands on
   $1729-$172B), stores it to a live `sectpos,x` at every fetch, + a redirect
@@ -1400,7 +1400,7 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   (My_Rusty_Love, → FULL 388489/388489 state ✓). Round-53 lesson applied:
   detect the minority (F-behind-R-disguise) positively; never flip a default.
 - **F-ENTRY-POINT variant — vib_half instead of wavestep (2026-07-09,
-  Acid_Dance +1 FULL, 0 regr):** on a notestart_arm member the F phase enters
+  Acid_Dance +1 FULL, 0 regr):** on a noteinit_deferred member the F phase enters
   PAST the note-init check — but there are TWO such entries with IDENTICAL
   F-call write footprints: the plain wave step (canon $1591) and the vibrato
   half-cycle boundary (canon $1567: vibctr=0, flip vibdir, run the swell,
@@ -1410,15 +1410,15 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   free-running $268→$258 triangle; wrapper = SMC JSR-operand table → JT slot 3
   → `LDX #0/JSR $1567/INX/JSR $1567/INX/JSR $1567`). Not derivable from the
   footprint, so OBSERVE entry reachability (the C18 canonical form):
-  `factory._detect_fx_entry_vibhalf` shape-locates $1567 (`a9 00 9d ?? ?? bd
+  `factory._detect_effect_entry_variant_vibhalf` shape-locates $1567 (`a9 00 9d ?? ?? bd
   ?? ?? 49 01 9d`, reloc/re-assembly invariant) and answers vib_half iff EVERY
   observed F invocation (voice writes, no $D416) executes a candidate — a
   wavestep-entry F call can never reach $1567 (it lies upstream; nothing jumps
   back) ⇒ no false positive ⇒ regression-safe by construction. Param
-  `fx_entry: vibflip` (vocabulary shared with `rest_effects='vibflip'`, the
+  `effect_entry_variant: vibflip` (vocabulary shared with `rest_effects='vibflip'`, the
   $1180 rest-tail patch this member ALSO carries — two INDEPENDENT edits, do
   not derive one from the other); composer's `voice_fx` JMPs its own
-  `vib_half` label. Exposure: all 19 stored notestart_arm FULLs probe False
+  `vib_half` label. Exposure: all 19 stored noteinit_deferred FULLs probe False
   (builds byte-identical).
 - **Status:** logged (DMC family-1, 2026-07-02: P/F/S round +5 FULL, R round
   +26 FULL → 4198/5401; 2026-07-04 straddle-free pc-trace observer, +0 FULL but
@@ -1440,13 +1440,13 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   wedge bytes base-relative and CENSUS the whole family for carriers (both to
   size the class and to prove 0-FULL regression exposure); (3) reproduce the
   wedge's SEMANTICS in the composer behind a factory-probed boolean param —
-  e.g. `hr_patch`: PW step base never loaded + phase/dir persist + the
+  e.g. `hardrestart_smc_variant`: PW step base never loaded + phase/dir persist + the
   hard-restart TEST write gated by a global flag toggled per note-init from
   the instrument's $04 flag (the orig toggles the STA/LDA opcode at $17FB;
   the composer keeps an explicit `hrtest` byte primed from the file-image
   opcode). Reproduce state-machine EFFECTS, never the SMC mechanism.
 - **Trap:** the file-image state of the toggled byte differs per member (save
-  moment) — it is PRIMING, so capture it as a param (`hr_test_init`), don't
+  moment) — it is PRIMING, so capture it as a param (`hardrestart_test_init`), don't
   assume a constant.
 - **Diagnosis tell:** runtime state ≠ file-image table byte while taint_source
   says the byte is STATIC ⇒ the READ SITE differs from canon — dump the
@@ -1460,9 +1460,9 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   DIRECTION persists across note-inits while value/bounds/step/phase still
   reset. Tell: at a note-init both streams write the same fresh PW value,
   next frame orig sweeps DOWN (continuing the pre-note direction) where the
-  rebuild sweeps UP. `factory._pw_dir_persist_probe` (anchor `A9 00 9D
+  rebuild sweeps UP. `factory._pulsewidth_dir_persist_probe` (anchor `A9 00 9D
   <base+$762> 9D <op>`, reloc-aware, positive minority: op != base+$765) →
-  `pw_dir_persist` param → composer drops the one `sta pwdir,x` line from
+  `pulsewidth_dir_persist` param → composer drops the one `sta pwdir,x` line from
   the pulse-reset block.
 - **9th occurrence (round 63, 2026-07-09) — INIT-PREFIX subtune force:** the
   wedge is a 2-byte init WRAPPER, not a body patch. Sans_intro's PSID init =
@@ -1500,10 +1500,10 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   is re-written EVERY frame (at the filter-tail END); the canon filter note-init
   `STA $D418` ($12A8) is neutered to `BIT $D418` and its preceding `STA $2004`
   self-modifies the wrapper's mode immediate per note-init. `factory.
-  _d418_filter_tail_probe` → USF param `d418_filter_tail` (initial mode imm) →
+  _master_vol_reassert_filter_tail_probe` → USF param `master_vol_reassert_filter_tail` (initial mode imm) →
   composer: note-init stores `fdmode` to a `d418mode` shadow (suppress the
   note-init `$D418`), the per-frame filter tail re-asserts `lda d418mode / ora
-  mvol / sta $d418`, init primes `d418mode`. Sibling of `d418_every_play` (the
+  mvol / sta $d418`, init primes `d418mode`. Sibling of `master_vol_every_play` (the
   play-VECTOR wrapper form, `$D418` at play START); this is the filter-tail END
   form. Default None → byte-identical. **PROBE-ANCHORING LESSON (why the STATIC
   opcode probe must target the REACHABLE site, not a byte pattern):** the first
@@ -1548,7 +1548,7 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   effective constants captured from the image) → `dual_freq_generator` param
   (renamed from `dual_hack` 2026-07-06, C7-note decision) →
   composer emits the generator as CLEAN code (legal ror+adc = RRA,
-  inlined constants, live-carry pwphase store) + `dual_gen_steps`
+  inlined constants, live-carry pwphase store) + `dual_generator_steps`
   (extract-captured static bytes) EXTENDS the stride-8 isteps/irawsp
   tables at the reachable garbage-phase indices — zero pulse-code change.
   Python-simulate the generator against ALL observed dual events (3826/
@@ -1559,7 +1559,7 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   note-fetch frame primes AD=SR=$0A instead of $0F/$0F. The simplest C19
   form yet — one immediate byte. `factory._hr_preset_probe` anchors on the
   routine's opcode shape (`[99|B9] 04 D4 A9 vv 99 05 D4 99 06 D4 60`,
-  layout-blind; first opcode admits $B9 for the _hr_patch_probe SMC
+  layout-blind; first opcode admits $B9 for the _hardrestart_smc_variant_probe SMC
   variant) and feeds the value through the EXISTING `hard_restart` param
   (domain extended: 'preset'/'none'/numeric — no new schema field);
   composer renders `lda #$vv`. Guarded against family-2's preset
@@ -1570,9 +1570,9 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   family-1 carrier): the sidwrite tail's `LDA $1753,x / STA $D403,y`
   operand re-pointed at base+$707 (the track-ptr lo triple, constant after
   init) — each voice's audible PW hi pinned at a per-voice constant while
-  the internal PWM machine still runs on $1753. `factory._pw_hi_const_probe`
+  the internal PWM machine still runs on $1753. `factory._pulsewidth_hi_const_probe`
   anchors on the `$D402/$D403` store pair + the canon PW-accum-lo operand,
-  captures the POST-INIT bytes at the patched operand → `pw_hi_const='a,b,c'`
+  captures the POST-INIT bytes at the patched operand → `pulsewidth_hi_const='a,b,c'`
   param; composer swaps the pwwrite source to a 3-byte table. Default
   byte-identical; base-relative census proved exactly 1 carrier.
 - **COROLLARY — a probed knob must be honored on EVERY orig path that funnels
@@ -1633,15 +1633,15 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   Snowball_Caper_2, DaFunk I_Dont_Need_Love / 3-Speed, SilverFox Poison_Girl /
   Seaside_99), ALL partial (0 FULL exposure) => regression-safe by
   construction; ALL 9 partial -> FULL. 0 f2 carriers.
-- **Consumers:** DMC v4 `factory._hr_patch_probe` + composer_asm
-  hr_patch/hr_test_init gating; `factory._hold_gateoff_probe` →
-  `hold_gateoff` param; `factory._pw_hi_const_probe` → `pw_hi_const` param;
+- **Consumers:** DMC v4 `factory._hardrestart_smc_variant_probe` + composer_asm
+  hardrestart_smc_variant/hardrestart_test_init gating; `factory._hold_gateoff_probe` →
+  `hold_gateoff` param; `factory._pulsewidth_hi_const_probe` → `pulsewidth_hi_const` param;
   `factory._hr_preset_probe` (numeric) + `factory._hr_prep_skip_probe`
   ('skip') → the shared `hard_restart` param (domain
   preset/none/numeric/skip). Sibling of C18 (wrapper OUTSIDE the player) —
   C19 is patches INSIDE the canon body. The round-14 $D418 play-vector prefix
   (`LDA #imm/STA $D418/JMP base+3`, factory `_d418_play_wrapper` →
-  `d418_every_play`, +6 FULL, commit efbf639) is the degenerate stateless
+  `master_vol_every_play`, +6 FULL, commit efbf639) is the degenerate stateless
   case: a wrapper with NO phase behaviour — probe the PSID play vector's
   target shape whenever a member's play ≠ base+3 OR the JT entry target ≠ the
   canon play body.
@@ -1818,7 +1818,7 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   drift over all 76 stored F-token carriers; among 166 partials exactly ONE new
   arm carrier (Wavefrontline → FULL 288100/288100); the 8 other arm partials
   were already detected at 12 frames (deeper blockers, builds unchanged).
-- **Consumers:** DMC v4 `factory._detect_notestart_arm` → `notestart_arm` param
+- **Consumers:** DMC v4 `factory._detect_noteinit_deferred` → `noteinit_deferred` param
   → `composer_asm` voice_fx routing. Refines C18.
 - **Generalised:** this entry + round-23 otrk are the worked examples behind the
   [`/amend`](../.claude/skills/amend/SKILL.md) skill (the methodology for "my

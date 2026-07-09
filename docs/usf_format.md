@@ -506,9 +506,9 @@ Columns (whitespace-separated):
    `tie` row (rest pitch + `tie`) is a hold/sustain of the current note
    ($FE) for one more duration with no retrigger.
 
-   Stated-command placement (DMC V4 sectors): `dcmd` / `icmd` / `vcmd`
+   Stated-command placement (DMC V4 sectors): `dur_cmd` / `instr_cmd` / `vol_cmd`
    mark that this editor row physically carries a duration ($80-$BF) /
-   instrument ($60-$7B) / volume ($Fx) command, and `softcmd=N` that it
+   instrument ($60-$7B) / volume ($Fx) command, and `soft_cmd=N` that it
    carries N soft-start toggles ($7C) — including re-statements whose
    value did not change (a value-change derivation cannot see those).
    This is the composer's command PLACEMENT (arrangement, same §8 class
