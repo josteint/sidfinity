@@ -7,6 +7,38 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 62 (2026-07-09): RESET-ALL hook target need NOT be 0 — loop-to-N — Action_G +1 partial → FULL (0 regr) [ledger C13 refinement]
+First f1 partial by hvsc path (user-picked; End_of_1992_intro=round60,
+Acid_Dance=round61 both now FULL): Bakewell_Dwayne/Action_G (vblank, single sub,
+otrk_legacy/dataflow route). Flat first-div 108842 (97.5%) at a V1 SR write =
+the LOOP-BACK point. Ground truth: pc-trace the `$FF` handler ($10DF `JSR $1020`;
+$1020 = `LDA #5/STA $1726 / LDA #5/STA $1727 / LDA #5/STA $1728`) = RESET-ALL-to-**5**
+(a SYNC loop to track pos 5, NOT 0 — the intro block pos 0-4 plays once, the loop
+body restarts at the byte-identical `A1 01 01 01 05` at pos 5). Memwatch $1726
+trajectory `…2E → 06` confirms (lands on the transpose marker at pos 5, advances
+to 6 — reset-to-0 would show pos 1). ROOT: round-53's reset-all detector
+hardcoded `mem[...]==0x00` (loop-to-0), so this N=5 variant stayed
+`track_loop_target=True` (read-next) → the walk read `$FF`+1=`A1`=161 as a jump
+target, marched past the terminator into garbage (entry_offsets `…45, 161, 162`,
+self-loop on offset 162). FIX (extract-only, dataflow): generalize the round-53
+idiom to capture the immediate N (require all 3 LDA EQUAL; the discriminator is
+the equal-imm + consecutive-addr SHAPE, N is the target) → new
+`DMCV4Config.loop_reset_pos` (None ≡ loop-to-0/read-next) threaded to
+`_walk_track` (`tgt = loop_reset_pos` at `$FF`). NO USF field, NO composer change
+(the walk emits the correct resolved orderlist; loop_reset_pos is a derivation
+knob consumed at extract time). REGRESSION-SAFE BY CONSTRUCTION: N==0 leaves
+loop_reset_pos None ⟹ the 6 round-53 reset-all-to-0 carriers build byte-identical
+(all 6 confirmed track_loop_target=False/loop_reset_pos=None). CENSUS over 5833
+f1 members: exactly 3 N>0 carriers (Action_G N=5, Axel_F_v2 N=4, MON_Tribute N=5),
+ALL previously partial ⟹ 0 FULL exposure = the round-53 theorem holds. Action_G
+FULL 111670/111670 (100%, state ✓). Full tools/regression.py GREEN (0 regr all 7
+families: Hubbard 71, Companion 44, C64ME 15, Jay_Derrett 17, FC 31, DMC 12,
+Basic 22). Post-fix sweep of the 2 sibling carriers SKIPPED per user (next batch
+accounts via code_hash — likely +2 more partial→FULL). LESSON: when a
+POSITIVE-minority signature carries a literal (the immediate here), don't bake the
+literal into the discriminator — the SHAPE is the discriminator, the literal is
+DATA to capture. f1 ≈ 5160 FULL / 241 partial.
+
 ## ✅ ROUND 61 (2026-07-09): arm F-phase ENTRY variant — wavestep vs vib_half — Acid_Dance +1 partial → FULL (0 regr) [ledger C18 note]
 First f1 partial by hvsc path (user-picked; End_of_1992_intro row stale =
 round 60): Bakewell_Dwayne/Acid_Dance (CIA 4x, P_F123_F123_F123,

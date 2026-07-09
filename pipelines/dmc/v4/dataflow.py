@@ -279,14 +279,26 @@ def locate(mem: bytearray, base: int, play: int | None = None) -> dict | None:
         loop_site = _locate_site(vI, vseq, _sig_at(_CANON_LOOP_SITE, w))
         if loop_site is not None:
             break
+    # Round-53 handled the reset-all-to-0 form (immediate #0). The same idiom
+    # with a non-zero immediate N (Action_G: LDA #5 ×3) is a synchronized loop
+    # to track position N, NOT to 0 — so capture N. The structural signature is
+    # unchanged (3× LDA #imm / STA to CONSECUTIVE track-pos addrs, absent from
+    # canon + every read-next member); only the equal-immediate is generalized
+    # from {0,0,0} to {N,N,N}. N==0 leaves loop_reset_pos None so the 6
+    # round-53 reset-all-to-0 carriers are byte-identical.
     track_loop_target = loop_site is None
+    loop_reset_pos = None
     if track_loop_target:
         for i in range(len(vI) - 5):
             s = vI[i:i + 6]
-            if (all(s[k][1] == 0xA9 and mem[s[k][0] + 1] == 0x00 for k in (0, 2, 4))
+            n0 = mem[s[0][0] + 1]
+            if (all(s[k][1] == 0xA9 for k in (0, 2, 4))
+                    and mem[s[2][0] + 1] == n0 and mem[s[4][0] + 1] == n0
                     and all(s[k][1] == 0x8D for k in (1, 3, 5))
                     and s[3][2] == s[1][2] + 1 and s[5][2] == s[1][2] + 2):
-                track_loop_target = False    # reset-all-to-0 hook = loop-to-0
+                track_loop_target = False    # reset-all-to-N hook = loop-to-N
+                if n0 != 0:
+                    loop_reset_pos = n0
                 break
 
     return {
@@ -299,4 +311,5 @@ def locate(mem: bytearray, base: int, play: int | None = None) -> dict | None:
         'curnote_addr': state['curnote'], 'gatemask_addr': state['gatemask'],
         'dual_parity_addr': state['dual_parity'],
         'track_loop_target': track_loop_target,
+        'loop_reset_pos': loop_reset_pos,
     }

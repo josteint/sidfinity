@@ -439,11 +439,17 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
 
 def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 loop_target: bool = False,
+                loop_reset_pos: int | None = None,
                 fmt: _SecFmt = _SECFMT['v4']) -> DmcVoice:
     """Walk one voice's track (orderlist), path-resolving every sector
     instance. Unrolls $FF loops until (wrap position, sticky state)
     repeats. `loop_target`: the JSR-$1042 player variant reads the byte
     after $FF as the loop position (canonical loops to 0).
+    `loop_reset_pos`: the RESET-ALL-to-N SYNC hook (dataflow-probed, ledger
+    C13) writes a fixed N to all three voices' track pos at $FF — the $FF
+    loops to that fixed position N (overrides both `loop_target` and the
+    loop-to-0 default). Round-53 handled N==0 via loop_target=False; N>0 lands
+    here (Action_G loops to pos 5).
 
     The engine's track position is ONE byte (`LDY $1726,x` / `INC $1726,x`),
     so a track with no $FF/$FE terminator wraps mod 256 in hardware and the
@@ -481,7 +487,10 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
             v.stop = True
             return v
         if b == 0xFF:
-            tgt = mem[track_addr + ((pos + 1) & 0xFF)] if loop_target else 0
+            if loop_reset_pos is not None:
+                tgt = loop_reset_pos    # reset-all-to-N SYNC hook (ledger C13)
+            else:
+                tgt = mem[track_addr + ((pos + 1) & 0xFF)] if loop_target else 0
             key = (tgt, st.key())
             if key in wrap_states:
                 v.loop_to = wrap_states[key]
@@ -883,6 +892,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
             tp = _rd16(mem, rec + vi * 2)
             voices.append(_walk_track(mem, tp, secp_lo, secp_hi,
                                       loop_target=cfg.track_loop_target,
+                                      loop_reset_pos=cfg.loop_reset_pos,
                                       fmt=_SECFMT[cfg.sector_format]))
         song = DmcSong(id=sub + 1, speed=mem[rec + 6],
                        master_vol=mem[rec + 7], voices=voices)

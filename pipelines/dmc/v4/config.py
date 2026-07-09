@@ -58,6 +58,13 @@ class DMCV4Config:
     # loops to track position 0; the JSR-$1042 hook variant reads the
     # NEXT track byte as the loop position ($FF nn).
     track_loop_target: bool = False
+    # RESET-ALL-to-N hook (dataflow-probed, ledger C13): a $FF handler that
+    # writes the SAME immediate N to all three voices' track-pos ($1726/7/8) =
+    # a synchronized loop to track position N. None = not this form (use
+    # track_loop_target). N==0 is left as None and handled by the loop-to-0
+    # path (track_loop_target=False) for byte-identity with the round-53
+    # reset-all-to-0 carriers; only N>0 sets this field.
+    loop_reset_pos: int = None
     # Sector-command byte map (factory-probed). 'v4' = canonical
     # (terminator $7F, VOL $F0+, soft-start $7C); 'family2' = the
     # V4-derived variant (terminator $FF, no VOL/soft-start, instr range

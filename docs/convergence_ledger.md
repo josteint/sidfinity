@@ -1085,6 +1085,32 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   probe splits variants with an "else ⟹ the other form" default, DON'T flip the
   default (you only move the blind spot) — detect the minority form by a POSITIVE
   signature verified absent from the majority. `dataflow.locate` reset-all match.
+- **REFINEMENT — the reset-all hook target need not be 0 (2026-07-09, DMC f1
+  Action_G, +1 partial → FULL, 0 regr).** Round-53 hardcoded the reset-all
+  immediate as `#0` (loop-to-0). Action_G's `$FF` handler is `LDA #5 / STA $1726 /
+  LDA #5 / STA $1727 / LDA #5 / STA $1728` = reset-all-to-**5** = a synchronized
+  loop to track position 5 (the intro block pos 0-4 plays ONCE, then the loop
+  body starts at the second, byte-identical `A1 01 01 01 05` block at pos 5). The
+  round-53 detector's `mem[...]==0x00` guard skipped it, so `track_loop_target`
+  stayed True (read-next) → the walk read `$FF`+1 (`A1`=161) as a jump target and
+  marched off past the terminator into garbage (entry_offsets `…45, 161, 162`,
+  self-loop). GROUND TRUTH: pc-trace the `$FF` handler ($10DF `JSR $1020`; $1020 =
+  the 3× `LDA #5/STA $172x`) + memwatch the $1726 trajectory (`…2E → 06`, i.e. it
+  lands on the transpose marker at pos 5 then advances to 6 — inconsistent with
+  reset-to-0 which would show pos 1). FIX (extract-only, dataflow): generalize the
+  round-53 idiom to capture the immediate N (require all three LDA equal — the
+  discriminator is the equal-immediate + consecutive-address SHAPE, N is the loop
+  target); new `DMCV4Config.loop_reset_pos` (None ≡ loop-to-0/read-next) threaded
+  to `_walk_track` (`tgt = loop_reset_pos` at `$FF`). NO USF field, NO composer
+  change — the walk emits the correct resolved orderlist; loop_reset_pos is a
+  derivation knob consumed entirely at extract time. REGRESSION-SAFE BY
+  CONSTRUCTION: N==0 leaves loop_reset_pos None ⟹ the 6 round-53 carriers build
+  byte-identical (confirmed); N>0 flips only members that were walking garbage
+  past `$FF` — census over 5833 f1 members = exactly 3 carriers (Action_G N=5,
+  Axel_F_v2 N=4, MON_Tribute N=5), ALL previously partial ⟹ 0 FULL exposure =
+  the round-53 theorem holds. Full tools/regression.py GREEN (0 regr all 7
+  families). Action_G FULL 111670/111670 (100%, state ✓). Post-fix sweep of the
+  2 sibling carriers SKIPPED per user (next batch accounts via code_hash).
 
 ### C15 — ⛔ REMOVED (audio-equivalence verdict relaxation)
 **User decision 2026-07-01: every SID always gets the STRICT write-stream match.**
