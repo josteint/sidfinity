@@ -254,12 +254,16 @@ Pending decisions added for the human (also in ledger C7 note):
    (behavior naming was the one real defect); steps-derivability checked and
    unavailable; the "lift to musical form" direction recorded as a §8 trap in
    ledger C7. Taurus_02 re-verified FULL 86118/86118 under the new names.
-2. **`Params.fields` escape surface** — `offtable_redirect='0'` describes
-   orig memory geometry (the one thing config fields must never describe) —
-   prefer extract-side gate suppression; `sectpos_shadow` is probe-result
-   transport. (The blanket "migrate all CSV knobs probe→typed" framing is
-   WITHDRAWN per the dual-generator resolution: C19 wedge knobs' canonical
-   home IS params; typing is for recoverable musical structure.)
+2. **`Params.fields` escape surface** — ✅ **RESOLVED 2026-07-09** (`docs/
+   dmc_composer_to_extract_plan.md` Phase A). `offtable_redirect='0'` described
+   orig memory geometry (the one thing config fields must never describe) and
+   `sectpos_shadow` was probe-result transport; both DELETED from the USF and
+   replaced by a per-read `live(...)`/`at(...)` behavioral flag on `offtable_freq`
+   (the composer re-derives its redirect boolean from the flags — ledger C7).
+   Byte-identical across all 5401 family-1 members. (The blanket "migrate all CSV
+   knobs probe→typed" framing stays WITHDRAWN per the dual-generator resolution:
+   C19 wedge knobs' canonical home IS params; typing is for recoverable musical
+   structure.)
 3. **`glide_to` off-table-target parse quirk** — documented Move-1 debt
    (dynamic-byte-terminated sweep representation), must not silently persist.
 

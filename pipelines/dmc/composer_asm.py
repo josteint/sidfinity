@@ -238,6 +238,35 @@ DMC_SECTPOS_ROW = (0x1729, 'sectpos', 3)
 DMC_WAVEPOS_ROW = (0x177A, 'wavepos', 3)
 
 
+_OFFTABLE_LIVE_IDX = None
+
+
+def offtable_live_idx() -> set:
+    """The window indices a canon-geometry off-table read is served LIVE from:
+    the redirect map (DMC_OFFTABLE_STATE + sectpos + wavepos rows) PLUS the
+    co-located live speed/master-vol slots (window offset 15/16 => hi idx
+    111/112, lo idx 207/208). A read at one of these idx (on a canon member)
+    sonifies a live-varying value; a read elsewhere reads a fixed byte. The
+    single source of truth for both extract (which stamps the per-read `live`
+    flag) and the composer (which derives its member-global redirect boolean),
+    so the two sides can't disagree on geometry."""
+    global _OFFTABLE_LIVE_IDX
+    if _OFFTABLE_LIVE_IDX is None:
+        s = set()
+        for addr, _lbl, nb in DMC_OFFTABLE_STATE + [DMC_SECTPOS_ROW,
+                                                    DMC_WAVEPOS_ROW]:
+            for k in range(nb):
+                hi = (addr + k) - ORIG_FHI
+                if 96 <= hi <= 255:
+                    s.add(hi)
+                lo = (addr + k) - ORIG_FLO
+                if 192 <= lo <= 255:
+                    s.add(lo)
+        s |= {96 + 15, 96 + 16, 192 + 15, 192 + 16}  # co-located spd/mvol
+        _OFFTABLE_LIVE_IDX = s
+    return _OFFTABLE_LIVE_IDX
+
+
 def _gen_offtable_redirect(state_map, orig_base, win_min, static_load,
                            store_label):
     """Emit the wave-step off-table redirect for one read (lo or hi).
@@ -427,16 +456,6 @@ class _Model:
 
     def __init__(self, usf: UsfFile):
         self.usf = usf
-        # sectpos shadow: off-table freq reads sonify $1729-$172B (per-voice
-        # sector position); each event then carries its visible value.
-        self.sectpos = str(usf.params.fields.get('sectpos_shadow',
-                                                 '0')) == '1'
-        # off-table redirect gating: '0' = the member's state block is NOT at
-        # the canon offset from its freq tables (extract geometry probe), so
-        # the window idx the map identifies with live state land on unrelated
-        # static bytes — serve every off-table read from the static capture.
-        self.offtable_redirect = str(usf.params.fields.get(
-            'offtable_redirect', '1')) != '0'
         self.instruments = list(usf.instruments)
         self.inst_slot = {i.id: k for k, i in enumerate(self.instruments)}
         # layout-preserving wave pool: every instrument carries its editor
@@ -446,6 +465,29 @@ class _Model:
         # and the DMC_WAVEPOS_ROW redirect serves the read live.
         _wtp = [getattr(i, 'wave_table_pos', None) for i in self.instruments]
         self.wavepos_layout = bool(_wtp) and all(p is not None for p in _wtp)
+        # Off-table serving booleans — DERIVED from the per-read `live` flags on
+        # offtable_freq (5th tuple element), never from a params geometry bit
+        # (which described HVSC memory layout — Core Tenet corollary). Each read
+        # is (off, note, lo, hi[, live]); `live` marks reads the composer serves
+        # from live state. The redirect/co-location only AFFECTS the write stream
+        # for reads at a live-served idx; so the one member that must turn it OFF
+        # is the NON-canon member, detectable as a STATIC read sitting at a
+        # live-served idx (its geometry moved the state elsewhere, so that byte
+        # is unrelated code/data — serve it from the static capture, not live).
+        # Everyone else (canon, or reads only at fixed positions, or no reads)
+        # keeps it ON — byte-identical to the old default. sectpos_on = a live
+        # read hits the sector-position window.
+        _all = [r for i in self.instruments
+                for r in (getattr(i, 'offtable_freq', None) or [])]
+        _live = offtable_live_idx()
+        _static_at_live = any(not (len(r) > 4 and r[4])
+                              and ((r[0] + r[1]) & 0xFF) in _live for r in _all)
+        self.offtable_redirect = not _static_at_live
+        _SECTPOS_IDX = {(0x1729 + k) - ORIG_FHI for k in range(3)} \
+            | {(0x1729 + k) - ORIG_FLO for k in range(3)}
+        self.sectpos = any(len(r) > 4 and r[4]
+                           and ((r[0] + r[1]) & 0xFF) in _SECTPOS_IDX
+                           for r in _all)
         # filter defs: program key -> slot = orig def# (key-1). The def table
         # is emitted DENSE in orig order at the orig 16-byte record stride so
         # off-table walk reads (repeat > 5) hit the same bytes as the orig;
@@ -1323,7 +1365,8 @@ fx_dual_up:
     # structures OUTSIDE the window (see the ovrwin emission below).
     ovr = [0] * 160
     for inst in insts:
-        for off, note, lo, hi in getattr(inst, 'offtable_freq', []) or []:
+        for rec in getattr(inst, 'offtable_freq', []) or []:
+            off, note, lo, hi = rec[:4]     # rec may carry a 5th `live` flag
             idx = (off + note) & 0xFF
             if idx < 96:
                 continue

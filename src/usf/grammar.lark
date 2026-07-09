@@ -267,8 +267,14 @@ instrument_field: "waveform" ":" byte_list                              -> inst_
                 // only when an off-table freq read sonifies that scratch.
                 | "wave_start_on_marker" ":" INT                        -> inst_wave_start_on_marker
 
-// off-table arpeggio freq entry: at(offset, note, freq_lo, freq_hi)
-ofreq_entry: "at" "(" number "," number "," number "," number ")"
+// off-table arpeggio freq entry: at(offset, note, freq_lo, freq_hi).
+// `at(...)` = the read sonifies a FIXED byte (served from the captured lo/hi);
+// `live(...)` = the read sonifies a live-varying engine value (a duration
+// counter, freq accumulator, sector/wave position, speed/master-vol) that the
+// composer reproduces from its own equivalent state. A behavioral property of
+// the sound, not a memory-geometry descriptor. Absent `live` marker => static.
+ofreq_entry: "at" "(" number "," number "," number "," number ")"    -> ofreq_static
+           | "live" "(" number "," number "," number "," number ")"  -> ofreq_live
 
 pwm_args: pwm_kv+
 pwm_kv: "mode" "=" CNAME           -> pwm_mode

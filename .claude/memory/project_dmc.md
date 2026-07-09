@@ -918,6 +918,11 @@ capture (its memwatch addrs are canon — on a non-canon member it fabricates
 constant bogus keys, so it's SKIPPED not unrestricted), and a new
 `offtable_redirect=0` param (composer empties the redirect map, places records
 verbatim at pos 6..16, emits sidoff/fbit/fmask/spd/mvol OUTSIDE the window).
+[PARAMS REMOVED 2026-07-09, Phase A composer→extract relocation: both
+`offtable_redirect` and `sectpos_shadow` deleted from the USF (they described
+HVSC memory geometry) → per-read `live(off,note,lo,hi)` vs `at(...)` flag on
+`offtable_freq`; composer re-derives redirect = `not (static read at a
+live-served idx)`. Byte-identical all 5401. See ledger C7 + `docs/dmc_composer_to_extract_plan.md`.]
 Default byte-identical (Hardcore/Intro_Music_2 MD5 old-vs-new; 98_Mix = itself
 a carrier, byte-shifted but verified FULL). Real-probe census over all 1212
 stored-offtable f1 members: exactly 10 carriers (Bakewell×4/Finn×3/98_Mix/

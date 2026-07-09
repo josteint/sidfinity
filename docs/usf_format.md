@@ -352,6 +352,15 @@ instrument 1 lead {
     representation (it superseded the removed `freq_overrun` verbatim
     post-table byte window); the model sees frequencies, never
     bytes-at-an-offset.
+    An entry may instead be `live(offset, note, freq_lo, freq_hi)`: `live`
+    marks a read that sonifies a live-VARYING engine value (a duration counter,
+    freq accumulator, sector/wave position, speed/master-vol) which the composer
+    reproduces from its own equivalent state rather than the captured
+    `(freq_lo, freq_hi)`. `at(...)` = the read sonifies a fixed byte. This
+    per-read behavioral flag replaced the DMC-v4 `offtable_redirect` /
+    `sectpos_shadow` params, which serialized HVSC memory geometry (Core Tenet
+    corollary: config never describes HVSC layout). Only DMC v4 emits `live`;
+    all other engines emit `at(...)` only.
   - `wave_table_pos`: `N` — the instrument's position in the editor's SHARED
     wave table (DMC: a number the composer typed into instrument byte 9 —
     arrangement, like transpose-command placement). Audible only when an

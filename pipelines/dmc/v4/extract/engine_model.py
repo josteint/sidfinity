@@ -160,6 +160,10 @@ class DmcModel:
                                      # PSID speed bit (vblank-dispatched). 1=once.
     family2: bool = False            # the V4-derived family-2 build
     extra_params: dict = field(default_factory=dict)  # factory-probed knobs
+    offtable_canon: bool = True      # original state block at the canon offset
+                                     # from the freq tables (extract geometry
+                                     # probe). to_usf uses it to stamp per-read
+                                     # `live` flags; NOT serialized as a bit.
     wavepos_layout: bool = False     # an off-table freq read sonifies a live
                                      # wave position ($177A-$177C) AND every
                                      # wave program is a verbatim contiguous
@@ -1026,15 +1030,13 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # the stated-command flags (dcmd/icmd/vcmd/softcmd) — enable it when any
     # captured read hits those bytes (flo idx 226-228 / fhi idx 130-132),
     # canon geometry only (see the probe above).
-    _SECTPOS_IDX = {(0x1729 + k) - 0x16A7 for k in range(3)} \
-        | {(0x1729 + k) - 0x1647 for k in range(3)}
-    if canon_geom and any((off + note) & 0xFF in _SECTPOS_IDX
-                          for ins in m.instruments.values()
-                          for off, note, _lo, _hi in ins.offtable_freq):
-        m.extra_params['sectpos_shadow'] = '1'
-    if not canon_geom and any(ins.offtable_freq
-                              for ins in m.instruments.values()):
-        m.extra_params['offtable_redirect'] = '0'
+    # Canon state geometry is stored on the model (NOT serialized as a geometry
+    # bit). to_usf stamps a per-read `live` flag from it (canon AND idx hits a
+    # live-served window position) and derives the sectpos row-command gate; the
+    # composer re-derives its member-global redirect/sectpos booleans from those
+    # per-read flags. Replaces the old ML-visible offtable_redirect/sectpos_shadow
+    # params (which described HVSC memory geometry — Core Tenet corollary).
+    m.offtable_canon = canon_geom
     # wavepos live serving: an off-table freq read on $177A-$177C (fhi idx
     # 211-213) sonifies a voice's LIVE wave position — it varies at the read
     # (neither the static capture nor the event-driven one can serve it), and

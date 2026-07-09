@@ -39,6 +39,37 @@ def _pitch(note: int) -> Pitch:
     return Pitch(name=NOTE_NAMES[note % 12], octave=note // 12)
 
 
+# Sector-position window idx (per-voice $1729-$172B), for the row-command gate.
+_SECTPOS_IDX = {(0x1729 + k) - 0x16A7 for k in range(3)} \
+    | {(0x1729 + k) - 0x1647 for k in range(3)}
+
+
+def _offtable_live_idx() -> set:
+    """The window indices a canon-geometry off-table read is served LIVE from —
+    the single source of truth lives in the composer (offtable_live_idx), shared
+    so extract's per-read `live` stamp and the composer's redirect derivation
+    can't disagree on geometry."""
+    from pipelines.dmc.composer_asm import offtable_live_idx
+    return offtable_live_idx()
+
+
+def _stamp_live(recs, canon: bool) -> list:
+    """Tag each off-table read `(off, note, lo, hi)` with a 5th element `live`
+    (1 iff the read sonifies a live-varying value: canon geometry AND the read
+    idx hits a live-served window slot). Static reads stay 4-tuples so they
+    serialize as `at(...)` and non-off-table engines are byte-identical."""
+    live_idx = _offtable_live_idx()
+    out = []
+    for rec in recs:
+        off, note, lo, hi = rec[:4]
+        idx = (off + note) & 0xFF
+        if canon and idx in live_idx:
+            out.append((off, note, lo, hi, 1))
+        else:
+            out.append((off, note, lo, hi))
+    return out
+
+
 def _row_to_usf(r: DmcRow, cmd_flags: bool = False) -> NoteRow:
     flags = []
     if r.vol:
@@ -83,7 +114,8 @@ def _row_to_usf(r: DmcRow, cmd_flags: bool = False) -> NoteRow:
                    fx_flags=tuple(flags))
 
 
-def _instrument_to_usf(inst, wavepos_layout: bool = False) -> Instrument:
+def _instrument_to_usf(inst, wavepos_layout: bool = False,
+                       canon: bool = True) -> Instrument:
     effects = set()
     if inst.drum:
         effects.add('drum')
@@ -105,7 +137,7 @@ def _instrument_to_usf(inst, wavepos_layout: bool = False) -> Instrument:
         loop=inst.wave_loop,
         wave_freq=wave_freq,
         adsr=(inst.ad, inst.sr),
-        offtable_freq=list(inst.offtable_freq),
+        offtable_freq=_stamp_live(inst.offtable_freq, canon),
         # editor wave-table position (arrangement) — only for members whose
         # off-table reads sonify a live wave position (see DmcModel)
         wave_table_pos=inst.wave_pool_pos if wavepos_layout else None,
@@ -241,7 +273,13 @@ def _emit_otrk_fields(m) -> dict:
 
 def model_to_usf(m: DmcModel) -> UsfFile:
     pad_fields = _emit_otrk_fields(m)
-    cmd_flags = m.extra_params.get('sectpos_shadow') == '1'
+    # row command flags (dcmd/icmd/vcmd/softcmd) feed the composer's sectpos
+    # shadow — emit them iff a canon-geometry off-table read sonifies the sector
+    # position window (matches the composer's derived sectpos_on).
+    cmd_flags = m.offtable_canon and any(
+        (off + note) & 0xFF in _SECTPOS_IDX
+        for ins in m.instruments.values()
+        for off, note, *_ in ins.offtable_freq)
     subtunes = []
     for song in m.songs:
         voices = []
@@ -317,7 +355,8 @@ def model_to_usf(m: DmcModel) -> UsfFile:
                       dur_reload=durrel[v] or None)
             for v in range(3)
             if m.idle_notes[v] or m.idle_masks[v] or durrel[v]]),
-        instruments=[_instrument_to_usf(m.instruments[k], m.wavepos_layout)
+        instruments=[_instrument_to_usf(m.instruments[k], m.wavepos_layout,
+                                        m.offtable_canon)
                      for k in sorted(m.instruments)],
         subtunes=subtunes,
         filter_programs={d + 1: dict(v) for d, v in m.filter_defs.items()},

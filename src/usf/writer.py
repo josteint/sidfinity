@@ -396,8 +396,11 @@ def _write_instrument(i: Instrument) -> list[str]:
         wf = ', '.join(str(v) for v in i.wave_freq)
         lines.append(f'  wave_freq: [{wf}]')
     if getattr(i, 'offtable_freq', None):
-        entries = ' '.join(f'at({s}, {n}, {lo}, {hi})'
-                           for s, n, lo, hi in i.offtable_freq)
+        def _ofreq(rec):
+            s, n, lo, hi = rec[:4]
+            kw = 'live' if (len(rec) > 4 and rec[4]) else 'at'
+            return f'{kw}({s}, {n}, {lo}, {hi})'
+        entries = ' '.join(_ofreq(r) for r in i.offtable_freq)
         lines.append(f'  offtable_freq: {entries}')
     if getattr(i, 'wave_table_pos', None) is not None:
         lines.append(f'  wave_table_pos: {i.wave_table_pos}')

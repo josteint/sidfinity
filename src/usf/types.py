@@ -585,7 +585,14 @@ class Instrument:
     # the base read (vib_setup `base-note freq << width`, the note's own freq,
     # glide arrival). Note-keyed because the freq depends on the played note.
     # Each entry is `(offset, note, freq_lo, freq_hi)`; idx = (offset + note) &
-    # $FF. Replaces the `freq_overrun` blob.
+    # $FF. Replaces the `freq_overrun` blob. An entry MAY carry an optional 5th
+    # element `live` (0/1): 1 marks a read that sonifies a live-VARYING engine
+    # value (a counter/accumulator/position/speed), which the composer serves
+    # from its own equivalent state rather than the captured (lo, hi). Absent =
+    # static (the common case; all non-DMC-v4 engines emit only 4-tuples). This
+    # per-read behavioral flag replaced the DMC `offtable_redirect`/
+    # `sectpos_shadow` params, which described HVSC memory geometry (Core Tenet
+    # corollary). Serialized as `at(...)` (static) vs `live(...)`.
     offtable_freq: list[tuple] = field(default_factory=list)
     # The instrument's position in the editor's SHARED wave table (DMC byte 9
     # — a number the composer typed; §8 arrangement, like transpose-command

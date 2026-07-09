@@ -262,9 +262,14 @@ class _T(Transformer):
     def inst_wave_freq(self, items):
         return ('wave_freq', [int(x) for x in items])
 
-    def ofreq_entry(self, items):
-        # at(step, note, freq_lo, freq_hi)
+    def ofreq_static(self, items):
+        # at(step, note, freq_lo, freq_hi) — read sonifies a fixed byte
         return tuple(int(x) for x in items)
+
+    def ofreq_live(self, items):
+        # live(step, note, freq_lo, freq_hi) — read sonifies a live value;
+        # the trailing 1 marks it so the composer serves it from live state.
+        return tuple(int(x) for x in items) + (1,)
 
     def inst_offtable_freq(self, items):
         return ('offtable_freq', [tuple(e) for e in items])

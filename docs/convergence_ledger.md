@@ -278,11 +278,18 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   in USF = Pole B. `dual_gen_steps` derivability was checked and is genuinely
   unavailable (Taurus_02's inst-6 raws land past the table end in the wavectrl
   region, whose layout is not in USF for this member) → justified-minimal C2-class
-  capture. Lower-stakes siblings flagged same review, still open:
-  `offtable_redirect='0'` (a serialized bit describing the ORIG's memory geometry —
-  config fields must never describe HVSC layout; cleaner home = extract-side gate
-  suppression) and `sectpos_shadow` (probe-result transport, mostly derivable from
-  `offtable_freq` indices).
+  capture. Lower-stakes siblings flagged same review — **RESOLVED 2026-07-09**
+  (composer→extract relocation, `docs/dmc_composer_to_extract_plan.md` Phase A):
+  the params `offtable_redirect='0'` (a serialized bit describing the ORIG's memory
+  geometry — config fields must never describe HVSC layout) and `sectpos_shadow`
+  (probe-result transport) were DELETED from the USF and replaced by a per-read
+  behavioral flag on `offtable_freq`: `live(off,note,lo,hi)` marks a read that
+  sonifies a live-varying value vs `at(...)` for a fixed byte. Extract stamps it
+  (`canon_geom ∧ idx ∈ composer_asm.offtable_live_idx()`); the composer re-derives
+  its member-global redirect boolean as `not (any static read at a live-served idx)`
+  — the non-canon member being the only one that must serve every read statically,
+  uniquely detectable as an `at(...)` read at a live position. Byte-identical rebuild
+  across all 5401 family-1 members (golden `tools/golden_sid_diff.py`).
 
 ### C6 — Off-table FREQ-table lookup (index past the N-entry freq table)
 - **Canonical (CANONICALIZED 2026-06-21, both consumers):** when a melodic/effect
