@@ -383,11 +383,74 @@ def _write_wave_programs(progs: dict) -> list[str]:
     return lines
 
 
+def _wave_name(b: int) -> str:
+    """SID waveform bits (bit4 tri, bit5 saw, bit6 pulse, bit7 noise)."""
+    w, names = b & 0xF0, []
+    if w & 0x80:
+        names.append('noise')
+    if w & 0x40:
+        names.append('pulse')
+    if w & 0x20:
+        names.append('saw')
+    if w & 0x10:
+        names.append('triangle')
+    return '+'.join(names)
+
+
+def _instrument_fingerprint(i: Instrument) -> str:
+    """A one-line, human-readable timbre/articulation summary — a PURE function
+    of the instrument's musical fields (regenerated on every write, so it never
+    drifts), read in temporal order attack -> body -> modulation. Describes the
+    musical ROLE only, never engine addresses. Emitted as a `;` comment, which
+    the reader %ignores, so it is writer-only and can't affect the rebuild."""
+    fx = getattr(i, 'effects', None) or frozenset()
+    wf = i.waveform or []
+    parts = []
+    if 'noise_attack' in fx:                       # attack transient first
+        parts.append('noise-attack')
+    if 'drum' in fx:
+        parts.append('drum — percussive, no melodic pitch')
+    else:
+        seen = []
+        for b in wf:                               # body: waveform character
+            nm = _wave_name(b)
+            if nm and nm not in seen:
+                seen.append(nm)
+        if len(seen) > 1:
+            parts.append('wavetable ' + '/'.join(seen[:3]))
+        elif seen:
+            parts.append(seen[0])
+        if getattr(getattr(i, 'pwm', None), 'mode', 'none') not in ('none', None) \
+                and any(b & 0x40 for b in wf):
+            parts.append('PWM sweep')
+        wfr = i.wave_freq or []
+        if len(wfr) > 2 and len(set(wfr)) > 2:
+            parts.append('arpeggio')
+        ad, sr = (i.adsr or (0, 0))                # articulation from ADSR
+        atk, sus = (ad >> 4) & 0xF, (sr >> 4) & 0xF
+        if atk <= 1 and sus <= 3:
+            parts.append('plucked')
+        elif atk >= 8:
+            parts.append('soft swell')
+        elif sus >= 12:
+            parts.append('sustained')
+    vib = getattr(i, 'vibrato', None)              # modulation
+    if getattr(vib, 'amplitude', 0):
+        onset = getattr(vib, 'onset', 0)
+        parts.append(f'vibrato (after {onset}f)' if onset else 'vibrato')
+    if getattr(getattr(i, 'freq_slide_config', None), 'mode', 'none') \
+            not in ('none', None):
+        parts.append('portamento')
+    if getattr(getattr(i, 'filter_prog', None), 'program', 0):
+        parts.append('filtered')
+    return ', '.join(parts) if parts else 'tone'
+
+
 def _write_instrument(i: Instrument) -> list[str]:
     head = f'instrument {i.id}'
     if i.name:
         head += f' {i.name}'
-    lines = [head + ' {']
+    lines = [head + ' {', f'  ; {_instrument_fingerprint(i)}']
     if i.waveform:
         wave = ' '.join(_hex(b) for b in i.waveform)
         lines.append(f'  waveform: {wave}')

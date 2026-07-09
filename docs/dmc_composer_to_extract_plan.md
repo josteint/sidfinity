@@ -369,14 +369,24 @@ add to `tools/INVESTIGATION_BACKLOG.md`.)
 - [ ] Commit (no `Co-Authored-By`). Update Ledger C7-note → `offtable_redirect`/
       `sectpos_shadow` **resolved**; cross-ref C6/C11.
 
-### Phase B — #2 (verdict-relevant; gate hard)
+### Phase B — #2 — ⛔ DEFERRED 2026-07-09 (re-anchor overturned the easy move)
 
-- [ ] Design the orderlist marker; derivation stays in composer; confirm #1 sectpos coupling.
-- [ ] Extract emits marks; composer derives offsets from them; remove `otrk_*` params.
-- [ ] INV-4 sync.
-- [ ] **Gate:** `golden_sid_diff.py` → zero diffs; `regression.py` green; batch FULL ≥ baseline.
-- [ ] Commit. **If byte-identity is fragile via the sectpos coupling, DEFER #2** (it is
-      representation-only; not worth risking the verdict).
+Occurrence census over 249 members: `otrk_period` 90%, `otrk_pad` 55%, `otrk_rcmd`
+25%, `otrk_legacy` 6%. The field the review wanted to structure (`otrk_rcmd`) is a
+minority; the DOMINANT field `otrk_period` is a **loop-unroll artifact** and
+`otrk_legacy` is a **residue flag** — both pure byte-counter-reconstruction MECHANISM,
+not musical content. Moving them onto the *musical* `Orderlist` would stamp mechanism
+onto ~90% of orderlists = the inverse of #1's fix (mechanism masquerading as content).
+By the ledger C19 rule (a lever that changes a write-stream value → composer param),
+`otrk`'s canonical home IS params — where it already lives. **No net-positive
+representation change available at Phase-B scope.**
+
+The genuinely clean fix is a separate, larger task: **de-unroll the DMC orderlist**
+(store the physical `period` entries + loop instead of the loop-unrolled walk) — then
+`period`/`legacy` largely dissolve and redundant marks become per-entry. That rewrites
+DMC orderlist extract + the composer walk (verdict-relevant), so it is tracked as its
+own future item, NOT folded into this readability pass. `otrk_*` keys are renamed in
+place by #5 (Phase D) for legibility; the structural move waits for the de-unroll task.
 
 ### Phase C — #3 + #4 (representation only)
 
