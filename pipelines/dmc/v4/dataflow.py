@@ -279,26 +279,46 @@ def locate(mem: bytearray, base: int, play: int | None = None) -> dict | None:
         loop_site = _locate_site(vI, vseq, _sig_at(_CANON_LOOP_SITE, w))
         if loop_site is not None:
             break
-    # Round-53 handled the reset-all-to-0 form (immediate #0). The same idiom
-    # with a non-zero immediate N (Action_G: LDA #5 ×3) is a synchronized loop
-    # to track position N, NOT to 0 — so capture N. The structural signature is
-    # unchanged (3× LDA #imm / STA to CONSECUTIVE track-pos addrs, absent from
-    # canon + every read-next member); only the equal-immediate is generalized
-    # from {0,0,0} to {N,N,N}. N==0 leaves loop_reset_pos None so the 6
-    # round-53 reset-all-to-0 carriers are byte-identical.
+    # Round-53 handled the reset-all-to-0 form (immediate #0). Round-62 the same
+    # idiom with a non-zero immediate N (Action_G: LDA #5 ×3) = a synchronized
+    # loop to track position N. The structural signature is 3× LDA #imm / STA to
+    # CONSECUTIVE track-pos addrs (absent from canon + every read-next member).
+    # ROUND-63 REFINEMENT (ledger C13): the three immediates need NOT be EQUAL —
+    # a member can loop each voice to a DISTINCT position (Attacker: 3/30/3). The
+    # SHAPE is the discriminator, the immediates are per-voice DATA (round-62's
+    # own lesson). The equal-immediate case is left byte-identical (a scalar N,
+    # None when 0); the per-voice case (unequal imms) captures the (n0,n1,n2)
+    # tuple, but ONLY when the STA base is the actual track-position address —
+    # so a non-reset-all init storing 3 consecutive immediates can't false-match.
+    #
+    # track-position base = operand of the orderlist-fetch read `LDY tpos,x`
+    # (BC) immediately followed by `LDA (zp),y` (B1). Relocation-safe: the zp
+    # track pointer varies but the fetch shape does not.
+    track_pos_addr = None
+    for j in range(len(vI) - 1):
+        if vI[j][1] == 0xBC and vI[j + 1][1] == 0xB1:
+            track_pos_addr = vI[j][2]
+            break
     track_loop_target = loop_site is None
     loop_reset_pos = None
     if track_loop_target:
         for i in range(len(vI) - 5):
             s = vI[i:i + 6]
-            n0 = mem[s[0][0] + 1]
-            if (all(s[k][1] == 0xA9 for k in (0, 2, 4))
-                    and mem[s[2][0] + 1] == n0 and mem[s[4][0] + 1] == n0
+            if not (all(s[k][1] == 0xA9 for k in (0, 2, 4))
                     and all(s[k][1] == 0x8D for k in (1, 3, 5))
                     and s[3][2] == s[1][2] + 1 and s[5][2] == s[1][2] + 2):
+                continue
+            imms = (mem[s[0][0] + 1], mem[s[2][0] + 1], mem[s[4][0] + 1])
+            if imms[0] == imms[1] == imms[2]:
                 track_loop_target = False    # reset-all-to-N hook = loop-to-N
-                if n0 != 0:
-                    loop_reset_pos = n0
+                if imms[0] != 0:
+                    loop_reset_pos = imms[0]
+                break
+            # per-voice reset targets: require the STA triple to BE the track-pos
+            # triple (anchored to the fetch-read address) → no false positive.
+            if track_pos_addr is not None and s[1][2] == track_pos_addr:
+                track_loop_target = False
+                loop_reset_pos = imms
                 break
 
     return {

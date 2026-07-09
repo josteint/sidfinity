@@ -59,12 +59,15 @@ class DMCV4Config:
     # NEXT track byte as the loop position ($FF nn).
     track_loop_target: bool = False
     # RESET-ALL-to-N hook (dataflow-probed, ledger C13): a $FF handler that
-    # writes the SAME immediate N to all three voices' track-pos ($1726/7/8) =
-    # a synchronized loop to track position N. None = not this form (use
-    # track_loop_target). N==0 is left as None and handled by the loop-to-0
-    # path (track_loop_target=False) for byte-identity with the round-53
-    # reset-all-to-0 carriers; only N>0 sets this field.
-    loop_reset_pos: int = None
+    # writes to all three voices' track-pos ($1726/7/8) = a synchronized loop.
+    # None = not this form (use track_loop_target). Two shapes:
+    #   int N  — the same immediate N to all three voices (round-53/62). N==0 is
+    #            left as None and handled by the loop-to-0 path
+    #            (track_loop_target=False) for byte-identity with the round-53
+    #            reset-all-to-0 carriers; only N>0 sets this field.
+    #   tuple  — a DISTINCT loop position per voice (n0,n1,n2), round-63 (ledger
+    #            C13 refinement, Attacker: 3/30/3); _walk_track indexes per voice.
+    loop_reset_pos: int | tuple = None
     # Sector-command byte map (factory-probed). 'v4' = canonical
     # (terminator $7F, VOL $F0+, soft-start $7C); 'family2' = the
     # V4-derived variant (terminator $FF, no VOL/soft-start, instr range

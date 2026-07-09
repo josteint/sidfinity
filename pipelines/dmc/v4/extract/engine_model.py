@@ -446,10 +446,12 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
     repeats. `loop_target`: the JSR-$1042 player variant reads the byte
     after $FF as the loop position (canonical loops to 0).
     `loop_reset_pos`: the RESET-ALL-to-N SYNC hook (dataflow-probed, ledger
-    C13) writes a fixed N to all three voices' track pos at $FF — the $FF
-    loops to that fixed position N (overrides both `loop_target` and the
+    C13) writes a fixed position to all three voices' track pos at $FF — the
+    $FF loops to that fixed position (overrides both `loop_target` and the
     loop-to-0 default). Round-53 handled N==0 via loop_target=False; N>0 lands
-    here (Action_G loops to pos 5).
+    here (Action_G loops to pos 5). A DISTINCT loop position per voice is
+    passed here as the per-voice scalar (round-63: Attacker V1/V2/V3 = 3/30/3);
+    the caller (extract) indexes the config tuple before this call.
 
     The engine's track position is ONE byte (`LDY $1726,x` / `INC $1726,x`),
     so a track with no $FF/$FE terminator wraps mod 256 in hardware and the
@@ -895,9 +897,15 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
         voices = []
         for vi in range(3):
             tp = _rd16(mem, rec + vi * 2)
+            # loop_reset_pos is either a scalar N (reset-all-to-N, every voice
+            # loops to the same position) or a per-voice tuple (reset-all with
+            # a distinct loop position per voice — ledger C13 refinement).
+            lrp = cfg.loop_reset_pos
+            if isinstance(lrp, tuple):
+                lrp = lrp[vi]
             voices.append(_walk_track(mem, tp, secp_lo, secp_hi,
                                       loop_target=cfg.track_loop_target,
-                                      loop_reset_pos=cfg.loop_reset_pos,
+                                      loop_reset_pos=lrp,
                                       fmt=_SECFMT[cfg.sector_format]))
         song = DmcSong(id=sub + 1, speed=mem[rec + 6],
                        master_vol=mem[rec + 7], voices=voices)

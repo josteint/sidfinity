@@ -7,6 +7,37 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 64 (2026-07-09): RESET-ALL loop target can be PER-VOICE (not one N) — Attacker +1 partial → FULL (0 regr) [ledger C13 refinement²]
+First f1 partial by hvsc path (End_of_1992_intro r60 / Acid_Dance r61 / Action_G
+r62 all now FULL, re-confirmed): Bakewell_Dwayne/Attacker (vblank, single sub,
+dataflow route). Flat first-div 143638 = 98.8% of the ×1.1 window = deep in the
+LOOP TAIL, state ✓. Signature: a SYNCHRONIZED 3-voice hard-restart (all voices prep
+ctrl=$08/AD=$0F/SR=$0F → note-init together) + a $D418=$1F master-vol write, but the
+rebuild resyncs only V2/V3 while V1 keeps sweeping ONE play() longer. GROUND TRUTH
+(`--memwatch 1726,1727,1728`): at the divergence orig track pos jumps V1 26→4, V2
+53→31, V3 26→4 = a loop-back with a DISTINCT target per voice. Disasm: $FF handler
+`CMP #$FF / NOP NOP / JSR $1020 / JMP $10D2`, $1020 = `LDA #3/STA $1726 / LDA #$1E/
+STA $1727 / LDA #3/STA $1728` = reset-all to 3/30/3 (→4/31/4 after the fetch INC).
+The round-53/62 idiom but the 3 immediates are UNEQUAL → round-62's equal-imm guard
+skipped it → track_loop_target stayed True (read-next) → V1 walked past $FF. FIX
+(extract-only, dataflow, ledger C13): loop_reset_pos scalar N → per-voice tuple
+(n0,n1,n2); drop equal-imm requirement but ANCHOR the STA triple to the track-pos
+address (operand of `LDY tpos,x` [BC] immediately followed by `LDA (zp),y` [B1],
+reloc-safe) so a non-reset-all 3-consecutive-store init can't false-match.
+`_walk_track` gets the per-voice scalar (extract call site indexes the tuple by
+voice). NO USF field, NO composer change (walk emits the resolved per-voice
+orderlist; loop_reset_pos = §8 extract-time derivation knob). REGRESSION-SAFE BY
+CONSTRUCTION: equal-imm path byte-identical (round-53/62 carriers unchanged:
+Unfinished_1/Feelin_Blue None, Action_G 5, Axel_F_v2 4, MON_Tribute 5); per-voice
+branch = positive minority anchored to track_pos. CENSUS (dataflow.locate over all
+5401 f1): exactly 1 tuple carrier — Attacker (previously partial) ⟹ 0 FULL exposure.
+Attacker FULL 145313/145313 (state ✓). Full tools/regression.py GREEN. Post-fix
+sweep SKIPPED per user (next batch accounts via code_hash). LESSON (round-62's, one
+level deeper): a positive-minority signature carrying literals — the SHAPE is the
+discriminator, EACH literal is per-voice DATA; don't presume the literals equal any
+more than you bake in their value. f1 ≈ 5162 FULL / 239 partial (per-round
+accounting; wide batch STALE at current code_hash).
+
 ## ✅ ROUND 63 (2026-07-09): INIT-PREFIX subtune force — extract walked the DUMMY tune record — Sans_intro +1 partial → FULL (0 regr) [ledger C19 9th occurrence]
 Picked from the census's LARGEST partial bucket ("$D406 V1 SR @<64", 27 members) —
 but the wide batch is fully STALE (0 rows at the current code_hash; mostly the

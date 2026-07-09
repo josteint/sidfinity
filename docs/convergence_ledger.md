@@ -1111,6 +1111,28 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   the round-53 theorem holds. Full tools/regression.py GREEN (0 regr all 7
   families). Action_G FULL 111670/111670 (100%, state ✓). Post-fix sweep of the
   2 sibling carriers SKIPPED per user (next batch accounts via code_hash).
+- **REFINEMENT² — the reset-all target can be PER-VOICE, not one N (2026-07-09,
+  DMC f1 Attacker, +1 partial → FULL, 0 regr).** Round-62 required the three
+  reset immediates EQUAL (loop every voice to the same N). Attacker's `$FF`
+  handler (`JSR $1020`; `$1020 = LDA #3/STA $1726 / LDA #$1E/STA $1727 /
+  LDA #3/STA $1728`) loops each voice to a DISTINCT position — 3/30/3 — so
+  round-62's equal-immediate guard skipped it and `track_loop_target` stayed
+  True (read-next) → V1 walked past `$FF` into the loop tail. TELL: deep in the
+  ×1.1 loop tail (state ✓, ~98.8%), a synchronized 3-voice hard-restart where
+  only 2 voices resync in the rebuild; memwatch the three track positions
+  ($1726/7/8) and read the `$FF` handler's `JSR` target. FIX (extract-only):
+  generalize `loop_reset_pos` scalar N → per-voice tuple `(n0,n1,n2)`; drop the
+  equal-imm requirement but ANCHOR the STA triple to the track-position address
+  (operand of the fetch read `LDY tpos,x` [`BC`] immediately followed by
+  `LDA (zp),y` [`B1`], relocation-safe) so a non-reset-all 3-consecutive-store
+  init can't false-match. `_walk_track` gets the per-voice scalar (extract call
+  site indexes the tuple). NO USF field, NO composer change. REGRESSION-SAFE BY
+  CONSTRUCTION: the equal-imm path is byte-identical (round-53/62 carriers
+  unchanged); the per-voice branch is a positive minority anchored to track_pos.
+  CENSUS (`dataflow.locate`, all 5401 f1): exactly 1 tuple carrier = Attacker
+  (previously partial) ⟹ 0 FULL exposure. LESSON (round-62's, one level deeper):
+  the SHAPE is the discriminator, EACH literal is per-voice DATA — don't presume
+  the literals are equal any more than you bake in their value.
 
 ### C15 — ⛔ REMOVED (audio-equivalence verdict relaxation)
 **User decision 2026-07-01: every SID always gets the STRICT write-stream match.**

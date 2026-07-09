@@ -1,5 +1,45 @@
 # DMC V4 — RE notes / migration log
 
+## ✅ ROUND 64 (2026-07-09): RESET-ALL loop target can be PER-VOICE (not one N) — Attacker +1 partial → FULL (0 regr) [ledger C13 refinement]
+First f1 partial by hvsc path (End_of_1992_intro=r60, Acid_Dance=r61, Action_G=r62
+all now FULL): `MUSICIANS/B/Bakewell_Dwayne/Attacker.sid` (vblank, single sub,
+dataflow route). Flat first-div 143638 = 98.8% of the ×1.1 window = deep in the
+LOOP TAIL, state ✓. The write signature is a SYNCHRONIZED 3-voice hard-restart (all
+voices prep `ctrl=$08/AD=$0F/SR=$0F` → note-init together) + a `$D418=$1F` master-vol
+write, but the rebuild resyncs only V2/V3 while V1 keeps sweeping ONE play() longer.
+GROUND TRUTH (`--memwatch 1726,1727,1728`): at the divergence the orig track position
+jumps V1 `26→4`, V2 `53→31`, V3 `26→4` — a loop-back with a DISTINCT target per voice.
+Disasm: the `$FF` handler is `CMP #$FF / NOP NOP / JSR $1020 / JMP $10D2`, and
+`$1020 = LDA #3/STA $1726 / LDA #$1E/STA $1727 / LDA #3/STA $1728` = reset-all to
+**3/30/3** (→4/31/4 after the fetch INC). This IS the round-53/62 reset-all idiom,
+but the three immediates are NOT equal, so round-62's equal-immediate guard skipped
+it → `track_loop_target` stayed True (read-next) → V1 walked past `$FF` (`$00`) as a
+jump target and drifted off the loop.
+
+FIX (extract-only, dataflow — ledger C13): generalize `loop_reset_pos` from a scalar N
+to a per-voice tuple `(n0,n1,n2)`. Drop the equal-immediate requirement; to stay
+regression-safe REQUIRE the STA triple to BE the track-position address, derived
+relocation-safely as the operand of the orderlist-fetch read `LDY tpos,x` (`BC`)
+immediately followed by `LDA (zp),y` (`B1`). `_walk_track` receives the per-voice
+scalar (the extract call site indexes the tuple by voice). NO USF field, NO composer
+change — the walk emits the resolved per-voice orderlist; `loop_reset_pos` is an
+extract-time derivation knob (§8 arrangement per the principle).
+
+REGRESSION-SAFE BY CONSTRUCTION: the equal-immediate path is left byte-identical
+(round-53/62 carriers unchanged: Unfinished_1/Feelin_Blue `None`, Action_G `5`,
+Axel_F_v2 `4`, MON_Tribute `5`); the per-voice branch is a POSITIVE minority signature
+anchored to `track_pos`, so a non-reset-all init storing 3 consecutive immediates can
+never false-match. CENSUS (`dataflow.locate` over all 5401 f1 members): exactly **1**
+tuple carrier — Attacker itself (previously partial) ⟹ 0 FULL exposure. Attacker FULL
+145313/145313 (state ✓). Full `tools/regression.py` GREEN. Post-fix sweep SKIPPED per
+user (the next family batch accounts for it via code_hash).
+
+LESSON (round-62's lesson, one level deeper): when a positive-minority signature
+carries literals, the SHAPE is the discriminator and EACH literal is per-voice DATA —
+don't assume the literals are equal any more than you bake in their value. f1 last
+known ≈ 5162 FULL / 239 partial (per-round accounting; wide batch STALE at the current
+code_hash).
+
 ## ✅ ROUND 57 (2026-07-08): play-phase F misread as R on a HELD note — frame-entry reachability for the offset-blind observers — My_Rusty_Love_C64 +1 partial → FULL (0 regr) [ledger C18 new note]
 Random f1 partial Psych858o/My_Rusty_Love_C64 (CIA 6x, re-assembled layout,
 canon route rejects no_jumptable → dataflow). Trichotomy (per-IRQ): play_match
