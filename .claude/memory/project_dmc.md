@@ -7,6 +7,38 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 65 (2026-07-09): $D418 RE-ASSERTED EVERY FRAME (filter-tail wrapper) — Groove +1 partial → FULL (0 regr) [ledger C19 10th occurrence / C10] — COMPOSER param
+First f1 partial by hvsc path (Attacker=r64 now FULL; scanned idx 382+ fresh, all
+FULL until idx 400): Bakewell_Dwayne/Groove (vblank, single sub). Flat first-div
+pos 2. Per-frame dump: ORIG writes `$D418=$1F` (LP mode $10 | mvol $0F) ONCE PER
+FRAME at the END (after $D416/$D417), even on gate-off frames; REBUILD wrote
+`$D418` at each FILTER NOTE-INIT and not at frame-end (= canon: $D418 only at
+init + note-init $12A8). ROOT (C19 wedge, disasm): play-body filter routine
+`$10AC: STA $D417` → `JSR $2000` wrapper (`STA $D417 / LDA #$10 / ORA $1717 /
+STA $D418 / RTS`) = per-frame $D418; note-init `$12A8: STA $D418` neutered to
+`BIT $D418`, preceding `STA $2004` self-modifies the wrapper's mode imm per
+note-init. FIX (CORE TENET reproduce the WRITE, COMPOSER param not extract-only
+since it's a write TIMING): `factory._d418_filter_tail_probe` (static opcode
+probe anchored on the LIVE play-body routine `STA $D416 / LDA abs / ORA abs /
+JSR-wrapper`, reloc-invariant hardware addrs) → USF param `d418_filter_tail`
+(init mode imm) → composer: note-init stores `fdmode` to a `d418mode` shadow
+(SUPPRESS note-init $D418), filter tail appends `lda d418mode / ora mvol / sta
+$d418`, init primes `d418mode`. Sibling of `d418_every_play` (play-START form);
+this is the filter-tail END form + C10 master-vol-every-frame. Default None →
+byte-identical. TRAP CAUGHT (why the probe is ANCHORED): the first LOOSE probe
+(`STA $D417..STA $D418` anywhere) false-fired on Qbhead_01's aux routine $1CA8
+whose live filter routine is canonical — would have REGRESSED a FULL. Caught by
+localizing each carrier's first-div (orig had no per-frame $D418). Tight anchor
+excluded it. CENSUS (all 5401 f1): exactly 3 carriers (Groove $10, Hands_up_Ravers
+$20, For_Vandalism_27 $10), ALL previously partial ⟹ 0 FULL exposure; all 3 verify
+FULL. Groove FULL 155620/155620 state ✓. Full tools/regression.py GREEN (0 regr
+all 7 families: Hubbard 71, Companion 44, C64ME 15, Jay_Derrett 17, FC 31, DMC 12,
+Basic 22). Post-fix sweep SKIPPED per user (next batch accounts via code_hash;
++2 siblings census-confirmed). LESSON: a STATIC opcode probe must anchor on the
+REACHABLE site (the play-body computation), never a matching byte pattern anywhere
+in the image — verify each census carrier's first-divergence BEFORE committing.
+f1 ≈ 5163 FULL / 238 partial (per-round; wide batch STALE).
+
 ## ✅ ROUND 64 (2026-07-09): RESET-ALL loop target can be PER-VOICE (not one N) — Attacker +1 partial → FULL (0 regr) [ledger C13 refinement²]
 First f1 partial by hvsc path (End_of_1992_intro r60 / Acid_Dance r61 / Action_G
 r62 all now FULL, re-confirmed): Bakewell_Dwayne/Attacker (vblank, single sub,

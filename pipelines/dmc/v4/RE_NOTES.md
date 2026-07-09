@@ -1,5 +1,61 @@
 # DMC V4 — RE notes / migration log
 
+## ✅ ROUND 65 (2026-07-09): $D418 RE-ASSERTED EVERY FRAME (filter-tail wrapper) — Groove +1 partial → FULL (0 regr) [ledger C19 10th occurrence / C10 master-vol-every-frame]
+First f1 partial by hvsc path (Attacker=r64 now FULL, everything ≤ idx 381
+re-confirmed FULL): `MUSICIANS/B/Bakewell_Dwayne/Groove.sid` (vblank, single sub).
+Flat first-div at position 2 — very early. Per-frame dump nails it: the ORIG
+writes `$D418=$1F` (filter LP mode `$10` | master vol `$0F`) EXACTLY ONCE PER
+FRAME, at the END (after the `$D416`/`$D417` filter writes) — even on frames with
+no note-init (f50 gate-off still emits it). The REBUILD instead wrote `$D418=$1F`
+at each FILTER NOTE-INIT (V1+V2 in f1) and NOT at frame-end — the canonical DMC
+behavior (`$D418` written only at init + filter note-init `$12A8`; `$D416`/`$D417`
+every frame).
+
+ROOT (C19 hand-patched wedge, disassembled from the orig image): the play-body
+global filter routine's `$10AC: STA $D417` is REPLACED by `JSR $2000`, and the
+`$2000` wrapper is `STA $D417 / LDA #$10 / ORA $1717(mvol) / STA $D418 / RTS` — so
+`$D418 = mode | mvol` is re-written every frame. The canon filter note-init
+`$12A8: STA $D418` (`8D`) is patched to `BIT $D418` (`2C`) — neutered — and the
+preceding `$12A5: STA $2004` SELF-MODIFIES the wrapper's `LDA #imm` to the current
+filter's mode nibble per note-init. Net write-stream: `$D418` once per frame at the
+filter-tail END, never at note-init.
+
+FIX (CORE TENET — reproduce the WRITE, not the SMC mechanism): `factory.
+_d418_filter_tail_probe` (STATIC opcode probe, reloc-invariant on the fixed
+hardware `$D416`/`$D417`/`$D418` addresses) anchors on the LIVE play-body filter
+routine — `STA $D416 / LDA abs / ORA abs / JSR <wrapper>` at +9 — and returns the
+wrapper's initial mode immediate. → USF param `d418_filter_tail` (C10
+master-vol-every-frame parametric form). Composer: at filter note-init store
+`fdmode,y` into a `d418mode` shadow (SUPPRESS the note-init `$D418` write); append
+`lda d418mode / ora mvol / sta $d418` to the per-frame filter tail; prime
+`d418mode` from the probed immediate in init. Default None → canonical (note-init
+writes `$D418`), the else-branch reproduces the original template verbatim →
+byte-identical build.
+
+TRAP CAUGHT (the whole reason the probe is anchored, not a bare byte-scan): the
+first, LOOSE probe (`STA $D417` followed by `LDA #imm` + `STA $D418` ANYWHERE)
+FALSE-FIRED on Cubehead/Qbhead_01 — whose aux/init routine at `$1CA8`
+(`STA $D416 / LDA #imm / ... / STA $D418`) matches the bytes but is NOT the
+per-frame path (Qbhead's LIVE filter routine at `$10A3` is canonical
+`STA $D417 / RTS`, no per-frame `$D418`). That would have REGRESSED Qbhead_01
+(a FULL) → partial. Caught by localizing each census carrier's first divergence
+(orig had no per-frame `$D418`). Tightening the anchor to the play-body routine's
+`STA $D416 / LDA abs / ORA abs / JSR-wrapper` shape excluded it — Qbhead_01
+probe → None → byte-identical → FULL. LESSON: detect the exact REACHABLE site
+(anchored to the play-body computation), never a matching byte pattern anywhere in
+the image.
+
+REGRESSION-SAFE BY CONSTRUCTION: `d418_filter_tail` None for every canon member
+(probe None → byte-identical). CENSUS (static probe over all 5401 f1): exactly
+**3** carriers — Groove (`imm=$10`), Rap/Hands_up_Ravers (`$20` BP), Rorschach/
+For_Vandalism_27 (`$10`) — ALL previously partial ⟹ 0 FULL exposure. Groove FULL
+155620/155620 (100% flat match, state ✓); the 2 siblings also verify FULL
+(census-confirmed +2 the next batch accounts for). Full `tools/regression.py`
+GREEN (0 regr all 7 families: Hubbard 71, Companion 44, C64ME 15, Jay_Derrett 17,
+FC 31, DMC 12, Basic 22). Post-fix bucket sweep SKIPPED per user (next batch
+accounts via code_hash). f1 ≈ 5163 FULL / 238 partial (per-round accounting; wide
+batch STALE).
+
 ## ✅ ROUND 64 (2026-07-09): RESET-ALL loop target can be PER-VOICE (not one N) — Attacker +1 partial → FULL (0 regr) [ledger C13 refinement]
 First f1 partial by hvsc path (End_of_1992_intro=r60, Acid_Dance=r61, Action_G=r62
 all now FULL): `MUSICIANS/B/Bakewell_Dwayne/Attacker.sid` (vblank, single sub,

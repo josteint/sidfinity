@@ -1264,6 +1264,31 @@ fx_dual_up:
     filter_tail = ('        lda fcut\n        sta $d416\n'
                    '        lda shadow17\n        ora fres\n'
                    '        sta $d417\n') * play_unit_repeat[3]
+    # $D418 re-assert-every-frame wedge (Groove class; factory
+    # _d418_filter_tail_probe -> ledger C19 detection / C10
+    # master-vol-every-frame form). The member re-writes $D418 = filter-mode |
+    # master-vol at the END of the filter tail on EVERY frame (never at filter
+    # note-init, which its wedge neuters). The composer tracks the active
+    # filter's mode in `d418mode` (set at note-init instead of writing $D418)
+    # and re-asserts it here. Default None -> canonical (note-init writes
+    # $D418), byte-identical.
+    d418_filter_tail = usf.params.fields.get('d418_filter_tail', None)
+    if d418_filter_tail is not None:
+        d418_init_mode = int(d418_filter_tail) & 0xFF
+        ni_d418 = ('        sta d418mode                 ; mode tracked; '
+                   '$D418 re-asserted per-frame in filter tail\n')
+        d418_prime = (f'        lda #${d418_init_mode:02X}\n'
+                      '        sta d418mode\n')
+        d418_var = 'd418mode: .dsb 1, 0\n'
+        filter_tail = filter_tail + ('        lda d418mode\n'
+                                     '        ora mvol\n'
+                                     '        sta $d418\n')
+    else:
+        ni_d418 = ('        ora mvol\n'
+                   '        sta $d418                    ; filter note-init- '
+                   'mode | volume\n')
+        d418_prime = ''
+        d418_var = ''
     idle = [0, 0, 0]
     imask = [0, 0, 0]
     iguard = [0, 0, 0]
@@ -1527,7 +1552,7 @@ ini_ptr:
         sta $d418                    ; priming (matches the family init)
         lda tunetab+2,y              ; +8 = $D417 routing-shadow priming
         sta shadow17
-        lda #SLIDE_PHASE             ; half-rate slide clock phase
+{d418_prime}        lda #SLIDE_PHASE             ; half-rate slide clock phase
         sta dualpar
         ldx #$00
 ini_v:
@@ -1868,9 +1893,7 @@ ni_f_on:
         lda fdres,y
         sta fres
         lda fdmode,y
-        ora mvol
-        sta $d418                    ; filter note-init: mode | volume
-        lda fdinit,y
+{ni_d418}        lda fdinit,y
         sta fcut
         lda fdrep,y
         sta frep
@@ -2252,7 +2275,7 @@ otrk:     .dsb 3, 0                  ; orig track byte-offset shadow (= $1726)
 wnote:    .dsb 3, 0                  ; orig arp-note shadow (= $1783)
 durrel:   .dsb 3, 0                  ; orig duration-reload shadow (= $173E)
 ioff:     .dsb 3, 0                  ; orig instrument-offset shadow (= $174D)
-{sectpos_bss}state_end:
+{d418_var}{sectpos_bss}state_end:
 {hr_test_var}{dual_vars}        .byt $00
 """
     return _reloc_sid_regs(asm, reg_delta)

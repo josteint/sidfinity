@@ -91,7 +91,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | HETEROGENEOUS per-step write shapes in a trace-lift · one superset order can't embed all steps (conflicting reg orders / intra-step dups / sections) · cluster steps by EXACT write shape → K positional templates + per-step template id | C17 | logged |
 | play-vector WRAPPER with per-call PHASE behaviour · slow-tempo / multispeed-effects cycler · every Nth call runs the full play, others run effects-only / register-refresh / nothing · wrapper shapes vary (SMC, DEC+dual-JMP, parity AND) — OBSERVE entry-point reachability under py65, don't parse · arm F-ENTRY variant: wavestep ($1591) vs vibrato half-cycle ($1567, flips reshape vibrato to a square) → `fx_entry: vibflip` | C18 | logged |
 | TRICHOTOMY VERDICT alignment · rebuild emits its OWN init (universal reset+priming) so streams differ by an init prefix · Check A end-of-init state + aligned play-stream compare · TWO implementations exist: `verify_cycle._trichotomy_compare` (FC, shift recovery) + `usf_roundtrip._compare_music/_split_aligned` (basic_program, known-init-length + probe search) — CONSULT MISS, factor at Move 1 | C21 | factor-candidate (2×) |
-| hand-patched player WEDGE inside the canon body · SMC opcode toggle · 1-byte opcode patch · JMP over canonical loads · runtime state ≠ static file byte · PWM bound-shift (LSR count) wedge · init-PREFIX `LDA #imm` hard-forces the played tune record (extract walks the wrong record) · STATIC opcode probe, never a bounded stream scan · census carriers both sides · reproduce semantics behind a factory-probed param (EXTRACT-only when the wedge changes a derived musical value) | C19 | canonicalized (9×) |
+| hand-patched player WEDGE inside the canon body · SMC opcode toggle · 1-byte opcode patch · JMP over canonical loads · runtime state ≠ static file byte · PWM bound-shift (LSR count) wedge · init-PREFIX `LDA #imm` hard-forces the played tune record (extract walks the wrong record) · STATIC opcode probe, never a bounded stream scan · census carriers both sides · reproduce semantics behind a factory-probed param (EXTRACT-only when the wedge changes a derived musical value; COMPOSER param when it changes a write-stream TIMING, e.g. $D418 re-asserted every frame) | C19 | canonicalized (10×) |
 | stale-FULL palimpsest · recorded 'full' the current code can't reproduce · hides members from residue censuses · verify the STORED build first, then USF-diff/param-bisect to attribute · never mass-write with code that didn't produce the verdict | C20 | canonicalized |
 | AMBIGUOUS round-trip flag encoding · two distinct engine ops render to OVERLAPPING USF flag sets · the decoder's branch test uses a SUBSET of the discriminator → misroutes one op onto the other's path · matches for most content (paths coincide when inputs coincide), diverges on the distinguishing case | C22 | canonicalized (2×) |
 | a play-phase/schedule TOKEN hides a per-member behavioural ambiguity · same P_F123 token = note-init-on-F vs deferred 2-frame arm · fixing one class REGRESSES same-token FULLs · NOT derivable from the token/multispeed → OBSERVE the distinguishing write-footprint per member · regression-safe when the "changed" verdict has no false positive | C23 | logged |
@@ -476,7 +476,9 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   - **PARAMETRIC** (mechanism + a few knobs; the engine GENERATES the per-frame
     values) when a formula/table drives it: `MasterVolConfig` (fade formula, e.g.
     Confuzion `clamp(BASE − voice1_orderpos)`), `master_vol_every_frame`/`_every_note`
-    (re-assert a fixed value), `FilterProgConfig`/`filter_programs` + DMC
+    (re-assert a fixed value; DMC `d418_filter_tail` re-asserts `$D418 = filter-mode
+    | mvol` every frame with the mode tracked from filter note-inits — C19 round 65),
+    `FilterProgConfig`/`filter_programs` + DMC
     `default_filter` + instrument `filter_env` (filter cutoff-ENVELOPE programs ≈
     C1 `SweepEnvelope`), `init.sid { master_vol, filter{…} }` (one-time priming).
     Values are derived at runtime, never enumerated.
@@ -1455,6 +1457,31 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   that plays a voice's PRIMED IDLE NOTE under an empty orderlist while orig
   plays a full part on that voice = a wrong-tune-record walk — memwatch the
   runtime track-ptr ($1707/$170A) + pc-trace the init A at the tune-select.
+- **10th occurrence (round 65, 2026-07-09) — $D418 RE-ASSERTED EVERY FRAME
+  (COMPOSER param, not extract-only; also C10 master-vol-every-frame form):**
+  Groove/Bakewell_Dwayne (+ Rap/Hands_up_Ravers, Rorschach/For_Vandalism_27 —
+  the only 3 f1 carriers). The wedge changes a write-stream TIMING, not a
+  derived value, so it needs a composer param. The play-body global filter
+  routine's `STA $D417` is replaced by `JSR <wrapper>`, and the wrapper does
+  `STA $D417 / LDA #mode / ORA mvol / STA $D418 / RTS` → `$D418 = mode | mvol`
+  is re-written EVERY frame (at the filter-tail END); the canon filter note-init
+  `STA $D418` ($12A8) is neutered to `BIT $D418` and its preceding `STA $2004`
+  self-modifies the wrapper's mode immediate per note-init. `factory.
+  _d418_filter_tail_probe` → USF param `d418_filter_tail` (initial mode imm) →
+  composer: note-init stores `fdmode` to a `d418mode` shadow (suppress the
+  note-init `$D418`), the per-frame filter tail re-asserts `lda d418mode / ora
+  mvol / sta $d418`, init primes `d418mode`. Sibling of `d418_every_play` (the
+  play-VECTOR wrapper form, `$D418` at play START); this is the filter-tail END
+  form. Default None → byte-identical. **PROBE-ANCHORING LESSON (why the STATIC
+  opcode probe must target the REACHABLE site, not a byte pattern):** the first
+  LOOSE probe (`STA $D417 .. STA $D418` anywhere) false-fired on Qbhead_01's
+  aux/init routine (`STA $D416 / LDA #imm / ... / STA $D418` at $1CA8) whose
+  live per-frame routine is canonical — it would have REGRESSED a FULL member.
+  Anchoring on the play-body computation shape (`STA $D416 / LDA abs / ORA abs /
+  JSR-wrapper` at +9) excluded it. Caught by localizing each census carrier's
+  first divergence BEFORE committing (the orig had no per-frame `$D418`). f1 3
+  carriers all previously partial ⟹ 0 FULL exposure; Groove FULL 155620/155620;
+  full regression green (0 regr all 7 families).
 - **Status:** CANONICALIZED (9 occurrences by round 63: DMC family-1 rounds
   13 + 19 + 32 + 35 + 36 + 50 + 55 + 60 + 63). Canonical form: STATIC opcode probe (read the patched
   instruction itself — never a bounded write-stream scan, which can

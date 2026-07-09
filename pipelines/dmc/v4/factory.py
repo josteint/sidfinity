@@ -1209,6 +1209,46 @@ def _d418_play_wrapper(path: str, base: int):
     return None
 
 
+def _d418_filter_tail_probe(path: str, base: int):
+    """Per-frame $D418 re-assert wedge (Groove class, ledger C19 -> C10
+    master-vol-every-frame form): the PLAY-BODY global filter routine
+    (`STA $D416 / LDA route / ORA res / STA $D417`, run every frame) has its
+    `STA $D417` REPLACED by `JSR <wrapper>`, and the wrapper does
+    `STA $D417 / LDA #mode / ORA mvol / STA $D418 / RTS` — so $D418 =
+    filter-mode | master-vol is re-written EVERY frame; the canon filter
+    note-init $D418 write is neutered (STA $D418 -> BIT $D418). Net
+    write-stream: $D418 emitted once per frame at the END of the filter tail
+    (after $D417), never at note-init. Returns the initial mode immediate (the
+    wrapper's `LDA #imm` operand), or None (canonical: the play-body routine
+    ends `STA $D417`).
+
+    Anchored on the play-body filter routine specifically — `STA $D416`
+    (fixed hardware addr, reloc-invariant) then the canonical
+    `LDA abs / ORA abs` route+res computation, then a JSR at +9. This EXCLUDES
+    stray `STA $D417 .. STA $D418` pairs in unrelated / init routines (which
+    do not start with `STA $D416 / LDA abs / ORA abs`, e.g. Qbhead_01's $1CA8
+    `STA $D416 / LDA #imm`)."""
+    mem, s = _load(path)
+    lo, hi = s['load'], min(s['load'] + len(s['payload']), 0x10000)
+    for a in range(lo, hi - 12):
+        # play-body filter routine: STA $D416 / LDA abs / ORA abs / <op at +9>
+        if not (mem[a] == 0x8D and mem[a + 1] == 0x16 and mem[a + 2] == 0xD4
+                and mem[a + 3] == 0xAD and mem[a + 6] == 0x0D):
+            continue
+        if mem[a + 9] != 0x20:        # canonical ends STA $D417 ($8D) -> no wedge
+            continue
+        w = mem[a + 10] | (mem[a + 11] << 8)    # JSR <wrapper> target
+        # wrapper: STA $D417 / LDA #imm / [ORA mvol] / STA $D418
+        if not (w + 4 < 0x10000 and mem[w] == 0x8D and mem[w + 1] == 0x17
+                and mem[w + 2] == 0xD4 and mem[w + 3] == 0xA9):
+            continue
+        imm = mem[w + 4]
+        for b in range(w + 5, w + 9):
+            if (mem[b] == 0x8D and mem[b + 1] == 0x18 and mem[b + 2] == 0xD4):
+                return imm
+    return None
+
+
 def _play_unit_repeat_probe(path: str, base: int):
     """Detect the DMC play-body 'double-speed unit' hack. The play body runs
     four units per frame — voice 0, voice 1, voice 2, then the global filter
@@ -1394,6 +1434,9 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     dp = _d418_play_wrapper(os.path.join(hvsc_root, sid_path), cfg.base)
     if dp is not None:
         cfg.extra_params['d418_every_play'] = dp
+    dft = _d418_filter_tail_probe(os.path.join(hvsc_root, sid_path), cfg.base)
+    if dft is not None:
+        cfg.extra_params['d418_filter_tail'] = dft
     hg = _hold_gateoff_probe(os.path.join(hvsc_root, sid_path))
     if hg is not None:
         cfg.extra_params['hold_gateoff'] = hg
