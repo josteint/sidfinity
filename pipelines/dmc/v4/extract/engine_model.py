@@ -35,6 +35,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'tools', 'py65_lib'))
 
 from pipelines.dmc.v4.config import DMCV4Config
+from pipelines.dmc.engine_constants import VIBDEPTH
 
 NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
@@ -1172,25 +1173,56 @@ def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
 
     def add_note(n, inst_id, si):
         inst = m.instruments.get(inst_id)
+        # curnote is an 8-bit value: note-init adds the transpose with an 8-bit
+        # ADC ($11A3), so a NEGATIVE transpose wraps a low note PAST the 96-entry
+        # freq/vibdepth tables (ledger C11 — index mirrors the 8-bit Y register).
+        # The off-table read uses Y=(note+tr)&$FF, so classify + capture on the
+        # WRAPPED value; the raw signed sum misses every negative-transpose read
+        # (Journey note 0 + tr -4 -> curnote $FC -> vibdepth[$FC]=$23, the drum
+        # vibrato step). Notes already in 0..255 are unchanged -> regression-safe.
+        wrapped = n != (n & 0xFF)          # note+transpose underflowed/overflowed
+        n &= 0xFF
         if n > 95:
-            # the note's OWN off-table freq (offset-0 base read): the pitch the
-            # note plays at when it overshoots the 96-entry table (via transpose).
-            recs[inst_id].add((0, n & 0xFF, mem[(flo_addr + n) & 0xFFFF],
-                               mem[(fhi_addr + n) & 0xFFFF]))
-            songmap[(inst_id, 0, n & 0xFF)].add(si)
             # the note's off-table VIBDEPTH read (vibdepth[note], note>95) —
-            # lands on static instr-record bytes, used as the vibrato step.
-            vibovr[n & 0xFF] = mem[(vibdepth_addr + n) & 0xFFFF]
-            vibsongs[n & 0xFF].add(si)
+            # lands on STATIC instr-record bytes (representable) -> always capture;
+            # this is the drum vibrato step Journey needs.
+            vibovr[n] = mem[(vibdepth_addr + n) & 0xFFFF]
+            vibsongs[n].add(si)
+            # the note's OWN off-table FREQ (offset-0 base read): only for a
+            # GENUINE off-table note (real high pitch via positive transpose). A
+            # NEGATIVE-transpose WRAP (note 0 - k -> 250..255, the DMC drum/silent
+            # idiom) reads freq-table-adjacent ENGINE STATE that is PER-SUBTUNE /
+            # dynamic (not statically representable) AND its base freq is either
+            # overridden by the drum wave-step (Journey) or $0000 (silent) -> a
+            # static capture there places a WRONG value (Other_Side: subtune-0
+            # flo+254 = $00 but inst-6's reaching subtune = $5E -> last-writer
+            # regression). The pre-fix default (no capture) is correct for wraps.
+            if not wrapped:
+                recs[inst_id].add((0, n, mem[(flo_addr + n) & 0xFFFF],
+                                   mem[(fhi_addr + n) & 0xFFFF]))
+                songmap[(inst_id, 0, n)].add(si)
+        elif n < 6 and mem[(vibdepth_addr + n) & 0xFFFF] != VIBDEPTH[n]:
+            # CODE-OVERLAP HEAD: the vibdepth table base overlaps the note-init
+            # routine, so a note reading indices 0-5 gets code bytes as its
+            # vibrato step. Indices 3,4 are the vstep-store operand, which encodes
+            # the STATE-BLOCK address -> it RELOCATES for page-3 builds
+            # (vibdepth[3,4] = $03BC vs the canonical $1792), so the composer's
+            # canonical VIBDEPTH head is WRONG for them. Capture the member's
+            # actual byte ONLY where it differs from canonical -> canonical-layout
+            # members are byte-identical (regression-safe by construction); the
+            # composer overrides its vibdepth head in place (Journey: note 4 ->
+            # vibdepth[4]=$03 vs canonical $17, the drum vibrato step).
+            vibovr[n] = mem[(vibdepth_addr + n) & 0xFFFF]
+            vibsongs[n].add(si)
         if inst is None or inst.drum:
             return
         for off in inst.wave_freq:
             y = (n + off) & 0xFF
             if y > 95:
-                recs[inst_id].add((off & 0xFF, n & 0xFF,
+                recs[inst_id].add((off & 0xFF, n,
                                    mem[(flo_addr + y) & 0xFFFF],
                                    mem[(fhi_addr + y) & 0xFFFF]))
-                songmap[(inst_id, off & 0xFF, n & 0xFF)].add(si)
+                songmap[(inst_id, off & 0xFF, n)].add(si)
 
     for si, song in enumerate(m.songs):
         for v in song.voices:

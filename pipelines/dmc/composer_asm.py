@@ -1390,12 +1390,21 @@ fx_dual_up:
     _vibovr = getattr(usf, 'offtable_vibdepth', None) or []
     _vd = list(VIBDEPTH)
     if _vibovr:
-        _top = max(n for n, _ in _vibovr)
-        _win = [0] * (_top - 95)
+        # head overrides (note < 96): the code-overlap head bytes 3,4 hold the
+        # engine's state-store operand, which relocates for page-3 builds -> the
+        # canonical VIBDEPTH head is wrong there. Override in place (empty for
+        # canonical members -> byte-identical).
         for _note, _depth in _vibovr:
-            if _note >= 96:
-                _win[_note - 96] = _depth
-        _vd = _vd + _win
+            if _note < 96:
+                _vd[_note] = _depth
+        _tail = [n for n, _ in _vibovr if n >= 96]
+        if _tail:
+            _top = max(_tail)
+            _win = [0] * (_top - 95)
+            for _note, _depth in _vibovr:
+                if _note >= 96:
+                    _win[_note - 96] = _depth
+            _vd = _vd + _win
     data.append('vibdepth:\n' + _byt(_vd))
     for name, arr in [('iad', iad), ('isr', isr), ('ipwinit', ipwinit),
                       ('ipwmin', ipwmin), ('ipwmax', ipwmax), ('ioffval', ioffval),

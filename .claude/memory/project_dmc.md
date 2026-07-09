@@ -7,6 +7,47 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 66 (2026-07-09): NOTE+TRANSPOSE WRAPS OFF-TABLE (8-bit ADC) — Journey +1 partial → FULL (+5 siblings, 0 regr) [ledger C11 + C6/C7-(b) head]
+First f1 partial by hvsc path (Groove=r65 now FULL; scanned idx 401+ fresh: 401/402
+FULL, 403 = Journey partial): Bakewell_Dwayne/Journey (vblank, single sub, PAGE-3
+build — state block @ $03xx not $17xx, shift −$13D6; freq/vibdepth tables also
+relocated). Flat first-div pos 39435 = V3 drum freq lo $23 vs $00. GROUND TRUTH
+(memwatch V3 accum $0361 / vstep $03BE, using Journey's dataflow-derived reloc):
+the drum's curnote = $FC (=252) reads vibdepth[$FC]=$23 (the vibrato STEP) OFF-TABLE.
+curnote $FC = pattern note 0 + transpose −4 via the 8-bit note-init ADC ($11A3),
+which WRAPS a low note past the 96-entry tables. ROOT 1: reach model
+`_assign_offtable_freq.add_note` gated `if n>95` on the RAW SIGNED sum (note+tr=−4)
+→ missed all 24 negative-transpose wrapping rows. FIX 1 (ledger C11, extract):
+`n &= 0xFF` at add_note entry → capture off-table VIBDEPTH for wraps. Div moved
+39435 → 92108 (V3 drum freq lo $03 vs $17). ROOT 2: the $1888 vibdepth table
+OVERLAPS the note-init routine; indices 3,4 = the vstep-STORE operand ($1792 canon)
+— RELOCATES for page-3 builds ($03BC = $BC,$03). curnote $04 reads vibdepth[4]=$03
+(Journey) vs the composer's hardcoded canonical VIBDEPTH[4]=$17. FIX 2 (C6/C7-(b),
+extract+composer): capture the member's actual vibdepth head byte where a note reads
+idx 0-5 AND it differs from canonical (`elif n<6 and mem!=VIBDEPTH[n]`); composer
+overrides `_vd[note]` IN PLACE (no table-size change). Regression-safe by
+construction: canonical-layout members' head == canonical → no capture. Journey FULL
+267375/267375 state ✓. AMEND (Other_Side.sid FULL→partial, caught in the flip-set
+census — real, not a C20 flake): FIX 1's off-table FREQ capture placed a WRONG
+PER-SUBTUNE value (flo+254 = $00 in subtune-0 but inst-6's reaching subtune = $5E →
+static window last-writer-wins → $5E). Root: a wrap (note 0 − k → 250-255, the
+drum/silent idiom) reads freq-table-adjacent PER-SUBTUNE engine state (not statically
+representable) and its base freq is drum-overridden or $0000. FIX 3: capture VIBDEPTH
+for wraps (static instr-record, needed) but NOT FREQ (`if not wrapped`). Both restored
+to FULL. FLIP-SET CENSUS (192 wrap-carriers full + 130 head-differ sample, before/
+after vs pre-fix stash): **0 regressions, +6 gains** (Journey wrap+head; Mad_Drummer/
+Remembrance/Total_Eclipse/Next_Door wrap; Quarks_2 head). Full tools/regression.py
+GREEN (0 regr all 7 families). HEAD-FIX BREADTH: 572 f1 members have a relocated
+vibdepth head (idx 3/4 differ, head bytes vary per state-block address) → flip-set =
+the READERS; the head byte is a STATE-ADDRESS operand = C7-(b) state-as-data → FLAG
+for /uready-review as a B-class capture. Post-fix full-family sweep SKIPPED per user
+(next batch accounts via code_hash; +6 flip-set-confirmed, likely more head-readers).
+LESSON: an 8-bit table index computed by ADD (note+transpose) WRAPS — classify/capture
+on `&0xFF`, never the signed sum (C11); but split by representability — off-table
+VIBDEPTH lands on static instr-records (capture), off-table FREQ of a wrap lands on
+per-subtune state (residue, skip). f1 ≈ 5169 FULL / 232 partial (per-round; +6
+flip-set-confirmed, wide batch STALE).
+
 ## ✅ ROUND 65 (2026-07-09): $D418 RE-ASSERTED EVERY FRAME (filter-tail wrapper) — Groove +1 partial → FULL (0 regr) [ledger C19 10th occurrence / C10] — COMPOSER param
 First f1 partial by hvsc path (Attacker=r64 now FULL; scanned idx 382+ fresh, all
 FULL until idx 400): Bakewell_Dwayne/Groove (vblank, single sub). Flat first-div

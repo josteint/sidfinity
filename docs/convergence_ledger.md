@@ -581,6 +581,32 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   `$14,$14,$14,$94`; $94 hops to $91 which hops to the settled $41/freq $00 hold
   step) was emitted as a literal wave step. Same canonical fix: gate on
   `any(b >= 0x90)` in the copied region → delegate to `_resolve_wave_chain`.
+  ALSO DMC v4 NOTE+TRANSPOSE off-table read (family-1 round 66, Journey +1 FULL
+  +5 siblings, 0 regr): note-init adds the transpose with an 8-bit ADC ($11A3),
+  so a NEGATIVE transpose wraps a LOW note past the 96-entry freq/vibdepth tables
+  (note 0 + tr −4 → curnote $FC). The reach model `_assign_offtable_freq.add_note`
+  gated on the RAW SIGNED sum (`if n > 95` with n = note+tr = −4) → missed every
+  negative-transpose off-table read. Canonical fix: `n &= 0xFF` at entry (mirror
+  the 8-bit Y index); notes already in 0..255 unchanged → regression-safe.
+  **⚠️ REFINEMENT — capture VIBDEPTH but NOT FREQ for a WRAP:** the off-table
+  VIBDEPTH read (the drum vibrato step) lands on STATIC instr-record bytes →
+  representable, always capture (this is what Journey needs). The off-table FREQ
+  read of a wrap (note 0 − k → 250..255, the DMC drum/silent idiom) lands on
+  freq-table-adjacent PER-SUBTUNE engine state (NOT statically representable in
+  one window; last-writer-wins picks a wrong subtune's value) AND its base freq
+  is drum-overridden or $0000 — so a static capture REGRESSES (Other_Side FULL→
+  partial, caught in the flip-set census: flo+254 = $00 in subtune-0 but $5E in
+  inst-6's reaching subtune). Gate the freq record on `if not wrapped`; the
+  pre-fix default (no capture) is correct for wraps. See also C6 (off-table FREQ
+  is representable only when it lands on STATIC bytes; per-subtune/dynamic is
+  residue). The vibdepth CODE-OVERLAP HEAD (indices 3,4 = the vstep-store operand,
+  which relocates for page-3/relocated-state builds — $03BC vs canonical $1792)
+  is the SAME class one level up: a note reading vibdepth idx 0-5 gets a build-
+  specific byte; capture the member's actual head byte where it differs from
+  the canonical VIBDEPTH constant, composer overrides `_vd[note]` in place (no
+  table-size change → regression-safe). The head byte is a STATE-ADDRESS operand
+  = C7-(b) state-as-data — flag for `/uready-review` (572 f1 members have a
+  relocated head; flip-set = the readers).
 - **Boundary / watch-list:** the SAME class applies to ANY 8-bit-indexed engine
   table — e.g. the DMC wave POSITION ($177A is 8-bit, so a wave program crossing
   $FF wraps to wctab[0]; `_slice_wave` reads linearly past it — a candidate
