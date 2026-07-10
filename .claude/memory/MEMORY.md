@@ -99,6 +99,7 @@
 - [Tokenization for ML](reference_tokenization.md) — USF is NOT tokens; tokenization is a downstream conversion when ML training starts. REMI-style is the proven start.
 - [Hubbard PWM bounds](reference_hubbard_pwm_bounds.md) — pulsework's $08/$0E direction-flip thresholds are HARDCODED, not per-instrument
 - [Divergence census tool](reference_divergence_census.md) — `tools/divergence_census.py`: clusters a family's non-FULL residue into ranked root-cause buckets. Found: detection ≠ FULL; partials are the bottleneck.
+- [Canon-diff wedge enumerator](reference_dmc_canon_diff.md) — `tools/dmc_canon_diff.py`: a-priori wedge catalogue — diff every member's player code vs the canon binary, cluster+tag handled/NEW, split partial/full. PROVED DMC f1 wedges ~fully handled (188 partials: 78% no-wedge off-table residue, 17% handled-wedge, only 9=4% genuine unhandled, all singletons).
 
 ## Deprecated memories
 

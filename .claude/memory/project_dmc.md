@@ -7,6 +7,25 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## 📊 CANON-DIFF WEDGE ACCOUNTING (2026-07-10): family-1 wedge space is ~fully handled — the residue is NOT a wedge problem
+Built `tools/dmc_canon_diff.py` ([[reference_dmc_canon_diff]]) — the PROACTIVE
+complement to the reactive `_*_probe` detectors: linear-align every member's player
+code to the canon binary + diff opcodes/operand-repoints, cluster, tag handled/NEW,
+split partial/full. DEFINITIVE result cross-referencing the fresh 188 f1 partials:
+**147 (78%) carry NO code wedge** (pure off-table-freq/dynamic-state/CIA residue —
+the C6/C11 hard tail), **32 (17%) a HANDLED wedge** (fail for another reason), only
+**9 (4%) a genuine UNHANDLED patch — ALL singletons** (Complications, Cotton_Eye_Joe,
+Enforcer_2, Ice_on_Fire, Jezuseczek, Logic_Intro, Mathematica_tune_3,
+One_Man_and_Boris, Second). So there is NO multi-carrier unhandled-wedge lever;
+one-wedge-at-a-time IS inherent. The remaining conversion headroom is the off-table
+hard tail, not wedges. Also a COMPLETENESS AUDIT: true probe carrier counts
+(track_loop 876, d418/wrapper 169, master_vol 113, rest-skip 129) ≫ docstring "3".
+Surfaced 2 pre-existing bugs sampling had missed: unescaped member-address bytes in
+`_pw_bound_shift_probe`/`_pw_dir_persist_probe` regexes (2 members ERROR on a
+`[`=0x5B byte) + the 2SID-multisubtune scope gap (7 Rayden). Also landed Opp B
+(commit b3685e6c): dedup `dmc_v4_config`'s copy-paste wedge dispatch into a
+`_WEDGE_PROBES` table+loop (byte-identical, golden 5392/5392).
+
 ## ✅ ROUND 66 (2026-07-09): NOTE+TRANSPOSE WRAPS OFF-TABLE (8-bit ADC) — Journey +1 partial → FULL (+5 siblings, 0 regr) [ledger C11 + C6/C7-(b) head]
 First f1 partial by hvsc path (Groove=r65 now FULL; scanned idx 401+ fresh: 401/402
 FULL, 403 = Journey partial): Bakewell_Dwayne/Journey (vblank, single sub, PAGE-3
