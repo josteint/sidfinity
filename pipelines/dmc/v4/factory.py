@@ -1536,23 +1536,44 @@ _WEDGE_PROBES = [
 ]
 
 
-def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
+def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
+                  base_override: 'int | None' = None) -> DMCV4Config:
     """Primary canonical-layout build; on a moved-layout rejection, fall back
     to the layout-independent dataflow extractor (pipelines.dmc.v4.dataflow).
+
+    `base_override` FORCES the player base (bypasses auto-detection + the
+    dataflow fallback) — used to extract one player of a COMPILATION member
+    (ledger C31), where several independent players share the file behind a
+    per-subtune dispatch wrapper and auto-detection can't pick the right one.
 
     hold_gateoff: the STATIC opcode probe (_hold_gateoff_probe) detects the
     1-byte sub_17EC patch ($17EF BC->60 = mask_only) directly — it reads the
     patched instruction, so it cannot false-negative on late-gate-off members
     (unlike a bounded write-stream scan). The verify batch's frames_clear_adsr
     mask_only retry remains as the fallback for shapes the probe misses."""
-    try:
-        cfg = _build_via_canon(sid_path, hvsc_root)
-    except DMCV4Unsupported as e:
-        if e.reason not in _DATAFLOW_RETRY:
-            raise
-        cfg = _build_via_dataflow(sid_path, hvsc_root)
-        if cfg is None:
-            raise
+    if base_override is not None:
+        # forced player of a compilation. Try the canon path first (uniform
+        # relocation — e.g. Abyssal_Karma); on a code-identity mismatch fall
+        # back to the signature-based dataflow locate, which handles the
+        # NON-uniformly-relocated players (the packer moves the state scratch
+        # independently of the code — most compilations, ledger C31).
+        try:
+            cfg = _build_via_canon(sid_path, hvsc_root,
+                                   base_override=base_override)
+        except DMCV4Unsupported:
+            cfg = _build_via_dataflow(sid_path, hvsc_root,
+                                      base_override=base_override)
+            if cfg is None:
+                raise
+    else:
+        try:
+            cfg = _build_via_canon(sid_path, hvsc_root)
+        except DMCV4Unsupported as e:
+            if e.reason not in _DATAFLOW_RETRY:
+                raise
+            cfg = _build_via_dataflow(sid_path, hvsc_root)
+            if cfg is None:
+                raise
     path = os.path.join(hvsc_root, sid_path)
     # --- non-uniform wedge stanzas (special guard / two keys / attribute) ---
     # cymbal noise-burst timbre: only when patched off the canon $FF.
@@ -1587,13 +1608,40 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     return cfg
 
 
-def _build_via_dataflow(sid_path: str, hvsc_root: str):
+def _build_via_dataflow(sid_path: str, hvsc_root: str,
+                        base_override: 'int | None' = None):
     """Build a config by locating every table via opcode-skeleton signatures
     (handles re-assembled players whose routines + operand sites moved). Returns
-    None if the base or any table can't be located; the verify gate is the net."""
+    None if the base or any table can't be located; the verify gate is the net.
+
+    `base_override` FORCES the player base (a compilation player, ledger C31):
+    such players are canonical DMC but NON-UNIFORMLY relocated (the packer moves
+    the state scratch — e.g. the $100C active-flag array — independently of the
+    code), which fails the canon path's uniform-delta identity compare. The
+    signature-based dataflow locate reads each table's ACTUAL operand regardless
+    of relocation, so it handles them."""
     from pipelines.dmc.v4 import dataflow
     mem, s = _load(os.path.join(hvsc_root, sid_path))
     load = s['load']
+    if base_override is not None:
+        loc = dataflow.locate(mem, base_override)
+        if loc is None:
+            return None
+        # A compilation player is a plain canonical DMC dispatched by the
+        # wrapper: its own play is base+3, so skip the CIA/play-phase/post-init
+        # probes (all keyed on the PSID play vector = the shared wrapper). The
+        # file-image leftover priming is used as-is (verified sufficient for the
+        # compilation cluster; a non-start player's post-init state can't be
+        # captured through the wrapper anyway). cia_period stays 0 (the cluster
+        # is vblank; a CIA compilation would fall to the single-player path).
+        cfg = DMCV4Config(
+            sid_path=sid_path,
+            name=os.path.splitext(os.path.basename(sid_path))[0],
+            base=base_override, cia_period=0,
+            play_repeat=_detect_play_repeat(mem, base_override + 3,
+                                            base_override, load),
+            extra_params=_dataflow_knob_probes(mem, load), **loc)
+        return cfg
 
     def _jt(b):
         return (0 < b and load <= b and b + 6 < 0x10000 and mem[b] == 0x4C
@@ -1791,7 +1839,8 @@ def _dataflow_knob_probes(mem, load: int) -> dict:
     return extra
 
 
-def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
+def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84',
+                     base_override: 'int | None' = None) -> DMCV4Config:
     mem, s = _load(os.path.join(hvsc_root, sid_path))
 
     # ---- base detection. The canonical jump table is `JMP base+$1D /
@@ -1837,12 +1886,24 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         return None
 
     base = layout = None
-    for b in (s['play'] - 3, s['load']):
+    # COMPILATION member: the file packs N independent players behind a
+    # per-subtune SMC dispatch wrapper (ledger C31). The caller extracts each
+    # player by FORCING its base — skip auto-detection (both players carry a
+    # valid canonical jump table, so detection can't pick the right one), and
+    # treat the forced player as standalone-canonical (its own play is
+    # base+3; the PSID play vector is the wrapper, not this player).
+    if base_override is not None:
+        layout = _jt_layout(base_override)
+        if layout is None:
+            raise DMCV4Unsupported(
+                'base_override_not_player', f'${base_override:04X}')
+        base = base_override
+    for b in ([] if base_override is not None else (s['play'] - 3, s['load'])):
         layout = _jt_layout(b)
         if layout:
             base = b
             break
-    if base is None:
+    if base is None and base_override is None:
         # relocated-WITHIN-file: the player sits at neither play-3 nor
         # load — typically a CIA/multispeed wrapper whose dispatcher is at
         # play/load while the real player is elsewhere in the image. Scan
@@ -1894,6 +1955,11 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     # play == base+3 (the common case: e.g. latch $1331 => 4x, $2663 => 2x).
     # So gate on the speed bit alone and read the latch the init leaves.
     # The composer emits the same latch + speed bit (see config.cia_period).
+    # A forced-base compilation player is standalone-canonical: its own play
+    # is base+3 (the PSID play vector is the shared dispatch wrapper). Use that
+    # for every play-vector-shape test so the wrapper isn't mistaken for a
+    # multispeed/play-phase wrapper of THIS player.
+    eff_play = base + 3 if base_override is not None else s['play']
     cia_period = 0
     if s.get('speed', 0) & 1:
         cia_period = _cia_period_from_init(
@@ -1911,7 +1977,7 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
                 # A wrapper member IS multispeed but we can't read its rate ->
                 # can't rebuild it faithfully. A canonical-play member falls
                 # back to single-speed (a 50 Hz-ish CIA rate is equivalent).
-                if s['play'] != base + 3:
+                if eff_play != base + 3:
                     raise DMCV4Unsupported(
                         'cia_multispeed',
                         f"play=${s['play']:04X} CIA latch unreadable "
@@ -1919,7 +1985,7 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
                 cia_period = 0
     # INTERNAL multispeed (vblank wrapper, no speed bit) — independent of CIA.
     play_repeat = (1 if (s.get('speed', 0) & 1)
-                   else _detect_play_repeat(mem, s['play'], base, s['load']))
+                   else _detect_play_repeat(mem, eff_play, base, s['load']))
     # PLAY-PHASE wrapper (not an N-JSR repeat): the play vector cycles
     # full-play / effects-only calls — with the CIA speed bit this is TRUE
     # multispeed EFFECTS (e.g. $1331 4x + 'PFFF' = engine ticks at 50Hz,
@@ -1929,7 +1995,7 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     # py65 (C9: measure, don't parse — wrapper shapes vary: SMC operand
     # table, DEC+dual-JMP, INC+AND, stubs hidden in compare-masked regions).
     play_phases = None
-    if play_repeat == 1 and s['play'] != base + 3:
+    if play_repeat == 1 and eff_play != base + 3:
         play_phases = _observe_play_phases(
             os.path.join(hvsc_root, sid_path), s['start'] - 1, base)
         if play_phases in ('P', 'S', None):
@@ -2059,6 +2125,16 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
                    for k in range(9)):
             raise DMCV4Unsupported('filter_write_helper_unknown', hex(h))
         for i in range(0x12A8, 0x12AB):
+            masked[i - 0x1000] = 1
+    # COMPILATION player (base_override): the packer wires the all-off + sfx
+    # jump-table entries ($1006-$100B) to a SHARED routine (one all-off for all
+    # packed players, e.g. JMP $C62F) instead of each player's own base+$62F.
+    # Those two vectors are never called during play, and the composer emits its
+    # own canonical all-off/sfx — so the difference is write-stream-irrelevant.
+    # Mask them (only for a forced compilation player; single-player members
+    # keep the strict check).
+    if base_override is not None:
+        for i in range(0x1006, 0x100C):
             masked[i - 0x1000] = 1
     # compare the player region (code + fixed tables + vibdepth);
     # operand BYTES are masked (they relocate); the surrounding opcodes

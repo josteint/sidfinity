@@ -44,17 +44,30 @@ def build(rel: str, out_sid: str, out_usf: str | None):
     if given. Returns (n_chips, usf_src_path)."""
     from pipelines.dmc.v4.factory import dmc_v4_config, dmc_v4_config_2sid
     from pipelines.dmc.v4.extract.to_usf import (write_dmc_usf,
-                                                 write_dmc_2sid_usf)
+                                                 write_dmc_2sid_usf,
+                                                 write_dmc_compilation_usf)
+    from pipelines.dmc.v4.compilation import detect_compilation
     from pipelines.dmc.composer_asm import build_dmc_sid
     from src.usf.parser import parse_file
+    hv = os.path.join(ROOT, 'hvsc84')
     td = tempfile.mkdtemp()
-    cfgs2 = dmc_v4_config_2sid(rel, hvsc_root=os.path.join(ROOT, 'hvsc84'))
+    cfgs2 = dmc_v4_config_2sid(rel, hvsc_root=hv)
+    comp = None if cfgs2 is not None else detect_compilation(rel, hvsc_root=hv)
     if cfgs2 is not None:
-        usf_src = write_dmc_2sid_usf(cfgs2, td, hvsc_root=os.path.join(ROOT, 'hvsc84'))
+        usf_src = write_dmc_2sid_usf(cfgs2, td, hvsc_root=hv)
         nch = len(cfgs2)
+    elif comp is not None:
+        try:
+            usf_src = write_dmc_compilation_usf(rel, comp, td, hvsc_root=hv)
+        except Exception:
+            # unmergeable compilation -> single-player fallback (never regress)
+            comp = None
+            usf_src = write_dmc_usf(dmc_v4_config(rel, hvsc_root=hv), td,
+                                    hvsc_root=hv)
+        nch = 1
     else:
-        cfg = dmc_v4_config(rel, hvsc_root=os.path.join(ROOT, 'hvsc84'))
-        usf_src = write_dmc_usf(cfg, td, hvsc_root=os.path.join(ROOT, 'hvsc84'))
+        cfg = dmc_v4_config(rel, hvsc_root=hv)
+        usf_src = write_dmc_usf(cfg, td, hvsc_root=hv)
         nch = 1
     usf = parse_file(usf_src)
     open(out_sid, 'wb').write(build_dmc_sid(usf))

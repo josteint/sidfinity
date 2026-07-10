@@ -2199,3 +2199,77 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   reconstruction against the raw byte per instrument (the round-39 lesson);
   a failure means the enum is lossy, not that the data is dirty.
 - **Status:** `logged` (1×).
+
+### C31 — Compilation: one file packs N INDEPENDENT players, a per-subtune dispatch wrapper selects (player, song)
+- **First sight (2026-07-10, DMC v4 family-1, Abyssal_Karma-Part_One, Richard
+  Bayliss):** the PSID header overstates songs (5), but the file is a
+  COMPILATION of TWO independent, fully-relocated copies of the SAME DMC v4
+  engine, each with its own data pool (instruments / freq-wave-filter tables /
+  sectors / tracks / tune records). A small SMC dispatch wrapper at the PSID
+  init/play vectors maps subtune → (player_base, song): `LDX subtune;
+  LDA base_hi_tab,X → STA <both JMP hi-bytes>; LDA song_tab,X → A; JMP
+  player`. Here subtune 0 → (player@$8000, song 0); subtunes 1-4 →
+  (player@$9100, songs 0-3). Player A carries only 1 real song; player B carries
+  4.
+- **How it PRESENTS / why the extractor gets it wrong:** `_build_via_canon` base
+  detection tries play-3 then LOAD; both players have a valid canonical DMC
+  jump table (`4C b+1D 4C b+85`), and the running player is neither play-3 (=the
+  wrapper) nor uniquely load — the LOAD-address player (A) wins, and all 5
+  subtunes are decoded from A's tune table. sub0 is FULL (it genuinely IS
+  player A song 0); subtunes 1-4 read PAST player A's 1-record tune table into
+  garbage bytes (tracks point at `$FE` stops or out-of-image $3Cxx) → they
+  decode to silence / off-image residue and diverge at frame 1. The downstream
+  masked-identity compare does NOT catch it — player A is a byte-valid player,
+  just the wrong one for those subtunes.
+- **Detection signature:** the file image contains ≥2 canonical DMC jump tables
+  at different bases (`4C b+1D 4C b+85`). Bayliss folder alone: 15 such members
+  (Balloonacy = 4 players, Lane_Crazy = 4, Defuzion_3 = 3, …); the pattern
+  spans the DMC corpus. The dispatch wrapper is the confirmer (per-subtune SMC
+  patch of a JMP hi-byte + song# from `LDA tab,X`).
+- **Analogues (same class, other engines):** FC Adrenalin ([[project_adrenalin]]
+  — "a COMPILATION, 3 engines + 4 independent data pools") and the 5-Title-Tunes
+  unified engine ([[project_five_title_tunes]] — multiple independent songs
+  merged into one engine via globally-renumbered instruments + per-subtune
+  params). DISTINCT from C27/C28 multi-SID: those are N players running in
+  PARALLEL on N chips every frame (merged chip-tagged stream); a compilation
+  runs exactly ONE player per subtune, SEQUENTIALLY selected — the per-subtune
+  streams are fully independent.
+- **Canonical solution — UNIFIED-MERGE (built 2026-07-10, `pipelines/dmc/v4/
+  compilation.py`):** the 5TT playbook, extract-side only, NO USF/composer
+  change. `detect_compilation` (>=2 canonical JT bases + static wrapper decode
+  of the base-hi + song X-indexed tables) -> per-subtune (player, song) map;
+  `factory.dmc_v4_config(base_override=B)` extracts each player as a standalone
+  canonical DMC (canon path for a UNIFORM relocation; on its code-identity
+  mismatch, the signature-based `_build_via_dataflow(base_override)` handles the
+  NON-uniformly-relocated players — the packer moves state scratch, e.g. the
+  $100C active-flag array, independently of the code); `merge_models` merges
+  into one DmcModel — shared freq/vibdepth (verified identical), instruments
+  renumbered+deduped into one compact <=28 pool, songs reordered by PSID
+  subtune, rows' instr rewritten. Then the ordinary `model_to_usf` -> composer
+  (compilation-unaware). Two knobs made it work: (i) mask the all-off/sfx
+  jump-table entries ($1006-$100B) in the canon compare for base_override
+  players — packers point them at a SHARED all-off routine, write-stream-
+  irrelevant; (ii) FILTER-DEF window: strategy-1 SHARE the start player's
+  17-record window when non-start players' played defs coincide (Abyssal_Karma);
+  strategy-2 COMPACT-remap+dedup on conflict, gated on no played def OVERRUNNING
+  (C2 repeat<=5, so adjacency is irrelevant) and <=16 distinct (Chwat,
+  Para_Lander). Per-subtune master_vol rides `DmcSong.master_vol` already;
+  per-player idle priming is global-only but verified UNREAD for the cluster
+  (build B with A's priming still FULL) — a per-subtune-priming member would
+  show as a partial, not a wrong build.
+- **Regression safety (proven):** the >=2-DISTINCT-player-dispatch signature
+  never coincides with a FULL single-player member — census of all 5401
+  family-1 members found 17 compilations, ALL previously partial/error/
+  unsupported, NONE full. Both `dmc_build_one` and the family batch fall back to
+  the single-player path on any merge/compose failure, so an unmergeable
+  compilation keeps its prior status.
+- **Landed (verified FULL):** Abyssal_Karma (2p, 5 subtunes), Sharkz (2p, 6),
+  Para_Lander/Race_n_Smash/Chwat/Poing_Ultra (compact-remap). RESIDUE (fall
+  back, 0 regr): 5 need per-player `locate` fixes (Balloonacy/Lane_Crazy/
+  Wiz_Max/Goldrake_plus_2/Mystery/Rogue_Ninja — one edge player fails dataflow
+  locate); 3 filter OVERRUN (repeat>5 — Zap_Zone/Protox-1/Mission_Moon, need an
+  overrun-adjacency-preserving window); 1 instrument overflow (Heavy_Metal, 30 >
+  28). DUAL-PLAYER emit (composer multi-player) is the alternative for the
+  unmergeable tail.
+- **Status:** `logged` (built, 6 members FULL/near; family-wide residue tail
+  documented — see [[project_dmc_compilations]]).

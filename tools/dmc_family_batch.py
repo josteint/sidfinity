@@ -71,7 +71,9 @@ def run_member(rel: str) -> dict:
                                               DMCV4Unsupported,
                                               frames_clear_adsr)
         from pipelines.dmc.v4.extract.to_usf import (write_dmc_usf,
-                                                     write_dmc_2sid_usf)
+                                                     write_dmc_2sid_usf,
+                                                     write_dmc_compilation_usf)
+        from pipelines.dmc.v4.compilation import detect_compilation
         from pipelines.dmc.composer_asm import build_dmc_sid
         from pipelines.hubbard.verify_cycle import (
             writelog_capture, writelog_per_irq_capture,
@@ -85,8 +87,14 @@ def run_member(rel: str) -> dict:
         # chip. Extract each, merge into a 6/9-voice USF; the composer emits
         # one player instance per chip (chip N -> $D400+N*$20).
         cfgs2 = dmc_v4_config_2sid(rel, hvsc_root=hvsc)
+        # COMPILATION (ledger C31): N independent DMC players behind a per-subtune
+        # SMC dispatch wrapper. Detect + merge into one unified single-player
+        # model. If the merge fails (freq mismatch / filter incompat / >28-instr
+        # overflow — an unmergeable compilation), fall back to the single-player
+        # path so a working member never regresses on detection.
+        comp = None if cfgs2 is not None else detect_compilation(rel, hvsc_root=hvsc)
         cfg = None
-        if cfgs2 is None:
+        if cfgs2 is None and comp is None:
             try:
                 cfg = dmc_v4_config(rel, hvsc_root=hvsc)
             except DMCV4Unsupported as e:
@@ -118,6 +126,9 @@ def run_member(rel: str) -> dict:
                 if cfgs2 is not None:
                     usf = parse_file(
                         write_dmc_2sid_usf(cfgs2, td, hvsc_root=hvsc))
+                elif comp is not None:
+                    usf = parse_file(
+                        write_dmc_compilation_usf(rel, comp, td, hvsc_root=hvsc))
                 else:
                     usf = parse_file(write_dmc_usf(cfg, td, hvsc_root=hvsc))
                 if hold_gateoff:
@@ -196,7 +207,23 @@ def run_member(rel: str) -> dict:
                                     break
                 return subs, ok, first_diff, flat_div
 
-            subs, ok, first_diff, flat_div = build_and_verify()
+            try:
+                subs, ok, first_diff, flat_div = build_and_verify()
+            except Exception as ce:
+                if comp is None:
+                    raise
+                # an unmergeable / uncomposable compilation (freq mismatch,
+                # filter incompat, >28-instr overflow, wrapper mis-decode):
+                # fall back to the single-player path so a member that built
+                # before never regresses on compilation detection.
+                comp = None
+                try:
+                    cfg = dmc_v4_config(rel, hvsc_root=hvsc)
+                except DMCV4Unsupported as e:
+                    return {'path': rel, 'status': 'unsupported',
+                            'reason': 'compilation_unmergeable',
+                            'detail': str(ce)[:80]}
+                subs, ok, first_diff, flat_div = build_and_verify()
             hold_gateoff = None
             # MASK-ONLY retry (freq-floor / sr,ad recovery): the composer defaults
             # to adsr_clear (canon sub_17EC clears AD+SR at a holding gate-off);

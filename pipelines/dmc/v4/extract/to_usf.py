@@ -494,3 +494,19 @@ def write_dmc_2sid_usf(cfgs, out_dir: str, hvsc_root: str = 'hvsc84') -> str:
     out = os.path.join(out_dir, base + '.usf')
     write_file(usf, out)
     return out
+
+
+def write_dmc_compilation_usf(sid_path: str, spec: dict, out_dir: str,
+                              hvsc_root: str = 'hvsc84') -> str:
+    """COMPILATION member (ledger C31): extract every packed player, merge into
+    one unified single-player DmcModel (freq/vibdepth shared, instruments
+    renumbered into one pool, songs reordered by PSID subtune), then serialize
+    with the ordinary model_to_usf path — the composer needs no compilation
+    awareness."""
+    from pipelines.dmc.v4.compilation import extract_compilation
+    m = extract_compilation(sid_path, spec, hvsc_root=hvsc_root)
+    usf = model_to_usf(m)
+    base = os.path.splitext(os.path.basename(sid_path))[0]
+    out = os.path.join(out_dir, base + '.usf')
+    write_file(usf, out)
+    return out
