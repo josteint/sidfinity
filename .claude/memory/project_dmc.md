@@ -26,6 +26,28 @@ Surfaced 2 pre-existing bugs sampling had missed: unescaped member-address bytes
 (commit b3685e6c): dedup `dmc_v4_config`'s copy-paste wedge dispatch into a
 `_WEDGE_PROBES` table+loop (byte-identical, golden 5392/5392).
 
+## ✅ ROUND 67 (2026-07-10): R-PHASE = PULSE TAIL, not register refresh — Toccata_v2 +1 partial → FULL (0 regr) [ledger C18 R-entry variant]
+First still-partial f1 by hvsc path after RE-VERIFYING the stale Jul-9 batch
+(`dmc_f1_dedup.jsonl`; the whole Bakewell run ahead of it flipped FULL in rounds
+55–66): Bakewell_Dwayne/Toccata_v2 (vblank, single sub, 523140 writes). Trichotomy
+play_match 883, first div `$D402` V1 PW lo, orig $10 vs reb $20 @ frame 30. ROOT:
+`play_phases='P_R123'` but the init-generated parity wrapper's R phase is
+`$1006→$162F: JSR $135D x3` — `$135D` is the pulse routine PAST its `STA $171F`
+speed-nibble reload, so the R frame runs a SECOND pulse advance/tick from the STALE
+$171F ($01 here → up phase-0 step $00 = hold, down phase-1 step $10 = −half-step).
+Write-footprint observer read it as a refresh R (pulse HOLDS for ~6 frames, no
+advance in the 12-call window); once the sweep moves the R frame's PW diverges (orig
+advances, `fx_glide` refresh doesn't). FIX (C18 R-entry variant, twin of vibflip):
+`factory._rphase_pulse_tail_probe` EXECUTION-watches for `JSR base+$35D` (the full
+path reaches $135D only by fall-through, never JSR) → `rphase_variant='pulse_tail'`;
+composer factors the sweep behind a `pw_sweep` label + a gated `pulse_tail` routine
+(nibble-select step from stale `wjmp`=$171F by pwphase parity, jmp pw_sweep); R token
+JSRs pulse_tail. Composer already writes wjmp where orig writes $171F → value
+coincides. Census over ALL 743 non-canonical-play f1 = 1 carrier ⇒ 0-regr by
+construction (label emits no bytes; gated code absent otherwise). Post-fix sweep
+DEFERRED to next batch (session instruction); 4 short FULLs re-verified. LESSON: the
+Jul-9 wide batch is stale — leading partials flip FULL; re-verify before picking.
+
 ## ✅ ROUND 66 (2026-07-09): NOTE+TRANSPOSE WRAPS OFF-TABLE (8-bit ADC) — Journey +1 partial → FULL (+5 siblings, 0 regr) [ledger C11 + C6/C7-(b) head]
 First f1 partial by hvsc path (Groove=r65 now FULL; scanned idx 401+ fresh: 401/402
 FULL, 403 = Journey partial): Bakewell_Dwayne/Journey (vblank, single sub, PAGE-3
