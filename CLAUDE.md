@@ -271,6 +271,19 @@ print(verify_all([(COMMANDO, 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sidfinity.
 # batch only runs in bulk; wraps dmc_v4_config -> write_dmc_usf -> build_dmc_sid)
 python3 tools/dmc_build_one.py MUSICIANS/S/SilverFox/Seaside_99.sid --verify --localize
 
+# Locate the NEXT DMC family-1 partial (first by hvsc path) + its first
+# divergence, maintaining the hint queue tmp/dmc_f1_partials.jsonl. Re-confirms
+# leading hints against current code (self-heals cluster flips + stale rows),
+# stops at the first still-partial. Auto-seeds from the batch if the queue is
+# missing. Use at session start instead of re-verifying from index 0.
+python3 tools/dmc_next_partial.py
+
+# Crash smoke-test BEFORE the ~10-min regression: builds a diverse DMC set
+# (canonical / family-2 / page-3 reloc / out-of-image / 2SID-config) through
+# config->USF->compose in ~40s. Catches a probe/composer change that crashes on
+# a variant (e.g. gatemask_addr=None) so the full regression never dies mid-run.
+python3 tools/dmc_smoke.py
+
 # Extract smoke tests
 pytest pipelines/
 ```
