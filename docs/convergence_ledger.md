@@ -401,6 +401,14 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   same byte sequence. This is what the original packer does (programs share).
 - **Status:** canonicalized ≥2× (DMC v4 wave pool 2026-06-25; DMC v5 wave pool
   2026-07-01).
+- **Sibling — dedup KEY excludes a reachability artifact (2026-07-10, Balloonacy
+  compilation instrument pool, C31):** the overflowing pool is the 28-inst
+  5-bit id cap of a merged compilation. Two instruments identical but for
+  `offtable_freq` (a C6 which-notes-played artifact, NOT intrinsic content) are
+  ONE instrument — dedup on all fields EXCEPT offtable_freq and carry the UNION
+  of records (collision → refuse). Same lesson as the base entry (share what the
+  packer shares), applied to the DEDUP KEY: exclude non-intrinsic fields so
+  behaviorally-identical entities collapse. See C31 for detail.
 - **Sibling instance (capacity of a COMPOSER-side stream index, 2026-07-03):**
   when the overflowing index is the composer's OWN runtime cursor (not a pooled
   table) — e.g. the DMC track stream growing past 255 bytes once entries went
@@ -2264,12 +2272,39 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   the single-player path on any merge/compose failure, so an unmergeable
   compilation keeps its prior status.
 - **Landed (verified FULL):** Abyssal_Karma (2p, 5 subtunes), Sharkz (2p, 6),
-  Para_Lander/Race_n_Smash/Chwat/Poing_Ultra (compact-remap). RESIDUE (fall
-  back, 0 regr): 5 need per-player `locate` fixes (Balloonacy/Lane_Crazy/
-  Wiz_Max/Goldrake_plus_2/Mystery/Rogue_Ninja — one edge player fails dataflow
-  locate); 3 filter OVERRUN (repeat>5 — Zap_Zone/Protox-1/Mission_Moon, need an
-  overrun-adjacency-preserving window); 1 instrument overflow (Heavy_Metal, 30 >
-  28). DUAL-PLAYER emit (composer multi-player) is the alternative for the
-  unmergeable tail.
+  Para_Lander/Race_n_Smash/Chwat/Poing_Ultra (compact-remap), **Balloonacy
+  (4p, 7 subtunes — 2026-07-10)**. RESIDUE (fall back, 0 regr): 3 filter
+  OVERRUN (repeat>5 — Zap_Zone/Protox-1/Mission_Moon, need an overrun-adjacency-
+  preserving window); 1 instrument overflow (Heavy_Metal, 30 > 28); the
+  remaining per-player `locate` residue (Lane_Crazy/Wiz_Max/Goldrake_plus_2/
+  Mystery/Rogue_Ninja) is now unblocked by the region-bounded locate below but
+  unverified this round (deferred to the next batch). DUAL-PLAYER emit (composer
+  multi-player) is the alternative for the unmergeable tail.
+- **PER-PLAYER `locate` — REGION-BOUNDED (2026-07-10, Balloonacy, +1 FULL):** a
+  co-packed player can be uniformly relocated for CODE + DATA TABLES yet carry
+  DEAD-CODE JMPs into a SIBLING player's canonical code (an un-relocated
+  `JMP $1591` when the live path uses its own `$3591`; ground truth `--pc-trace`
+  = the player runs entirely in its own `$Xxxx` page, the `$1xxx` jumps never
+  execute). The static `_instrs` trace follows them, so every opcode-window
+  signature matches TWICE (once per player) → every site ambiguous → `locate`
+  returns None → whole compilation falls to single-player. FIX:
+  `dataflow.locate(region=(base, base+0x900))` bounds the located instructions
+  to the forced player's own code window; the sibling's block sorts outside the
+  range (the player's own block stays contiguous, signature windows intact) so
+  sites are unique again. `base_override`-only — the general single-player path
+  passes `region=None` (a re-assembled player may spread code past a fixed
+  window). Regression-safe: can only turn ambiguous-None into a unique match.
+- **INSTRUMENT-POOL fit via OFFTABLE-UNION dedup (2026-07-10, Balloonacy; C8
+  sibling):** after the locate fix the 4-player merge overflowed the 28-inst
+  5-bit id cap (29 > 28). The tightest pair differed ONLY in `offtable_freq` —
+  a C6 reachability artifact (which wave-offset/note the instrument was played
+  at), NOT intrinsic content. `merge_models` now keys the dedup on everything
+  EXCEPT `offtable_freq` and carries the UNION of records per merged id
+  (Principle Rule 1 — cluster by behavior; each record fires only for its own
+  (off,note), inert for a song that never plays it). A record COLLISION (same
+  (off,note) → different (lo,hi) across the two players' freq tables) refuses
+  the union → distinct ids. 29 → 28. Regression-safe: only `merge_models`;
+  every currently-FULL compilation keeps its identical instrument count
+  (offtable-union changes nothing when no two insts share a base key).
 - **Status:** `logged` (built, 6 members FULL/near; family-wide residue tail
   documented — see [[project_dmc_compilations]]).

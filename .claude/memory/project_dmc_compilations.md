@@ -100,15 +100,29 @@ keeps its prior status.
 
 ## Results (2026-07-10)
 - **FULL:** Abyssal_Karma (2p/5sub), Sharkz (2p/6sub), Para_Lander_DX,
-  Race_n_Smash, Chwat, Poing_Ultra (compact-remap). Goldrake: sub0 FULL, sub1 a
-  separate residual divergence (dispatch correct).
-- **RESIDUE (fall back, 0 regr):** 5-6 need a per-player `locate` fix (one edge
-  player fails dataflow locate — Balloonacy/Lane_Crazy/Wiz_Max/Goldrake_plus_2/
-  Mystery/Rogue_Ninja); 3 filter OVERRUN (repeat>5, need an adjacency-preserving
-  window — Zap_Zone/Protox-1/Mission_Moon); 1 instrument overflow (Heavy_Metal
-  30>28). Next steps: (a) fix `dataflow.locate` for the edge players; (b) an
-  overrun-adjacency-preserving filter window (or per-player contiguous blocks);
-  (c) DUAL-PLAYER composer emit for the unmergeable tail.
+  Race_n_Smash, Chwat, Poing_Ultra (compact-remap), **Balloonacy (4p/7sub —
+  round 71)**. Goldrake: sub0 FULL, sub1 a separate residual divergence
+  (dispatch correct).
+- **PER-PLAYER `locate` FIXED (round 71, ledger C31):** the "edge player fails
+  dataflow locate" residue was a co-packed player uniformly relocated for
+  code+data-tables but keeping STATE at the canonical $1xxx AND carrying
+  DEAD-CODE JMPs into a sibling player's code — the static trace bleeds into the
+  sibling → every signature matches twice → ambiguous → None. FIX:
+  `dataflow.locate(region=(base, base+0x900))` bounds the trace to the forced
+  player's own code window (base_override-only). Balloonacy verified FULL; the
+  region-bounded locate LIKELY also unblocks Lane_Crazy/Wiz_Max/Goldrake_plus_2/
+  Mystery/Rogue_Ninja (unverified — next batch). Diagnose which code actually
+  runs with `siddump --pc-trace --subtune N` (N is 1-BASED).
+- **INSTRUMENT-POOL fit (round 71, ledger C8):** the 4-player merge overflowed
+  the 28-inst 5-bit cap (29>28). `merge_models` now dedups on all fields EXCEPT
+  `offtable_freq` (a C6 reachability artifact, not intrinsic content) and UNIONs
+  the records per merged id (collision → distinct). 29→28. This is the general
+  lever for instrument-overflow compilations (may help Heavy_Metal's 30>28).
+- **RESIDUE (fall back, 0 regr):** 3 filter OVERRUN (repeat>5, need an
+  adjacency-preserving window — Zap_Zone/Protox-1/Mission_Moon); 1 instrument
+  overflow (Heavy_Metal 30>28 — retry with the offtable-union dedup). Next
+  steps: (a) an overrun-adjacency-preserving filter window (or per-player
+  contiguous blocks); (b) DUAL-PLAYER composer emit for the unmergeable tail.
 
 ## Diagnosis method (for the next compilation)
 `siddump --memwatch` on the runtime track-ptr state + `--pc-trace` of the live

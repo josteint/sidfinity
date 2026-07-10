@@ -7,6 +7,58 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 71 (2026-07-10): COMPILATION per-player locate (region-bounded) + offtable-union instrument dedup — Balloonacy (Bayliss) 7/7 partial → FULL (0 regr) [ledger C31 + C8]
+First still-partial f1 by hvsc path after Feed_a_Bird (r70): `MUSICIANS/B/Bayliss_Richard/Balloonacy.sid`
+— a 4-PLAYER COMPILATION (bases $1000/$2000/$3000/$3F00; 7 subtunes dispatched
+[(1,0),(1,1),(0,0),(0,1),(2,0),(2,1),(3,0)]). Listed as known residue in
+[[project_dmc_compilations]] ("one edge player fails dataflow locate"). It fell
+back to single-player → all 7 partial, first div flat pos 0 V1 SR $6E vs $EE
+(the single-player fallback playing wrong data). TWO independent blockers, both
+compilation-path-only:
+**(1) `dataflow.locate($3000)` returned None.** The $3000 player is canonical DMC
+uniformly relocated for CODE + DATA TABLES (freqlo $3647, wavectrl reads $398A,
+all base+$2000) BUT its STATE scratch operands stay at the canonical $1xxx
+($172C not $372C) AND it carries DEAD-CODE JMPs into the SIBLING $1000 player's
+code (un-relocated `JMP $349C→$1591`, an un-relocated copy of its own
+`$349C→$3591`). GROUND TRUTH `siddump --pc-trace --subtune 5` (1-based!): the
+player runs ENTIRELY in $3xxx (pages 30-38, zero $15xx) — the $1xxx jumps never
+execute. But the static `_instrs` trace FOLLOWS them (1149 instrs vs 712), so
+every opcode-window signature matches TWICE (once per player) → wavectrl/wavefreq/
+freq_lo/freq_hi all ambiguous → None → whole compilation falls to single-player.
+FIX: `dataflow.locate(mem, base, region=(base, base+0x900))` filters the located
+instrs to the forced player's own code window (0x900 covers the canonical
+$1000-$18E8 extent; data-table addresses are the READ RESULT, not the site). The
+sibling's block sorts outside → dropped; the player's own $3xxx block stays
+contiguous so signature windows are intact → unique. `base_override`-only
+(general single-player passes region=None — a re-assembled player may spread code
+past a fixed window). Regression-safe: can only turn ambiguous-None into a
+unique match. **(2) after (1), the 4-player merge overflowed the 28-inst 5-bit
+id cap (29>28).** The tightest pair differed ONLY in `offtable_freq` ([] vs
+[(12,89,1,26)]) — a C6 reachability artifact (which wave-off/note the inst was
+played at), NOT intrinsic content. FIX (`merge_models`): dedup keys on all
+fields EXCEPT offtable_freq, carrying the UNION of records per merged id
+(Principle Rule 1 — cluster by behavior; each record fires only for its own
+(off,note), inert for a song that never plays it; a (off,note)→different-(lo,hi)
+COLLISION refuses the union → distinct ids). 29→28. **Balloonacy 7/7 FULL**
+(state ✓ every sub). REGRESSION-SAFE by construction: both changes are
+merge/base_override only — single-player members never touch either path, and
+every currently-FULL compilation (Abyssal_Karma/Sharkz/Para_Lander_DX/Race_n_Smash/
+Poing_Ultra) keeps its IDENTICAL instrument count (offtable-union changes nothing
+unless two insts share a base key, which for those it doesn't). dmc_smoke 5/5.
+Full `tools/regression.py` GREEN (0 regr all 8 families: Hubbard 71, Companion
+44, C64ME 15, Jay_Derrett 17, FC 31, DMC 12, Basic 22). code_hash → new (next
+batch auto-re-verifies). Post-fix wide sweep DEFERRED per session instruction —
+the region-bounded locate likely also unblocks the sibling residue
+(Lane_Crazy/Wiz_Max/Goldrake_plus_2/Mystery/Rogue_Ninja), unverified this round.
+commit (code + this memory). LESSONS: (a) a compilation player can be uniformly
+relocated for code+tables yet keep STATE at the canonical $1xxx AND carry
+dead-code cross-player jumps — the static trace bleeds into the sibling, so
+BOUND the locate to the player's own page; use `--pc-trace` (1-based subtune) to
+confirm which code actually runs. (b) `offtable_freq` is a reachability artifact,
+not intrinsic content — EXCLUDE it from any instrument dedup key and UNION it, so
+behaviorally-identical instruments collapse (fits the 5-bit cap without losing
+the write stream).
+
 ## ✅ ROUND 70 (2026-07-10): SWITCH ($7D) gate-mask toggle uses a per-member EOR immediate — Feed_a_Bird (Bax) +1 partial → FULL (0 regr) [ledger C19 11th occ]
 First still-partial f1 by hvsc path after re-verifying the stale Jul-9 batch
 from the top (idx 0-12 Artlace..Enter all now FULL via rounds ≤69):
