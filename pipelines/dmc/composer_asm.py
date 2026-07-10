@@ -1148,6 +1148,37 @@ fx_dual_up:
     fx_entry = str(usf.params.fields.get('effect_entry_variant', '') or '')
     voice_fx_target = ('vib_half' if fx_entry == 'vibflip' else 'wavestep') \
         if notestart_arm else 'frame_entry'
+    # rphase_variant='pulse_tail' (C18 entry variant, R-phase twin of
+    # effect_entry_variant): the R (non-tick) play phase re-runs the pulse
+    # program TAIL — a SECOND pulse advance per music tick — instead of a plain
+    # register refresh (fx_glide). The orig's play-vector wrapper alternates
+    # full-play / `$162F: JSR $135D x3`, where $135D is the pulse routine PAST
+    # its `LDA $18f3,y / STA $171F` speed-nibble reload, so the tail computes
+    # its step from the STALE $171F (wjmp) left by the prior full-play frame.
+    rphase_pulse_tail = str(
+        usf.params.fields.get('rphase_variant', '')) == 'pulse_tail'
+    r_call = 'jsr pulse_tail' if rphase_pulse_tail else 'jsr fx_glide'
+    pulse_tail_asm = ('pulse_tail:                          ; R-phase $135D: 2nd\n'
+                      '        lda pwphase,x                ; pulse advance/tick,\n'
+                      '        and #$01                     ; step nibble from the\n'
+                      '        beq pt_even                  ; STALE wjmp ($171F) —\n'
+                      '        lda wjmp                     ; $135D skips the fresh\n'
+                      '        and #$0f                     ; speed-byte reload\n'
+                      '        asl\n'
+                      '        asl\n'
+                      '        asl\n'
+                      '        asl\n'
+                      '        jmp pt_base\n'
+                      'pt_even:\n'
+                      '        lda wjmp\n'
+                      '        and #$f0\n'
+                      'pt_base:\n'
+                      '        clc\n'
+                      '        adc cpwbase,x                ; + cached step base\n'
+                      '        sta tmp\n'
+                      '        sta pwstep,x\n'
+                      '        jmp pw_sweep                 ; sweep+filter+glide+wave+write\n\n'
+                      ) if rphase_pulse_tail else ''
     if (tokens and 'P' in tokens and len(tokens) > 1
             and all(t == 'P' or t == 'S'
                     or (t[0] in 'FR' and t[1:]
@@ -1168,11 +1199,11 @@ fx_dual_up:
             elif t == 'S':
                 body = '        rts                          ; S = silent call\n'
             elif t[0] == 'R':         # R<voices>: register refresh — the
-                body = ''             # per-voice glide/write tail ($141C)
-                for v in t[1:]:       # only; re-emits current freq/PW/ctrl
-                    body += (f'        ldx #{int(v) - 1}\n'
-                             '        jsr fx_glide\n')
-                body += '        rts\n'
+                body = ''             # per-voice glide/write tail ($141C) only;
+                for v in t[1:]:       # re-emits current freq/PW/ctrl. With
+                    body += (f'        ldx #{int(v) - 1}\n'   # rphase_variant=
+                             f'        {r_call}\n')           # pulse_tail it runs
+                body += '        rts\n'                        # the $135D pulse tail
             else:                     # F<voices>: per-voice frame entry only
                 body = ''
                 for v in t[1:]:
@@ -1197,10 +1228,11 @@ fx_dual_up:
             + f'phasetab: .byt {tab}\n'
             f'phasectr: .byt {n_ph - 1}\n'
             'voice_fx:                            ; F phase entry\n'
-            f'        jmp {voice_fx_target}\n\n')   # frame_entry ($11F9: note-init
+            f'        jmp {voice_fx_target}\n\n'    # frame_entry ($11F9: note-init
             # or effects) for the immediate note-start; wavestep ($1591: emit +
             # advance wave, PAST note-init/gate/pulse) when notestart_arm, so
             # pending survives to the next P call = the 2-frame arm
+            + pulse_tail_asm)               # R-phase pulse tail (gated, C18)
     elif play_repeat > 1:
         play_entry = 'playrepeat'
         play_wrapper = ('playrepeat:\n'
@@ -2006,6 +2038,7 @@ fx_pulse:
         sta tmp
         sta pwstep,x                 ; live shadow of orig $175C (current PW
                                      ; step) — off-table hi reads sonify it
+pw_sweep:                            ; shared by fx_pulse + pulse_tail (R phase)
         lda pwdir,x
         bne fx_pw_dn
         lda pwl,x

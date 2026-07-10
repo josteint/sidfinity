@@ -1420,10 +1420,35 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   not derive one from the other); composer's `voice_fx` JMPs its own
   `vib_half` label. Exposure: all 19 stored noteinit_deferred FULLs probe False
   (builds byte-identical).
+- **R-ENTRY-POINT variant — pulse TAIL instead of register refresh (2026-07-10,
+  Toccata_v2 +1 FULL, 0 regr):** the R (non-tick) phase can run a SECOND pulse
+  advance per music tick, not a plain refresh. Toccata_v2's parity wrapper is
+  `$2702: LDA/INC $26EF / AND #$01 / BEQ→$1003(full) / JMP $1006`, and $1006 →
+  `$162F: LDX #0/JSR $135D/INX/JSR $135D/INX/JSR $135D`. `$135D` is the pulse
+  routine PAST its `LDA $18f3,y / STA $171F` speed-nibble reload (the full-play
+  path reaches $135D only by FALL-THROUGH from $134E, never by JSR), so the tail
+  computes its step from the STALE $171F left by the prior full-play frame — a
+  real extra sweep. The write-footprint observer read it as a refresh `R` (the
+  pulse HOLDS its value for the first ~6 frames before the sweep moves, so no
+  advance shows in the 12-call window); once the sweep moves, the R frame's PW
+  diverges (orig advances, rebuild's `fx_glide` refresh does not). Not derivable
+  from the schedule, so OBSERVE by EXECUTION (C18 form):
+  `factory._rphase_pulse_tail_probe` runs a few play() calls and watches for a
+  `JSR base+$35D` (uniquely the wrapper's R entry — the fall-through can't be a
+  JSR) → `rphase_variant: pulse_tail`. Composer factors the pulse sweep behind a
+  `pw_sweep` label and adds a gated `pulse_tail` routine (nibble-select the step
+  from the stale `wjmp` = $171F by `pwphase` parity, +`cpwbase`, `jmp pw_sweep`);
+  the R token's body JSRs `pulse_tail` instead of `fx_glide`. The composer
+  already writes `wjmp` at the same points the orig writes $171F, so the stale
+  value coincides. Regression-safe by construction: census over ALL 743
+  non-canonical-play f1 members = exactly 1 carrier (Toccata_v2, partial); every
+  other build is byte-identical (label emits no bytes; gated routine + `r_call`
+  unchanged when the param is absent).
 - **Status:** logged (DMC family-1, 2026-07-02: P/F/S round +5 FULL, R round
   +26 FULL → 4198/5401; 2026-07-04 straddle-free pc-trace observer, +0 FULL but
   fixes the `P_S` mis-observation; 2026-07-08 frame-entry reachability, +1;
-  2026-07-09 F-entry vib_half variant, +1).
+  2026-07-09 F-entry vib_half variant, +1; 2026-07-10 R-entry pulse_tail
+  variant, +1).
 - **Consumers:** DMC v4 `factory._observe_play_phases` (canon, py65) +
   `_observe_play_phases_writes` (dataflow, py65) + `_observe_play_phases_pctrace`
   (ground-truth fallback) → `composer_asm` play_phases dispatcher. Sibling of C9

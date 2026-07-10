@@ -759,6 +759,75 @@ def _detect_fx_entry_vibhalf(sid_path: str, subtune: int,
     return len(f_hits) >= 4 and all(f_hits)
 
 
+def _rphase_pulse_tail_probe(sid_path: str, subtune: int, base: int) -> bool:
+    """Does the play-vector wrapper's R (non-tick) phase re-run the pulse
+    program TAIL — a SECOND pulse advance per music tick (C18 entry variant,
+    R-phase twin of _detect_fx_entry_vibhalf)?
+
+    Toccata_v2's init generates a parity wrapper (`$2702`: full-play every
+    other call, `$1006 -> $162F: JSR $135D x3` on the rest). `$135D` is the
+    pulse routine PAST its `LDA $18f3,y / STA $171F` speed-nibble reload, so
+    the tail computes its step from the STALE $171F left by the prior
+    full-play frame — a real second sweep the write-footprint observer misses
+    (it read the phase as a plain register-refresh `R` because the pulse holds
+    its value for the first ~6 frames, before the sweep moves). Detect it by
+    EXECUTION (C18 'observe, don't parse'): run a few play() calls and watch
+    for a `JSR base+$35D`. The full-play path reaches $135D by FALL-THROUGH
+    from $134E (never a JSR), so a JSR to it is uniquely the wrapper's R entry.
+
+    Regression-safe by construction: only members that actually execute this
+    JSR get rphase_variant='pulse_tail'; every other build is byte-identical
+    (census over all 743 non-canonical-play family-1 members: sole carrier is
+    Bakewell_Dwayne/Toccata_v2). Returns False if py65 can't run the member."""
+    try:
+        from py65.devices.mpu6502 import MPU
+        from py65.memory import ObservableMemory
+        from seed_disassembly import parse_psid
+    except Exception:
+        return False
+    try:
+        s = parse_psid(sid_path)
+    except Exception:
+        return False
+    mpu = MPU()
+    mem = ObservableMemory()
+    for i, b in enumerate(s['payload']):
+        if s['load'] + i < 0x10000:
+            mem[s['load'] + i] = b
+    mpu.memory = mem
+    target = (base + 0x35D) & 0xFFFF
+
+    def run(pc: int, acc: int, watch: bool) -> bool:
+        mpu.stPush(0x00)
+        mpu.stPush(0x00)                        # RTS sentinel -> PC = $0001
+        mpu.pc = pc
+        mpu.a = acc
+        hit = False
+        for _ in range(200_000):
+            pcv = mpu.pc
+            if pcv == 0x0001:
+                return hit
+            if watch and mem[pcv] == 0x20 and \
+                    (mem[pcv + 1] | (mem[pcv + 2] << 8)) == target:
+                hit = True
+            try:
+                mpu.step()
+            except Exception:
+                return hit
+        return hit
+
+    try:
+        run(s['init'], subtune, False)          # generate the wrapper in RAM
+        # A parity wrapper alternates full-play / R every other call; 8 calls
+        # covers several R phases regardless of the seeded parity.
+        for _ in range(8):
+            if run(s['play'], 0, True):
+                return True
+    except Exception:
+        return False
+    return False
+
+
 def _detect_play_repeat(mem, play: int, base: int, load: int) -> int:
     """INTERNAL multispeed: a play vector that is N consecutive `JSR T` (same
     target T) terminated by RTS runs the engine N times per VBI (e.g. High_Speed
@@ -1612,6 +1681,13 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str):
                         os.path.join(hvsc_root, sid_path),
                         s['start'] - 1, s['play']):
                     cfg.extra_params['effect_entry_variant'] = 'vibflip'
+            # R-phase entry variant: does the non-tick phase re-run the pulse
+            # TAIL ($135D, a 2nd pulse advance/tick) instead of a plain
+            # register refresh? (C18, twin of vibflip for the R phase.)
+            if any(t and t[0] == 'R' for t in ph.split('_')) and \
+                    _rphase_pulse_tail_probe(os.path.join(hvsc_root, sid_path),
+                                             s['start'] - 1, base):
+                cfg.extra_params['rphase_variant'] = 'pulse_tail'
     # POST-INIT leftover capture: canon's leftover priming (d417 shadow,
     # idle notes/masks, dual phase) reads the file image because canon init
     # never touches those bytes. A re-assembled init MAY clear/rewrite them
@@ -1919,6 +1995,13 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
             if _detect_fx_entry_vibhalf(os.path.join(hvsc_root, sid_path),
                                         s['start'] - 1, s['play']):
                 extra['effect_entry_variant'] = 'vibflip'
+        # R-phase entry variant: does the non-tick phase re-run the pulse TAIL
+        # ($135D, a 2nd pulse advance/tick from the stale $171F) instead of a
+        # plain register refresh? (C18, twin of vibflip for the R phase.)
+        if any(t and t[0] == 'R' for t in play_phases.split('_')) and \
+                _rphase_pulse_tail_probe(os.path.join(hvsc_root, sid_path),
+                                         s['start'] - 1, base):
+            extra['rphase_variant'] = 'pulse_tail'
     # rest/switch/slide-tail dispatch ($1180): canon JMP $1322 (run
     # effects); a sub-build JMP $1591 (wavestep) — the modulators hold one
     # frame at each tie (the family-2 rest_effects='skip' behavior).

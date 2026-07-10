@@ -1,5 +1,41 @@
 # DMC V4 — RE notes / migration log
 
+## ✅ ROUND 67 (2026-07-10): R-PHASE = PULSE TAIL, not register refresh — Toccata_v2 +1 partial → FULL (0 regr) [ledger C18 R-entry variant]
+First still-partial f1 member by hvsc path after re-verifying the stale Jul-9
+batch (the Bakewell_Dwayne run ahead of it — End_of_1992_intro/Acid_Dance/
+Action_G/Attacker/Axel_F_v2/Groove/Journey/MON_Tribute/Mad_Drummer — all flipped
+FULL in rounds 55–66): `MUSICIANS/B/Bakewell_Dwayne/Toccata_v2.sid` (vblank,
+single sub, 523140 writes). Trichotomy play_match 883, state ✓ at true length;
+first divergence `$D402` V1 PW lo, orig `$10` vs rebuild `$20` on frame 30.
+
+ROOT: `play_phases='P_R123'` — the member's init generates a parity play-vector
+wrapper (`$2702: LDA/INC $26EF / AND #$01 / BEQ→$1003 full / JMP $1006`), and
+`$1006 → $162F: JSR $135D x3`. `$135D` is the pulse routine ($134E) PAST its
+`LDA $18f3,y / STA $171F` speed-nibble reload, so the R phase runs a SECOND
+pulse advance per music tick, computing its step from the STALE `$171F` (=$01
+here) left by the prior full-play frame (up-sweep phase 0 → `$01&$F0`=$00 = hold;
+down-sweep phase 1 → `($01&$0F)<<4`=$10 = the −$10 half-step). The write-footprint
+observer read the R phase as a plain refresh (the pulse HOLDS its value for the
+first ~6 frames, so no advance shows in the 12-call window); once the sweep
+moves (~frame 30) the R frame's PW diverges — orig advances, the rebuild's
+`fx_glide` refresh re-emits the stale value. The full-play path reaches `$135D`
+only by FALL-THROUGH from `$134E`; a JSR to it is uniquely the wrapper's R entry.
+
+FIX (C18 R-entry variant, twin of `effect_entry_variant='vibflip'` for the F
+phase): `factory._rphase_pulse_tail_probe` runs a few play() calls under py65 and
+watches for a `JSR base+$35D` (execution ground-truth — "observe, don't parse")
+→ param `rphase_variant='pulse_tail'`. Composer factors the pulse up/down sweep
+behind a `pw_sweep` label and adds a gated `pulse_tail` routine (nibble-select
+the step from the stale `wjmp`=$171F by `pwphase` parity, + `cpwbase`, `jmp
+pw_sweep`); the R token's body JSRs `pulse_tail` instead of `fx_glide`. The
+composer already writes `wjmp` at the same sites the orig writes $171F, so the
+stale value coincides. Regression-safe by construction: census over ALL 743
+non-canonical-play f1 members = exactly 1 carrier (Toccata_v2); every other build
+is byte-identical (the label emits no bytes; the gated routine + `r_call` are
+absent when the param is). Verdict FULL 523140/523140, state ✓. Post-fix sweep
+DEFERRED to the next batch (per session instruction); 4 short-FULL sanity members
+re-verified FULL.
+
 ## ✅ ROUND 65 (2026-07-09): $D418 RE-ASSERTED EVERY FRAME (filter-tail wrapper) — Groove +1 partial → FULL (0 regr) [ledger C19 10th occurrence / C10 master-vol-every-frame]
 First f1 partial by hvsc path (Attacker=r64 now FULL, everything ≤ idx 381
 re-confirmed FULL): `MUSICIANS/B/Bakewell_Dwayne/Groove.sid` (vblank, single sub).
