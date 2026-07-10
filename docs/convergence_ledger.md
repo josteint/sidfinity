@@ -91,7 +91,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | HETEROGENEOUS per-step write shapes in a trace-lift · one superset order can't embed all steps (conflicting reg orders / intra-step dups / sections) · cluster steps by EXACT write shape → K positional templates + per-step template id | C17 | logged |
 | play-vector WRAPPER with per-call PHASE behaviour · slow-tempo / multispeed-effects cycler · every Nth call runs the full play, others run effects-only / register-refresh / nothing · wrapper shapes vary (SMC, DEC+dual-JMP, parity AND) — OBSERVE entry-point reachability under py65, don't parse · arm F-ENTRY variant: wavestep ($1591) vs vibrato half-cycle ($1567, flips reshape vibrato to a square) → `effect_entry_variant: vibflip` | C18 | logged |
 | TRICHOTOMY VERDICT alignment · rebuild emits its OWN init (universal reset+priming) so streams differ by an init prefix · Check A end-of-init state + aligned play-stream compare · TWO implementations exist: `verify_cycle._trichotomy_compare` (FC, shift recovery) + `usf_roundtrip._compare_music/_split_aligned` (basic_program, known-init-length + probe search) — CONSULT MISS, factor at Move 1 | C21 | factor-candidate (2×) |
-| hand-patched player WEDGE inside the canon body · SMC opcode toggle · 1-byte opcode patch · JMP over canonical loads · runtime state ≠ static file byte · PWM bound-shift (LSR count) wedge · init-PREFIX `LDA #imm` hard-forces the played tune record (extract walks the wrong record) · STATIC opcode probe, never a bounded stream scan · census carriers both sides · reproduce semantics behind a factory-probed param (EXTRACT-only when the wedge changes a derived musical value; COMPOSER param when it changes a write-stream TIMING, e.g. $D418 re-asserted every frame) | C19 | canonicalized (10×) |
+| hand-patched player WEDGE inside the canon body · SMC opcode toggle · 1-byte opcode patch · JMP over canonical loads · runtime state ≠ static file byte · PWM bound-shift (LSR count) wedge · init-PREFIX `LDA #imm` hard-forces the played tune record (extract walks the wrong record) · STATIC opcode probe, never a bounded stream scan · census carriers both sides · reproduce semantics behind a factory-probed param (EXTRACT-only when the wedge changes a derived musical value; COMPOSER param when it changes a write-stream TIMING/VALUE, e.g. $D418 re-asserted every frame · SWITCH gate-toggle EOR immediate) | C19 | canonicalized (11×) |
 | stale-FULL palimpsest · recorded 'full' the current code can't reproduce · hides members from residue censuses · verify the STORED build first, then USF-diff/param-bisect to attribute · never mass-write with code that didn't produce the verdict | C20 | canonicalized |
 | AMBIGUOUS round-trip flag encoding · two distinct engine ops render to OVERLAPPING USF flag sets · the decoder's branch test uses a SUBSET of the discriminator → misroutes one op onto the other's path · matches for most content (paths coincide when inputs coincide), diverges on the distinguishing case | C22 | canonicalized (2×) |
 | a play-phase/schedule TOKEN hides a per-member behavioural ambiguity · same P_F123 token = note-init-on-F vs deferred 2-frame arm · fixing one class REGRESSES same-token FULLs · NOT derivable from the token/multispeed → OBSERVE the distinguishing write-footprint per member · regression-safe when the "changed" verdict has no false positive | C23 | logged |
@@ -1567,8 +1567,33 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   first divergence BEFORE committing (the orig had no per-frame `$D418`). f1 3
   carriers all previously partial ⟹ 0 FULL exposure; Groove FULL 155620/155620;
   full regression green (0 regr all 7 families).
-- **Status:** CANONICALIZED (9 occurrences by round 63: DMC family-1 rounds
-  13 + 19 + 32 + 35 + 36 + 50 + 55 + 60 + 63). Canonical form: STATIC opcode probe (read the patched
+- **11th occurrence (round 70, 2026-07-10) — SWITCH ($7D) GATE-MASK TOGGLE
+  IMMEDIATE (COMPOSER param):** Bax/Feed_a_Bird (the ONLY carrier in all 5833
+  f1 members). The tie/legato handler at base+$183 canonically toggles ONLY the
+  gate bit: `LDA gatemask,x / EOR #$01 / STA gatemask,x` (mask $FF<->$FE = gate
+  as the wave table says <-> force gate off). The wedge patches the EOR
+  immediate $01->$1F (byte at base+$18D), so a SWITCH toggles
+  gate+test+ring+sync+triangle ($FF<->$E0) — CUTTING a triangle/ring/sync note
+  to SILENCE ($17 & $E0 = $00) where canon merely releases the gate
+  ($17 & $FE = $16). Presents as V3 ctrl orig $00 vs rebuild $16 at a legato
+  boundary (localize the flat write-stream, then memwatch the gate mask $100f+v
+  across the transition — it goes $FF->$E0, NOT ->$FE; the pc-trace shows
+  $118C = `49 1F` not `49 01`). MISSED by `dmc_canon_diff` — an immediate-value
+  tweak (unchanged opcode $49, no operand repoint) sits in its documented blind
+  spot. Fix: `factory._switch_toggle_mask_probe` (STATIC opcode probe, anchors
+  on the LDA/STA operands = gatemask_addr, reloc-aware, guards gatemask_addr
+  None) → new USF param `switch_toggle_mask` (the toggled bit-set; default $01)
+  → composer's `ev_switch` emits `eor #<mask>`. Default $01 -> byte-identical
+  text. REGRESSION-SAFE BY CONSTRUCTION: the composer applies the probed mask
+  verbatim so its $D404 write can only match the orig MORE often, never less;
+  and $E0 vs $FE coincide for noise/pulse/saw notes (only bits 5-7 survive
+  either mask), so the value only bites on sync/ring/test/triangle notes.
+  Census 5833 f1: 1 carrier (partial), 5502 canon $01, 0 FULL exposure.
+  Feed_a_Bird partial -> FULL 130578/130578 state ✓; full regression green
+  (0 regr all 8 families: Hubbard 71, Companion 44, C64ME 15, Jay_Derrett 17,
+  FC 31, DMC 12, Basic 22).
+- **Status:** CANONICALIZED (11 occurrences: DMC family-1 rounds
+  13 + 19 + 32 + 35 + 36 + 50 + 55 + 60 + 63 + 65 + 70). Canonical form: STATIC opcode probe (read the patched
   instruction itself — never a bounded write-stream scan, which can
   false-negative on members that exercise the path only late) → factory
   `extra_params` → an existing/new composer param; census carriers on BOTH

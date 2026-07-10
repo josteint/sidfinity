@@ -1067,6 +1067,38 @@ def _pw_dir_persist_probe(path: str, base: int):
     return 1 if op != base + 0x765 else None
 
 
+def _switch_toggle_mask_probe(path: str, base: int, gatemask_addr: int):
+    """SWITCH ($7D tie/legato) gate-mask toggle immediate (STATIC opcode probe,
+    C19). The switch handler at base+$183 canonically toggles ONLY the gate bit:
+    `LDA gatemask,x / EOR #$01 / STA gatemask,x` (base+$189..$18E), so a SWITCH
+    flips the mask $FF<->$FE (gate as the wave table says <-> force gate off).
+    A wedge patches the EOR immediate (Bax/Feed_a_Bird: $01->$1F), so the switch
+    instead toggles gate+test+ring+sync+triangle ($FF<->$E0) — cutting a
+    triangle/ring/sync note to silence ($17 & $E0 = $00) where the canon merely
+    releases the gate ($17 & $FE = $16). Anchor on the handler shape both sides
+    (the LDA/STA operands = gatemask_addr, reloc-aware) and return the immediate
+    iff it differs from the canon $01, else None (build unchanged).
+
+    Regression-safe by construction: the composer applies the probed mask
+    verbatim, so its $D404 write can only match the orig MORE often (never less)
+    than the hardcoded $01 — and $E0 vs $FE coincide for noise/pulse/saw notes
+    (only bits 5-7 survive either), so the value only matters on notes that
+    carry sync/ring/test/triangle. Census over 5833 f1: 1 carrier (Feed_a_Bird),
+    5502 canon $01 -> 0 FULL exposure."""
+    if gatemask_addr is None:
+        return None
+    mem, _ = _load(path)
+    gm = bytes([gatemask_addr & 0xFF, (gatemask_addr >> 8) & 0xFF])
+    b = base
+    if (mem[b + 0x189] == 0xBD and bytes(mem[b + 0x18A:b + 0x18C]) == gm
+            and mem[b + 0x18C] == 0x49
+            and mem[b + 0x18E] == 0x9D
+            and bytes(mem[b + 0x18F:b + 0x191]) == gm
+            and mem[b + 0x18D] != 0x01):
+        return mem[b + 0x18D]
+    return None
+
+
 def _forced_subtune_probe(path: str, base: int):
     """Hand-crafted init WRAPPER `LDA #imm` that HARD-FORCES the played tune
     record, overriding the PSID subtune arg (STATIC opcode probe, C19).
@@ -1500,6 +1532,7 @@ _WEDGE_PROBES = [
     ('filter_mod',                      lambda p, c: _filter_mod_probe(p, c.op_filtdef)),
     ('pw_bound_shift',                  lambda p, c: _pw_bound_shift_probe(p, c.base)),
     ('pulsewidth_dir_persist',          lambda p, c: _pw_dir_persist_probe(p, c.base)),
+    ('switch_toggle_mask',              lambda p, c: _switch_toggle_mask_probe(p, c.base, c.gatemask_addr)),
 ]
 
 

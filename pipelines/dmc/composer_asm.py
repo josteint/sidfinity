@@ -914,6 +914,15 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     rest_effects = str(usf.params.fields.get('rest_effects', 'run'))
     rest_jmp = {'skip': 'wavestep', 'vibflip': 'vib_half'}.get(
         rest_effects, 'run_effects')
+    # SWITCH ($7D tie/legato) gate-mask toggle bits (C19 wedge,
+    # Bax/Feed_a_Bird — 1 family-1 carrier): the switch handler EORs this
+    # onto the voice's gate mask. Canon $01 toggles ONLY the gate bit
+    # ($FF<->$FE = release the gate); the wedge $1F toggles
+    # gate+test+ring+sync+triangle ($FF<->$E0), so a switch CUTS a
+    # triangle/ring/sync note to silence ($17&$E0=$00) instead of merely
+    # gating it off ($17&$FE=$16). Default $01 -> byte-identical.
+    switch_toggle = int(usf.params.fields.get('switch_toggle_mask', 1)) & 0xFF
+    switch_eor = f'#${switch_toggle:02X}'
     # PW-hi register source (C19 wedge, Olsen/Lame — 1 family-1 carrier):
     # the sidwrite tail's `LDA $1753,x / STA $D403,y` is re-pointed at
     # another per-voice byte ($1707,x = the track-ptr lo triple, constant
@@ -1802,7 +1811,7 @@ ev_switch:
         sta dur,x
         sta durrel,x                 ; live $173E shadow
         lda gatemask,x
-        eor #$01
+        eor {switch_eor}             ; canon $01 = gate bit; wedge = wider cut
         sta gatemask,x
         lda {adv2}
         jsr adv
