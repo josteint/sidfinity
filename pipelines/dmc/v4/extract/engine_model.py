@@ -1203,17 +1203,23 @@ def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
                 recs[inst_id].add((0, n, mem[(flo_addr + n) & 0xFFFF],
                                    mem[(fhi_addr + n) & 0xFFFF]))
                 songmap[(inst_id, 0, n)].add(si)
-        elif n < 6 and mem[(vibdepth_addr + n) & 0xFFFF] != VIBDEPTH[n]:
-            # CODE-OVERLAP HEAD: the vibdepth table base overlaps the note-init
-            # routine, so a note reading indices 0-5 gets code bytes as its
-            # vibrato step. Indices 3,4 are the vstep-store operand, which encodes
-            # the STATE-BLOCK address -> it RELOCATES for page-3 builds
-            # (vibdepth[3,4] = $03BC vs the canonical $1792), so the composer's
-            # canonical VIBDEPTH head is WRONG for them. Capture the member's
-            # actual byte ONLY where it differs from canonical -> canonical-layout
-            # members are byte-identical (regression-safe by construction); the
-            # composer overrides its vibdepth head in place (Journey: note 4 ->
-            # vibdepth[4]=$03 vs canonical $17, the drum vibrato step).
+        elif n < 96 and mem[(vibdepth_addr + n) & 0xFFFF] != VIBDEPTH[n]:
+            # PER-MEMBER VIBDEPTH DEVIATION (in-table, note 0-95): the composer
+            # ships the CANONICAL 96-byte VIBDEPTH ramp, but a member can carry a
+            # non-canonical byte at a note it reaches -> the vibrato step for that
+            # note (vstep = vibdepth[curnote]) is wrong. Two sub-classes, same fix:
+            #   * CODE-OVERLAP HEAD (idx 0-5): the table base overlaps the note-init
+            #     routine; indices 3,4 are the vstep-store operand encoding the
+            #     STATE-BLOCK address -> RELOCATES for page-3 builds (vibdepth[3,4]
+            #     = $03BC vs canonical $1792). (Journey: note 4 -> $03 vs $17.)
+            #   * IN-TABLE MUSICAL DEVIATION (idx 6-95): an authored/patched
+            #     per-note vibrato depth (Enter: note 44 -> $10 vs canonical $20,
+            #     that note vibrates half as deep = C6/C7-(b) state-as-data).
+            # Capture the member's actual byte ONLY where it differs from canonical
+            # AND the note is reachable -> canonical-layout members deviate nowhere
+            # they play, so capture NOTHING (byte-identical, regression-safe by
+            # construction: a FULL with an active-vibrato deviation couldn't exist,
+            # an inactive one is inert). The composer overrides vibdepth[n] in place.
             vibovr[n] = mem[(vibdepth_addr + n) & 0xFFFF]
             vibsongs[n].add(si)
         if inst is None or inst.drum:
