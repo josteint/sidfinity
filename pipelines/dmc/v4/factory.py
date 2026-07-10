@@ -985,8 +985,11 @@ def _pw_dir_persist_probe(path: str, base: int):
     None (build unchanged). Carrier: Artlace/End_of_1992_intro."""
     mem, _ = _load(path)
     a = base + 0x762
+    # re.escape the operand bytes: a relocated address low byte can be a regex
+    # metacharacter (e.g. '[' = $5B) that breaks compile / matches loosely.
     pat = re.compile(
-        rb'\xA9\x00\x9D' + bytes([a & 0xFF, (a >> 8) & 0xFF]) + rb'\x9D(..)',
+        rb'\xA9\x00\x9D' + re.escape(bytes([a & 0xFF, (a >> 8) & 0xFF]))
+        + rb'\x9D(..)',
         re.DOTALL)
     ms = pat.findall(bytes(mem))
     if len(ms) != 1:
@@ -1048,9 +1051,12 @@ def _pw_bound_shift_probe(path: str, base: int):
     else None (extract unchanged). Sole family-1 carrier: Aomeba/20_Years_of_NOP."""
     mem, _ = _load(path)
     a1 = base + 0x756
+    # re.escape the operand bytes: a relocated address low byte can be a regex
+    # metacharacter (e.g. '[' = $5B) that breaks compile / matches loosely.
     pat = re.compile(
-        rb'\x68(....)\x9D' + bytes([a1 & 0xFF, (a1 >> 8) & 0xFF]) +
-        rb'\x49\x0F\x9D' + bytes([(a1 + 3) & 0xFF, ((a1 + 3) >> 8) & 0xFF]),
+        rb'\x68(....)\x9D' + re.escape(bytes([a1 & 0xFF, (a1 >> 8) & 0xFF]))
+        + rb'\x49\x0F\x9D'
+        + re.escape(bytes([(a1 + 3) & 0xFF, ((a1 + 3) >> 8) & 0xFF])),
         re.DOTALL)
     m = pat.search(bytes(mem))
     if not m:
