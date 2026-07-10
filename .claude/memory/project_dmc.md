@@ -7,6 +7,42 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 70 (2026-07-10): SWITCH ($7D) gate-mask toggle uses a per-member EOR immediate — Feed_a_Bird (Bax) +1 partial → FULL (0 regr) [ledger C19 11th occ]
+First still-partial f1 by hvsc path after re-verifying the stale Jul-9 batch
+from the top (idx 0-12 Artlace..Enter all now FULL via rounds ≤69):
+`MUSICIANS/B/Bax/Feed_a_Bird.sid` (vblank, single sub, CANONICAL layout, base
+$1000). Flat first-div 10036 `$D412` V3 ctrl, orig `$00` vs reb `$16`. ROOT
+(C19 hand-patched wedge): the DMC player's tie/legato SWITCH ($7D) handler at
+base+$183 toggles the voice gate mask (`$100f,x`) with an EOR immediate —
+`LDA gatemask,x / EOR #imm / STA gatemask,x` at base+$189..$18E. Canon `#$01`
+flips ONLY the gate bit ($FF↔$FE = release gate); Feed_a_Bird patches the
+immediate byte at base+$18D `$01→$1F`, so a SWITCH flips
+gate+test+ring+sync+triangle ($FF↔`$E0`). The wave-step's `wave_ctrl & mask`
+then gives `$17 & $E0 = $00` (a triangle+ring+sync note CUT TO SILENCE) vs our
+`$17 & $FE = $16`. GROUND TRUTH: memwatch gate mask `$1011` goes $FF→**$E0**
+across the note-off (NOT →$FE, which the disasm header only documents as
+$FF/$FE); pc-trace `$118C = 49 1F` not `49 01`. **MISSED by dmc_canon_diff** —
+an immediate-value tweak (unchanged opcode $49, no operand repoint) is exactly
+its documented blind spot, which is why Feed_a_Bird wasn't in the "unhandled
+singleton" list. FIX: `factory._switch_toggle_mask_probe` (STATIC opcode probe,
+anchors LDA/STA operands = `cfg.gatemask_addr`, reloc-aware, guards
+gatemask_addr=None for f2/dataflow builds) → new USF param `switch_toggle_mask`
+(the toggled bit-set; default $01) → composer `ev_switch` emits `eor #<mask>`.
+Default $01 → byte-identical text. REGRESSION-SAFE BY CONSTRUCTION: the composer
+applies the probed mask verbatim so its `$D404` write can only match the orig
+MORE often (never less); and $E0 vs $FE COINCIDE for noise/pulse/saw notes
+(only bits 5-7 survive either mask), so the value bites only on
+sync/ring/test/triangle notes. Census 5833 f1: **1 carrier (Feed_a_Bird,
+partial), 5502 canon $01, 0 FULL exposure**. Feed_a_Bird FULL 130578/130578
+state ✓. Full `tools/regression.py` GREEN (0 regr all 8 families: Hubbard 71,
+Companion 44, C64ME 15, Jay_Derrett 17, FC 31, DMC 12, Basic 22). code_hash →
+52a8c31 (next batch auto-re-verifies). Post-fix wide sweep DEFERRED per session
+instruction. commit 96d7c321. LESSON: a wedge that only changes an EOR/AND
+IMMEDIATE (opcode + operands unchanged) is invisible to dmc_canon_diff — find
+it via the divergence recipe + a memwatch of the exact state byte across the
+diverging write, not the wedge enumerator. The disasm header's list of a state
+byte's possible values ($FF/$FE) may be INCOMPLETE — trust the runtime memwatch.
+
 ## ✅ ROUND 69 (2026-07-10): PER-MEMBER IN-TABLE vibdepth deviation (not just the code-overlap head) — Enter (Bax) +1 partial → FULL (0 regr) [ledger C11/C6 — vibdepth head→in-table]
 First still-partial f1 by hvsc path after re-verifying the stale batch from the top
 (idx 0-11 Artlace..Wild_Orgasm all now FULL via rounds ≤68): `MUSICIANS/B/Bax/Enter.sid`
