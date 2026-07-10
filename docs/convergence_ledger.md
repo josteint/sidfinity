@@ -613,7 +613,18 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   the canonical VIBDEPTH constant, composer overrides `_vd[note]` in place (no
   table-size change → regression-safe). The head byte is a STATE-ADDRESS operand
   = C7-(b) state-as-data — flag for `/uready-review` (572 f1 members have a
-  relocated head; flip-set = the readers).
+  relocated head; flip-set = the readers). **GENERALIZED to IN-TABLE musical
+  deviations (2026-07-10, DMC f1 round 69, Enter/Bax +1 FULL 0 regr):** the head
+  was the special case, not the whole class. The vibdepth table is per-member
+  MUSICAL content — a note's vibrato depth can be authored non-canonically at ANY
+  index 0-95, not only the code-overlap head. Enter's `$1888[44]=$10` vs the
+  canonical player's $20 (a note that vibrates half as deep) made orig vibrato
+  step $10 vs rebuild $20 (2×). FIX: generalize the head gate `n<6 and mem!=
+  VIBDEPTH[n]` → `n<96 and mem!=VIBDEPTH[n]` in `_assign_offtable_freq.add_note`
+  — capture the member's actual byte wherever a REACHABLE note's vibdepth differs
+  from canonical; same in-place composer override. Regression-safe by construction
+  (canonical members deviate nowhere they play → byte-identical; a FULL with an
+  ACTIVE-vibrato deviation can't exist, an INACTIVE one is inert).
 - **Boundary / watch-list:** the SAME class applies to ANY 8-bit-indexed engine
   table — e.g. the DMC wave POSITION ($177A is 8-bit, so a wave program crossing
   $FF wraps to wctab[0]; `_slice_wave` reads linearly past it — a candidate

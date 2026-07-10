@@ -7,6 +7,39 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 69 (2026-07-10): PER-MEMBER IN-TABLE vibdepth deviation (not just the code-overlap head) — Enter (Bax) +1 partial → FULL (0 regr) [ledger C11/C6 — vibdepth head→in-table]
+First still-partial f1 by hvsc path after re-verifying the stale batch from the top
+(idx 0-11 Artlace..Wild_Orgasm all now FULL via rounds ≤68): `MUSICIANS/B/Bax/Enter.sid`
+(vblank, single sub, canonical layout). Flat first-div 112149 (51%) `$D40E` V3 freq
+lo, orig $FF vs reb $0F (freq $0EFF vs $0F0F, Δ+$10). ROOT (memwatch V3 base $1731/
+accum $1737): base $0EEF constant → PURE VIBRATO; orig accum triangles 0→$10→$20→$10
+→0→-$10 (step $10), rebuild 0→$20→$40→$20→0 (step $20 = EXACTLY 2×). vstep=vibdepth
+[curnote] and curnote here = 44 (the glide START note; vstep is set at note-init from
+the start note, curnote then glides to 46, vstep unchanged). **Enter's `$1888`
+vibrato-depth table byte at index 44 = $10 vs the CANONICAL player's $20** (verified
+against `pipelines/dmc/docs/dmc4_player_embedded_1000.bin`; composer's `VIBDEPTH`
+constant correctly copies canon = $20). Every other index matches canon → a single
+non-canonical AUTHORED per-note vibrato depth (that note vibrates half as deep). The
+extract captured vibdepth deviations only at the code-overlap HEAD (idx<6, round 66)
+and off-table (idx>95) — NOT genuine in-table musical deviations (idx 6-95). FIX
+(extract-only, `_assign_offtable_freq.add_note`): generalize the head gate `n<6 and
+mem!=VIBDEPTH[n]` → `n<96 and mem!=VIBDEPTH[n]` — capture the member's actual byte
+wherever a REACHABLE note's vibdepth differs from canonical; the composer's existing
+in-place override (`offtable_vibdepth` → `_vd[n]=depth`) handles it. REGRESSION-SAFE
+BY CONSTRUCTION: a canonical-layout member deviates nowhere it plays (capture nothing
+→ byte-identical); a FULL with an ACTIVE-vibrato deviation could not exist (would
+diverge like Enter), an INACTIVE one is inert. Enter FULL 217611/217611 state ✓. Full
+tools/regression.py GREEN (0 regr all 7 families: Hubbard 71, Companion 44, C64ME 15,
+Jay_Derrett 17, FC 31, DMC 12, Basic 22). Journey (page-3 head-deviation carrier) +
+Secret_Loser re-verified FULL after the change. SURVEY (naive canonical-addr scan of
+224 partials): only Enter has a clean single isolated in-table deviation; the rest are
+head (round 66) or relocated (my scan mis-addressed — extract uses cfg.vibdepth_addr,
+reloc-correct). code_hash 7072fe23→7689a794 (next batch auto-re-verifies). Post-fix
+wide sweep DEFERRED per session instruction. commit 6dbc4739. LESSON: the vibdepth
+table is per-member MUSICAL content — a note's vibrato depth can be authored
+non-canonically at ANY index, not only the code-overlap head; capture reachable
+in-table deviations too (the head fix was the special case, not the whole class).
+
 ## ✅ ROUND 68 (2026-07-10): NOTE-FETCH base read ignored the LIVE off-table redirect — Secret_Loser +1 partial → FULL (0 regr) [ledger C11/C6 — base-reload sites]
 First still-partial f1 by hvsc path after Toccata_v2 (r67) flipped FULL:
 `MUSICIANS/B/Bakker_Nantco/Secret_Loser.sid` (vblank, single sub). Flat first-div
