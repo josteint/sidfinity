@@ -1406,6 +1406,28 @@ def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
             for i, b in enumerate(bases)]
 
 
+# C19 static-opcode wedge probes with a UNIFORM shape: probe(path, cfg) returns
+# the param value or None; a non-None result is written verbatim to
+# cfg.extra_params[key]. This is the C19 canonical form (static-opcode-probe ->
+# extra_params key) factored out of the per-probe copy-paste in dmc_v4_config —
+# a new uniform wedge is ONE row here, not a new dispatch stanza. The NON-uniform
+# stanzas stay explicit in dmc_v4_config: cymbal_burst (!= $FF guard), hr_patch
+# (two keys), the hard_restart precedence block, and forced_subtune (a cfg
+# attribute, not a param). Insertion order is irrelevant — the USF writer sorts
+# param keys and the composer reads them by name.
+_WEDGE_PROBES = [
+    ('master_vol_every_play',           lambda p, c: _d418_play_wrapper(p, c.base)),
+    ('master_vol_reassert_filter_tail', lambda p, c: _d418_filter_tail_probe(p, c.base)),
+    ('hold_gateoff',                    lambda p, c: _hold_gateoff_probe(p)),
+    ('play_unit_repeat',                lambda p, c: _play_unit_repeat_probe(p, c.base)),
+    ('pulsewidth_hi_const',             lambda p, c: _pw_hi_const_probe(p, c.base)),
+    ('dual_freq_generator',             lambda p, c: _dual_freq_gen_probe(p, c.base, c.freq_lo_addr)),
+    ('filter_mod',                      lambda p, c: _filter_mod_probe(p, c.op_filtdef)),
+    ('pw_bound_shift',                  lambda p, c: _pw_bound_shift_probe(p, c.base)),
+    ('pulsewidth_dir_persist',          lambda p, c: _pw_dir_persist_probe(p, c.base)),
+]
+
+
 def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     """Primary canonical-layout build; on a moved-layout rejection, fall back
     to the layout-independent dataflow extractor (pipelines.dmc.v4.dataflow).
@@ -1423,55 +1445,36 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         cfg = _build_via_dataflow(sid_path, hvsc_root)
         if cfg is None:
             raise
-    # extracted per-member cymbal noise-burst value (canon $FF; rare patches)
-    cb = _cymbal_burst_byte(os.path.join(hvsc_root, sid_path))
+    path = os.path.join(hvsc_root, sid_path)
+    # --- non-uniform wedge stanzas (special guard / two keys / attribute) ---
+    # cymbal noise-burst timbre: only when patched off the canon $FF.
+    cb = _cymbal_burst_byte(path)
     if cb is not None and cb != 0xFF:
         cfg.extra_params['cymbal_burst'] = cb
-    hr = _hr_patch_probe(os.path.join(hvsc_root, sid_path), cfg.base)
+    # hard-restart SMC-toggle wedge sets TWO keys.
+    hr = _hr_patch_probe(path, cfg.base)
     if hr is not None:
         cfg.extra_params['hardrestart_smc_variant'] = 1
         cfg.extra_params['hardrestart_test_init'] = hr
-    dp = _d418_play_wrapper(os.path.join(hvsc_root, sid_path), cfg.base)
-    if dp is not None:
-        cfg.extra_params['master_vol_every_play'] = dp
-    dft = _d418_filter_tail_probe(os.path.join(hvsc_root, sid_path), cfg.base)
-    if dft is not None:
-        cfg.extra_params['master_vol_reassert_filter_tail'] = dft
-    hg = _hold_gateoff_probe(os.path.join(hvsc_root, sid_path))
-    if hg is not None:
-        cfg.extra_params['hold_gateoff'] = hg
-    # family-2 sets hard_restart='none' (no sub_17FB at all) — never override
+    # hard_restart: family-2 sets 'none' (no sub_17FB) — never override; else the
+    # prep-CALL skip wedge (JSR $17FB -> BIT) takes precedence over the
+    # preset-immediate wedge (different sites, don't co-occur).
     if 'hard_restart' not in cfg.extra_params:
-        # prep-CALL skip wedge (JSR $17FB -> BIT) takes precedence over the
-        # preset-immediate wedge; they patch different sites and don't co-occur.
-        hrs = _hr_prep_skip_probe(os.path.join(hvsc_root, sid_path), cfg.base)
+        hrs = _hr_prep_skip_probe(path, cfg.base)
         if hrs is not None:
             cfg.extra_params['hard_restart'] = hrs
         else:
-            hrv = _hr_preset_probe(os.path.join(hvsc_root, sid_path))
+            hrv = _hr_preset_probe(path)
             if hrv is not None:
                 cfg.extra_params['hard_restart'] = str(hrv)
-    pur = _play_unit_repeat_probe(os.path.join(hvsc_root, sid_path), cfg.base)
-    if pur is not None:
-        cfg.extra_params['play_unit_repeat'] = pur
-    pwc = _pw_hi_const_probe(os.path.join(hvsc_root, sid_path), cfg.base)
-    if pwc is not None:
-        cfg.extra_params['pulsewidth_hi_const'] = pwc
-    dh = _dual_freq_gen_probe(os.path.join(hvsc_root, sid_path), cfg.base,
-                          cfg.freq_lo_addr)
-    if dh is not None:
-        cfg.extra_params['dual_freq_generator'] = dh
-    fm = _filter_mod_probe(os.path.join(hvsc_root, sid_path), cfg.op_filtdef)
-    if fm is not None:
-        cfg.extra_params['filter_mod'] = fm
-    pbs = _pw_bound_shift_probe(os.path.join(hvsc_root, sid_path), cfg.base)
-    if pbs is not None:
-        cfg.extra_params['pw_bound_shift'] = pbs
-    pdp = _pw_dir_persist_probe(os.path.join(hvsc_root, sid_path), cfg.base)
-    if pdp is not None:
-        cfg.extra_params['pulsewidth_dir_persist'] = pdp
-    fs = _forced_subtune_probe(os.path.join(hvsc_root, sid_path), cfg.base)
-    if fs:                                  # 0 == the default record-0 walk
+    # --- uniform C19 wedge probes (probe(path, cfg) -> value | None) ---
+    for key, probe in _WEDGE_PROBES:
+        v = probe(path, cfg)
+        if v is not None:
+            cfg.extra_params[key] = v
+    # forced_subtune is a cfg ATTRIBUTE, not a param; 0 == the default walk.
+    fs = _forced_subtune_probe(path, cfg.base)
+    if fs:
         cfg.forced_subtune = fs
     return cfg
 
