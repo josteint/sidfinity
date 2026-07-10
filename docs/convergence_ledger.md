@@ -618,6 +618,22 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   table — e.g. the DMC wave POSITION ($177A is 8-bit, so a wave program crossing
   $FF wraps to wctab[0]; `_slice_wave` reads linearly past it — a candidate
   unfixed instance). Audit other `mem[base + i*stride]` extracts for the same.
+- **ALL read SITES must honor the live redirect, not just one (2026-07-10, DMC
+  family-1 round 68, Secret_Loser +1 FULL 0 regr).** An off-table freq index has
+  THREE distinct 6502 read sites in the DMC player: the WAVE-STEP (`wftab[pos]+
+  curnote`), the NOTE-FETCH base reload (`freqlo[curnote]` at note load), and the
+  GLIDE-ARRIVAL base reload (`freqlo[target]`). The composer's live redirect
+  (`_gen_offtable_redirect` over `DMC_OFFTABLE_STATE`) served only the wave step;
+  the two BASE-reload sites read the raw table → a captured `LIVE`-flagged record
+  (Secret_Loser: curnote $F4 → $173B = V1's live duration counter, sonified as V3
+  base freq) resolved to the STALE static window byte ($07 file-image) instead of
+  the live counter ($06). FIX: factor a shared `reload_base` subroutine running
+  the SAME redirect, `jsr`-ed from both base-reload sites. Regression-safe by the
+  wave-step's own invariant (the map's vars track byte-identically; in-table /
+  unmapped indices fall through to the identical `lda freqlo,y`); affected-set
+  census 17/17 FULLs hold + 5 CIA FULLs (added-`jsr` latch check, C25) hold.
+  LESSON: a captured `LIVE` record is only reproduced if the READING site honors
+  it — audit every read site of a redirected quantity, not just the first one fixed.
 - **~~HARD BOUNDARY~~ → RESOLVED — off-table reads that sonify the ABSOLUTE
   wave position (2026-06-28 Object_of_Art blocked; 2026-07-06 Distant_Echoes
   resolved, +5 FULL 0 regr).** When a wave program's arp index runs off-table

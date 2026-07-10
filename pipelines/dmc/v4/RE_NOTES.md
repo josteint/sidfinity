@@ -1,5 +1,54 @@
 # DMC V4 — RE notes / migration log
 
+## ✅ ROUND 68 (2026-07-10): NOTE-FETCH base-freq read ignored the LIVE off-table redirect — Secret_Loser +1 partial → FULL (0 regr) [ledger C11 / C6 — base-reload sites]
+First still-partial f1 member by hvsc path after Toccata_v2 (r67) flipped FULL:
+`MUSICIANS/B/Bakker_Nantco/Secret_Loser.sid` (vblank, single sub, 82114 writes).
+Flat first-div pos 13112 = `$D40E` V3 freq lo, orig `$06` vs rebuild `$07` @
+frame 800. Play_match 13149/81350, state ✓.
+
+ROOT (memwatch V3 curnote/base @ each `$D40E`): the diverging write carries
+curnote `$1014=$F4` (244) — a note whose `note+transpose` landed at 244 (a
+positive off-table index, NOT a negative-transpose wrap — so r66's `if not
+wrapped` skip does NOT apply; the read IS captured). `freqlo[$F4] = $1647+244 =
+$173B = V1's LIVE duration counter` (DEC per tick) = orig `$06`; `freqhi[$F4] =
+$16A7+244 = $179B = V1 dual-slide accum hi = $00`. So V3's base freq SONIFIES
+V1's live duration counter (the C11/C6 state-read-as-freq idiom). The extract
+captured it as an `offtable_freq(off 0, note 244, lo $07, hi $00, LIVE)` record
+(lo = FILE-IMAGE `$173B` = $07). The composer's `ev_note` note-fetch reads
+`freqlo[curnote]` RAW → the static `ovrwin` byte `$07`; but the orig reads the
+LIVE `$173B` = `$06` (counter already DEC'd this frame, since V1 processes before
+V3). Rebuild memwatch confirmed: its own V1 `dur` counter = `$06` at that frame —
+i.e. the value is reproducible LIVE, the note-fetch path just wasn't honoring the
+`LIVE` flag. Only the WAVE-STEP path (`ws_rd`) routed through
+`_gen_offtable_redirect`; the two BASE-freq RELOAD sites (`ev_note` note-fetch +
+`fx_gl_chk` glide-arrival) read the raw table.
+
+FIX (CORE TENET — reproduce the write via our own byte-identical live var; NO
+schema change, the `LIVE` flag already exists): factor a shared `reload_base`
+subroutine that runs the SAME `_gen_offtable_redirect(DMC_OFFTABLE_STATE)` over
+freqlo/hi[Y] (Y = curnote / glide target), and `jsr reload_base` from both
+`ev_note` and `fx_gl_chk`. In-table + unmapped indices fall through to the
+identical `lda freqlo,y` (the generator's `cpy #min_off / bcc` fast path), so
+canonical members are write-stream-identical; off-table indices on a mapped
+live var (curnote/target ≥ 96/192) now read the live var — matching the orig.
+
+REGRESSION-SAFE by the SAME invariant the wave-step redirect already relies on
+(the `DMC_OFFTABLE_STATE` map is curated so every var tracks the orig
+byte-identically; gla/glb seeded). EVIDENCE: full `tools/regression.py` GREEN (0
+regr, all 7 families); AFFECTED-set census — extract-scan of 163 f1 FULLs found
+17 that exercise this path (an off=0 base read at a live off-table idx), ALL 17
+re-verify FULL after the fix (alphabet-spread); 5 CIA-multispeed f1 FULLs
+(latch-overrun C25 check for the added `jsr` cycles) ALL FULL. Secret_Loser FULL
+82114/82114, state ✓. Post-fix wide sweep DEFERRED to next batch (per session
+instruction; code_hash flipped 695293ec→7072fe23 so it auto-re-verifies).
+LESSON: an off-table freq read has THREE read SITES (wave-step, note-fetch,
+glide-arrival) — the live redirect must cover ALL of them, not just the
+wave-step. A CAPTURED `LIVE` record is only served if the reading site honors it.
+NOTE (unexplored): r66's `if not wrapped` still skips capture for negative-transpose
+WRAPS even when they'd land on a byte-identical-tracking live var (dur/accl) —
+those could now also be served live, but the wrap can ALSO land on non-tracking
+per-subtune state (Other_Side), so re-enabling needs a per-var tracking gate.
+
 ## ✅ ROUND 67 (2026-07-10): R-PHASE = PULSE TAIL, not register refresh — Toccata_v2 +1 partial → FULL (0 regr) [ledger C18 R-entry variant]
 First still-partial f1 member by hvsc path after re-verifying the stale Jul-9
 batch (the Bakewell_Dwayne run ahead of it — End_of_1992_intro/Acid_Dance/

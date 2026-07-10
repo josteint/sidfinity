@@ -7,6 +7,25 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 68 (2026-07-10): NOTE-FETCH base read ignored the LIVE off-table redirect — Secret_Loser +1 partial → FULL (0 regr) [ledger C11/C6 — base-reload sites]
+First still-partial f1 by hvsc path after Toccata_v2 (r67) flipped FULL:
+`MUSICIANS/B/Bakker_Nantco/Secret_Loser.sid` (vblank, single sub). Flat first-div
+pos 13112 `$D40E` V3 freq lo, orig `$06` vs reb `$07`. ROOT: curnote=`$F4` (244,
+a positive off-table index — NOT an r66 wrap, so it IS captured) → `freqlo[$F4]=
+$173B`=V1's LIVE duration counter=`$06`; the composer's `ev_note` note-fetch reads
+`freqlo[curnote]` RAW → the STATIC ovrwin byte `$07` (file-image $173B), while the
+orig reads the counter LIVE. The `LIVE`-flagged record existed; only the WAVE-STEP
+read site (`ws_rd`) honored `_gen_offtable_redirect` — the two BASE-freq RELOAD
+sites (note-fetch `ev_note` + glide-arrival `fx_gl_chk`) read the raw table. FIX:
+factor a shared `reload_base` subroutine (same redirect), `jsr`-ed from both.
+0-regr by the wave-step's own byte-identical-tracking invariant; EVIDENCE: full
+regression GREEN + 17/17 affected-path FULLs hold (extract-scan of 163 f1 FULLs)
++ 5 CIA FULLs (C25 added-`jsr` latch check) hold. code_hash 695293ec→7072fe23
+(next batch auto-re-verifies). LESSON: an off-table freq index has THREE read
+SITES (wave-step / note-fetch / glide-arrival) — a captured LIVE record is only
+reproduced if the READING site honors it; audit every site. Post-fix sweep
+DEFERRED per session instruction.
+
 ## 📊 CANON-DIFF WEDGE ACCOUNTING (2026-07-10): family-1 wedge space is ~fully handled — the residue is NOT a wedge problem
 Built `tools/dmc_canon_diff.py` ([[reference_dmc_canon_diff]]) — the PROACTIVE
 complement to the reactive `_*_probe` detectors: linear-align every member's player

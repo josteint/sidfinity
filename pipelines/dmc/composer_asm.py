@@ -1594,6 +1594,20 @@ fx_dual_up:
         otmap, ORIG_FLO, 192, 'lda freqlo,y', 'ws_rd_los')
     ws_hi_redirect = _gen_offtable_redirect(
         otmap, ORIG_FHI, 96, 'lda freqhi,y', 'ws_rd_his')
+    # Base-freq RELOAD (note-fetch ev_note + glide-arrival fx_gl_chk) reads
+    # freqlo/hi[Y] with Y a note index that can ALSO overshoot the 96-entry
+    # table (a negative transpose wraps a low note to e.g. $F4 via the 8-bit
+    # note-init ADC). The orig reads the live state block there exactly as the
+    # wave step does — curnote $F4 -> $173B = V1's LIVE duration counter,
+    # sonified as this voice's base freq (Secret_Loser V3). Route those reads
+    # through the SAME redirect so a wrapped/off-table base read tracks the live
+    # var instead of a stale static window byte; in-table + unmapped indices
+    # fall through to the identical `lda freqlo,y`, so canonical members are
+    # byte-identical. Shared by both sites via the reload_base subroutine.
+    nf_lo_redirect = _gen_offtable_redirect(
+        otmap, ORIG_FLO, 192, 'lda freqlo,y', 'nf_rd_los')
+    nf_hi_redirect = _gen_offtable_redirect(
+        otmap, ORIG_FHI, 96, 'lda freqhi,y', 'nf_rd_his')
 
     asm = f"""
 SLIDE_PHASE = ${slide_phase:02X}
@@ -1825,10 +1839,8 @@ ev_note:
         adc transp,x
         sta curnote,x
         tay
-        lda freqlo,y
-        sta fbl,x
-        lda freqhi,y
-        sta fbh,x
+        jsr reload_base              ; base freq freqlo/hi[curnote];
+                                     ; off-table idx served live (redirect)
         ldy {ev3}
         lda ($f8),y                  ; duration
         sta dur,x
@@ -2145,10 +2157,8 @@ fx_gl_chk:
         bne fx_gl_out
         tya
         sta curnote,x
-        lda freqlo,y
-        sta fbl,x
-        lda freqhi,y
-        sta fbh,x
+        jsr reload_base              ; base freq freqlo/hi[target];
+                                     ; off-table idx served live (redirect)
         lda #$00
         sta glsp,x
         sta accl,x
@@ -2285,6 +2295,19 @@ pwwrite:
         lda wctrl,x
         and gatemask,x
         sta $d404,y
+        rts
+
+;; ===== base-freq reload (note-fetch + glide arrival), off-table-redirected =====
+;; Y = note index (curnote / glide target); X = voice. Reads freqlo/hi[Y] but
+;; serves an off-table (wrapped / high-transpose) index from the live state map,
+;; mirroring the orig's `lda freqlo,y` which lands on the engine state block.
+reload_base:
+{nf_lo_redirect}
+nf_rd_los:
+        sta fbl,x
+{nf_hi_redirect}
+nf_rd_his:
+        sta fbh,x
         rts
 
 ;; ===================== data (from USF) =====================
