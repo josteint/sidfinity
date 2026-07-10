@@ -139,13 +139,34 @@ def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
 _MAX_INSTR = 28
 
 
-def _inst_key(inst):
-    """Content key for instrument dedup (everything but the id)."""
+def _inst_key(inst, drop=()):
+    """Content key for instrument dedup (everything but the id and `drop`)."""
     import dataclasses
+    skip = {'id'} | set(drop)
     d = {f.name: getattr(inst, f.name) for f in dataclasses.fields(inst)
-         if f.name != 'id'}
+         if f.name not in skip}
     return repr({k: (tuple(v) if isinstance(v, list) else v)
                  for k, v in d.items()})
+
+
+def _merge_offtable(a, b):
+    """Union two `offtable_freq` record lists `(off, note, lo, hi)`, or None if
+    any (off, note) maps to a CONFLICTING (lo, hi). offtable_freq is a
+    reachability artifact — which (wave-offset, note) an instrument was actually
+    played at (ledger C6), NOT an intrinsic instrument property — so two
+    instruments identical in every other field are the SAME instrument played at
+    different notes, and the union is lossless: each record fires only for its
+    own (off, note), and a record for notes one song never plays is inert there.
+    A collision (the same (off, note) read a different byte in the two players'
+    freq tables) means they are genuinely distinct -> refuse the merge."""
+    by_key = {}
+    for off, note, lo, hi in list(a) + list(b):
+        k = (off, note)
+        if k in by_key and by_key[k] != (lo, hi):
+            return None
+        by_key[k] = (lo, hi)
+    return sorted((off, note, lo, hi)
+                  for (off, note), (lo, hi) in by_key.items())
 
 
 def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
@@ -240,8 +261,12 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
 
     # ---- instruments: remap to one compact pool. Dedup identical instruments
     # (same drum kit shared across players) so many-player members stay under
-    # the 5-bit id cap.
-    pool = {}                       # content key -> new global id
+    # the 5-bit id cap. The dedup key EXCLUDES offtable_freq (a reachability
+    # artifact, not intrinsic content); instruments equal in every other field
+    # share one merged id carrying the UNION of their offtable_freq records
+    # (Principle Rule 1 — cluster by behavior). A record collision refuses the
+    # union, so the two land as distinct ids in the same base bucket.
+    pool = defaultdict(list)        # base key (no offtable) -> [new_iid, ...]
     remap = defaultdict(dict)       # player_idx -> {old_iid: new_iid}
     for pidx in sorted(used):
         m = models[pidx]
@@ -252,12 +277,20 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
             ni = copy.deepcopy(inst)
             if conflict and ni.filter_on and (pidx, ni.filter_def) in fd_remap:
                 ni.filter_def = fd_remap[(pidx, ni.filter_def)]
-            key = _inst_key(ni)
-            if key in pool:
-                remap[pidx][old] = pool[key]
+            bk = _inst_key(ni, drop=('offtable_freq',))
+            placed = None
+            for nid in pool[bk]:
+                u = _merge_offtable(merged.instruments[nid].offtable_freq,
+                                    ni.offtable_freq)
+                if u is not None:
+                    merged.instruments[nid].offtable_freq = u
+                    placed = nid
+                    break
+            if placed is not None:
+                remap[pidx][old] = placed
                 continue
-            new = len(pool)
-            pool[key] = new
+            new = len(merged.instruments)
+            pool[bk].append(new)
             remap[pidx][old] = new
             ni.id = new
             merged.instruments[new] = ni

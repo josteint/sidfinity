@@ -1624,7 +1624,13 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str,
     mem, s = _load(os.path.join(hvsc_root, sid_path))
     load = s['load']
     if base_override is not None:
-        loc = dataflow.locate(mem, base_override)
+        # A co-packed compilation player can carry dead-code JMPs into a sibling
+        # player's canonical code (ledger C31); bound the locate to this
+        # player's own $Xxxx code window so the sibling's block doesn't create
+        # ambiguous double-matches (0x900 covers the canonical player extent
+        # $1000-$18E8; data-table addresses are the READ RESULT, not the site).
+        loc = dataflow.locate(mem, base_override,
+                              region=(base_override, base_override + 0x900))
         if loc is None:
             return None
         # A compilation player is a plain canonical DMC dispatched by the

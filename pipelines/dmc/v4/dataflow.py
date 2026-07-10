@@ -130,7 +130,8 @@ def _locate_site(vI: list, vseq: list, sig):
     return sites.pop() if len(sites) == 1 else None
 
 
-def locate(mem: bytearray, base: int, play: int | None = None) -> dict | None:
+def locate(mem: bytearray, base: int, play: int | None = None,
+           region: 'tuple[int, int] | None' = None) -> dict | None:
     """Locate every DMC v4 table by opcode-skeleton signature in the player at
     `base`. Returns {op_instr, op_wavectrl, op_wavefreq, op_filtdef, op_tunetab,
     op_secp_lo, op_secp_hi, freq_lo_addr, freq_hi_addr, vibdepth_addr,
@@ -141,9 +142,24 @@ def locate(mem: bytearray, base: int, play: int | None = None) -> dict | None:
     `play` overrides the base+3 play entry for the trace — a ripped member's
     jump-table play entry can point at zeroed RAM while the PSID header names
     the real play body (Silent_Memories: table JMP $3AF5 = zeros, header play
-    $1085)."""
+    $1085).
+
+    `region` = (lo, hi) restricts the located instructions to the player's own
+    code window. A COMPILATION player (ledger C31) can carry DEAD-CODE JMPs into
+    a co-packed sibling player's canonical code (an un-relocated `JMP $1591`
+    when the live path uses its own $3591) — the static trace follows them and
+    every opcode-window signature then matches TWICE (once per player), so every
+    site is ambiguous -> None. Bounding the trace to [lo, hi) drops the sibling's
+    block (it sorts outside the range; the player's own $3xxx block stays
+    contiguous, so signature windows are intact) and each site is unique again.
+    Only the caller that FORCES a base (base_override) passes it; the general
+    single-player path leaves it None (a re-assembled player may spread code
+    past a fixed window)."""
     vI = _instrs(mem, base, base + 3 if play is None else play,
                  (base + 6, base + 9))
+    if region is not None:
+        lo, hi = region
+        vI = [t for t in vI if lo <= t[0] < hi]
     vseq = [o for a, o, v in vI]
 
     def rd16(a):
