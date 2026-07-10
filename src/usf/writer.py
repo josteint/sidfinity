@@ -13,7 +13,7 @@ from src.usf.types import (
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
     FreqSlideConfig, IncBy2Config, SongEndConfig, InitBehaviorConfig,
     MasterVolConfig, SfxConfig,
-    MusicSubtune, DigiSubtune, SfxSubtune,
+    MusicSubtune, DigiSubtune, SfxSubtune, DmcSfxSubtune, SfxEngine,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
 )
 
@@ -642,7 +642,47 @@ def _write_subtune(s) -> list[str]:
             lines.append('  }')
         lines.append('}')
         return lines
+    if isinstance(s, DmcSfxSubtune):
+        return [f'subtune {s.id} dmcsfx {{', f'  song: {s.song}', '}']
     raise TypeError(f'unknown subtune type: {type(s).__name__}')
+
+
+def _write_dmc_sfx(e: SfxEngine) -> list[str]:
+    def _bl(name, data):
+        return f'  {name}: ' + ' '.join(_hex(b) for b in data)
+    lines = ['dmc_sfx {']
+    lines.append(f'  init_counter: {e.init_counter}')
+    lines.append(f'  live_counter_fidx: {e.live_counter_fidx}')
+    lines.append(_bl('filter_lfo', e.filter_lfo))
+    lines.append(_bl('wave_table', e.wave_table))
+    lines.append(_bl('freq_lo', e.freq_lo))
+    lines.append(_bl('freq_hi', e.freq_hi))
+    for i, ins in enumerate(e.instruments):
+        lines.append(f'  instrument {i} {{')
+        lines.append('    ctrl: ' + ' '.join(_hex(b) for b in ins.ctrl))
+        lines.append('    freqbase: ' + ' '.join(_hex(b) for b in ins.freqbase))
+        lines.append(f'    ad: {_hex(ins.ad)}')
+        lines.append(f'    sr: {_hex(ins.sr)}')
+        lines.append(f'    pw: {_hex(ins.pw_lo)} {_hex(ins.pw_hi)}')
+        lines.append('  }')
+    for i, sg in enumerate(e.songs):
+        lines.append(f'  song {i} {{')
+        lines.append(f'    voice: {sg.voice}')
+        lines.append(f'    duration: {sg.duration}')
+        lines.append(f'    wavestep: {_hex(sg.wavestep)}')
+        lines.append(f'    increment: {_hex(sg.increment)}')
+        lines.append(f'    instrument: {sg.instrument}')
+        lines.append('  }')
+    for i, vi in enumerate(e.voice_init):
+        lines.append(f'  voice_init {i} {{')
+        lines.append(f'    duration: {vi.duration}')
+        lines.append(f'    pitch: {_hex(vi.pitch)}')
+        lines.append(f'    increment: {_hex(vi.increment)}')
+        lines.append(f'    wavestep: {_hex(vi.wavestep)}')
+        lines.append(f'    instrument: {vi.instrument}')
+        lines.append('  }')
+    lines.append('}')
+    return lines
 
 
 # ---------------------------------------------------------------------------
@@ -774,6 +814,9 @@ def write(usf: UsfFile) -> str:
     if usf.sfx is not None:
         lines.append('')
         lines.extend(_write_sfx(usf.sfx))
+    if getattr(usf, 'dmc_sfx', None) is not None:
+        lines.append('')
+        lines.extend(_write_dmc_sfx(usf.dmc_sfx))
     for _kw, _env in (('default_filter', getattr(usf, 'default_filter', None)),
                       ('default_pulse', getattr(usf, 'default_pulse', None))):
         if _env is None:

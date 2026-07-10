@@ -124,6 +124,44 @@ keeps its prior status.
   steps: (a) an overrun-adjacency-preserving filter window (or per-player
   contiguous blocks); (b) DUAL-PLAYER composer emit for the unmergeable tail.
 
+## HETEROGENEOUS compilation — DMC players + a `dmc_sfx` sub-player (round 72, 2026-07-10)
+Canyon_Tank_Duel (Bayliss) = the FIRST heterogeneous compilation: 2 canonical
+DMC music players ($1000/$2000, subtunes 0-4) + a tiny (~257 B) CUSTOM SFX
+sequencer at $3000 (subtunes 5-12) — its OWN note/instrument/waveform format,
+NOT DMC. Also in Widding's Empire_Strikes_Back (@ $3D00) → two authors, so it's
+a shared DMC-editor SFX sub-player, named **`dmc_sfx`** (neutral, not
+person-named). **Canyon 13/13 FULL** (all subs state ✓). Three pieces:
+1. **Detection from the WRAPPER TABLE** — `_canon_jt_bases` (rigid canonical
+   `4C b+1D 4C b+85` head) missed the re-assembled dmc_sfx player (JT at
+   +$1B2/+$F0). `detect_compilation` now reads the dispatch wrapper's base-hi
+   `LDA abs,X` table directly, each base validated by the reloc-invariant
+   three-JMP head (`_is_player_base`). Also newly detects Empire (4-player
+   heterogeneous). 0-regr on Abyssal_Karma/Balloonacy/Sharkz (re-verified FULL).
+2. **`dmc_sfx` migrated as a typed USF engine** (NOT opaque bytes): new
+   `dmc_sfx {}` block + `dmcsfx`-kind subtunes (grammar/parser/writer/types).
+   Carries filter-cutoff LFO, arp pitch-program, tuning (extended over off-table
+   reads), 8 instruments (4-phase ctrl/freqbase timbre+pitch modulation +
+   env/PW), 8 songs, shared `voice_init` leftover state. Off-table read: static
+   code bytes = extended tuning (C6); the ONE live one ($30F1 play counter) =
+   composer redirect at `live_counter_fidx` (C11). Files:
+   `pipelines/dmc/v4/sfx_engine.py` (extract + a pure-Python reference interp
+   reading ONLY the typed model → proves completeness), `pipelines/dmc/
+   sfx_composer.py` (clean 6502 re-impl). Full engine model in
+   `pipelines/dmc/v4/RE_NOTES.md` section 'dmc_sfx'.
+3. **Heterogeneous composer dispatch** — `build_dmc_compilation_sid` emits BOTH
+   the DMC engine + the dmc_sfx interp into one image behind a per-subtune stub
+   at $1000 (init latches the owning engine + routes with its local index; play
+   jumps to the latched engine). Same "one engine per subtune, sequential" shape
+   as the 2SID dispatcher, but per-subtune-SELECTED.
+Gated on `usf.dmc_sfx` presence → single-player + homogeneous compilations never
+touch it. dmc_smoke gained a `hetero-sfx` case. LESSONS: (a) a compilation's
+packed players need not be the same engine — validate bases by the three-JMP
+head, not the canonical offsets; (b) a distinct small sub-player is migrable as
+a typed USF engine + a per-subtune multi-engine composer dispatch (the
+5TT/Adrenalin playbook, realized for DMC); (c) the "leftover voice state" the
+engine plays for non-song voices is deterministic file-image data → capture it
+as a typed `voice_init`, not residue.
+
 ## Diagnosis method (for the next compilation)
 `siddump --memwatch` on the runtime track-ptr state + `--pc-trace` of the live
 tune-record read gives ground truth (py65 post-init does NOT reproduce a

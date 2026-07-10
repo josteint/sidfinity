@@ -373,10 +373,52 @@ instrument 1 lead {
 Field set is engine-determined. Fields not relevant to an engine
 omit cleanly.
 
+## `dmc_sfx { ... }` (embedded dmc_sfx sub-player)
+
+Some DMC compilations pack, alongside their DMC music players, a tiny
+custom SFX sequencer (Canyon_Tank_Duel, Empire_Strikes_Back). Its
+shared musical content lives in one `dmc_sfx` block; the file's
+`dmcsfx`-kind subtunes each name a `song` it triggers, and the composer
+emits the DMC engine and the dmc_sfx interpreter into one image behind a
+per-subtune dispatcher.
+
+```
+dmc_sfx {
+  init_counter: 2               # modulation-LFO start phase
+  live_counter_fidx: 108        # off-table freq_hi read that sonifies the
+                                # live play counter (-1 = none); C11
+  filter_lfo: $F0 $F0 ...       # rotating filter-cutoff contour (8 bytes)
+  wave_table: $03 $03 ...       # arp pitch-program (read wave[step|incr])
+  freq_lo: ...                  # tuning table (extended over off-table reads)
+  freq_hi: ...
+  instrument 0 {                # ctrl/freqbase = a 4-phase timbre + base-
+    ctrl: $81 $81 $81 $81       # pitch modulation the engine rotates through
+    freqbase: $45 $35 $35 $35
+    ad: $0C  sr: $0C  pw: $88 $08
+  }
+  song 0 {                      # voice + pitch program + duration
+    voice: 2   duration: 33
+    wavestep: $FF               # bit7 set => glide; else arp start
+    increment: $FF              # glide step OR arp ORA mask
+    instrument: 0
+  }
+  voice_init 0 { ... }          # 3 = the shared leftover voice state a song
+}                               # does not set up (its non-song voices)
+```
+
+See `pipelines/dmc/v4/RE_NOTES.md` section `dmc_sfx` for the engine model.
+
 ## `subtune N kind { ... }`
 
-`kind` is `music`, `digi`, or `sfx`. The parser knows what shape to
-expect downstream.
+`kind` is `music`, `digi`, `sfx`, or `dmcsfx`. The parser knows what
+shape to expect downstream. A `dmcsfx` subtune is one line — `song: N` —
+naming its song in the shared `dmc_sfx` block:
+
+```
+subtune 6 dmcsfx {
+  song: 0
+}
+```
 
 ### `subtune N music`
 

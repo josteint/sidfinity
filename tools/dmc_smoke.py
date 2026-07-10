@@ -44,6 +44,8 @@ DEFAULT_MEMBERS = [
     ('page3-reloc',   'MUSICIANS/B/Bakewell_Dwayne/Journey.sid', 'build'),
     ('oob-C29',       'MUSICIANS/P/PVCF/Worktunes/Centric_tune_4_version_8.sid', 'build'),
     ('2SID-config',   'MUSICIANS/R/Rayden/Bamse_Bert_2SID.sid', 'config2sid'),
+    # heterogeneous compilation: DMC players + a dmc_sfx sub-player (C31)
+    ('hetero-sfx',    'MUSICIANS/B/Bayliss_Richard/Canyon_Tank_Duel.sid', 'build'),
 ]
 
 

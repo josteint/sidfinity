@@ -657,3 +657,86 @@ co-set never-release flag alongside `gate_mode='hold'`; extract sets it from
 `(fx & 0x18) == 0x18`; `iflags()` ORs bit 3 back. Regression-safe by
 construction (the bit only reaches the stream via the fxf reads, where the
 old build already diverged). Strain_2 partial → FULL 439569/439569.
+
+---
+
+## The `dmc_sfx` sub-player (embedded SFX engine in DMC compilations)
+
+Discovered 2026-07-10 while migrating Canyon_Tank_Duel (Bayliss), a 3-player
+HETEROGENEOUS compilation: 2 canonical DMC v4 music players ($1000, $2000) +
+one tiny (~257-byte) custom SFX sequencer at $3000. The SFX engine is NOT DMC —
+distinct note/instrument/waveform format. It appears in >=2 HVSC files by
+different authors (Canyon_Tank_Duel @ $3000; Widding's Empire_Strikes_Back @
+$3d00) so it is a shared DMC-compilation SFX sub-player, NAMED `dmc_sfx` (not
+person-named — trichotomy rule).
+
+### Detection signature
+Play entry (LDX #imm / LDA base+$1d,X / STA $D416 / LDA #$01 / STA $D415 /
+LDA #imm / STA $D417): bytes `A2 02 BD 1D <bh> 8D 16 D4 A9 01 8D 15 D4`.
+Jump table is NON-canonical (init at base+$1B2, play at base+$F0), so
+`_canon_jt_bases` / `_jt_layout` miss it — detect via the dispatch-wrapper
+base-hi table + this play-entry signature.
+
+### Memory layout (relative to base B, e.g. $3000)
+- B+$00: JMP init(B+$1B2); B+$03: JMP play(B+$F0); B+$06: JMP $09E5 (unused)
+- B+$09..0B: SID voice reg offsets [0,7,14] (V1/V2/V3)
+- B+$0C..0E: dur[V1,V2,V3]     (duration counters; 0 = voice idle)
+- B+$0F..11: pitch[V1,V2,V3]   (pitch offset added to freqbase)
+- B+$12..14: incr[V1,V2,V3]    (additive glide step OR wave ORA mask)
+- B+$15..17: wavestep[V1,V2,V3](bit7 set => additive/glide; else 16-step arp)
+- B+$18..1A: instr[V1,V2,V3]   (instrument index = song*8)
+- B+$1B: scratch (cur voice X); B+$1C: scratch (cur SID off)
+- B+$1D..24: filter cutoff LFO table (8 bytes, read $301d,X)
+- B+$25..84: freq_lo table (96) ; B+$85..E4: freq_hi table (96)
+- B+$F0..F1: play routine start; B+$F1 = play counter (SMC'd LDX operand)
+- B+$200+song*8: SONG record [voice, dur, wavestep, incr, AD, SR, PWlo, PWhi]
+- B+$280+song*8: INSTR record [ctrl0..3, freqbase0..3]  (4-phase rotation)
+- B+$300+: wave/arp table (pitch-offset program; read wave[wavestep|incr], full
+  index — reads past 16 into adjacent bytes; the store-back masks &$0F)
+
+### Per-play() write stream (the verification target)
+```
+entry_X = play_counter               ; starts at file-image B+$F1 (=2)
+emit $D416 = filtcut[entry_X]         ; rotating filter cutoff (always)
+emit $D415 = $01 ; emit $D417 = $23
+r = (entry_X + 1) & 3                 ; waveform/freqbase rotation phase
+play_counter = (entry_X + 1) & 7      ; stored to B+$F1 (SMC), LIVE
+for X in (2,1,0):                     ; voice loop V3,V2,V1
+  if dur[X]==0: continue
+  emit $D418 = $1F
+  off = [0,7,14][X]
+  if wavestep[X] & $80:  pitch[X] = (pitch[X]+incr[X]) & $FF        ; glide
+  else: y=(wavestep[X]|incr[X])&$FF; pitch[X]=wave[y]; wavestep[X]=(y+1)&$0F
+  ins = instr[X]
+  emit $D404+off = instr_ctrl[r + ins]       ; INSTR[$280+r+ins]
+  emit $D405+off = songrec_AD[ins]           ; SONG[$204+ins] (=record byte4)
+  emit $D406+off = songrec_SR[ins]           ; SONG[$205+ins]
+  emit $D402+off = songrec_PWlo[ins]         ; SONG[$206+ins]
+  emit $D403+off = songrec_PWhi[ins]         ; SONG[$207+ins]
+  fb = instr_freqbase[r + ins]               ; INSTR[$284+r+ins]
+  fidx = (fb + pitch[X]) & $FF
+  emit $D400+off = freq_lo[fidx]             ; OFF-TABLE if fidx>=96 (see below)
+  emit $D401+off = freq_hi[fidx]             ; OFF-TABLE if fidx>=96 (LIVE at $F1)
+  dur[X] = (dur[X]-1) & $FF
+  if dur[X]==0: emit $D404+off=$08 ; emit $D406+off=$00 ; emit $D405+off=$00
+```
+
+### init(song=A)
+X=song*8; voice=SONG[$200+X]; instr[voice]=X; dur[voice]=SONG[$201+X];
+wavestep[voice]=SONG[$202+X]; incr[voice]=SONG[$203+X]; pitch[voice]=0;
+then clears that voice's $D400-$D406 (=0) and $D405=$0F.
+**Only the song's voice is set up** — the OTHER two voices play from the shared
+FILE-IMAGE leftover state (B+$0C..1A). siddump reloads the image per subtune, so
+the leftover is a deterministic global constant (capture B+$0C..1A verbatim).
+
+### Off-table freq read (C6/C11) — songs whose glide overshoots the 96-entry table
+fidx>=96: freq_lo[$25+fidx] lands back in the freq_hi table region (STATIC, a
+real freq byte); freq_hi[$85+fidx] lands in code bytes past the freq_hi table —
+mostly STATIC code bytes EXCEPT B+$F1 (fidx=108) = the LIVE play counter
+(=(entry_X+1)&7). Reproduce: extend the freq tables to cover reachable fidx with
+the captured code bytes, + a single live-redirect for fidx whose hi-addr is the
+play counter. Only songs 2 and 3 of Canyon reach off-table.
+
+### Validation
+`tmp/dmc_sfx_sim_reference.py` — Python simulator; matches the per-IRQ
+writelog EXACTLY over the overlap for all 8 Canyon $3000 songs (subtunes 6-13).

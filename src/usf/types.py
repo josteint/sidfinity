@@ -284,7 +284,21 @@ class SfxSubtune:
     kind: str = 'sfx'
 
 
-Subtune = Union[MusicSubtune, DigiSubtune, SfxSubtune]
+@dataclass
+class DmcSfxSubtune:
+    """A subtune played by the embedded dmc_sfx sub-player (see SfxEngine).
+
+    The whole subtune is one short sound: at init the engine sets up the
+    song's voice from song record `song`, and the other two voices play from
+    the engine's shared `voice_init` leftover state. All musical content lives
+    in the shared `SfxEngine` (UsfFile.dmc_sfx); the subtune only names which
+    song it triggers."""
+    id: int
+    song: int = 0                         # index into SfxEngine.songs
+    kind: str = 'dmcsfx'
+
+
+Subtune = Union[MusicSubtune, DigiSubtune, SfxSubtune, DmcSfxSubtune]
 
 
 # ---------------------------------------------------------------------------
@@ -907,6 +921,68 @@ class PsidMeta:
 
 
 # ---------------------------------------------------------------------------
+# dmc_sfx embedded sub-player
+# ---------------------------------------------------------------------------
+
+@dataclass
+class SfxInstrument:
+    """One dmc_sfx instrument. `ctrl` and `freqbase` are 4-entry tables the
+    engine rotates through with a global per-frame counter (a timbre + base-
+    pitch modulation LFO); `ad`/`sr`/`pw_lo`/`pw_hi` are the SID envelope +
+    pulse-width."""
+    ctrl: tuple = (0, 0, 0, 0)           # 4 waveform-control bytes (phase 0-3)
+    freqbase: tuple = (0, 0, 0, 0)       # 4 freq-table base indices (phase 0-3)
+    ad: int = 0
+    sr: int = 0
+    pw_lo: int = 0
+    pw_hi: int = 0
+
+
+@dataclass
+class SfxSong:
+    """One dmc_sfx song = a voice + a pitch program + a duration. `wavestep`
+    with bit 7 set selects GLIDE mode (pitch += `increment` each frame);
+    otherwise ARP mode steps the shared wave table by `wavestep | increment`.
+    `instrument` indexes SfxEngine.instruments."""
+    voice: int = 0                       # 0/1/2 = V1/V2/V3
+    duration: int = 0                    # frames the sound lasts
+    wavestep: int = 0                    # arp start position (bit7 => glide)
+    increment: int = 0                   # glide step OR arp ORA mask
+    instrument: int = 0                  # index into SfxEngine.instruments
+
+
+@dataclass
+class SfxVoiceInit:
+    """The initial state of one voice at engine init. A song sets up only its
+    own voice; the other two voices play from this shared leftover state."""
+    duration: int = 0
+    pitch: int = 0
+    increment: int = 0
+    wavestep: int = 0
+    instrument: int = 0
+
+
+@dataclass
+class SfxEngine:
+    """The dmc_sfx sub-player's shared musical content (see DmcSfxSubtune +
+    pipelines/dmc/v4/RE_NOTES.md 'dmc_sfx'). A compact 3-voice SFX sequencer:
+    a global per-frame counter rotates the filter cutoff (`filter_lfo`) and
+    each instrument's 4-phase ctrl/freqbase tables; per voice an instrument +
+    a pitch program (glide/arp over `wave_table`) plays for a duration."""
+    filter_lfo: tuple = ()               # 8 cutoff bytes, rotated by the counter
+    wave_table: tuple = ()               # arp pitch-program (read wave[step|incr])
+    freq_lo: tuple = ()                  # tuning table, extended over off-table reads
+    freq_hi: tuple = ()
+    instruments: list = field(default_factory=list)   # SfxInstrument pool
+    songs: list = field(default_factory=list)         # SfxSong pool
+    voice_init: tuple = ()               # 3 SfxVoiceInit (shared leftover state)
+    init_counter: int = 2                # play-counter start (modulation phase)
+    # Off-table freq_hi read at this index sonifies the LIVE play counter
+    # (C11 state-as-data); the composer redirects it. -1 when unreachable.
+    live_counter_fidx: int = -1
+
+
+# ---------------------------------------------------------------------------
 # Top-level USF file
 # ---------------------------------------------------------------------------
 
@@ -1033,3 +1109,9 @@ class UsfFile:
     # program; absent ⇒ the PW holds (the engine's null pos-0). One shared
     # program (pulse position 0) all voices index.
     default_pulse: Optional['SweepEnvelope'] = None
+    # Embedded dmc_sfx sub-player (a compact SFX sequencer packed into some DMC
+    # compilations, e.g. Canyon_Tank_Duel). Carries the shared musical content
+    # (filter LFO, arp table, tuning, instruments, songs, initial voice state)
+    # for the file's `dmcsfx`-kind subtunes. None when the file has no dmc_sfx
+    # sub-player. See SfxEngine + pipelines/dmc/v4/RE_NOTES.md 'dmc_sfx'.
+    dmc_sfx: Optional['SfxEngine'] = None

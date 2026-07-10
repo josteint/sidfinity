@@ -2306,5 +2306,46 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   the union → distinct ids. 29 → 28. Regression-safe: only `merge_models`;
   every currently-FULL compilation keeps its identical instrument count
   (offtable-union changes nothing when no two insts share a base key).
-- **Status:** `logged` (built, 6 members FULL/near; family-wide residue tail
-  documented — see [[project_dmc_compilations]]).
+- **HETEROGENEOUS compilation — DMC players + a distinct dmc_sfx sub-player
+  (2026-07-10, Canyon_Tank_Duel, Bayliss; +1 FULL, 13/13 subtunes):** the packed
+  players need NOT all be the same engine. Canyon packs 2 canonical DMC music
+  players ($1000/$2000) + a tiny (~257 B) CUSTOM SFX sequencer at $3000 — its
+  own note/instrument/waveform format, NOT DMC (also in Widding's
+  Empire_Strikes_Back @ $3D00; two authors → a shared DMC-editor SFX sub-player,
+  named `dmc_sfx`). Three pieces, all landed:
+  1. **Detection from the WRAPPER TABLE, not a JT scan.** `_canon_jt_bases`
+     required the canonical `4C b+1D 4C b+85` head and MISSED the re-assembled
+     dmc_sfx player (jump table at +$1B2/+$F0). FIX: `detect_compilation` now
+     derives the player bases from the dispatch wrapper's own base-hi `LDA
+     abs,X` table (the authoritative list of what it selects), each validated by
+     the RELOCATION-invariant three-JMP head (`_is_player_base`: JMP at
+     +0/+3/+6). Regression-safe: keeps the >=2-DISTINCT-player gate + the
+     merge-fallback; only WIDENS which bases are recognized. (Also newly detects
+     Empire as a 4-player heterogeneous compilation.)
+  2. **dmc_sfx migrated as a typed USF engine** (NOT opaque bytes / a §8 engine
+     library). New `dmc_sfx {}` block + `dmcsfx`-kind subtunes carry the shared
+     musical content: a rotating filter-cutoff LFO, an arp pitch-program table,
+     tuning tables (extended over the off-table reads), 8 instruments (each a
+     4-phase ctrl/freqbase timbre+pitch modulation + envelope/PW), 8 song
+     records, and the shared initial voice state (a song sets up only ITS voice;
+     the others play from file-image leftover = a typed `voice_init`). One quirk:
+     a glide can push the freq index past the 96-entry table → an off-table read;
+     mostly static code bytes captured as extended tuning (C6), the ONE live one
+     ($30F1 = the play counter) reproduced by a composer redirect at
+     `live_counter_fidx` (C11 state-as-data). Extract `sfx_engine.py`
+     (+ a pure-Python reference interpreter reading ONLY the typed model — proves
+     completeness); composer `sfx_composer.py` (a clean 6502 re-implementation).
+  3. **Heterogeneous composer dispatch** (`build_dmc_compilation_sid`): emit BOTH
+     the DMC engine and the dmc_sfx interpreter into one image behind a
+     per-subtune stub at $1000 — init(A=subtune) latches the owning engine +
+     routes with the engine-local index, play jumps to the latched engine. Same
+     "one engine per subtune, sequential" shape as the 2SID dispatcher, but
+     per-subtune-selected (only one runs) rather than parallel.
+  Regression-safe by construction: the whole path is gated on `usf.dmc_sfx`
+  presence (single-player + homogeneous-compilation members never touch it) and
+  on the SFX-player detection (an existing wide-family invariant: the
+  >=2-distinct-player-dispatch signature never coincides with a FULL single
+  player); write_dmc_compilation_usf falls back to single-player on any failure.
+- **Status:** `logged` (built, 7 members FULL incl. the first HETEROGENEOUS
+  (Canyon, 13/13); family-wide residue tail documented — see
+  [[project_dmc_compilations]]).

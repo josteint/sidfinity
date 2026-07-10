@@ -60,22 +60,35 @@ def _follow_jmps(mem, pc: int, hops: int = 8) -> int:
     return pc
 
 
+def _is_player_base(mem, load: int, a: int) -> bool:
+    """A page-aligned address carrying a DMC-family jump table: three `JMP abs`
+    at +0/+3/+6. This is the RELOCATION- and REASSEMBLY-invariant player-base
+    signature — canonical DMC (init +$1D / play +$85), the 2-entry / family-2
+    layouts AND a re-assembled variant (Canyon's dmc_sfx player: init +$1B2 /
+    play +$F0) all share the three-JMP head, where the rigid canonical-offset
+    scan (`_canon_jt_bases`) misses the re-assembled ones."""
+    return (load <= a and a + 6 < 0x10000
+            and mem[a] == 0x4C and mem[a + 3] == 0x4C and mem[a + 6] == 0x4C)
+
+
 def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
     """Return a compilation spec or None.
 
     Spec: {'bases': [b0, b1, ...],           # distinct player bases (page-aligned)
            'map': [(player_idx, song), ...]}  # one entry per PSID subtune.
-    None when the file is a single-player member (the common case): fewer than
-    two canonical DMC jump tables, or the dispatch wrapper doesn't decode.
+    None when the file is a single-player member (the common case): the dispatch
+    wrapper doesn't decode into a base-hi table selecting >=2 distinct players.
+
+    The player bases come from the wrapper's own base-hi `LDA abs,X` table (the
+    authoritative list of what the dispatch selects), NOT from a memory scan for
+    canonical jump tables — a heterogeneous compilation can pack a re-assembled
+    or non-DMC player (Canyon_Tank_Duel's dmc_sfx sub-player at $3000, jump table
+    at +$1B2/+$F0) whose base the canonical scan would miss. Each candidate base
+    is validated by the three-JMP head (`_is_player_base`).
     """
     mem, s = em._load_image(os.path.join(hvsc_root, sid_path))
     load = s['load']
-    img_hi = min(0x10000, load + len(s['payload']))
-    bases = _canon_jt_bases(mem, load, img_hi)
-    if len(set(bases)) < 2:
-        return None
     songs = s.get('songs', 1)
-    base_his = {b >> 8 for b in bases}
 
     # follow the PSID init vector through the wrapper's JMP chain, then scan
     # the dispatch stub for its two `LDA abs,X` ($BD) tables.
@@ -98,15 +111,16 @@ def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
         else:
             p += 1
 
-    # classify the tables: base_hi's values are all player page numbers; the
-    # song table is the other one. Need at least one of each.
+    # classify the tables: the base-hi table's values all point (as a page
+    # number, val<<8) at a player base; the song table's values are small
+    # song numbers. Need at least the base-hi table.
     base_tab = song_tab = None
     for t in ldax:
         vals = [mem[(t + x) & 0xFFFF] for x in range(songs)]
-        if all(v in base_his for v in vals):
+        if all(_is_player_base(mem, load, v << 8) for v in vals):
             if base_tab is None:
                 base_tab = vals
-        elif all(v < len(bases) or v < 8 for v in vals):
+        elif all(v < 8 for v in vals):
             if song_tab is None:
                 song_tab = vals
     if base_tab is None:
@@ -116,10 +130,15 @@ def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
         # is song 0 of its selected player.
         song_tab = [0] * songs
 
-    base_idx = {b >> 8: i for i, b in enumerate(dict.fromkeys(bases))}
-    ordered_bases = list(dict.fromkeys(bases))
+    # ordered distinct bases in wrapper first-seen order
+    ordered_bases = []
+    for v in base_tab:
+        b = v << 8
+        if b not in ordered_bases:
+            ordered_bases.append(b)
+    base_idx = {b: i for i, b in enumerate(ordered_bases)}
     try:
-        mp = [(base_idx[base_tab[x]], song_tab[x]) for x in range(songs)]
+        mp = [(base_idx[base_tab[x] << 8], song_tab[x]) for x in range(songs)]
     except (KeyError, IndexError):
         return None
     # Only a genuine compilation: the dispatch must actually select >=2
@@ -313,6 +332,14 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
     return merged
 
 
+def sfx_player_indices(sid_path: str, spec: dict,
+                       hvsc_root: str = 'hvsc84') -> list:
+    """Player indices in spec['bases'] that are dmc_sfx sub-players (not DMC)."""
+    from pipelines.dmc.v4.sfx_engine import is_sfx_player
+    mem, _ = em._load_image(os.path.join(hvsc_root, sid_path))
+    return [i for i, b in enumerate(spec['bases']) if is_sfx_player(mem, b)]
+
+
 def extract_compilation(sid_path: str, spec: dict,
                         hvsc_root: str = 'hvsc84') -> 'em.DmcModel':
     """Extract every referenced player and merge into one unified DmcModel."""
@@ -327,3 +354,50 @@ def extract_compilation(sid_path: str, spec: dict,
            'clock': b0.clock, 'sid_model': b0.sid_model,
            'start_song': s.get('start', 1)}
     return merge_models(models, spec['map'], hdr)
+
+
+def extract_heterogeneous(sid_path: str, spec: dict, hvsc_root: str = 'hvsc84'):
+    """HETEROGENEOUS compilation (DMC players + a dmc_sfx sub-player, ledger
+    C31): extract the DMC players and merge them (DMC subtunes only), extract
+    the dmc_sfx player as a typed SfxEngine, and return
+    `(dmc_model, sfx_engine, subtune_kinds)` where `subtune_kinds[k]` is
+    `('dmc', dmc_subtune_index)` or `('sfx', sfx_song)` for PSID subtune k.
+    The composer emits both engines behind a per-subtune dispatcher."""
+    from pipelines.dmc.v4.factory import dmc_v4_config
+    from pipelines.dmc.v4.sfx_engine import extract_sfx_engine
+    from seed_disassembly import parse_psid
+    mem, _ = em._load_image(os.path.join(hvsc_root, sid_path))
+    bases, mp = spec['bases'], spec['map']
+    sfx_idx = set(sfx_player_indices(sid_path, spec, hvsc_root))
+    if len(sfx_idx) != 1:
+        raise ValueError(f'expected exactly one dmc_sfx player, got {len(sfx_idx)}')
+    sfx_base = bases[next(iter(sfx_idx))]
+    dmc_idx = [i for i in range(len(bases)) if i not in sfx_idx]
+    dmc_pos = {orig: new for new, orig in enumerate(dmc_idx)}
+
+    # how many songs the sfx player exposes: cover every referenced song
+    n_songs = max((song for pidx, song in mp if pidx in sfx_idx), default=-1) + 1
+    sfx_engine = extract_sfx_engine(mem, sfx_base, max(n_songs, 1))
+    # voice_init may reference an instrument slot past the referenced songs
+    need = max((v.instrument for v in sfx_engine.voice_init), default=0) + 1
+    if need > len(sfx_engine.songs):
+        sfx_engine = extract_sfx_engine(mem, sfx_base, need)
+
+    dmc_models = [em.extract(dmc_v4_config(sid_path, hvsc_root=hvsc_root,
+                                           base_override=bases[i]),
+                             hvsc_root=hvsc_root) for i in dmc_idx]
+    dmc_map, subtune_kinds, dmc_ctr = [], [], 0
+    for pidx, song in mp:
+        if pidx in sfx_idx:
+            subtune_kinds.append(('sfx', song))
+        else:
+            dmc_map.append((dmc_pos[pidx], song))
+            subtune_kinds.append(('dmc', dmc_ctr))
+            dmc_ctr += 1
+
+    s = parse_psid(os.path.join(hvsc_root, sid_path))
+    b0 = dmc_models[0]
+    hdr = {'title': b0.title, 'author': b0.author, 'released': b0.released,
+           'clock': b0.clock, 'sid_model': b0.sid_model, 'start_song': 1}
+    dmc_model = merge_models(dmc_models, dmc_map, hdr)
+    return dmc_model, sfx_engine, subtune_kinds, s.get('start', 1)

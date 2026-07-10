@@ -32,7 +32,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from src.usf.types import UsfFile, Pitch, MusicSubtune, InitState
+from src.usf.types import (UsfFile, Pitch, MusicSubtune, InitState,
+                           DmcSfxSubtune)
 from src.composer_runtime.xa65 import assemble
 from src.composer_runtime.psid import build_header
 from pipelines.dmc.engine_constants import FREQ_LO, FREQ_HI, VIBDEPTH
@@ -2513,7 +2514,84 @@ subsav: .byt $00
     return header + bytes([LOAD & 0xFF, LOAD >> 8]) + bytes(image)
 
 
+def build_dmc_compilation_sid(usf: UsfFile) -> bytes:
+    """HETEROGENEOUS compilation (ledger C31): the file's subtunes split across
+    the DMC engine (MusicSubtune) and the embedded dmc_sfx sub-player
+    (DmcSfxSubtune, content in usf.dmc_sfx). Emit BOTH engines into one image
+    behind a per-subtune dispatch stub at $1000 that routes init/play to the
+    engine owning the selected subtune (only one engine runs per subtune, so
+    the per-subtune write streams are independent — matching the original)."""
+    import dataclasses
+    from pipelines.dmc.sfx_composer import compose_sfx_asm
+    subs = sorted(usf.subtunes, key=lambda s: s.id)
+    dmc_subs = [s for s in subs if isinstance(s, MusicSubtune)]
+
+    # per PSID subtune: (engine 0=DMC/1=SFX, index within that engine)
+    engtab, idxtab, dmc_i = [], [], 0
+    for s in subs:
+        if isinstance(s, MusicSubtune):
+            engtab.append(0)
+            idxtab.append(dmc_i)
+            dmc_i += 1
+        else:                                   # DmcSfxSubtune
+            engtab.append(1)
+            idxtab.append(s.song)
+
+    dmc_origin = 0x1100
+    dmc_usf = dataclasses.replace(
+        usf, subtunes=dmc_subs, dmc_sfx=None,
+        psid=dataclasses.replace(usf.psid, start_song=1))
+    dmc_asm = _sanitize_asm(compose_dmc_asm(dmc_usf, origin=dmc_origin))
+    dmc_blob = assemble(dmc_asm)
+    sfx_origin = (dmc_origin + len(dmc_blob) + 1) & ~1
+    sfx_blob = assemble(compose_sfx_asm(usf.dmc_sfx, origin=sfx_origin))
+
+    di, dp = dmc_origin, dmc_origin + 3
+    si, sp = sfx_origin, sfx_origin + 3
+    engs = ', '.join(f'${e:02X}' for e in engtab)
+    idxs = ', '.join(f'${i:02X}' for i in idxtab)
+    disp = f"""        * = $1000
+        jmp cinit
+        jmp cplay
+cinit:
+        tax
+        lda cengtab,x
+        sta cactive
+        lda cidxtab,x                ; A = index within the selected engine
+        ldy cactive
+        bne ci_sfx
+        jmp ${di:04X}
+ci_sfx:
+        jmp ${si:04X}
+cplay:
+        lda cactive
+        bne cp_sfx
+        jmp ${dp:04X}
+cp_sfx:
+        jmp ${sp:04X}
+cactive: .byt $00
+cengtab: .byt {engs}
+cidxtab: .byt {idxs}
+"""
+    dblob = assemble(disp)
+    blobs = [(0x1000, dblob), (dmc_origin, dmc_blob), (sfx_origin, sfx_blob)]
+    end = max(o + len(b) for o, b in blobs)
+    image = bytearray(end - LOAD)
+    for o, b in blobs:
+        image[o - LOAD:o - LOAD + len(b)] = b
+    clock = {'PAL': 1, 'NTSC': 2, 'both': 3}.get(usf.psid.clock, 0)
+    sidm = {6581: 1, 8580: 2, 'both': 3}.get(usf.psid.sid, 0)
+    header = build_header(
+        load=0, init=LOAD, play=LOAD + 3,
+        songs=len(subs), start_song=usf.psid.start_song,
+        title=usf.psid.title, author=usf.psid.author,
+        released=usf.psid.released, flags=(clock << 2) | (sidm << 4))
+    return header + bytes([LOAD & 0xFF, LOAD >> 8]) + bytes(image)
+
+
 def build_dmc_sid(usf: UsfFile) -> bytes:
+    if getattr(usf, 'dmc_sfx', None) is not None:
+        return build_dmc_compilation_sid(usf)
     if usf.subtunes and getattr(usf.subtunes[0], 'voices', None) \
             and len(usf.subtunes[0].voices) > 3:
         return build_dmc_2sid_sid(usf)

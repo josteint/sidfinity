@@ -3,7 +3,7 @@
 // Lark grammar (LALR friendly). Whitespace and comments are ignored
 // between tokens. Top-level order is enforced by the start rule.
 
-start: psid_block params_block init_block freq_table_block? offtable_vibdepth_block? state_layout_block? song_end_block? init_behavior_block? master_vol_block? sfx_block? default_filter_block? default_pulse_block? fc_aux_block* instrument_block* subtune_block*
+start: psid_block params_block init_block freq_table_block? offtable_vibdepth_block? state_layout_block? song_end_block? init_behavior_block? master_vol_block? sfx_block? dmc_sfx_block? default_filter_block? default_pulse_block? fc_aux_block* instrument_block* subtune_block*
 
 // ----- default (idle) filter / pulse sweeps (DMC V5) -----
 // The default cutoff / PW modulation the engine applies before/between explicit
@@ -216,6 +216,27 @@ sfx_block: "sfx" "{" sfx_kv* "}"
 sfx_kv: "framectr_ofs" ":" number       -> sfx_framectr_ofs
       | "state_ofs" ":" number          -> sfx_state_ofs
 
+// ----- dmc_sfx embedded sub-player (optional) -----
+// The shared musical content of the embedded dmc_sfx SFX sequencer packed into
+// some DMC compilations (Canyon_Tank_Duel). `filter_lfo` = a rotating cutoff
+// contour; `wave_table` = the arp pitch-program; `freq_lo/hi` = the tuning
+// tables (extended to cover off-table reads). Each instrument's 4-entry
+// `ctrl`/`freqbase` tables are a per-frame timbre + base-pitch modulation.
+// See src/usf/types.py SfxEngine + pipelines/dmc/v4/RE_NOTES.md 'dmc_sfx'.
+dmc_sfx_block: "dmc_sfx" "{" dmc_sfx_field* "}"
+dmc_sfx_field: "init_counter" ":" number            -> dsfx_counter
+             | "live_counter_fidx" ":" signed_int   -> dsfx_live
+             | "filter_lfo" ":" byte_list            -> dsfx_filter
+             | "wave_table" ":" byte_list            -> dsfx_wave
+             | "freq_lo" ":" byte_list               -> dsfx_freqlo
+             | "freq_hi" ":" byte_list               -> dsfx_freqhi
+             | dsfx_instrument
+             | dsfx_song
+             | dsfx_voice_init
+dsfx_instrument: "instrument" INT "{" "ctrl" ":" byte_list "freqbase" ":" byte_list "ad" ":" number "sr" ":" number "pw" ":" number number "}"
+dsfx_song: "song" INT "{" "voice" ":" number "duration" ":" number "wavestep" ":" number "increment" ":" number "instrument" ":" number "}"
+dsfx_voice_init: "voice_init" INT "{" "duration" ":" number "pitch" ":" number "increment" ":" number "wavestep" ":" number "instrument" ":" number "}"
+
 // ----- instruments -----
 instrument_block: "instrument" INT instrument_name? "{" instrument_field+ "}"
 instrument_name:  CNAME
@@ -404,10 +425,16 @@ subtune_block: "subtune" INT subtune_kind "{" subtune_body "}"
 subtune_kind: "music"        -> kind_music
             | "digi"         -> kind_digi
             | "sfx"          -> kind_sfx
+            | "dmcsfx"       -> kind_dmcsfx
 
 subtune_body: music_body
             | digi_body
             | sfx_body
+            | dmcsfx_body
+
+// dmcsfx — a subtune played by the embedded dmc_sfx sub-player. All content
+// lives in the shared `dmc_sfx` block; the subtune only names its song.
+dmcsfx_body: "song" ":" INT
 
 // music
 // `is_sfx`: FC family — distinguishes SFX-kind subtunes that are

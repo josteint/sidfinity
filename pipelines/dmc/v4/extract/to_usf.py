@@ -26,7 +26,7 @@ from src.usf.types import (
     Instrument, PwmConfig, VibratoConfig, EnvelopeConfig,
     FreqSlideConfig, FilterProgConfig, ArpConfig,
     MusicSubtune, VoiceBlock, Orderlist, Pattern, NoteRow, Pitch,
-    InstrumentRef,
+    InstrumentRef, DmcSfxSubtune,
 )
 from src.usf.writer import write_file
 from pipelines.dmc.v4.config import DMCV4Config
@@ -496,16 +496,46 @@ def write_dmc_2sid_usf(cfgs, out_dir: str, hvsc_root: str = 'hvsc84') -> str:
     return out
 
 
+def heterogeneous_to_usf(dmc_model, sfx_engine, subtune_kinds,
+                         start_song: int) -> UsfFile:
+    """Combine a DMC merged model + a dmc_sfx SfxEngine into one heterogeneous
+    UsfFile: the DMC music subtunes and the dmcsfx subtunes interleaved in PSID
+    order, plus the shared `dmc_sfx` block."""
+    import dataclasses
+    dmc_usf = model_to_usf(dmc_model)
+    dmc_subs = dmc_usf.subtunes                    # ids 1..n_dmc, DMC order
+    final = []
+    for k, (kind, idx) in enumerate(subtune_kinds):
+        if kind == 'dmc':
+            final.append(dataclasses.replace(dmc_subs[idx], id=k + 1))
+        else:
+            final.append(DmcSfxSubtune(id=k + 1, song=idx))
+    psid = dataclasses.replace(dmc_usf.psid, start_song=start_song)
+    return dataclasses.replace(dmc_usf, subtunes=final, dmc_sfx=sfx_engine,
+                               psid=psid)
+
+
 def write_dmc_compilation_usf(sid_path: str, spec: dict, out_dir: str,
                               hvsc_root: str = 'hvsc84') -> str:
-    """COMPILATION member (ledger C31): extract every packed player, merge into
-    one unified single-player DmcModel (freq/vibdepth shared, instruments
-    renumbered into one pool, songs reordered by PSID subtune), then serialize
-    with the ordinary model_to_usf path — the composer needs no compilation
-    awareness."""
-    from pipelines.dmc.v4.compilation import extract_compilation
-    m = extract_compilation(sid_path, spec, hvsc_root=hvsc_root)
-    usf = model_to_usf(m)
+    """COMPILATION member (ledger C31): extract every packed player and merge.
+
+    HOMOGENEOUS (all DMC players): merge into one unified single-player DmcModel
+    (freq/vibdepth shared, instruments renumbered into one pool, songs reordered
+    by PSID subtune), serialized with the ordinary model_to_usf path.
+    HETEROGENEOUS (DMC players + a dmc_sfx sub-player, e.g. Canyon_Tank_Duel):
+    the DMC subtunes merge as usual, the dmc_sfx player becomes a typed
+    SfxEngine (`dmc_sfx` block) + dmcsfx subtunes; the composer emits both
+    engines behind a per-subtune dispatcher."""
+    from pipelines.dmc.v4.compilation import (extract_compilation,
+                                              extract_heterogeneous,
+                                              sfx_player_indices)
+    if sfx_player_indices(sid_path, spec, hvsc_root):
+        dmc_model, sfx_engine, kinds, start = extract_heterogeneous(
+            sid_path, spec, hvsc_root=hvsc_root)
+        usf = heterogeneous_to_usf(dmc_model, sfx_engine, kinds, start)
+    else:
+        m = extract_compilation(sid_path, spec, hvsc_root=hvsc_root)
+        usf = model_to_usf(m)
     base = os.path.splitext(os.path.basename(sid_path))[0]
     out = os.path.join(out_dir, base + '.usf')
     write_file(usf, out)

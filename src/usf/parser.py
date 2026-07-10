@@ -17,7 +17,8 @@ from src.usf.types import (
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
     FreqSlideConfig, IncBy2Config, SongEndConfig, InitBehaviorConfig,
     MasterVolConfig, SfxConfig, SweepEnvelope,
-    MusicSubtune, DigiSubtune, SfxSubtune,
+    MusicSubtune, DigiSubtune, SfxSubtune, DmcSfxSubtune,
+    SfxEngine, SfxInstrument, SfxSong, SfxVoiceInit,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
     GlobalEvent,
 )
@@ -547,6 +548,58 @@ class _T(Transformer):
     def kind_sfx(self, _):
         return 'sfx'
 
+    def kind_dmcsfx(self, _):
+        return 'dmcsfx'
+
+    def dmcsfx_body(self, items):
+        return ('dmcsfx', {'song': int(items[0])})
+
+    # ----- dmc_sfx block -----
+    def dmc_sfx_field(self, items):  return items[0]
+    def dsfx_counter(self, items):   return ('init_counter', int(items[0]))
+    def dsfx_live(self, items):      return ('live_counter_fidx', int(items[0]))
+    def dsfx_filter(self, items):    return ('filter_lfo', tuple(items[0]))
+    def dsfx_wave(self, items):      return ('wave_table', tuple(items[0]))
+    def dsfx_freqlo(self, items):    return ('freq_lo', tuple(items[0]))
+    def dsfx_freqhi(self, items):    return ('freq_hi', tuple(items[0]))
+
+    def dsfx_instrument(self, items):
+        # INT ctrl_list freqbase_list ad sr pw_lo pw_hi
+        return ('_inst', int(items[0]), SfxInstrument(
+            ctrl=tuple(items[1]), freqbase=tuple(items[2]),
+            ad=int(items[3]), sr=int(items[4]),
+            pw_lo=int(items[5]), pw_hi=int(items[6])))
+
+    def dsfx_song(self, items):
+        # INT voice duration wavestep increment instrument
+        return ('_song', int(items[0]), SfxSong(
+            voice=int(items[1]), duration=int(items[2]), wavestep=int(items[3]),
+            increment=int(items[4]), instrument=int(items[5])))
+
+    def dsfx_voice_init(self, items):
+        # INT duration pitch increment wavestep instrument
+        return ('_vinit', int(items[0]), SfxVoiceInit(
+            duration=int(items[1]), pitch=int(items[2]), increment=int(items[3]),
+            wavestep=int(items[4]), instrument=int(items[5])))
+
+    def dmc_sfx_block(self, items):
+        eng = SfxEngine()
+        insts, songs, vinits = {}, {}, {}
+        for it in items:
+            tag = it[0]
+            if tag == '_inst':
+                insts[it[1]] = it[2]
+            elif tag == '_song':
+                songs[it[1]] = it[2]
+            elif tag == '_vinit':
+                vinits[it[1]] = it[2]
+            else:
+                setattr(eng, tag, it[1])
+        eng.instruments = [insts[i] for i in sorted(insts)]
+        eng.songs = [songs[i] for i in sorted(songs)]
+        eng.voice_init = tuple(vinits[i] for i in sorted(vinits))
+        return ('dmc_sfx', eng)
+
     def subtune_kind(self, items):
         return items[0]
 
@@ -735,6 +788,8 @@ class _T(Transformer):
                 global_track3=body_data.get('global_track3', []))
         elif kind == 'digi':
             return DigiSubtune(id=sub_id, sample=body_data['sample'])
+        elif kind == 'dmcsfx':
+            return DmcSfxSubtune(id=sub_id, song=body_data['song'])
         else:
             # sfx — body_data is the decomposed SFX record
             return SfxSubtune(id=sub_id, **body_data)
@@ -1240,6 +1295,7 @@ class _T(Transformer):
         wave_programs = {}
         default_filter = None
         default_pulse = None
+        dmc_sfx = None
         offtable_vibdepth = []
         for it in items:
             if isinstance(it, tuple):
@@ -1282,6 +1338,8 @@ class _T(Transformer):
                     default_filter = v
                 elif k == 'default_pulse':
                     default_pulse = v
+                elif k == 'dmc_sfx':
+                    dmc_sfx = v
             elif isinstance(it, PsidMeta):
                 psid = it
             elif isinstance(it, Params):
@@ -1290,7 +1348,8 @@ class _T(Transformer):
                 init = it
             elif isinstance(it, Instrument):
                 instruments.append(it)
-            elif isinstance(it, (MusicSubtune, DigiSubtune, SfxSubtune)):
+            elif isinstance(it, (MusicSubtune, DigiSubtune, SfxSubtune,
+                                 DmcSfxSubtune)):
                 subtunes.append(it)
         return UsfFile(
             psid=psid, params=params,
@@ -1303,7 +1362,8 @@ class _T(Transformer):
             drum_programs=drum_programs, attack_len=attack_len,
             attack_wave=attack_wave, wave_arp=wave_arp, pulse_arp=pulse_arp,
             wave_programs=wave_programs, offtable_vibdepth=offtable_vibdepth,
-            default_filter=default_filter, default_pulse=default_pulse)
+            default_filter=default_filter, default_pulse=default_pulse,
+            dmc_sfx=dmc_sfx)
 
 
 # ---------------------------------------------------------------------------
