@@ -36,7 +36,7 @@ Every per-engine difference is an `EngineConfig` field describing engine
 **mechanism** (a threshold, an address, a step size, a flag). It is
 **never** a `*Kind` enum or a library index in the USF data. If you find
 yourself wanting to add an opaque "kind" tag, stop and read
-`docs/usf_representation_principle.md` in full — effects are parametric
+`docs/the_principle.md` in full — effects are parametric
 over a musical basis; the engine holds mechanism, the data stays
 abstract.
 
@@ -346,5 +346,5 @@ If it isn't evolving, it is quietly going stale.
   inst_generalize,inst_interp,note_codec,song_interp,codegen,verify}.py`.
 - Worked examples: the `project_{commando,devils_galop,monty,
   action_biker,chimera}.md` memories — read the closest-looking one.
-- `docs/usf_representation_principle.md` — load-bearing, read before
+- `docs/the_principle.md` — load-bearing, read before
   changing any effect/instrument representation.

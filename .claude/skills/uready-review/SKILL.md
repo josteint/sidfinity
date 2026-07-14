@@ -22,7 +22,7 @@ spot a one-line obvious doc/comment fix, note it; don't refactor.)
 
 Read FIRST, in full:
 - `docs/refactor_1_remaining.md` (Move 1, the §8 risk, the open principle question)
-- `docs/usf_representation_principle.md` (§7 forbidden shape, §8 composer twin, §9 four tests)
+- `docs/the_principle.md` (§7 forbidden shape, §8 composer twin, §9 four tests)
 - `.claude/memory/feedback_uready_vocabulary.md` (the 6 criteria + the live scoreboard)
 
 ## The 6 uready criteria (per engine family) — all checkable
@@ -113,7 +113,7 @@ Then **update** (these writes are the only mutations a review makes):
   uready status + date).
 - the **Move-1 ledger** in `docs/refactor_1_remaining.md` (criterion-5 feature
   accounting + the pending divergence decisions).
-- the **[convergence ledger](../../../docs/convergence_ledger.md)** — the review
+- the **[convergence ledger](../../../docs/the_convergence_ledger.md)** — the review
   is the periodic maintainer (per-solve recording is the everyday CLAUDE.md
   reflex). Ensure EVERY solution the Phase-2 matrix surfaces has an entry (log any
   missing as `logged`); then PROMOTE the ones used **≥2×** (reused OR divergent) to

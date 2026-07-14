@@ -311,7 +311,7 @@ DMC composer at `pipelines/dmc/composer_asm.py` is the direct model.
   compare play stream).
 - **Init style:** `init_style='universal_reset'` with
   `compare_instruction_stream(mode='trichotomy')` — same as FC standard and
-  Adrenalin (see `feedback_init_trichotomy.md`).
+  Adrenalin (see `docs/the_trichotomy.md`).
 - **PSID speed bit:** query each SID's PSID header `speed` field.  Most GMC
   tunes are expected to be VBlank (speed=0); if any are CIA-timed use
   `siddump --writelog-per-irq` path.

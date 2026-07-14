@@ -702,7 +702,7 @@ class InitVoice:
 # ---------------------------------------------------------------------------
 # SID-chip priming — `init.sid { ... }` block
 # ---------------------------------------------------------------------------
-# Per `docs/sid_init_report.md` (reset / priming / environment trichotomy):
+# Per `docs/the_trichotomy.md` (reset / priming / environment trichotomy):
 # these fields capture the chip-state priming the engine performs during
 # init, distinct from the engine's runtime voice_state (above). The
 # composer's universal init reads these and emits the corresponding SID

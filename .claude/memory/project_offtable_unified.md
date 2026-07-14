@@ -177,4 +177,4 @@ NOT per-instrument. Phase 2 unify offtable_freq code. Phase 3 port the contour F
 Defer Z3/e-graph unless greedy proves insufficient.
 
 Relates to [[project_dmc]] (family-4 ptr-19 = the live blocker), the ledger C2/C6/C7/C11,
-and `docs/usf_representation_principle.md` §7.
+and `docs/the_principle.md` §7.

@@ -321,7 +321,7 @@ $14=F0 $13=0F $0E=07 $0F=01 $12=1A ...             ; first play(): V3 ADSR+Freq+
 priming → USF `init.sid { master_vol }`. There is no exotic per-voice priming beyond the first
 play()'s note load. ⇒ **Use `compare_instruction_stream(mode='trichotomy')` if the composer emits
 its own reset of a different length; otherwise the flat prefix matches** (the reset is a fixed
-24-write descending clear). Re-read `docs/sid_init_report.md` before finalising the `init.sid`
+24-write descending clear). Re-read `docs/the_trichotomy.md` before finalising the `init.sid`
 block.
 
 ---

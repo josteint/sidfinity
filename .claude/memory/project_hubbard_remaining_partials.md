@@ -8,7 +8,7 @@ metadata:
 ---
 
 ## CIA-aware verdict — IMPLEMENTED 2026-06-07 (option (a), the per-play verdict)
-Plan `docs/cia_aware_verdict_plan.md` is now DONE. HR 5/5 + Battle 1/1 pass.
+Plan `deprecated/old_docs/cia_aware_verdict_plan.md` is now DONE. HR 5/5 + Battle 1/1 pass.
 What shipped (all in this repo now, not reverted):
 - **siddump per-irq splitter fixed** (`tools/siddump.cpp`). The bug was a
   cycle-origin mismatch: play-entry cycles are ABSOLUTE (PHI1 clock, recorded in

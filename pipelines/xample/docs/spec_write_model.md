@@ -144,7 +144,7 @@ For Layout A/B standard members:
   standard) or reproduce the engine's original init write sequence.
 - Recommendation: after writelog capture, compare init streams and apply the
   **trichotomy** (`compare_instruction_stream(mode='trichotomy')`) to decide.
-  See `feedback_init_trichotomy.md`.
+  See `docs/the_trichotomy.md`.
 
 ---
 

@@ -244,7 +244,7 @@ are placeholders derived from general tracker convention:
 - OPEN: Instruments → likely maps to USF `Instrument` with ADSR + program
 - OPEN: Effects → unknown set; may share FC or Hubbard effect categories
 
-**Mandatory:** Re-read `docs/usf_representation_principle.md` IN FULL before
+**Mandatory:** Re-read `docs/the_principle.md` IN FULL before
 designing any USF representation for this engine.
 
 ---

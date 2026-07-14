@@ -403,7 +403,7 @@ def _emit_universal_reset_sidwrite(cfg: FCConfig) -> str:
     """The PURE-TRICHOTOMY SID reset+priming body (shared by the flat and SMC
     init paths). Emits, in order: a clean silence-clear of $D400-$D417, a
     defensive test-bit oscillator-phase clear on V1/V2/V3 (report
-    sid_init_report §6a — click-free DETERMINISTIC first-note attack, ends
+    the_trichotomy.md §6a — click-free DETERMINISTIC first-note attack, ends
     ctrl=$00 so end-of-init STATE is unchanged), then the typed PRIMING writes
     derived from cfg.init_master_vol / init_filter_* (only the non-default
     filter registers are emitted, so an engine whose only priming is volume
@@ -532,7 +532,7 @@ song_seqcp:
 """
 
     if cfg.init_style == 'universal_reset':
-        # PURE TRICHOTOMY (docs/sid_init_report.md): emit OUR OWN init, not a
+        # PURE TRICHOTOMY (docs/the_trichotomy.md): emit OUR OWN init, not a
         # reproduction of the engine's song-init write sequence. A universal
         # silence-clear ($D400-$D417 = $00) leaves the chip in the canonical
         # reset state; the single typed PRIMING write ($D418 = master volume)

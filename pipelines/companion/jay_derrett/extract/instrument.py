@@ -35,7 +35,7 @@ emits SID writes. The byte-by-byte semantics (traced from
 | $17 | CTRL alt — OR'd onto $14 every frame. Mutated by $80 (gate off) handler to produce release CTRL. Init = $14. |
 
 Per the principled-instrument refactor (see
-`docs/refactor_plan_principled_instrument.md`), these bytes
+`deprecated/old_docs/refactor_plan_principled_instrument.md`), these bytes
 decompose into musical primitives:
 
   - envelope: waveform CTRL + AD + SR + release_ctrl

@@ -7,7 +7,7 @@ specifically; some choices likely need rework once more engines land.
 
 A USF representation for the FC engine family (Deenen MoN 1987 + Tel /
 Bjerregaard / FC editor variants) that satisfies the
-`docs/usf_representation_principle.md` discipline: musical content
+`docs/the_principle.md` discipline: musical content
 in USF, engine mechanism in the composer; no engine identification;
 no opaque categorical tokens.
 

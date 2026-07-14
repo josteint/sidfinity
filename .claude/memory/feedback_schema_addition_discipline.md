@@ -14,7 +14,7 @@ real time and leaves git-history cruft.
 **Why:** During the Companion (Up, up & Away!) migration I added a
 `VoiceBlock.trailing: bytes` field to round-trip the engine's
 post-$8D byte stream. The user pushed back; on re-examination the
-field violated the [[feedback_usf_representation_principle]] (opaque
+field violated docs/the_principle.md (opaque
 byte blob, engine-flavoured shape on the schema). It got reverted.
 The actual correct solution required **no schema change** —
 adjacent codegen layout + 6 named integers in the existing
@@ -22,8 +22,8 @@ per-subtune `params { }` bag covered everything.
 
 ## The checklist — run BEFORE adding any schema field
 
-1. **Re-read `docs/usf_representation_principle.md` IN FULL.** Not a
-   skim, not the cached summary. Per [[feedback_usf_representation_principle]]
+1. **Re-read `docs/the_principle.md` IN FULL.** Not a
+   skim, not the cached summary. Per docs/the_principle.md
    the doc is load-bearing precisely because the principle is easy
    to violate by drift.
 
@@ -80,7 +80,7 @@ above. Almost always something is derivable that you missed.
 
 ## Related
 
-- [[feedback_usf_representation_principle]] — the tripwire to read
+- docs/the_principle.md — the tripwire to read
   the principle in full before any effect/instrument design.
 - [[feedback_principle_first_analysis]] — 6-question checklist for
   effect representation. This memory's checklist generalises it to

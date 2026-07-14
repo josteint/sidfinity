@@ -196,7 +196,7 @@ At `init($1000, A=subtune)`:
   is a known leftover — see `project_dmc.md`; GMC may have the same or
   similar).
 - **USF init.sid block** should carry: master_vol + any $D417 leftover that
-  must be primed.  Follow the `feedback_init_trichotomy.md` protocol.
+  must be primed.  Follow the `docs/the_trichotomy.md` protocol.
 
 ---
 

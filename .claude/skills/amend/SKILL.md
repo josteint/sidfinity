@@ -47,15 +47,15 @@ already want — see [[feedback_reanchor_at_decisions]]).
   orig's *mechanism* (SMC, wrapper bytes, dispatch) — you reproduce the *writes*.
   When stuck on "the disasm forces X", re-state the problem as "what writes does
   this produce this frame" and restructure to emit that stream.
-- **USF representation principle** (`docs/usf_representation_principle.md`) IN
+- **USF representation principle** (`docs/the_principle.md`) IN
   FULL, esp. §7 (forbidden shape: an engine-library index) and §8 (the composer
   twin: one engine-blind composer, never a per-member/per-engine emitter selected
   by content sniffing). Your overarching fix must live inside this.
-- **The trichotomy** (`docs/sid_init_report.md`): reset (universal) / priming
+- **The trichotomy** (`docs/the_trichotomy.md`): reset (universal) / priming
   (typed USF) / environment (`playback_rate_hz` / CIA) / bookkeeping (not USF).
   Many "regressions" are really an *environment* difference (multispeed / play
-  rate) masquerading as a musical bug — rule that out first ([[feedback_init_trichotomy]]).
-- **The convergence ledger** (`docs/convergence_ledger.md`): **CONSULT its Index
+  rate) masquerading as a musical bug — rule that out first (docs/the_trichotomy.md).
+- **The convergence ledger** (`docs/the_convergence_ledger.md`): **CONSULT its Index
   by problem-class.** If an entry already names your situation, use its canonical
   form instead of inventing variant #N. Sibling entries worth knowing here:
   **C16** (per-frame write-ORDER — parametrize emission, don't rewrite),

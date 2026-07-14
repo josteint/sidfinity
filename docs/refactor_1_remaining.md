@@ -218,7 +218,7 @@ divergence list Move 1 must reconcile (extends the DMC-only decisions 1-4 above)
 
 **Vindicated this review:** `freq_overrun` flipped single-consumer → REUSED (FC
 standard + DMC v5) — a dimension that looked FC-specific is now shared; recorded
-canonical in the [convergence ledger](convergence_ledger.md) C6. The reused
+canonical in the [convergence ledger](the_convergence_ledger.md) C6. The reused
 dimensions (freq_table, wave envelope, ADSR, `init.sid`) confirm the feature
 space is sound; the divergences D1-D5 are the work.
 
@@ -309,7 +309,7 @@ the unified pipeline.
 
 ## Move 1 (composer skeleton unification) — deferred
 
-**Move 1 consumes the [convergence ledger](convergence_ledger.md).** Each
+**Move 1 consumes the [convergence ledger](the_convergence_ledger.md).** Each
 recurring sub-problem's canonical (idiomatic-for-us) solution is pre-decided
 there as we migrate engines (a record, not a refactor); Move 1's job is to
 factor the recorded **factor-candidates** into shared code. The decisions are
@@ -368,7 +368,7 @@ ledger:
   in the stream, so the strict `(reg,val)` compare flags a divergence — but they are
   **inaudible**, and our clean composer naturally writes *different* (cleaner) silent
   bytes than the original's leftover freewheel. This is the mid-song analog of "init
-  bytes differ but state matches" (`docs/sid_init_report.md` §5/§6.4 — the verdict
+  bytes differ but state matches" (`docs/the_trichotomy.md` §5/§6.4 — the verdict
   already drops the inaudible init frame).
 - **USF discipline regardless:** carrying provably-inaudible editor leftovers as USF
   params (GoatTracker V1 `idle_chip`, reverted bb7b097) stays a C7 anti-pattern.

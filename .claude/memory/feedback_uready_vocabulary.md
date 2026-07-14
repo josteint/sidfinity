@@ -68,7 +68,7 @@ ledger), C6✓ (RE_NOTES 11 rounds + [[project_dmc]]). Move-1 trigger still
 MET (4 uready ≥ 2); DMC adds the richest divergence evidence (first family
 with an INTRA-family fork, v4↔v5). Cross-engine: `freq_overrun` flipped
 single-consumer→REUSED (FC std + DMC v5). The convergence ledger
-([`docs/convergence_ledger.md`](../../docs/convergence_ledger.md), new this
+([`docs/the_convergence_ledger.md`](../../docs/the_convergence_ledger.md), new this
 session) is now the incremental pre-decider Move 1 consumes; this review is
 its periodic maintainer.
 

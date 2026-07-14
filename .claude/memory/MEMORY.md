@@ -38,13 +38,16 @@
 
 ## Working principles (read these before acting)
 
+- [Knowledge placement](feedback_knowledge_placement.md) — 6 kinds → 6 homes (oracle=code, law=canon doc, technique=ledger, discipline=memory, status=project_<engine>, operation=CLAUDE.md); one home, point don't copy; nothing engines×members-shaped in shared containers; NEVER retroactively distill a ledger entry/canon doc.
 - [Re-anchor at decision points](feedback_reanchor_at_decisions.md) — TRIPWIRE. At EVERY representation/correctness decision, re-run CORE TENET + USF principle + uready as adversarial CHECKS that could overturn the easy choice. Tell of drift: citing a precedent to DEFEND an easy choice instead of describing the test I ran to BEAT it.
-- [Convergence ledger](feedback_convergence_ledger.md) — TRIPWIRE. Before ANY non-trivial solution, CONSULT `docs/convergence_ledger.md` for the canonical form; RECORD every solution (1st sight); canonicalize on the 2nd. Weak link = consulting BEFORE solving.
+- [Convergence ledger](feedback_convergence_ledger.md) — TRIPWIRE. The ledger is imported in full at session start; before ANY non-trivial solution, actively CHECK it for a matching entry (don't trust passive recall); RECORD every solution (1st sight); canonicalize on the 2nd. Weak link = checking BEFORE solving.
 - [Three filters](feedback_three_filters.md) — every technique passes THREE: CORE TENET (permissive), USF PRINCIPLES (restrict the SCHEMA), MOVE-1 UNIFICATION-READINESS (restrict the COMPOSER — `shared_mechanism(per_engine_config)`, never ad-hoc).
 
 ### Ground truth & methodology
 - [Ground truth is sidplayfp](feedback_ground_truth.md) — NEVER use py65/Python reimplementations as ground truth. Only `sidplayfp --writelog` is authoritative. The user's ear is final judge.
 - [NO snapshot-per-frame verdict](feedback_no_snapshot_verdict.md) — verdict is ALWAYS the write-log, NEVER per-frame register snapshots (Trap A). It had false-passed 25 Hubbard subtunes. py65 capture is for extraction only.
+- [Verification modes (full trap discussion)](feedback_verification_modes.md) — the worked Hawkeye examples for Traps A/B/C; the companion the Core Tenet doc points at. (Recovered 2026-07-14 from the orphaned pre-repo memory dir.)
+- [Within-frame write ORDER is signal](feedback_sid_hidden_state_write_order.md) — multiset-equal frames are NOT a safe verdict; comparator stays cycle-ordered; per-voice write order is a per-engine parameter. (Recovered 2026-07-14.)
 - [STRICT write-stream match, always](feedback_strict_writestream_always.md) — USER POLICY: never relax the verdict (no audio-equivalence). Reproduce inaudible writes instead.
 - [subtune_frames not arbitrary](feedback_subtune_frames_not_arbitrary.md) — verify window = songlength × 1.1 (RATIFIED 2026-07-02), never arbitrary N, never 1.0x.
 - [NO writelog replay](feedback_no_writelog_replay.md) — user STRONGLY rejected. Never propose. Defeats the USF/ML purpose.
@@ -71,13 +74,14 @@
 - [VOCABULARY: "uready"](feedback_uready_vocabulary.md) — unification-ready: the 6-criteria gate for leaving an engine family (orig-free §9, no escape hatches, factored USF, representative verification, feature accounting, documented residue). Scoreboard in the memory.
 
 ### USF schema discipline
-- [USF representation principle](feedback_usf_representation_principle.md) — TRIPWIRE: before designing/changing any USF effect/instrument representation, read `docs/usf_representation_principle.md` IN FULL. Effects are parametric over a musical basis; the engine holds mechanism, never an indexed library.
-- [Init trichotomy](feedback_init_trichotomy.md) — TRIPWIRE: before handling init for a new engine, read `docs/sid_init_report.md` IN FULL. Init = reset (universal) + priming (typed USF init.sid) + environment + engine bookkeeping. NO shape detection, NO engine-name dispatch.
 - [Principle-first analysis](feedback_principle_first_analysis.md) — CHECKLIST. Run the 6 questions BEFORE proposing any effect/instrument design or "engine-specific codegen". Don't wait to be caught.
 - [Schema addition discipline](feedback_schema_addition_discipline.md) — CHECKLIST. Before adding any USF schema field: re-read the principle doc IN FULL, then exhaust derivation / engine_constants / existing-params. `bytes`-typed fields are suspicious by default.
 
 ### Engineering reflexes
 - [Use 6502 mindset](feedback_6502_mindset.md) — all bugs are pointer errors; think in exact byte offsets
+- [Writelog divergence recipe](feedback_writelog_divergence_recipe.md) — the full step-by-step protocol behind CLAUDE.md's "start with find_first_divergence" convention. (Recovered 2026-07-14.)
+- [SMC disasm check](feedback_smc_disasm_check.md) — before trusting a static disasm, scan for STA into instruction operands; SMC makes the static reading lie. (Recovered 2026-07-14.)
+- [Check existing engine docs](feedback_check_existing_engine_docs.md) — the three-source order (family docs → disassembly.s → RE_NOTES) behind CLAUDE.md's MANDATORY questions. (Recovered 2026-07-14.)
 - [C64 banking when relocating](feedback_c64_banking_relocation.md) — relocating code into $A000-$BFFF? Audit every `sta $01` inside it. A banking flip takes effect on the next fetch; if that fetch is in the banked range it reads ROM.
 - [Bug investigation methodology](feedback_bug_investigation.md) — pick one bad subtune, trace the first wrong frame, fix root cause
 - [Residue-triage order](feedback_residue_triage_order.md) — large wide-family residue: census FIRST, then attack in DEPENDENCY order (measure→fix-verdict→unblock-builds→fix-effects→accept-limit-last), never biggest-bucket-first. A verdict fix can flip ~150 false-partials at zero composer cost.
@@ -104,4 +108,4 @@
 
 ## Deprecated memories
 
-Older project phases (Lean codegen, GT2 Grade-A counting, completed migration/refactor phases) live under [`_deprecated/`](_deprecated/) with a README. They no longer load — out of this index.
+Older project phases (Lean codegen, GT2 Grade-A counting, completed migration/refactor phases) live under [`_deprecated/`](_deprecated/) with a README. They no longer load — out of this index. `_deprecated/premigration_2026-06/` holds 30 memories recovered 2026-07-14 from the orphaned pre-repo memory dir (per-engine Hubbard-era + USF-design-era, frozen at their 2026-06 state).

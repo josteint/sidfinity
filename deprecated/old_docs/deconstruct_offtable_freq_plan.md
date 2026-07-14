@@ -1,4 +1,4 @@
-> **SUPERSEDED (2026-06-20) by `docs/offtable_freq_plan.md`** (via the interim
+> **SUPERSEDED (2026-06-20) by `deprecated/old_offtable_freq_plan.md`** (via the interim
 > `offtable_statebuf_plan.md`). This draft predates the round-12/13/14 findings and
 > the ML-optimality deciding criterion. The final plan represents off-table reads
 > as an explicit per-step **frequency** (ML-musical), not a parametric "effect"
@@ -15,8 +15,8 @@ the USF, so an ML model learns *frequencies/pitches*, never *bytes-at-an-offset*
 
 This is the anti-pattern the project has fought since inception (late March):
 original bytes carrying musical intent that sit opaquely in / leapfrog the USF.
-See convergence-ledger **C7** + **C6**, `docs/usf_representation_principle.md`,
-the CORE TENET (CLAUDE.md), and the init trichotomy (`docs/sid_init_report.md`).
+See convergence-ledger **C7** + **C6**, `docs/the_principle.md`,
+the CORE TENET (`docs/the_core_tenet.md`), and the init trichotomy (`docs/the_trichotomy.md`).
 
 ---
 
@@ -84,8 +84,8 @@ roles, decoupled — no shared opaque memory.
 
 ## Phase 0 — Re-anchor (do FIRST, every session that touches this)
 
-- [ ] Re-read `docs/usf_representation_principle.md` §4/§7/§8/§9 IN FULL.
-- [ ] Re-read the CORE TENET (CLAUDE.md) + `docs/sid_init_report.md` (trichotomy).
+- [ ] Re-read `docs/the_principle.md` §4/§7/§8/§9 IN FULL.
+- [ ] Re-read the CORE TENET (`docs/the_core_tenet.md`) + `docs/the_trichotomy.md` (trichotomy).
 - [ ] Re-read convergence-ledger C6 + C7; consult before any schema change.
 - [ ] Confirm the THESIS above still holds against the principles (adversarial
       check, not justification — [[feedback_reanchor_at_decisions]]).

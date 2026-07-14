@@ -1,7 +1,7 @@
 """Init-shape survey across the top 100 HVSC engines.
 
-One-shot survey — output landed in `docs/sid_init_report.md` and
-`docs/sid_init_research.md`. Kept here (rather than archived) so the
+One-shot survey — output landed in `docs/the_trichotomy.md` (synthesis
++ its research appendix). Kept here (rather than archived) so the
 survey can be re-run when HVSC updates or new init bucket candidates
 surface; not part of the regular regression.
 

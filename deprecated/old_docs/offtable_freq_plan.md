@@ -1,6 +1,6 @@
 # Plan — off-table freq as ML-optimal musical frequency (DMC v5 → FC)
 
-**Supersedes** `docs/offtable_statebuf_plan.md` and `docs/deconstruct_offtable_freq_plan.md`.
+**Supersedes** `deprecated/old_offtable_statebuf_plan.md` and `deprecated/old_deconstruct_offtable_freq_plan.md`.
 The deciding criterion is now explicit: **the USF must be ML-training-optimal**
 (the project goal — "engine-neutral musical data an ML model can learn from").
 That criterion *rules out* the `StateLayoutMirror` mechanism the prior plan
@@ -103,7 +103,7 @@ not a derivation rule).
 
 ## Phase 0 — Re-anchor (every session)
 
-- [ ] Re-read CORE TENET + `usf_representation_principle.md` §4/§7 + trichotomy
+- [ ] Re-read CORE TENET + `the_principle.md` §4/§7 + trichotomy
       §4.4. Confirm the ML criterion is the adversarial check, not a justification.
 - [ ] Consult convergence-ledger C6/C7 (this plan is their canonical resolution).
 

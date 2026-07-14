@@ -25,7 +25,7 @@ primary/local sources used, so a future wave doesn't repeat the same work.
   VICE FP code, Hart "Computer Approximations" (polynomial coeffs).
 - **C5 playback/ROMs:** libsidplayfp docs/source, sidplayfp ROM-loading mechanism,
   MEGA65 OpenROMs, DeepSID/jsSID, VICE monitor trace recipe.
-- **C6 extraction:** in-repo `docs/usf_representation_principle.md` + CLAUDE.md +
+- **C6 extraction:** in-repo `docs/the_principle.md` + CLAUDE.md +
   `deprecated/gt2_pipeline`; general SID-register→note semantics (codebase64, SID datasheet).
 
 ## Method notes

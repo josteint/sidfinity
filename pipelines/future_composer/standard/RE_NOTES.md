@@ -771,7 +771,7 @@ indexed by off-table reads) is replaced by ML-musical per-instrument
 the SAME form DMC v5 adopted. The off-table output is now a FREQUENCY the
 model learns (a drum/tone pitch), attributed to the instrument + note that
 plays it, not a byte at a memory offset. Plan + criterion:
-`docs/offtable_freq_plan.md`.
+`deprecated/old_docs/offtable_freq_plan.md`.
 
 - **Extract** (`engine_model._std_offtable_freq`): the identical reachability
   walk (per-voice orderlist; transpose + sounding instrument carried, $FF-wrap

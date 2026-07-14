@@ -390,7 +390,7 @@ off-table 8-bit indices) is replaced by ML-musical per-instrument
 `offtable_freq` records `(offset, note, lo, hi)`, idx=(offset+note)&$FF — the
 SAME form DMC v5 adopted ([[project_dmc]]). Off-table output is now a FREQUENCY
 attributed to its instrument+note, not a byte at a memory offset. Plan:
-`docs/offtable_freq_plan.md`. Files: extract `_std_freq_overrun`→
+`deprecated/old_docs/offtable_freq_plan.md`. Files: extract `_std_freq_overrun`→
 `_std_offtable_freq` (same reach walk, per-inst records); `to_usf` threads onto
 `Instrument.offtable_freq` (+ orphan handling → inst[0]); composer
 `composer_asm._offtable_window` rebuilds the internal hinote window (FC's mature

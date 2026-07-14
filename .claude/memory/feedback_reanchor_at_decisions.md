@@ -23,7 +23,7 @@ defend it):**
    kept saying "re-packs byte-identically" as if it mattered — it
    doesn't. See [[feedback_ground_truth]].)
 
-2. **USF principle (`docs/usf_representation_principle.md`).** Am I
+2. **USF principle (`docs/the_principle.md`).** Am I
    carrying RAW BYTES (Pole B) or an OPAQUE INDEX (Pole A) — or, worst,
    both (a raw-byte program selected by an arbitrary index)? Then ask the
    question the principle IS: *could this be parametric over a musical
@@ -35,7 +35,7 @@ defend it):**
    table + index and rationalized it via the freq_overrun precedent; the
    user pushed, and the right answer was per-instrument PWM/cutoff
    ENVELOPES — parametric, cross-engine. See
-   [[feedback_usf_representation_principle]].)
+   docs/the_principle.md.)
 
 3. **uready (the 6-criteria gate, [[feedback_uready_vocabulary]]).** Does
    this choice advance or regress: orig-free §9, no escape hatches,

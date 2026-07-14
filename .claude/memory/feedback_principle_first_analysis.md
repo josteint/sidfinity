@@ -58,6 +58,6 @@ Not after. The slips happen because I'm goal-oriented short-term
 work to enforce against a long-term goal. If I can't answer all 6
 above, the proposal IS the slip — pause and do the audit first.
 
-Related: [[feedback_usf_representation_principle]] is the TRIPWIRE
+Related: docs/the_principle.md is the TRIPWIRE
 that says "read the doc." This memory is the CHECKLIST that says
 "run the doc's tests on this specific proposal, before proposing."

@@ -113,5 +113,5 @@ games). Plus Vic Berry's 1988-89 tools.
 ## Related
 
 - [[project_usf_refactor]] — overall pipeline status
-- [[feedback_usf_representation_principle]] — when (if) to extend
+- docs/the_principle.md — when (if) to extend
   USF to cleanly represent Companion-shape engines.

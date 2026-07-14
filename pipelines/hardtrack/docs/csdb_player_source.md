@@ -323,7 +323,7 @@ $0F). Multispeed is achieved by calling play() N× per VBI via CIA timer (PSID
 `speed`-bit driven externally; the divider `$10FB` further subdivides note advance).
 
 This per-frame ordered `(reg,val)` stream is the SIDfinity verification target
-(Mode 1 — frame-by-frame instruction sequence; see CLAUDE.md CORE TENET).
+(Mode 1 — frame-by-frame instruction sequence; see docs/the_core_tenet.md).
 
 ---
 

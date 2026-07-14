@@ -1,4 +1,4 @@
-> **SUPERSEDED (2026-06-20) by `docs/offtable_freq_plan.md`.** The deciding
+> **SUPERSEDED (2026-06-20) by `deprecated/old_offtable_freq_plan.md`.** The deciding
 > criterion became ML-training-optimality, which rules out the `StateLayoutMirror`
 > mechanism this plan proposed (the model would learn engine-state-layout metadata,
 > not music) in favour of representing each off-table read as an explicit
@@ -7,7 +7,7 @@
 
 # Plan — replace the off-table-freq blob with a typed state mirror (DMC v5 → FC)
 
-**Supersedes** `docs/deconstruct_offtable_freq_plan.md` (same goal — kill the
+**Supersedes** `deprecated/old_deconstruct_offtable_freq_plan.md` (same goal — kill the
 off-table-freq opaque blob — but that draft predates the round-12/13 findings and
 the realization that the project already ships the principled mechanism). This
 plan is the canonical resolution to convergence-ledger **C6** (off-table freq
@@ -62,9 +62,9 @@ addresses. Phase 4 *measures* exactly how much is genuinely positional.
 - [ ] **CORE TENET** (CLAUDE.md): never emit verbatim HVSC byte regions; reproduce
       the write-log with our own engine. The blob violates it; the typed mirror
       satisfies it.
-- [ ] **§7 USF principle** (`docs/usf_representation_principle.md`): no opaque /
+- [ ] **§7 USF principle** (`docs/the_principle.md`): no opaque /
       raw-bytes / engine-positional shapes; typed slots are parametric.
-- [ ] **Trichotomy §4.4** (`docs/sid_init_report.md`): engine bookkeeping (e.g. a
+- [ ] **Trichotomy §4.4** (`docs/the_trichotomy.md`): engine bookkeeping (e.g. a
       track pointer) stays OUT of musical USF; the state-reconstruction role rides
       the typed mirror, decoupled from musical content.
 - [ ] **Cross-engine reuse §9.4 / Move-1**: ONE mechanism (`StateLayoutMirror`)

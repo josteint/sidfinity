@@ -378,7 +378,7 @@ def _trichotomy_compare(fa: list, fb: list, close_tol: int = 176,
 
     # Check A: end-of-init chip state (the priming result). The unwritten
     # default is the HOST-reset state, not all-zeros: libsidplayfp's psiddrv
-    # writes $D418=$0F BEFORE calling init (sid_init_report §1), so a
+    # writes $D418=$0F BEFORE calling init (the_trichotomy.md §1), so a
     # deferred-init engine (zero frame-0 writes) really sits at $D418=$0F —
     # identical to a rebuild that explicitly primes $0F.
     def end_state(flat, end):
@@ -440,7 +440,7 @@ def compare_instruction_stream(a: list[Frame], b: list[Frame],
     Two modes:
 
     `mode='play_plus_state'` — DRAFT. The principled verdict per
-    the init trichotomy (`docs/sid_init_report.md §5`). Two checks:
+    the init trichotomy (`docs/the_trichotomy.md §5`). Two checks:
 
       A. **Check A — SID state at end of init.** Strict
          register-by-register comparison of $D400-$D418 final
@@ -550,7 +550,7 @@ def compare_instruction_stream(a: list[Frame], b: list[Frame],
         }
 
     if mode == 'trichotomy':
-        # PRINCIPLED init-trichotomy verdict (docs/sid_init_report.md §5),
+        # PRINCIPLED init-trichotomy verdict (docs/the_trichotomy.md §5),
         # robust to a multi-frame init whose write SEQUENCE differs between
         # orig and rebuild (e.g. Adrenalin: orig clears via a 2-frame $01/$00
         # sweep, the rebuild via a one-shot universal reset). The two streams

@@ -86,59 +86,6 @@ libsidplayfp source) at `docs/sid_init_research.md`.
 Re-read the report **before** designing init handling for a new
 engine migration.
 
-## Why our own init introduces NO audio change
-
-Emitting our own reset instead of reproducing the engine's init writes is
-audibly safe, and the report proves why (`docs/sid_init_report.md` §2b
-"noise-burst bucket dissected" + §5.3 edge cases). What a SID tune SOUNDS like
-is fully determined by (1) the chip STATE at the moment music starts and (2)
-the play() write stream from there. Every init technique — clean clear,
-test-bit phase clear, noise-burst sweep, multi-pass paranoid clear, a $01/$00
-descending sweep — **converges to the same final register state**; only the
-transient TRACE during init differs, and play() overwrites a silenced chip
-before anything is heard. So if (A) our end-of-init state matches register-by-
-register over $D400-$D418 and (B) the play stream matches, the audio is
-identical even though the init write SEQUENCE is ours. The trichotomy verdict
-checks exactly those two things. (Caveat: a deliberate audible init signature
-like FC's `$00→$41→$00` noise tick would be removed — but a $01/$00 sweep with
-no waveform bit set, as in Adrenalin, is silent, so nothing audible is lost.)
-This is the "various inits affect the song / ours doesn't change the audio"
-reasoning. See [[project_adrenalin]] for the worked case.
-
-### The one gap, and how we close it (2026-06-08)
-
-Check A is a REGISTER check; the SID also has INTERNAL analog state the
-write-log can't see — oscillator phase accumulators, envelope-generator
-counters, filter integrators. Two runs can match register-for-register yet
-differ here, and that shows up as the first note's attack. The guarantee chain
-that closes it:
-
-- **Canonical-boundary check (automated, every verify).**
-  `verify_cycle.init_boundary_is_canonical(state)`: at the init→play handover,
-  if every voice has its GATE off (envelopes idle → 0) AND its FREQUENCY 0
-  (phase accumulator frozen, not advancing), the internal state is pinned to
-  the power-on reset condition regardless of how init got there. So when the
-  boundary is canonical on BOTH sides, identical register state (A) + identical
-  play stream (B) ⟹ identical internal-state EVOLUTION ⟹ identical audio. The
-  trichotomy verdict reports `init_canonical` + `audio_guaranteed`; the FC
-  formatter prints `audio✓`. When NON-canonical (an engine that gates a voice
-  or leaves non-zero freq during init), register-match no longer proves
-  audio-match → it prints `audio?(non-canonical init — ear-test)`. This turns
-  the analytic argument into a checked precondition that also FLAGS the rare
-  engine where it doesn't hold.
-- **Defensive test-bit clear (composer, universal-reset path).** Our universal
-  reset pulses TEST ($08→$00) on V1/V2/V3 ctrl, zeroing the phase accumulators
-  so OUR first-note attack is deterministic regardless of prior chip/host
-  residual (real-hardware chained playback). End-of-init STATE is unchanged
-  (ctrl ends $00), so Check A and the canonical check are unaffected; the
-  trichotomy verdict skips the longer init trace. Report §6a. (In the
-  libsidplayfp verification env the host always clean-resets, so this is
-  inert there — it's real-hardware insurance, free because the verdict absorbs
-  it. Only the genuine universal-reset path gets it: FC `universal_reset`.
-  Hubbard/Companion only prime $D418 + rely on the host clean reset, and verify
-  by matching init under the legacy verdict, so they neither have a clear loop
-  to extend nor benefit from one in the clean-host env.)
-
 ## Verification consequence
 
 Strict Check A (chip state at end of init matches register-by-

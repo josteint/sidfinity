@@ -3699,7 +3699,7 @@ ELIMINATED. Replaced by per-instrument `Instrument.offtable_freq` = list of
 src/usf/{types,grammar,parser,writer}; extract `_assign_offtable_freq`; composer
 `composer_v5` builds in-bounds extended freqlo/freqhi from it — no OOB read).
 **1041 FULL = the freq_overrun baseline, 0 regressed.** Full design + evidence:
-`docs/offtable_freq_plan.md` + `pipelines/dmc/v5/RE_NOTES.md` rounds 11-18.
+`deprecated/old_docs/offtable_freq_plan.md` + `pipelines/dmc/v5/RE_NOTES.md` rounds 11-18.
 
 WHAT THE OFF-TABLE IS (verified, rounds 12-18): the player's wave-program freq
 lookup `freqlo/hi[wave_offset+note]` has NO bounds check; for notes that overshoot
@@ -3775,4 +3775,4 @@ blockers: note/freq/filter foundation) — Jupiter41's LAST blocker was the puls
 [[project_fc_fingerprint_and_standard]] (the playbook this follows),
 [[feedback_dataflow_over_heuristics]] (the operand-patching finding is
 exactly this), [[feedback_disassembly_data_section]] (research.md's wrong
-tables), [[feedback_init_trichotomy]] (the $1018 leftover).
+tables), docs/the_trichotomy.md (the $1018 leftover).

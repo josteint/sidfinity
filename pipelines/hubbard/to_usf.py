@@ -662,7 +662,7 @@ def to_usf(config, extra_subtunes: list | None = None) -> UsfFile:
     # state-region tail (offsets 192..319) is now decomposed into
     # init.voice slots (named musical content) + per-SFX extended_freq
     # overlays (the SFX-sweep musical content) + dropped engine
-    # mechanism / dead bytes. See `docs/usf_representation_principle.md`
+    # mechanism / dead bytes. See `docs/the_principle.md`
     # — bytes that aren't read by the rebuild aren't music, so they
     # leave USF.
     freq_table = None

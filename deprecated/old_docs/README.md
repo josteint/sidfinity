@@ -20,7 +20,35 @@ Session plans and codegen plans from earlier phases. Kept for historical context
 - `usf_instrument_program_plan_2026_v1era.md` — USF v1 era blueprint
   for "instruments as 6502 programs" with Lean-codegen verification.
   Superseded by the principled-instrument refactor (typed musical
-  parameters per `docs/usf_representation_principle.md`) and the
+  parameters per `docs/the_principle.md`) and the
   feature-driven composer in `pipelines/composer.py`. References
   long-removed concepts: `engineQuirks`, `dynamicFreqEntries`,
   `preserveNoteFlags`, Grade A grading, `Codegen2.lean`.
+
+Moved 2026-07-14 (repo deprecation sweep):
+
+- `deconstruct_offtable_freq_plan.md` + `offtable_statebuf_plan.md` —
+  the two interim off-table-read plans, each superseded (their own
+  banners) by `offtable_freq_plan.md`.
+- `offtable_freq_plan.md` — the final off-table-freq plan; all 7 phases
+  ✅ DONE 2026-06-21 (absolute-freq wave steps, FC unification, schema
+  cleanup). Still cited by ledger C6 + DMC/FC memories as the design
+  rationale. The living successor doc on the recurring class is
+  `docs/offtable_unified_transform.md`.
+- `cia_aware_verdict_plan.md` — CIA-aware per-play() verdict for
+  `verify_all`; IMPLEMENTED 2026-06-07 (commit f82b347). The shipped
+  behaviour is documented in `docs/the_core_tenet.md` (Mode 1, CIA
+  bullet).
+- `refactor_plan_principled_instrument.md` — principled Instrument
+  schema refactor; DONE 2026-06-01 (Hubbard 71/71 + Companion +
+  Jay_Derrett through the new schema).
+- `ml_architecture_analysis.md` — 2026-04 ML-architecture proposal,
+  pre-representation-principle era. The Principle + the tokenization
+  memory (`reference_tokenization`) govern this territory now.
+- `sid_chip_edge_cases.md` — SID chip edge-case research compiled for
+  Das Model validation (Das Model era is deprecated). Chip-behaviour
+  reference material; revive if cycle-level chip modelling returns.
+- `engine_model.md` — the composable-codegen spec for
+  `pipelines/engine_model.py`. The dataclass-tree part lives on in that
+  file; the codegen layer this doc describes (`universal_codegen`) was
+  dissolved into `pipelines/composer.py` (Phase 8).

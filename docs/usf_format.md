@@ -139,7 +139,7 @@ composer always emits the player at $1000").
 
 Engine-specific configuration. Field set depends on the engine but
 every field is a value, never a `*Kind` enum (see
-`docs/usf_representation_principle.md`). Examples for Hubbard '85:
+`docs/the_principle.md`). Examples for Hubbard '85:
 
 - `arp_interval`, `arp_period` — arpeggio offset + cycle length
 - `vib_onset` — minimum note duration for vibrato to engage

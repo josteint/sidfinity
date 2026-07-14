@@ -47,6 +47,6 @@ Whenever you're about to audit an effect's writes for Rule 1
 collapse and the frame-level writelog conflates voices, this tool
 is the next step. Don't re-implement the py65 setup ad-hoc.
 
-Related: [[feedback_usf_representation_principle]] is the principle
+Related: docs/the_principle.md is the principle
 the tool serves. [[feedback_principle_first_analysis]] is the
 checklist that names the moment to reach for it.

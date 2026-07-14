@@ -40,13 +40,13 @@ drops the discipline that does the work):
    not the engine code. Corollary that drives #1: *per-engine config fields parametrise
    differences between engines' write-log streams; **they never describe HVSC's code
    layout.***
-2. **The Principles** — `docs/usf_representation_principle.md`. §7 forbidden shape
+2. **The Principles** — `docs/the_principle.md`. §7 forbidden shape
    (an index into an engine-defined library); §8 the composer must not pick which 6502
    to emit by sniffing engine identity/geometry.
-3. **The Trichotomy** — `docs/sid_init_report.md`. init = reset (composer, invisible) +
+3. **The Trichotomy** — `docs/the_trichotomy.md`. init = reset (composer, invisible) +
    priming (typed USF) + **environment** (top-level USF field — drives #3) + bookkeeping
    (out of USF).
-4. **The Convergence Ledger** — `docs/convergence_ledger.md`. Entry **C19** (canonicalized
+4. **The Convergence Ledger** — `docs/the_convergence_ledger.md`. Entry **C19** (canonicalized
    10×) is the exact decision rule; entry **C7** already flags #1's two fields as open.
 
 **The decision rule (C19, verbatim intent):** *EXTRACT-only when the lever changes a
@@ -304,7 +304,7 @@ so those engines stay byte-identical (proven by their golden-diffs + full regres
 - **INV-6 (real-player ear-test):** ear-test 2–3 members in `sidplayfp` after verdict-
   relevant phases (py65/writelog miss dispatch bugs; memory `feedback_py65_misses_dispatch_bugs`).
 - **INV-7 (living-doc referential integrity):** whenever a keyword/field/param is
-  **removed or renamed**, grep the whole repo — `docs/` (esp. `convergence_ledger.md`,
+  **removed or renamed**, grep the whole repo — `docs/` (esp. `the_convergence_ledger.md`,
   `refactor_1_remaining.md`, per-topic plans), `.claude/memory/*`, `pipelines/**/RE_NOTES.md`,
   `CLAUDE.md` — and update every reference *in the same commit*, so no living document ever
   names a token that no longer exists. **Distinguish carefully:** a removed *param*
@@ -409,7 +409,7 @@ place by #5 (Phase D) for legibility; the structural move waits for the de-unrol
       ML-visible and renaming them is churn/risk. (b) **`otrk_*` NOT renamed** — those keys
       are slated for restructuring in the deferred de-unroll (#2), so renaming now would be
       double churn; they get their final names there.
-- [x] INV-7: propagated old→new across `convergence_ledger.md`, `refactor_1_remaining.md`,
+- [x] INV-7: propagated old→new across `the_convergence_ledger.md`, `refactor_1_remaining.md`,
       `usf_format.md`, `project_dmc.md`, `feedback_uready_vocabulary.md`, + code comments
       (76 doc + 4 comment refs). The plan's Appendix B table keeps the old names (it
       documents the mapping).

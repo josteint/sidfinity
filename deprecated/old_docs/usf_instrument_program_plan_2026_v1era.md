@@ -255,7 +255,7 @@ instruction stream exactly — no engineQuirks, no dynamicFreqEntries.
 ## Phase 6 — Migration of other pipelines
 
 **Before migrating any engine's effects, read
-`docs/usf_representation_principle.md` in full.** Each new engine's
+`docs/the_principle.md` in full.** Each new engine's
 vibrato/PWM/arp/etc. must land as *points in the existing parameter
 space*, not as new opaque `*Kind` variants. That document is the
 binding rule for every effect representation decision in this phase.
@@ -342,7 +342,7 @@ binding rule for every effect representation decision in this phase.
 ## Phase 7 — ML-readiness verification
 
 The gate for this phase is the four tests in
-`docs/usf_representation_principle.md` §8 — completeness, no escape
+`docs/the_principle.md` §8 — completeness, no escape
 hatch, interpolation sanity, cross-engine reuse. 7.1 below is test 2 of
 that gate.
 

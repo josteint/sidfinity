@@ -168,7 +168,7 @@ Per-byte (byte index → field; CheeseCutter `idescr*` lines 152-159 give meanin
 | 6   | HR SR         | "Hard restart SR envelope value." (← BACKGROUND called this "unused"; it is the HR SR. CheeseCutter `INS_7`, used at `laxhr lda inst+INS_7,y / sta sr,x`, line 569) |
 | 7   | Wave ptr      | "Wave Table pointer." (start row into arp1/arp2) |
 
-USF instrument fields to emit (parametric, per `docs/usf_representation_principle.md`):
+USF instrument fields to emit (parametric, per `docs/the_principle.md`):
 `ad`, `sr`, `hr_type` ∈ {3frame,soft,hard,laxity}, `arp_delay` (lo nibble of byte2),
 `hr_waveform`, `hr_sr` (byte6), `filter_program` (ref by content, §7),
 `pulse_program` (ref by content, §7), `wave_program` (ref by content, §6).

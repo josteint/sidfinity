@@ -386,7 +386,7 @@ Decoded SFX V0/V1/V2 seq pointers (matches post-init trace):
    sequence streams, pattern data. The model will inform what the USF
    needs to carry.
 3. Sketch the USF representation — informed by both Hawkeye's
-   structure and the `docs/usf_representation_principle.md` discipline.
+   structure and the `docs/the_principle.md` discipline.
 4. Build the extract path: SID binary → USF.
 5. Build the composer path: USF → SID (probably as a new emitter chain
    in `pipelines/composer.py`, NOT folded into the existing simple-shape

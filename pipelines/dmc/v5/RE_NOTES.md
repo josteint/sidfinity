@@ -450,7 +450,7 @@ filter_run on a sticky filt_run_on flag (its own comment flagged this as an
 approximation), so it never ran the idle — Little_Sara $D415/$D416 held (0,182)
 2 frames where the orig swept to (8,190) via entry-0 ADD (8,8).
 
-Representation (principled per docs/usf_representation_principle + the init
+Representation (principled per docs/the_principle + the init
 trichotomy): the idle filter is the SAME musical object as a per-instrument
 filter (a cutoff SweepEnvelope, Rule 1). It is PLAY-TIME content (a sweep the
 play loop performs), NOT init priming — so init.sid.filter keeps only the
@@ -751,7 +751,7 @@ can't exist by the definition of load-bearing). The earlier "+70-90 recoverable
 via StateLayoutMirror" was an artifact of static value-matching being unreliable on
 dynamic reads; genuine recoverable coverage in the 176 (index fixes, maybe a few
 real dynamic counters) is SEPARATE future work, not this de-verbatim. The
-absolute-freq plan (`offtable_freq_plan.md`) is correct; drop its StateLayoutMirror
+absolute-freq plan (`deprecated/old_docs/offtable_freq_plan.md`) is correct; drop its StateLayoutMirror
 mentions + its "dynamic residue" framing (the de-verbatim has no residue).
 
 ## Round 16 (2026-06-21): offtable_freq SHIPPED + what the blob actually IS

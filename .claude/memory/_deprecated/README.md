@@ -43,3 +43,16 @@ Move it back up one level and add a line to `../MEMORY.md` pointing at it.
 The memory body is unchanged from when it was active — just check that the
 file paths, status numbers and architectural claims still match reality
 before trusting it.
+
+## premigration_2026-06/
+
+31 memories recovered 2026-07-14 from the PRE-REPO memory location
+(`~/.claude/projects/-home-jtr-sidfinity/memory/`), which was silently
+orphaned when `autoMemoryDirectory` moved into the repo (~2026-06-06).
+Mostly per-engine Hubbard-era project memories (Monty, Hawkeye,
+Action_Biker, ...) and USF-design-era notes, frozen at their 2026-06
+state. Four actively-referenced feedback memories from the same orphan
+set were restored LIVE (verification_modes, sid_hidden_state_write_order, smc_disasm_check,
+check_existing_engine_docs, writelog_divergence_recipe) — the rest live
+here. Same caveat as above: verify claims against current reality
+before trusting.

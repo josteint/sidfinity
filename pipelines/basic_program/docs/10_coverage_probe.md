@@ -68,4 +68,4 @@ becoming raw write-log replay ([[feedback_no_writelog_replay]] — rejected):
 
 Recommendation: **(C) hybrid** — it keeps pitch/dynamics/envelope as musical USF (the
 ML-valuable part) while not crashing on the long tail. But this is a USF-representation
-call; see `docs/usf_representation_principle.md`.
+call; see `docs/the_principle.md`.

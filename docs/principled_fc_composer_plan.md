@@ -3,7 +3,7 @@
 ## Status (2026-06-06)
 
 The FC family composer (`pipelines/future_composer/composer_asm.py`)
-violates the USF representation principle (`docs/usf_representation_principle.md`
+violates the USF representation principle (`docs/the_principle.md`
 §9 completeness test): patterns, sequences, aux tables, and several
 filler regions are **verbatim-copied from the orig HVSC binary** at
 compose time, not emitted from USF content.

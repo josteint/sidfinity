@@ -13,14 +13,14 @@ run it through THREE filters — not one:
 1. **CORE TENET (permissive filter):** does it achieve `$D400-$D418`
    writelog equality? Opens the door to ANY runtime technique — including
    reproducing techniques from the original SID. It grants freedom; it
-   forbids nothing. (See CLAUDE.md CORE TENET; it is NOT "don't mirror the
+   forbids nothing. (See docs/the_core_tenet.md; it is NOT "don't mirror the
    original" — it's "you may use any code.")
 
 2. **USF PRINCIPLES (restrictive filter on the SCHEMA):** does the USF stay
    parametric/musical and ML-optimal? Constrains only what the USF *carries*
    (no engine-positional artifacts, no content-by-reference byte blobs).
    Mechanism goes in the COMPOSER, never the USF. See
-   [[feedback_usf_representation_principle]].
+   docs/the_principle.md.
 
 3. **MOVE-1 UNIFICATION-READINESS (restrictive filter on the COMPOSER):**
    **the one the user asked to remember going forward.** Ask: *"if 50 uready

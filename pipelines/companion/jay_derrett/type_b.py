@@ -742,7 +742,7 @@ def extract_type_b(sid_path: str, sid_name: str = None) -> TypeBData:
     # NOTE handler's `LDA freq_lo_addr,X` to index PAST the 128-entry
     # freq tables — reading from adjacent engine state. This is a
     # composer space-saving trick (engine mechanism overlapping with
-    # data). Per docs/usf_representation_principle.md, the extract
+    # data). Per docs/the_principle.md, the extract
     # must RESOLVE such dynamic lookups to concrete effective freqs
     # and re-encode the pattern with clean low-byte notes. The reb
     # engine then needs no special high-byte handling.

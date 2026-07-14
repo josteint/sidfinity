@@ -16,7 +16,7 @@ flag/scalar says "this instrument has effect X" but the actual
 parameters of X live in `params { }` (or `engine_constants.py`),
 shared across all instruments of the tune. Same effect-flag means
 different musical behaviors across engines/tunes — exactly the §2
-failure mode of the [USF representation principle](usf_representation_principle.md).
+failure mode of the [USF representation principle](the_principle.md).
 
 The five leaks:
 

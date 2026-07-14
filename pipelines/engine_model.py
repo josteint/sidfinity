@@ -25,8 +25,10 @@ Principles
 Status
 ------
 Active — every Hubbard '85 engine flows through `from_usf` into the
-composer (`pipelines/composer.py`). See `docs/engine_model.md` for
-the typed-feature contract.
+composer (`pipelines/composer.py`). The dataclasses in THIS file are the
+current typed-feature contract; `deprecated/old_docs/engine_model.md` is the
+original composable-codegen spec (historical — the separate codegen layer it
+describes was dissolved into `pipelines/composer.py`, Phase 8).
 """
 
 from __future__ import annotations
@@ -718,7 +720,7 @@ def _init_sid_writes_for_engine(usf, quirks) -> list:
     after the silence-clear reset.
 
     Source of truth: `usf.init.sid` (the typed musical-parameter
-    block — `docs/sid_init_report.md` §4.2). Expand it into a flat
+    block — `docs/the_trichotomy.md` §4.2). Expand it into a flat
     list of (reg, val) writes in canonical order (master_vol →
     filter → per-voice envelope_prime → per-voice pw_init).
 

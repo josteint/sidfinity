@@ -1,4 +1,4 @@
-# Convergence ledger — canonical solutions for recurring problems
+# The Convergence Ledger
 
 ## Why this exists
 
@@ -20,7 +20,7 @@ It does NOT replace existing convergence machinery — it routes to it:
 - **Representation** convergence is enforced by the **USF schema**
   (`src/usf/types.py`): one dataclass per musical DOF. Most entries below just
   point at the schema.
-- **Decision rules** live in `docs/usf_representation_principle.md`.
+- **Decision rules** live in `docs/the_principle.md`.
 - **Process/methodology lessons** live in `.claude/memory/` (`feedback_*`).
 This ledger's unique value is the **technique/algorithm catalog** — the
 *how-we-solve* knowledge that none of those stores holds.
@@ -37,6 +37,17 @@ recurrence is later found by lookup, not by memory):
 - **RECORD — log EVERY solution to a non-trivial problem, on first sight**
   (status `logged`), even if it has occurred only once. This is the point: a
   recorded 1st occurrence makes the 2nd a cheap lookup. Don't wait for a repeat.
+  **Placement rule — what goes IN the entry vs. where it links:** an entry
+  carries the *transferable* knowledge — the problem-class, canonical solution,
+  boundaries/refinements, TELLs, and warnings about alternative fixes that
+  failed (those are technique, keep them verbatim). Per-occurrence *status* —
+  member names, round numbers, "+N FULL" counts, commit hashes, member-specific
+  byte values — lives in the engine's memory (`project_<engine>`, its round
+  changelog) and the entry LINKS there (e.g. "worked example: [[project_dmc]]
+  round 18") instead of duplicating it. One home per fact; the ledger holds
+  what generalizes, the engine file holds who hit it and when. (Entries written
+  before 2026-07-14 predate this rule and are grandfathered as-is — do not
+  retroactively distill them; distillation of technique is lossy.)
 - **CANONICALIZE / FACTOR — on the 2nd occurrence.** When a problem-class recurs
   (the [`/uready-review`](../.claude/skills/uready-review/SKILL.md) cross-engine
   pass flags **≥2×**, or you notice it directly), pick the one canonical form
@@ -360,7 +371,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 - **Consumers:** FC standard (`engine_model._std_offtable_freq` → 2528 FULL,
   freq_overrun blob eliminated, 2026-06-21); DMC v5 (`engine_model._assign_offtable_freq`
   → 1041 FULL, blob eliminated, 2026-06-21). Both `freq_overrun`-free; the schema
-  field removal is the pending cleanup (`docs/offtable_freq_plan.md` Phase 7).
+  field removal is the pending cleanup (`deprecated/old_docs/offtable_freq_plan.md` Phase 7).
 - **NON-CANON STATE GEOMETRY (2026-07-06, DMC v4, Viiskyt_vuotta_humppaa +3 Finn;
   status: logged):** every LIVE-serving of a window position (the
   DMC_OFFTABLE_STATE redirect rows, the sectpos shadow, the co-located
@@ -548,6 +559,21 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   written sequence as a parametric contour + tap phases.
 
 ### C11 — Engine indexes a table via an 8-bit register → the offset WRAPS mod 256
+
+> **Entry map (this entry grew into two clusters — navigate, don't skim):**
+> **(a) 8-bit wrap in EXTRACTION arithmetic** — bug class + canonical `&0xFF`
+> fix, the add-chain-carry refinement, the TELL, wrap occurrences (glide
+> targets, wave-walk underflow, chained marker, note+transpose, vibdepth).
+> **(b) OFF-TABLE LIVE-REDIRECT methodology** (overlaps C6) — all-read-sites
+> rule, wavepos layout-preserving pool, wjmp-chase shadow, durrel, var-naming,
+> measure-regressions methodology, init-cleared seeding, the a/b/c
+> unexposed-tracking-var diagnostic, shared-scratch shadowing, cache-var
+> materialization, derivable "positional" counters, sparse-var seeding,
+> event-driven capture — plus two HARD BOUNDARIES (dynamic work-RAM;
+> off-table glide targets). Candidate for a lossless split at a future
+> `/uready-review` (many `[ledger C11]` back-refs in [[project_dmc]] would
+> need repointing — do not split casually).
+
 - **The bug class:** the player reaches a record/table entry with a 6502 INDEX
   register (`LDA base,Y` / `,X`), and the index is computed as `entry# * stride`.
   The register is 8-BIT, so once `entry# * stride >= 256` the access WRAPS
@@ -1804,7 +1830,7 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   Deadly because the two paths COINCIDE for most content (DMC: slide-from-
   current == rebase-to-A + glide when the previous note equals note A), so
   members verify FULL until one hits the distinguishing case, presenting as a
-  DEEP heterogeneous divergence (Gangstallica @28k: rebuild held the old base
+  DEEP heterogeneous divergence (Gangstallica at 28k: rebuild held the old base
   and stepped DOWN where the orig rebased to note A and stepped UP).
 - **Canonical fix:** make the decoder's branch test the EXACT injective
   discriminator (here: absence of `glide_to`). Better: when adding a flag
@@ -1833,7 +1859,7 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   composer's pattern encoder keyed the glide tail on `if gspd` — so the
   cancel became a plain note and a previous row's armed glide kept ramping
   the freq accumulator (+speed×16/frame) in the rebuild forever
-  (Grave_Story_intro, div @6427 → FULL 130165/130165). TELL: deep freq-LO
+  (Grave_Story_intro, div at 6427 → FULL 130165/130165). TELL: deep freq-LO
   divergences whose (mine−orig) deltas are QUANTIZED TO ×16 across a
   member class (the speed-nibble ASL×4) = a glide/slide step-count or
   arming drift; census the delta histogram before per-member drilling.

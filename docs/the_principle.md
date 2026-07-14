@@ -1,4 +1,4 @@
-# The USF Representation Principle
+# The Principle
 
 **Status: load-bearing. Read this document in full before designing or
 changing how USF represents any instrument, effect, or behavior — and
@@ -197,7 +197,7 @@ matters there because the bit pattern timing is the sample.
 
 When the test needs to attribute writes to a specific voice or 6502
 routine (e.g. to isolate a single-voice effect from a multi-voice
-frame), use `src/usf2/audit.py` — it captures `(frame, PC, reg, val)`
+frame), use `src/usf/audit.py` — it captures `(frame, PC, reg, val)`
 per SID write, filters to one voice, and optionally cross-references
 each PC against a disassembly file.
 

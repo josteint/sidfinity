@@ -309,7 +309,7 @@ AD/SR = ADSR; vibrato = (amplitude, frequency, delay) → standard USF vibrato; 
 default chord + WF-ARP table → USF arp/wavetable; PW table → USF pulse program; filter table →
 USF filter program; octave shift → USF transpose; first-frame waveform → USF note-on waveform.
 **Apply the USF representation principle — these are parametric basis effects, not an indexed
-library.** (Re-read `docs/usf_representation_principle.md` before designing the instrument USF.)
+library.** (Re-read `docs/the_principle.md` before designing the instrument USF.)
 
 ---
 

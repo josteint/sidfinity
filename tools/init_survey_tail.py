@@ -1,7 +1,7 @@
 """Tail survey — the 11% of HVSC beyond the top 100 engines.
 
 One-shot survey companion to `init_survey.py`. Output landed in
-`docs/sid_init_report.md` §5. Re-run as a stress-test when HVSC
+`docs/the_trichotomy.md` §5. Re-run as a stress-test when HVSC
 updates or the trichotomy is challenged.
 
 

@@ -65,7 +65,7 @@ features, not new shapes.
 
 ### USF representation
 
-* **Read `docs/usf_representation_principle.md` IN FULL before touching
+* **Read `docs/the_principle.md` IN FULL before touching
   USF shape.** Forbidden shapes: `*Kind: int`, `*Ptr`, `*_idx: int`,
   `bytes`-typed fields that paper over a representation gap.
 * **Effects are parametric over a musical basis; engine holds
@@ -164,7 +164,7 @@ Before starting any phase, read:
 * `pipelines/hubbard/verify.py` / `verify_cycle.py` — the verdicts.
 * `src/usf/types.py` — `UsfFile`, `MusicSubtune`, `DigiSubtune`,
   `SfxSubtune`, `Instrument`, `Pattern`, `NoteRow`, `Orderlist`, etc.
-* `docs/usf_representation_principle.md` — load-bearing principle doc.
+* `docs/the_principle.md` — load-bearing principle doc.
 * HVSC: `hvsc84/`. Index DB: `hvsc84.db` (Python sqlite3, no CLI).
 
 The 6 shapes that need to disappear:
@@ -196,7 +196,7 @@ unexpectedly, split it.
 ### Phase 0 — Read in (no code)
 
 - [x] Read this plan in full.
-- [x] Read `docs/usf_representation_principle.md` in full.
+- [x] Read `docs/the_principle.md` in full.
 - [x] Check `~/.claude/projects/-home-jtr-sidfinity/memory/MEMORY.md`
       and any project memories the work touches.
 - [x] Confirm regression baseline runs (commands below).
@@ -567,7 +567,7 @@ does each frame," parametric over features.
 - [x] Write a unit test: each current shape's USF can be converted into
       an engine-model instance. No asm yet — just verifying the model is
       expressive enough.
-- [x] Document the model in `docs/engine_model.md`.
+- [x] Document the model in `deprecated/old_docs/engine_model.md`.
 
 **Outcome (commit pending):**
 * `pipelines/engine_model.py` defines the `EngineModel` top-level
@@ -580,7 +580,7 @@ does each frame," parametric over features.
 * `tests/test_engine_model_audit.py` runs the builder against one+
   USFs per shape (11 tests). All pass — every shape's features are
   representable in the model.
-* `docs/engine_model.md` documents the model + the builder's
+* `deprecated/old_docs/engine_model.md` documents the model + the builder's
   behavior + open items for Phase 3+.
 
 **Audit findings landed in the model:**
@@ -1676,7 +1676,7 @@ The targets the original plan named are gone:
       The intent ("update its module docstring to describe the
       composer architecture") no longer applies — the file is gone;
       composer.py's own header serves that purpose.
-- [x] `docs/usf_representation_principle.md` — checked; no stale
+- [x] `docs/the_principle.md` — checked; no stale
       references. The USF/composer boundary didn't change during
       the dissolution.
 - [x] `CLAUDE.md`'s file table updated (Phase 8.22 cleanup).
