@@ -350,7 +350,14 @@ sid_db.query("SELECT path, exclusion_reason FROM sids WHERE excluded=1")
 
 ## Build environment
 
-64-core EPYC, 512 GB RAM, dual 3090 GPUs. No sudo — everything from source in-tree.
+**Current host (until ~Sept 2026): Lenovo X230, 8 cores** — size worker
+pools to 8 (`Pool(8)`), expect long wall times for corpus-wide batches, and
+note **pytest is not installed** here (use `tools/regression.py` as the
+gate; the `pytest pipelines/` smoke tests only run on the big box). From
+September the primary machine is again the 64-core EPYC, 512 GB RAM, dual
+3090 GPUs — update this paragraph when that happens.
+
+No sudo — everything from source in-tree.
 xa65 assembler at `tools/xa65/xa/xa`. CUDA at `/usr/bin/nvcc`. Python packages
 install into `.pylocal/` (on `env.sh`'s PYTHONPATH; gitignored) via
 `pip install --no-cache-dir --target .pylocal/lib/python3.12/site-packages <pkg>`

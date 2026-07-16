@@ -1,12 +1,11 @@
 ## Project state
 
-- [Current host is 8-core](project_current_host_8core.md) — since 2026-06-11: 8 cores (NOT the 64-core EPYC in CLAUDE.md), no pytest. Pool(8); regression as the gate.
 
 - [USF init.sid block](project_usf_init_sid_block.md) — CURRENT. USF carries SID-chip priming as typed `init.sid { master_vol, filter, voice N {...} }`; composer reads it directly; shape-detection deleted. Built on [[init-trichotomy]].
 - [Composer dissolution](project_composer_dissolution.md) — Phase 8 done; `composer_hubbard.py` DELETED. Hubbard '85 family lives entirely in `pipelines/composer.py` (feature-driven asm, 18 chunk emitters + typed args). `tools/regression.py` = verdict.
 - [Hubbard remaining partials](project_hubbard_remaining_partials.md) — RESOLVED: entire Hubbard family exact (71/71). Fixes: CIA-aware per-play verdict (--writelog-per-irq); Devils_Galop master_vol_every_note knob.
-- [FC principled composer](project_fc_principled_composer.md) — IN PROGRESS. De-verbatim the FC data tail. Schema foundation DONE (`Orderlist.transposes`). Next: extract un-bake + composer emit. Verdict = `verify_featuredriven`.
-- [FC fingerprint DB + standard player](project_fc_fingerprint_and_standard.md) — `tools/engine_fingerprint.py` reloc-invariant fingerprinting; 91% of HVSC FC is ONE vanilla "standard" player (distinct from the Tel composer). **✅ WIDE BATCH 2419/2672 FULL (90.5%), mass-written.** Full effect chain gated; residue 253. Per-round detail in topic file — READ IT first.
+- [FC principled composer](project_fc_principled_composer.md) — ✅ COMPLETE. §9 fully closed: the whole FC build is orig-free (model-USF buildable); both canaries (Cyb II 2/2 + Hawkeye 12/12) de-verbatim, PSID header synthesized. Verdict = `verify_featuredriven`.
+- [FC fingerprint DB + standard player](project_fc_fingerprint_and_standard.md) — `tools/engine_fingerprint.py` reloc-invariant fingerprinting; 91% of HVSC FC is ONE vanilla "standard" player (distinct from the Tel composer). **✅ WIDE BATCH 2528/2672 FULL (94.6%), mass-written.** Full effect chain gated; residue 142 partial. Per-round detail in topic file — READ IT first.
 - [Off-table unified transform](project_offtable_unified.md) — recurring "engine reads past the freq/wave/pulse table" across ALL engines; census → `docs/offtable_unified_transform.md`. Observe-don't-reimplement; REALIZE→CLASSIFY→FIT; revive `strip_decompose`.
 
 ## Per-engine project memories
@@ -14,7 +13,7 @@
 - [Basic_Program family](project_basic_program.md) — 486 RSID-BASIC tunes (engine IS the BASIC+KERNAL ROM); trace-lift → USF round-trip. **✅ 458/486 (94.2%) FULL** + 226 NF. Residue ~28 (float/random tail + digi). METHOD: census a bucket for a shared lever.
 - [DMC migration](project_dmc.md) — THE FOCUS ENGINE (10,676 SIDs; largest family). V4 f1 ≈5170/5401 FULL; f2/V5 fam-3/5 in progress. Full 2SID/3SID (C27/C28) + compilation support incl. HETEROGENEOUS (DMC players + a distinct `dmc_sfx` SFX sub-player, ledger C31 — see [[project_dmc_compilations]]). Per-SID levers = first-f1-partial-by-path fixes: gated params, positive-minority census, 0-regr-by-construction, ledger-recorded. **72-round history + every lever + methodology live in project_dmc.md — READ IT FIRST** (do NOT expand this line; new rounds → topic file). Re-verify any stale wide batch (dmc_f*.jsonl) before picking.
 - [DMC compilations](project_dmc_compilations.md) — a WHOLE residue class: one file packs N independent players + a per-subtune dispatch wrapper (subtune→(base,song)). Ledger C31; ≥15 in Bayliss. Unified-merge built; homogeneous + HETEROGENEOUS (DMC + a `dmc_sfx` sub-player, Canyon 13/13 FULL r72) both land.
-- [GoatTracker family](project_goattracker.md) — 2nd-largest (8,670: 7,311 V2 + 1,359 V1). **Active: V1** (original 1.x, NOT GT2). Research DONE 2026-06-29; no extract code yet. One dominant player → FC-standard-shaped migration. Next: fingerprint→canary→disassembly.s.
+- [GoatTracker family](project_goattracker.md) — 2nd-largest (8,670: 7,311 V2 + 1,359 V1). **Active: V1** (original 1.x, NOT GT2). Extract + composer BUILT (`pipelines/goattracker/v1/`); authoritative wide batch **164/1359 FULL** incl. the player1 `optimized` write-order knob (ledger C16, commit 3f20ab5). Per-round detail in topic file — READ IT first.
 - [Commando — no drum engine](project_commando_no_drum_engine.md) — "the drum" is inst 4 played off the end of the freq table; the drum sub-engine never runs in subtune 0
 - [Chimera pipeline](project_chimera.md) — PSID rebuild (no KERNAL); music frame-exact + digi cycle-strict. Drove the digi pipeline + no-verbatim-engine-bytes refactor. Includes the C64 banking gotcha.
 - [Human Race effect audit](project_human_race_audit.md) — ALL FIVE HR effects collapse to existing shared-core effects (downslide≡freq_slide, drumarp≡fx_arp, skydive≡fx_incby2, PWmode≡fx_pwm, per-note slide≡fx_drumslide)
@@ -32,7 +31,6 @@
 - [Hubbard nested counters](project_hubbard_nested_counters.md) — nested DEC/BPL speed counters
 - [Hubbard notenum/freq overlap](project_hubbard_notenum_overlap.md) — notenum table lives INSIDE the freq table region; cross-voice coupling via shared bytes
 - [Hubbard song-end fade](project_hubbard_song_end_fade.md) — RESOLVED (Confuzion 2×, TOAS 1.5×). Master-VOL fade = `clamp(BASE - voice_orderpos, 0..$0F)` via 6 EngineConfig knobs. Audit the fade via the write-log, not snapshots.
-- [Hubbard PWM bounds](reference_hubbard_pwm_bounds.md) — pulsework's $08/$0E direction-flip thresholds are HARDCODED, not per-instrument
 - [Timing requirements](project_timing_requirements.md) — frame-accurate OK for tracker music; cycle-precise needed later for digi/demo SIDs
 - [Fingerprint DB (deferred)](project_fingerprint_db.md) — future: SQLite-backed (writelog → USF params) DB to accelerate audits + supply ML training data.
 
