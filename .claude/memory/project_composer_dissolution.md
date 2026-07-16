@@ -60,5 +60,5 @@ and companion + 5_Title_Tunes cycle-strict via
 subtunes explicitly so they don't get mistaken for regressions. Run
 it to see the current ok / known-partial / regressed counts.
 
-See also [[composer-architecture-files]] if I ever write down the
-file-level map of composer.py's ~5,000 lines.
+(A file-level map of composer.py's ~5,000 lines has not been written
+down; CLAUDE.md's Key-files table is the closest thing.)

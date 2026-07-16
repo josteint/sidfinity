@@ -13,7 +13,7 @@ USF v3 grammar carries an `init.sid {}` sub-block for SID-chip
 priming, separate from `init.voice {}` (engine-state priming /
 voice runtime state, mostly Hubbard-shaped).
 
-**Why:** the init trichotomy — see [[init-trichotomy]] — requires
+**Why:** the init trichotomy (docs/the_trichotomy.md) requires
 typed musical-parameter fields for priming so the composer can
 read them directly without engine-name dispatch or shape
 detection.
@@ -100,7 +100,7 @@ per-subtune `voice_enable_mask` USF param — see
 
 ## See also
 
-- [[init-trichotomy]] — the load-bearing principle this implements.
+- the init trichotomy (docs/the_trichotomy.md) — the load-bearing principle this implements.
 - [[composer-dissolution]] — composer.py architecture; init lives
   in `_emit_init` for the bowden+companion paths,
   `_emit_hubbard_init` for the Hubbard '85 path.

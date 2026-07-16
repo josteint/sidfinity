@@ -273,7 +273,7 @@ CIA + $2046/$1C78 oddballs flagged. Probe: **2672 members / 1352
 flagged** of 4024.
 
 **Wide batch (round B) RUNNING** detached: `tmp/run_wide.py` (Pool(8) —
-the CURRENT HOST IS 8-CORE, see [[project_current_host_8core]]);
+the current host is 8-core — see CLAUDE.md Build environment);
 results stream to `tmp/fc_std_wide_results.jsonl` (crash-safe, resumes
 by skipping done SIDs). USE REPO tmp/, NEVER /tmp ([[feedback_repo_tmp_dir]]).
 Non-full USFs are deleted after verify; FULL members keep theirs.

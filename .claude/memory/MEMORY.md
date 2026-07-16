@@ -1,7 +1,7 @@
 ## Project state
 
 
-- [USF init.sid block](project_usf_init_sid_block.md) — CURRENT. USF carries SID-chip priming as typed `init.sid { master_vol, filter, voice N {...} }`; composer reads it directly; shape-detection deleted. Built on [[init-trichotomy]].
+- [USF init.sid block](project_usf_init_sid_block.md) — CURRENT. USF carries SID-chip priming as typed `init.sid { master_vol, filter, voice N {...} }`; composer reads it directly; shape-detection deleted. Built on the init trichotomy (docs/the_trichotomy.md).
 - [Composer dissolution](project_composer_dissolution.md) — Phase 8 done; `composer_hubbard.py` DELETED. Hubbard '85 family lives entirely in `pipelines/composer.py` (feature-driven asm, 18 chunk emitters + typed args). `tools/regression.py` = verdict.
 - [FC principled composer](project_fc_principled_composer.md) — ✅ COMPLETE. §9 fully closed: the whole FC build is orig-free (model-USF buildable); both canaries (Cyb II 2/2 + Hawkeye 12/12) de-verbatim, PSID header synthesized. Verdict = `verify_featuredriven`.
 - [FC fingerprint DB + standard player](project_fc_fingerprint_and_standard.md) — `tools/engine_fingerprint.py` reloc-invariant fingerprinting; 91% of HVSC FC is ONE vanilla "standard" player (distinct from the Tel composer). **✅ WIDE BATCH 2528/2672 FULL (94.6%), mass-written.** Full effect chain gated; residue 142 partial. Per-round detail in topic file — READ IT first.
