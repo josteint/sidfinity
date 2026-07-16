@@ -3,7 +3,6 @@
 
 - [USF init.sid block](project_usf_init_sid_block.md) — CURRENT. USF carries SID-chip priming as typed `init.sid { master_vol, filter, voice N {...} }`; composer reads it directly; shape-detection deleted. Built on [[init-trichotomy]].
 - [Composer dissolution](project_composer_dissolution.md) — Phase 8 done; `composer_hubbard.py` DELETED. Hubbard '85 family lives entirely in `pipelines/composer.py` (feature-driven asm, 18 chunk emitters + typed args). `tools/regression.py` = verdict.
-- [Hubbard remaining partials](project_hubbard_remaining_partials.md) — RESOLVED: entire Hubbard family exact (71/71). Fixes: CIA-aware per-play verdict (--writelog-per-irq); Devils_Galop master_vol_every_note knob.
 - [FC principled composer](project_fc_principled_composer.md) — ✅ COMPLETE. §9 fully closed: the whole FC build is orig-free (model-USF buildable); both canaries (Cyb II 2/2 + Hawkeye 12/12) de-verbatim, PSID header synthesized. Verdict = `verify_featuredriven`.
 - [FC fingerprint DB + standard player](project_fc_fingerprint_and_standard.md) — `tools/engine_fingerprint.py` reloc-invariant fingerprinting; 91% of HVSC FC is ONE vanilla "standard" player (distinct from the Tel composer). **✅ WIDE BATCH 2528/2672 FULL (94.6%), mass-written.** Full effect chain gated; residue 142 partial. Per-round detail in topic file — READ IT first.
 - [Off-table unified transform](project_offtable_unified.md) — recurring "engine reads past the freq/wave/pulse table" across ALL engines; census → `docs/offtable_unified_transform.md`. Observe-don't-reimplement; REALIZE→CLASSIFY→FIT; revive `strip_decompose`.
@@ -31,7 +30,6 @@
 - [Hubbard nested counters](project_hubbard_nested_counters.md) — nested DEC/BPL speed counters
 - [Hubbard notenum/freq overlap](project_hubbard_notenum_overlap.md) — notenum table lives INSIDE the freq table region; cross-voice coupling via shared bytes
 - [Hubbard song-end fade](project_hubbard_song_end_fade.md) — RESOLVED (Confuzion 2×, TOAS 1.5×). Master-VOL fade = `clamp(BASE - voice_orderpos, 0..$0F)` via 6 EngineConfig knobs. Audit the fade via the write-log, not snapshots.
-- [Timing requirements](project_timing_requirements.md) — frame-accurate OK for tracker music; cycle-precise needed later for digi/demo SIDs
 - [Fingerprint DB (deferred)](project_fingerprint_db.md) — future: SQLite-backed (writelog → USF params) DB to accelerate audits + supply ML training data.
 
 ## Working principles (read these before acting)

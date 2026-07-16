@@ -4,6 +4,12 @@ description: When frame-accurate timing is sufficient and when cycle-precise tim
 type: project
 originSessionId: bd8c5590-7fdb-4eda-ac35-63db9d55f189
 ---
+
+> **ARCHIVED 2026-07-16 — CONTRADICTS CANON. Do not follow.** This memory's
+> claim that per-frame register-state comparison suffices is Trap A (removed
+> 2026-06-07), and it understates within-frame write ORDER. The governing law
+> is docs/the_core_tenet.md's two verification modes.
+
 **For tracker music (Commando, Monty on the Run, ~95% of HVSC):**
 Frame-accurate (1/50 sec, 19656 PAL cycles) is sufficient. Cycle ordering within a frame doesn't matter for audio. Per-instruction timing within play() call is irrelevant — only per-frame state matters.
 

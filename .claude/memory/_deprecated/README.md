@@ -36,6 +36,8 @@ they no longer load on session start. Source preserved for archaeology.
 - `project_hubbard_principled_usf.md` — Phase 2 mechanism-fields-to-engine_constants migration
 - `project_companion_principled_usf.md` — Phase 1 companion forbidden-shape cleanup
 - `project_math_brainstorm.md` — Das Model era math ideas (Das Model deprecated)
+- `project_hubbard_remaining_partials.md` — archived 2026-07-16: self-declared FULLY RESOLVED (71/71); the CIA per-play() verdict it produced now lives in docs/the_core_tenet.md + CLAUDE.md; ~60% is explicitly-labeled wrong theory kept as trail
+- `project_timing_requirements.md` — archived 2026-07-16: pre-USF era; CONTRADICTS canon (claims per-frame state snapshots suffice = Trap A, and understates within-frame write order). The correct law is docs/the_core_tenet.md's two verification modes
 
 ## If you need to revive one
 
