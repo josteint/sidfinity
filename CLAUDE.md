@@ -39,37 +39,56 @@ threaded through `_compose_hubbard_engine_asm`). The earlier
 [[project_composer_dissolution]] for the architecture + build-path
 call chain.
 
-Two engine families ship through the USF pipeline today:
+Families shipping through the USF pipeline today (per-family status/counts
+live in each family's `project_<engine>` memory + MEMORY.md, not here):
 
-- **Hubbard '85** (under `pipelines/hubbard/<engine>/`) — feature-driven
-  asm composition out of the shared composer.
-- **Companion strains** (under `pipelines/companion/<engine>/`) —
-  Hubbard's 1984 Up_up_and_Away, Bowden-canonical, Clever_Music
-  (Fairlight + Gyroscope), Henrys_House, Yes_Tune family.
+- **Hubbard '85** (`pipelines/hubbard/<engine>/`) — feature-driven asm
+  composition out of the shared composer; whole family exact.
+- **Companion strains** (`pipelines/companion/<engine>/`) — Up_up_and_Away,
+  Bowden-canonical, Clever_Music, Henrys_House, Yes_Tune,
+  C64_Music_Examples, Jay_Derrett.
+- **Future Composer** (`pipelines/future_composer/`) — Tel-variant canaries
+  + the dominant "standard" player (wide batch mass-written).
+- **DMC** (`pipelines/dmc/`) — THE FOCUS ENGINE (largest HVSC family);
+  v4/v5 + 2SID/3SID + compilations. See [[project_dmc]].
+- **GoatTracker V1** (`pipelines/goattracker/v1/`) — extract + composer
+  built, wide batch run. NOT yet wired into regression.py.
+- **basic_program** (`pipelines/basic_program/`) — RSID-BASIC trace-lift →
+  USF round-trip.
 
-`tools/regression.py` is the verdict for both families. It prints the
-current ok / known-partial / regressed counts and enumerates the
-pre-existing partial subtunes — treat it as the source of truth, not
-this file.
+`tools/regression.py` is the verdict across the migrated families
+(Hubbard + companion + C64ME + Jay_Derrett + FC + DMC + basic_program;
+tier-1 portfolios for FC/DMC/basic). It prints the current ok /
+known-partial / regressed counts and enumerates the pre-existing partial
+subtunes — treat it as the source of truth, not this file.
 
-**Layout — `pipelines/`:**
+**Layout — `pipelines/`** (~50 family dirs; most are research-doc stubs
+from `research-player` sweeps — the active migration trees are marked):
 ```
 pipelines/
-├── composer.py         ← THE composer (~5k lines: 18 routine chunks,
-│                          data emitters, _Inputs adapters, dispatch)
+├── composer.py         ← THE composer for Hubbard '85 + companion
+│                          (~5k lines: 18 routine chunks, data emitters,
+│                          _Inputs adapters, dispatch)
 ├── build_from_usf.py   ← Public entry; thin wrapper around composer
 ├── engine_model.py     ← Typed feature dataclasses
-├── hubbard/            ← Shared Python core (codec, verify, sfx, digi,
-│   │                     instrument modelling) + per-tune extracts
+├── hubbard/            ← ACTIVE. Shared Python core (codec, verify, sfx,
+│   │                     digi, instrument modelling) + per-tune extracts
 │   ├── verify.py / verify_cycle.py
 │   ├── note_codec.py / engine_constants.py / inst_*.py
 │   ├── sfx.py / sample.py / flac_io.py / digi_pack.py
 │   ├── config.py       ← EngineConfig (extract path only)
 │   └── <engine>/       config.py + extract/{engine_model,to_usf}.py
-├── companion/          ← Companion-strain engines (Up_up_and_Away,
+├── companion/          ← ACTIVE. Companion-strain engines (Up_up_and_Away,
 │                          Bowden-canonical, Clever_Music, Henrys_House,
-│                          Yes_Tune family); each subdir has its own
-│                          extract path.
+│                          Yes_Tune, C64_Music_Examples, Jay_Derrett)
+├── future_composer/    ← ACTIVE. FC family: Tel canaries + standard/
+│                          (own composer_asm.py, verify.py)
+├── dmc/                ← ACTIVE. THE FOCUS ENGINE: v4/ + v5/ (factory,
+│                          dataflow extract, composer_asm, compilation)
+├── goattracker/        ← ACTIVE. v1/ extract + composer
+├── basic_program/      ← ACTIVE. RSID-BASIC trace-lift (semantic_lift,
+│                          usf_roundtrip)
+├── <family>/docs/      ← ~50 research-doc dirs (soundmonitor, jch_*, …)
 └── README.md
 ```
 
@@ -77,14 +96,14 @@ Older paths live under `deprecated/`:
 - `deprecated/lean_codegen/` — the per-engine Lean 4 codegen
 - `deprecated/usf1_pipelines/` — engines that predate the current USF representation
 
-`tools/regression.py` runs the full pipeline regression (Hubbard +
-companion). Use it as the verdict after any composer change.
+`tools/regression.py` runs the full pipeline regression (all migrated
+families). Use it as the verdict after any composer change.
 
 ## MANDATORY before any new pipeline work
 
 **Before any engine investigation, ask yourself three questions OUT LOUD (in your first text turn of the session). They form a hierarchy from family-wide foundation to per-SID specifics:**
 
-1. **Do we have engine-family docs?** — `pipelines/<family>/docs/` is where family-wide research lives: format specs, player manuals, CSDB release notes, lineage, prior reverse-engineering. This is the FIRST thing acquired when work begins on a new player family (via the `research-player` skill at `.claude/skills/research-player/`). ~47 family-doc dirs exist today (`pipelines/future_composer/docs/`, `pipelines/goattracker/docs/`, ...). If a family-doc dir exists, READ IT BEFORE any per-SID work — it tells you the player's instruction semantics, instrument format, effect catalogue, byte encodings. Skipping this means re-deriving the format from raw bytes.
+1. **Do we have engine-family docs?** — `pipelines/<family>/docs/` is where family-wide research lives: format specs, player manuals, CSDB release notes, lineage, prior reverse-engineering. This is the FIRST thing acquired when work begins on a new player family (via the `research-player` skill at `.claude/skills/research-player/`). ~50 family-doc dirs exist today (`pipelines/future_composer/docs/`, `pipelines/goattracker/docs/`, ...). If a family-doc dir exists, READ IT BEFORE any per-SID work — it tells you the player's instruction semantics, instrument format, effect catalogue, byte encodings. Skipping this means re-deriving the format from raw bytes.
 
 2. **Did I do full decompilation?** — does the SID have a hand-annotated `pipelines/<family>/<engine>/disassembly.s` already in the repo? Most migrated FC + Hubbard engines do (1000+ lines, hand-labelled with routine names + state-byte assignments). If yes, READ IT before any py65 fragment-disasm work — the structural labels (`L_7DCA`, `sub_7DBD`) are knowledge py65 cannot reconstruct. If no, generate one with `tools/seed_disassembly.py` and annotate the header BEFORE coding.
 
@@ -120,7 +139,7 @@ HVSC original at `hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.{usf, sidfinity.sid}`.
   - `pipelines/<engine>/` only → that engine's verify only (e.g., `verify_featuredriven(CFG)` for FC, `verify_all([(cfg, sid)])` for Hubbard). Other families are physically untouched and can't regress.
   - `src/composer_runtime/`, `src/usf/types.py`, `pipelines/hubbard/verify_cycle.py`, or any shared plumbing → full `tools/regression.py` (one diff hits all engines).
   - Before commit → full `tools/regression.py` regardless of what was touched.
-- **Regression portfolio — the standard family-closeout step.** When a feature-driven family's wide batch is mass-written (the family reaches its FULL coverage), derive its regression portfolio and wire it as **tier 1** in `tools/regression.py`; the full family batch (`tools/<engine>_family_batch.py`) is the **tier 2** milestone verdict. The portfolio is the EXACT minimum set of FULL members covering every feature dimension the corpus exercises ≥2× (factory knobs + instrument effects + pattern/track structure) — so one cheap regression run guards the whole feature space, not just one canary. Tool: `tools/select_regression_portfolio.py --engine <name>` (engine-parametric registry; `exact_multicover` is engine-blind — adding a family = a registry entry + a `<engine>_features` function). **Re-derive whenever a new fix lands a big new clump of FULLs** — the portfolio is only as current as its last derivation (it is NOT auto-triggered). Wired today: `fc_standard` (11 members) + `dmc_v4` (5 members, covering relocation / loop-target / dual-phase / per-tune-tuning / multi-subtune).
+- **Regression portfolio — the standard family-closeout step.** When a feature-driven family's wide batch is mass-written (the family reaches its FULL coverage), derive its regression portfolio and wire it as **tier 1** in `tools/regression.py`; the full family batch (`tools/<engine>_family_batch.py`) is the **tier 2** milestone verdict. The portfolio is the EXACT minimum set of FULL members covering every feature dimension the corpus exercises ≥2× (factory knobs + instrument effects + pattern/track structure) — so one cheap regression run guards the whole feature space, not just one canary. Tool: `tools/select_regression_portfolio.py --engine <name>` (engine-parametric registry; `exact_multicover` is engine-blind — adding a family = a registry entry + a `<engine>_features` function). **Re-derive whenever a new fix lands a big new clump of FULLs** — the portfolio is only as current as its last derivation (it is NOT auto-triggered). Wired today: `fc_standard` (11 members) + `dmc_v4` (5 members, covering relocation / loop-target / dual-phase / per-tune-tuning / multi-subtune) + `basic_program` (tools/basic_program_regression_portfolio.json).
 - **Wide-family iteration — DON'T full-batch every experiment.** A full family batch (`tools/<engine>_family_batch.py` over ~1.5k members) is ~1 hr; running it to test each composer/extract fix is the slow trap. Instead: **iterate on a fixed STRATIFIED SUBSET** (~100-150 members, stratified across the current first-divergence buckets — V1sr / V1flo / FCLO / pulse / ... — PLUS a slice of currently-FULL members for regression coverage), ~5 min (~12× faster). It tells you the fix's direction + obvious regressions before committing. Run the **full batch ONLY at round closeout** (the authoritative count + the mass-write, which must build every FULL member), or when a fix touches a hot path with broad regression risk. NB code-Jaccard clustering does NOT help pick the subset — within a family the player is ~identical; pass/fail varies by DATA (which orderlist loops to a transpose, which filter table is tiny). Stratify by first-diff bucket / feature-cover (the `select_regression_portfolio.py` basis), not code similarity. The closeout can also be INCREMENTAL: re-verify only partials + unsupported (where gains come from) + a FULL-regression sample, and reason about the fix's regression scope (e.g. a loop-target fix can't regress a FULL — a FULL never hit that path).
 - **For writelog-partial debugging, start with `tools/find_first_divergence.py ORIG.sid REBUILD.sid --subtune N`.** It localises the first `(reg, val)` mismatch + names the voice/role (e.g. "V2 freq hi") in one command. THEN disassemble orig's effect for that register, THEN diff against the composer emitter. Do NOT start from py65 state traces or prior task descriptions — both go stale. Full protocol in [`feedback_writelog_divergence_recipe`](.claude/memory/feedback_writelog_divergence_recipe.md).
 - **For engine-state divergence, use `tools/state_diff.py` + auto-generated map.**
@@ -181,7 +200,7 @@ sections written once while the work moved on). Rules that prevent it:
 source src/env.sh              # adds tools/siddump etc. to PATH
 bash tools/build.sh            # builds libsidplayfp + siddump (one-time)
 
-# Full pipeline regression — Hubbard + companion + 5TT
+# Full pipeline regression — all migrated families
 python3 tools/regression.py
 
 # Rebuild one engine through the pipeline
@@ -250,7 +269,7 @@ data-section emitters + `_Inputs` adapters + `_inputs_from_usf` +
 | `pipelines/hubbard/song_interp.py` | Runtime interpretation of voice/note state (used by extract). |
 | `pipelines/companion/` | Companion-strain engines (Up_up_and_Away, Bowden-canonical, Clever_Music, Henrys_House, Yes_Tune family). Extract path + per-engine USF writers. |
 | `src/usf/` | USF grammar + reader/writer (spec: `docs/usf_format.md`). |
-| `tools/regression.py` | Full pipeline regression — Hubbard `verify_all` + companion `compare_instruction_stream` + 5TT. Lists pre-existing partials so they're not mistaken for regressions. |
+| `tools/regression.py` | Full pipeline regression across all migrated families (Hubbard `verify_all`, companion/C64ME/Jay_Derrett `compare_instruction_stream`, FC canaries + portfolio, DMC portfolio, basic_program portfolio). Lists pre-existing partials so they're not mistaken for regressions. |
 | `tools/siddump.cpp` | C++ register dumper (libsidplayfp). `--writelog` for cycle timing, `--pc-trace` for CPU PC trace. |
 
 ## HVSC index — `hvsc84.parquet` (+ `engine_docs.csv`), via DuckDB
@@ -354,13 +373,12 @@ The script is idempotent — when in doubt, re-run with no flags. Use
 
 ## Excluded SIDs — `tools/excluded_sids.json`
 
-Some SIDs / engine families can't fit into the principled USF
-representation without dragging engine-mechanism bookkeeping into the
-schema. For example: Companion/Jay_Derrett engine (25 SIDs) is
-aperiodic by design — voices never simultaneously realign, the song
-is conceptually infinite, and storing a finite played-trace requires
-either an arbitrary cut-off OR sub-jump-table positional info that
-violates the USF principle.
+Some SIDs / engine families may not fit the principled USF representation
+without dragging engine-mechanism bookkeeping into the schema. **The list
+is currently EMPTY** — its one historical entry class (Companion/Jay_Derrett,
+excluded 2026 for being aperiodic-by-design) was later solved and migrated
+(`pipelines/companion/jay_derrett/`, wired into regression). Treat exclusion
+as a last resort that can be revisited; the mechanism stays in place:
 
 Such SIDs are listed in `tools/excluded_sids.json` with a reason and
 an `excluded_date`. The pipeline (`pipelines/build_from_usf.py` +
@@ -404,7 +422,10 @@ python `duckdb` module is NOT installed/used. Ad-hoc:
 ## Project structure
 
 ```
-pipelines/              active engines — hubbard/ (Hubbard '85 family) + companion/
+pipelines/              engine families (~50 dirs) — active migration trees:
+                        hubbard/, companion/, future_composer/, dmc/,
+                        goattracker/, basic_program/; the rest are
+                        research-doc stubs
 src/                    USF shared source — usf/ (grammar + reader/writer),
                         composer_runtime/ (xa65 + PSID header, engine-blind),
                         hubbard_emu.py, songlengths.py, sid_db.py,
@@ -435,7 +456,7 @@ own README. The most relevant ones to know about:
 - `deprecated/sidxray/` — player reverse-engineering toolkit
 - `pipelines/<engine>/docs/` — per-engine research material (format
   specs, disassemblies, version differences). Created via the
-  `research-player` skill. ~47 engine subdirs today, covering both
+  `research-player` skill. ~50 engine subdirs today, covering both
   migrated engines and pre-migration research stash.
 
 Each `deprecated/<topic>/README.md` describes what's there and how to
