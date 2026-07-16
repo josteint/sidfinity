@@ -1,6 +1,6 @@
 ---
 name: project_dmc_compilations
-description: DMC files that pack N independent players + a per-subtune SMC dispatch wrapper (compilations) — a whole residue class; Abyssal_Karma is the first characterized
+description: DMC files that pack N independent players + a per-subtune SMC dispatch wrapper (compilations) — a whole residue class (ledger C31). Unified-merge built; 7 members FULL incl. the heterogeneous dmc_sfx case (Canyon 13/13)
 metadata: 
   node_type: memory
   type: project

@@ -1,6 +1,6 @@
 ---
 name: project_goattracker
-description: "GoatTracker family migration state — V1 (original 1.x) is the active target; research done, disassembly next"
+description: "GoatTracker family migration state — V1 (original 1.x) is the active target. Extract + composer BUILT (pipelines/goattracker/v1/); authoritative wide batch 164/1359 FULL incl. the player1 'optimized' write-order knob (ledger C16). Tail sections of this file are the old research/plan phase — superseded, kept as RE reference."
 metadata: 
   node_type: memory
   type: project
@@ -473,7 +473,12 @@ arp is a per-row musical fx, not a new kind.
   (`deprecated/gt2_pipeline/GoatTracker_2.77/src/gsong.c`).
 - Index: `docs/v1_README.md`; provenance: `docs/v1_provenance_log.md`.
 
-## Next steps (extractor phase)
+## Next steps (extractor phase) — ⚠️ SUPERSEDED (kept as RE reference)
+
+> The sections from here down are the old research/plan phase. Current state
+> = the wide-batch sections ABOVE (extract + composer built, 164/1359 FULL
+> authoritative batch, C16 knob landed). Do not resume plans from here.
+
 1. **Extractor binary→model DONE + validated** (`v1/extract/engine_model.py`):
    `parse_sid` + `detect_layout` (anchor/cluster table-base + globals detection,
    variant-tolerant) + `extract` → `V1Song` (orderlists, patterns, instruments

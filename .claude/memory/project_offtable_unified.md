@@ -7,9 +7,20 @@ metadata:
   originSessionId: b632f6d3-9d96-4623-9ee1-b5354ba2f9a3
 ---
 
+> **⚠️ SUPERSESSION NOTE (2026-07-16):** the family-4 pulse blocker this file
+> tracks as open (the 7416 divergence / "MULTI-SESSION segmentation infra"
+> plan) was CLOSED 2026-07-01 by a DIFFERENT, simpler route: ledger **C2**
+> (`_capture_env(truncate_on_cap)` — keep the off-table prefix) + **C8**
+> (overflow-gated pool dedup). Jupiter41 went FULL; family-4 0→26 FULL. The
+> decomposer/segmenter plan in the tail below is PARKED, not the landed path.
+> This file stays for its unique content: the math-tool inventory
+> (strip_decompose / z3_decompose / taint_tracker in deprecated/python_experiments/),
+> the REALIZE→CLASSIFY→FIT method, and the pointer to
+> `docs/offtable_unified_transform.md`.
+
 The "engine indexes a table with an 8-bit reg / byte program-counter and walks PAST
 the table end, emitting adjacent image bytes as music" phenomenon recurs across
-Hubbard, DMC (v4/v5/family-2/family-4), Future Composer — and is the current
+Hubbard, DMC (v4/v5/family-2/family-4), Future Composer — and was the
 family-4 (Jupiter41) blocker. 3-agent sweep (2026-06-30: census + git-history math
 archaeology + pipeline/principle map) → **proposal doc `docs/offtable_unified_transform.md`**.
 

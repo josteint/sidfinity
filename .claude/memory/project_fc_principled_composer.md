@@ -1,6 +1,6 @@
 ---
 name: project_fc_principled_composer
-description: "FC family principled-composer work (de-verbatim patterns/sequences/aux); plan, key findings, transpose/voiceinc decisions"
+description: "FC family principled-composer work (de-verbatim patterns/sequences/aux) — ✅ COMPLETE: §9 fully closed, whole FC build orig-free (model-USF buildable), both canaries (Cyb II 2/2 + Hawkeye 12/12) de-verbatim, PSID header synthesized. Kept for the key findings + transpose/voiceinc decisions."
 metadata: 
   node_type: memory
   type: project

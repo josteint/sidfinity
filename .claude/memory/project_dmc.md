@@ -1,6 +1,6 @@
 ---
 name: project_dmc
-description: "DMC (Demo Music Creator) migration — the new focus engine (10,676 HVSC SIDs, largest family). Census DONE: V4 canonical = 5401 (50.6%), target. Research docs + fully annotated V4 disassembly DONE (pipelines/dmc/v4/disassembly.s, rep Geometrical_Zaks). KEY: data-table addresses are PACKER-PATCHED operands — extract by dataflow, never fixed offsets. NEXT: config + extract + composer emitters, write-log-first on Zaks."
+description: "DMC (Demo Music Creator) migration — THE FOCUS ENGINE (10,676 HVSC SIDs, largest family). 72 rounds logged newest-first below (the head of this file IS the current status). V4 family-1 ≈5170/5401 FULL; 2SID/3SID + compilations (incl. heterogeneous dmc_sfx) supported. KEY: data-table addresses are PACKER-PATCHED operands — extract by dataflow, never fixed offsets."
 metadata: 
   node_type: memory
   type: project

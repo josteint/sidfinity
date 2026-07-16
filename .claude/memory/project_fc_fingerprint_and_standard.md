@@ -1,6 +1,6 @@
 ---
 name: project_fc_fingerprint_and_standard
-description: "FC player-version fingerprint DB (tools/engine_fingerprint.py) + the dominant 'vanilla' FC player migration (pipelines/future_composer/standard/). 91% of HVSC FC (3673/4024) is ONE player → highest-leverage target. ✅ JARRE_2 SUB 0 FULL (2026-06-10): play 17164/17164 + trichotomy audio✓ — the standard player's first verified tune. Full effect chain done (pattern decoder, instrument-select, $40=wave_arp, $80=noise_tick, pulse sweep, wave ctrl+freq, vibrato, $D416 default, tick gate-off, note-duration +1, universal_reset init). RESUME: ear-test + RELOCATION → one config for the 3673-SID family rollout. See RESUME HERE."
+description: "FC player-version fingerprint DB (tools/engine_fingerprint.py) + the dominant 'vanilla' FC player migration (pipelines/future_composer/standard/). 91% of HVSC FC (3673/4024) is ONE player → highest-leverage target. ✅ WIDE BATCH COMPLETE + mass-written: 2528/2672 FULL (94.6%), residue 142 partial (see the triage-cycle sections below). Full effect chain gated; fc_standard regression portfolio (11 members) wired as tier 1 in tools/regression.py. Older RESUME/batch-RUNNING sections in the body are historical."
 metadata: 
   node_type: memory
   type: project
