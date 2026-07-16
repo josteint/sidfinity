@@ -15,8 +15,10 @@ Phases D0..D3c are done (2026-05-23, commits 8052172..922f59c).
 - `pipelines/hubbard/verify_cycle.py` — siddump --writelog harness
   (D0). `writelog_capture(sid, subtune, duration, force_rsid)` returns
   per-frame `[(cycle_in_frame, reg, val)]`. `compare_strict` =
-  cycle-exact (use for digi). `compare_writeset` = ignore cycle (use
-  for music). `subtune` is 0-indexed (PSID convention); the wrapper
+  cycle-exact (use for digi). `compare_instruction_stream` =
+  flat `(reg,val)`, cycle dropped (use for music; the old
+  `compare_writeset` is gone). `subtune` is 0-indexed (PSID
+  convention); the wrapper
   adds 1 internally for siddump's 1-indexed `--subtune` flag.
 
 - `pipelines/hubbard/sample.py` — the engine-agnostic `Sample`
@@ -34,17 +36,18 @@ Phases D0..D3c are done (2026-05-23, commits 8052172..922f59c).
   extra → engine `[vol_byte, audio_byte × 16]` byte stream,
   MSB-first. Lossless instruction-sequence exact round-trip verified.
 
-- `pipelines/chimera/extract/digi.py` — Chimera's extractor. Per
+- `pipelines/hubbard/chimera/extract/digi.py` — Chimera's extractor. Per
   subtune X = subtune-2: pace at `$9FE2[X]`, bank at `$9FE4[X]`;
   bank-table at `$A000 + bank*4 = {src_lo, src_hi, end_lo, end_hi}`
   (end-address, length = end - src); `$A108` = keep_screen flag;
   `$A10A` = pace (overwritten); `$A10B[i]` = bank VALIDATION table.
 
-- `pipelines/chimera/codegen/build_with_digi.py` — combined Chimera
-  build: music (regenerated, $1000) + digi region (verbatim from
-  original, two 3-byte dispatcher patches retarget the music-init
-  and music-play jsrs) + samples (re-packed from USF). RSID v2,
-  inline load=$1000, init=$9F80, play=0.
+- Combined Chimera build: now lives in `pipelines/composer.py`
+  (`_build_digi_region`) on the ordinary USF build path — the old
+  standalone `pipelines/chimera/codegen/build_with_digi.py` was
+  dissolved with the composer rewrite. Music (regenerated, $1000)
+  + digi region + samples (re-packed from USF). RSID v2, inline
+  load=$1000, init=$9F80, play=0.
 
 ## Representation principle (per `docs/usf_digi_plan.md`)
 
@@ -89,11 +92,14 @@ Phases D0..D3c are done (2026-05-23, commits 8052172..922f59c).
 
 ## Music vs digi verification — what tool does what
 
-| subtune kind | tool                                           | granularity |
-|--------------|------------------------------------------------|-------------|
-| music        | `inst_program.capture` (py65, 25 SID regs)     | frame       |
-| digi         | `siddump --writelog --force-rsid` (libsidplayfp) | cycle      |
+| subtune kind | tool                                             | granularity |
+|--------------|--------------------------------------------------|-------------|
+| music        | `siddump --writelog` + `compare_instruction_stream` | flat (reg,val), cycle dropped |
+| digi         | `siddump --writelog --force-rsid` + `compare_strict` | cycle |
+
+(The old py65 `inst_program.capture` per-frame music verdict was
+removed 2026-06-07 — it was Trap A. Both rows are libsidplayfp now.)
 
 `compare_strict` on music writelogs will fail even on a 100%-correct
-codegen — py65 and libsidplayfp differ on KERNAL/CIA init writes.
-This is a measurement-tool artifact, not a player divergence.
+build — within-frame cycle position is observation, not signal
+(Trap B). Use it only for digi.

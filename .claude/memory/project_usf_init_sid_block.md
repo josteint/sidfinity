@@ -85,23 +85,18 @@ synthetic `[$81,$FF]` orderlist for V1) was later resolved by the
 per-subtune `voice_enable_mask` USF param — see
 [[project_bowden_canonical]].
 
-## What's left
+## What's left (updated 2026-07-16)
 
-- **Universal-reset composer init**: currently the composer's
-  `_emit_init` does silence-clear + `$D418=$0F` + per-voice
-  timbre fills + orderlist setup. Eventually it could become
-  truly universal (just reset + USF priming + voice_state
-  setup), enabling structurally-different init bytes between
-  rebuild and original. That breaks `match_all`-based
-  verification — needs the strict Check A from
-  [[init-trichotomy]] (cycle-precise py65 init-RTS capture
-  at extract time).
+- **Universal-reset composer init + Check A verification: SHIPPED**
+  (originally parked here as future work). FC engines use
+  `init_style='universal_reset'` and the verdict is
+  `compare_instruction_stream(mode='trichotomy')` — end-of-init
+  chip-state Check A + aligned play-stream compare. See ledger C21
+  and [[project_adrenalin]] (the pure-trichotomy proof case).
 - **More engine migrations**: any engine with non-default
   $D418, filter init, or per-voice envelope/pulsewidth priming
   is a candidate. From the 100-engine survey: ~50% non-default
-  $D418, ~37% filter init.
-- **Phase A (strict Check A) verification** is parked — see
-  task #75 in the session task list.
+  $D418, ~37% filter init. (Ongoing as families migrate.)
 
 ## See also
 

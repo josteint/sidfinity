@@ -80,11 +80,16 @@ unless you're investigating digi.**
 ## Trap C — observation misalignment (siddump frame buckets vs IRQs)
 
 `tools/siddump` runs `engine.play(cyclesPerFrame)` per loop iteration
-where `cyclesPerFrame = 63×312 + 32 = 19688` for PAL. PAL VBI is
-exactly `19656` cycles. The +32 margin (siddump.cpp) ensures we
-always cross the IRQ trigger, but causes the count of PSID `play()`
-invocations per siddump "frame" to drift: usually 1, sometimes 0,
-sometimes 2.
+with `cyclesPerFrame = 63×312 + 32 = 19688` — but that value counts
+**event-scheduler ticks** (`c64::clock()` events, each <1 CPU cycle),
+NOT CPU cycles. A siddump "frame" therefore advances only **~18,000
+CPU cycles**, LESS than the 19,656-cycle PAL play period, so the PSID
+`play()` runs ~0.92× per siddump frame: usually 1, regularly 0,
+rarely 2. (An earlier version of this memory derived the drift from
+"+32 margin, 19688 > 19656, so sometimes 2" — that is the WRONG
+DIRECTION; see docs/the_core_tenet.md Trap C and
+[[reference_siddump_frame_cycles]], which records this was mis-derived
+twice.)
 
 This affects two things:
 
