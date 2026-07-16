@@ -5,7 +5,7 @@ type: reference
 originSessionId: bd8c5590-7fdb-4eda-ac35-63db9d55f189
 ---
 In Rob Hubbard's bidirectional PWM (`pulsework` routine, e.g.
-`src/hubbard/docs/hubbard_monty_disassembly_acme.asm:454`), the PW
+`pipelines/hubbard/docs/hubbard_monty_disassembly_acme.asm:454`), the PW
 high-nibble direction-flip thresholds are HARDCODED:
 
   - going UP flips at `cmp #$0e` → if pwhi (after `and #$0f`) == $0E
@@ -21,6 +21,7 @@ init value down to $08 (with step $E0, 8 frames per step). Observing
 only the first 40 frames can show a misleading range like $0B..$0E,
 which is *transient* — not the actual bounds.
 
-**How to apply:** When generalizing `das_model_gen` to a new Hubbard
-SID, pass `default_pw_min=0x08, default_pw_max=0x0E` to `extract()`.
-Do not guess from siddump frames 1-40.
+**How to apply:** When extracting PWM bounds for a new Hubbard-'85
+engine, use $08/$0E as the engine constants for all instruments.
+Do not guess from siddump frames 1-40. (The original recipe named
+`das_model_gen`, a pre-USF tool now in deprecated/.)

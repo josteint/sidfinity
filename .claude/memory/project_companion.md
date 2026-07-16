@@ -57,7 +57,7 @@ with 32 bytes past `$8D` (the bytes the orig engine would read).
 
 ## USF representation
 
-`demo/hubbard/Up_up_and_Away.usf` is the source of truth — the
+`hvsc84/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.usf` is the source of truth — the
 shipped `.sid` is built from it alone (no binary access at build
 time, per the [[feedback_always_through_usf]] principle).
 
@@ -103,7 +103,7 @@ Three quirks of the original engine had to be matched exactly:
 
 ## Research dossier
 
-Full research notes at `src/Companion/docs/` (25+ files with
+Full research notes at `pipelines/companion/docs/` (25+ files with
 provenance headers). Includes Bowden's complete commented
 disassembly extracted from JC64dis. Engine lineage tree:
 Bowden 1984 → Hubbard (Up,up&Away), Chris Murray (Henry's House,
@@ -112,6 +112,6 @@ games). Plus Vic Berry's 1988-89 tools.
 
 ## Related
 
-- [[project_usf_refactor]] — overall pipeline status
+- `_deprecated/project_usf_refactor.md` — overall pipeline status
 - docs/the_principle.md — when (if) to extend
   USF to cleanly represent Companion-shape engines.

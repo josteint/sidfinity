@@ -59,11 +59,11 @@ then trace that window with `--pc-trace`.
 ## Quick example
 
 ```
-tools/siddump demo/hubbard/Chimera.sid --subtune 4 --duration 10 \
-    --writelog --raw --pc-trace /tmp/pc.txt 155 157
-grep -n "9f80" /tmp/pc.txt | head    # find init re-entry
-grep -nE "^03[0-9a-f][0-9a-f] " /tmp/pc.txt | head  # find PC drift
+tools/siddump hvsc84/MUSICIANS/H/Hubbard_Rob/Chimera.sid --subtune 4 \
+    --duration 10 --writelog --raw --pc-trace tmp/pc.txt 155 157
+grep -n "9f80" tmp/pc.txt | head    # find init re-entry
+grep -nE "^03[0-9a-f][0-9a-f] " tmp/pc.txt | head  # find PC drift
 ```
 
-Related: [[reference_grading_tools_2026_05]] (writelog_grade.py) and
-[[reference_codegen_tools]] (player codegen).
+Related: [[reference_audit_tool]] (PC-traced per-voice SID-write
+capture) and [[feedback_writelog_divergence_recipe]].

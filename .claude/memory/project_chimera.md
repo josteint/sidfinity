@@ -8,12 +8,12 @@ metadata:
 ---
 
 Rob Hubbard's *Chimera* (1985 Firebird). USF demo SID:
-`demo/hubbard/Chimera_original.sid` (12440 bytes; copy of
-`data/C64Music/MUSICIANS/H/Hubbard_Rob/Chimera.sid`).
+`hvsc84/MUSICIANS/H/Hubbard_Rob/Chimera.sid` (12440 bytes; read
+directly from HVSC — the old demo/hubbard copy is gone).
 
 **USF status (2026-05-24): COMPLETE + on the USF-only pipeline.**
-Chimera is `pipelines/chimera/config.py` on the shared Hubbard '85
-core + `pipelines/chimera/extract/to_usf.py` adapter writing
+Chimera is `pipelines/hubbard/chimera/config.py` on the shared Hubbard '85
+core + `pipelines/hubbard/chimera/extract/to_usf.py` adapter writing
 `Chimera.usf` + `Chimera.sample{2,3}.flac` (see
 [[reference_usf_format]]). All 4 subtunes pass verify_all:
 
@@ -34,13 +34,13 @@ the digi pipeline (extract → Sample/FLAC sidecar → pack_digi → combined
 RSID build). Disassembly: `pipelines/hubbard/chimera/disassembly.s`.
 
 **The digi pipeline** (engine-agnostic, see [[reference_digi_pipeline]]):
-- `pipelines/chimera/extract/digi.py` extracts the 1-bit waveform-
+- `pipelines/hubbard/chimera/extract/digi.py` extracts the 1-bit waveform-
   toggle samples + per-block vol envelope. Sample bytes are 17-byte
   groups `[vol, audio×16]`; bits emitted MSB-first via V1 ctrl
   $41/$49; CIA2-paced. The $A10B "sample-table" is a bank-
   VALIDATION table, NOT the bank index — `$C045-$C049` reloads
   X = bank * 4 before reading $A000+X*4.
-- `pipelines/hubbard/build_from_usf.py` is the unified codegen for
+- `pipelines/build_from_usf.py` (thin wrapper over `pipelines/composer.py`) is the unified build for
   music + digi (the previous `build_with_digi.py` is gone). All
   pieces of the digi region are regenerated, NOT lifted verbatim:
   - PSID dispatcher at $9F80 — hand-written xa65 (no KERNAL deps,

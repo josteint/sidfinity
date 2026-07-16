@@ -24,9 +24,9 @@ fingerprint rather than by engine name. The fingerprint maps
    raw register trace. That's a downstream ML step
    (see [[reference_tokenization]]).
 
-**How to apply:** revisit after the next three engines are
-migrated (Hunter Patrol, Thing on a Spring, One Man and his
-Droid). By then we'll have ~150 audited instruments — a corpus
+**How to apply:** revisit when ML training starts. (The original
+trigger — "after Hunter Patrol / TOAS / One Man and His Droid are
+migrated" — fired long ago; the whole Hubbard family is 71/71 exact.) By then we'll have ~150 audited instruments — a corpus
 large enough to:
 - Determine the right "atom" (single note? first 32 frames after
   note-start? per-effect probe?) by examining what patterns

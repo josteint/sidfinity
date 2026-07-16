@@ -72,7 +72,7 @@ already did the disasm, READ IT first."
 
 - [[feedback_full_decompile_hubbard]] — produce the disasm before
   starting; this memory's twin.
-- [[project_hawkeye]] — the sub 6 worked example. Spent ~hours guessing,
+- `_deprecated/premigration_2026-06/project_hawkeye.md` — the sub 6 worked example. Spent ~hours guessing,
   found the root cause in minutes once `disassembly.s` + `RE_NOTES.md`
   were consulted.
 - [[feedback_writelog_divergence_recipe]] — the protocol for divergence

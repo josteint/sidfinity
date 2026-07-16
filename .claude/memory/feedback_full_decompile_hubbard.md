@@ -14,7 +14,9 @@ Skipping the decompile means burning hours guessing what the player does
 from siddump output. The disassembly is the source of truth; everything
 else (extract, codegen, grade) flows from it.
 
-**How to apply:** Before changing extract config or codegen logic for a
-new Hubbard pipeline, produce an annotated `docs/hubbard_<name>_disassembly.s`
-(or equivalent) covering at least init + play + the per-voice exec routine.
-Use that document to drive extract parameters and codegen quirks.
+**How to apply:** Before changing extract config or composer logic for a
+new Hubbard pipeline, produce an annotated
+`pipelines/hubbard/<engine>/disassembly.s` (seed it with
+`tools/seed_disassembly.py`, then hand-annotate) covering at least
+init + play + the per-voice exec routine. Use that document to drive
+extract parameters and composer quirks.

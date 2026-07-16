@@ -21,3 +21,9 @@ file that `build_sid_db.py` / the write-through legitimately rewrite, so it
 shows as `M` during normal work — agents must NOT `git restore` /
 `git checkout` it. To refresh engine_docs after editing engine_docs.json,
 run `python3 tools/apply_engine_docs.py` (now writes `engine_docs.csv`).
+
+**UPDATE 2 (2026-07-16): the catalogue is now `hvsc84.parquet`** (CSV
+replaced 2026-07-04) and the per-build write-through was REMOVED — in
+normal dev NOTHING writes the index, so it should never show as `M`.
+If it does, it is still not yours: leave it. The core rule (no git
+mutations in fan-out agents, ever) is unchanged.

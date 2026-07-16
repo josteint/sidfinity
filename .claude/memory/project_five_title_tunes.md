@@ -15,7 +15,7 @@ data). Disassembly: `pipelines/hubbard/five_title_tunes/disassembly.s`.
 
 **Status (2026-05-25, evening): UNIFIED single-engine instruction-sequence exact.**
 
-The shipped `demo/hubbard/5_Title_Tunes.sid` is now ONE Hubbard '85
+The shipped `hvsc84/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid` is now ONE Hubbard '85
 engine playing all 5 subtunes (7950 bytes vs original 11849, and
 38% the size of the earlier compound build at 20836 bytes).
 Yesterday's compound was the stepping stone; today's unified build
@@ -34,7 +34,7 @@ regression.
 
 ## Pipeline shape — different from the other engines
 
-Lives at `pipelines/five_title_tunes/v2/`. The directory's V1 path
+Lives at `pipelines/hubbard/five_title_tunes/unified/` (written as `pipelines/five_title_tunes/v2/` below — the old layout). The directory's V1 path
 (merge-into-single-engine, audibly correct but NOT instruction-sequence exact) is left
 intact for reference.
 
@@ -57,7 +57,7 @@ demo/hubbard/5_Title_Tunes_{0..4}.usf            (5 USFs, one per sub)
     │
     ▼ v2/build_compound.py — codegen 5× at unique LOADs + dispatcher
     │
-demo/hubbard/5_Title_Tunes.sid                   (compound PSID, 20.8KB)
+hvsc84/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid                   (compound PSID, 20.8KB)
 ```
 
 ## Per-sub parameter deltas (vs Commando defaults)
@@ -82,7 +82,7 @@ Per-sub addresses (from `decompile()` auto-discovery on each sub_N.sid):
 
 ## Compound build — three things had to converge
 
-1. **`pipelines/hubbard/codegen.py`** — `_emit_sid` now accepts an
+1. **`pipelines/hubbard/codegen.py`** (since dissolved into `pipelines/composer.py`) — `_emit_sid` now accepts an
    optional `load_addr`. Rewrites the ENGINE template's `* = $1000`
    before xa65 and threads the new address through the PSID header.
    Default $1000 keeps existing engines unchanged.
@@ -185,9 +185,9 @@ sub_0's first 3 insts → wrong PWM / freq / ctrl → silenced sub_1).
 
 ## Related
 
-- [[project_usf_refactor]] — overall USF status (Phase 6.2 done +
+- `_deprecated/project_usf_refactor.md` — overall USF status (Phase 6.2 done +
   COMPOUND demonstrated + UNIFIED replaces compound).
-- [[reference_engine_image_verbatim]] — alternative path when an engine
+- `_deprecated/reference_engine_image_verbatim.md` — alternative path when an engine
   can't be parametrized; not used here (5TT was fully parametrizable).
 - [[feedback_audit_discriminator]] — useful when diagnosing the linear-PW
   zero-speed write issue.

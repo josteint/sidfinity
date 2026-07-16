@@ -42,7 +42,7 @@ emits the asm chunks in that order. When migrating a new engine,
 disassemble its nextvoice (or its functional equivalent) and add its
 order to the per-tune config. **Do not** relax the comparator to
 multiset to "fix" a divergence — that hides the real bug. See
-[[project_hawkeye_writelog_progress]] for the Hawkeye case study (match
+[[feedback_verification_modes]] for the Hawkeye case study (match
 count 55 → 88 once the order was made per-cfg).
 
 For digi, the cycle-strict comparator (`compare_strict`) stays in

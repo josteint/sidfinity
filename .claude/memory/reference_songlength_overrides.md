@@ -10,7 +10,7 @@ metadata:
 `tools/songlength_overrides.json` is the durable home for corrections
 to HVSC's `Songlengths.md5`. `build_sid_db.py` applies it after the
 HVSC ingest step, so the corrected values persist across HVSC
-re-fetches and into `hvsc84.db.songlength_s`.
+re-fetches and into the `songlength_s` column of `hvsc84.parquet`.
 
 ## When to use
 
@@ -51,7 +51,7 @@ Keyed by md5 of the original SID file (same key HVSC uses).
 
 ## Related
 
-- [[reference_hvsc_db]] — the SQLite cache where these values land
+- [[reference_hvsc_db]] — the parquet catalogue where these values land
 - [[project_bowden_canonical]] — the cluster that surfaced the need
 - [[feedback_subtune_frames_not_arbitrary]] — verify windows are
   derived from songlength_s × 1.1, so corrections here directly

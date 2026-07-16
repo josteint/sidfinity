@@ -74,10 +74,10 @@ type bugs), reach for `tools/state_diff.py` instead of py65.
 ```bash
 # 1. Generate map (joins per-engine annotation with composer xa65 labels)
 python3 tools/state_map_gen.py --engine ENGINE --voice {1,2,3,all} \
-    --output /tmp/map.py
+    --output tmp/map.py
 # 2. Run state_diff
 python3 tools/state_diff.py ORIG.sid REBUILD.sid \
-    --map /tmp/map.py --subtune N --duration S
+    --map tmp/map.py --subtune N --duration S
 ```
 
 `pipelines/future_composer/<engine>/state_map.py` declares the orig→

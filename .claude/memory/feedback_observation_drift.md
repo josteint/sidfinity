@@ -45,5 +45,5 @@ cycle-ordered stream matches.
 - [[feedback_py65_misses_dispatch_bugs]] — py65 snapshot misses
   things; writelog is authoritative. But even writelog needs the
   right comparator.
-- [[reference_writelog_verify]] — `tools/siddump --writelog` is the
+- [[feedback_verification_modes]] — `tools/siddump --writelog` is the
   ground truth for the SID instruction stream.
