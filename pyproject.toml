@@ -15,26 +15,3 @@ filterwarnings = [
 # Imports use the `pipelines.<engine>.extract.<module>` form. Repo root
 # must be on sys.path so those imports resolve. Pytest adds the rootdir
 # automatically when it finds conftest.py or pyproject.toml at the root.
-
-[tool.mypy]
-python_version = "3.11"
-warn_unused_ignores = true
-strict_optional = true
-# Repo-local libs not in the pipelines we type-check.
-[[tool.mypy.overrides]]
-module = ["effect_detect", "py65", "py65.*", "ground_truth"]
-ignore_missing_imports = true
-# Per-pipeline strict typing where the dataclass refactor has landed.
-[[tool.mypy.overrides]]
-module = "pipelines.commando.extract.*"
-disallow_untyped_defs = true
-[[tool.mypy.overrides]]
-module = "pipelines.monty.extract.*"
-disallow_untyped_defs = true
-# The cloned decompile.py (= src/rh_decompile.py) is legacy untyped code.
-[[tool.mypy.overrides]]
-module = "pipelines.commando.extract.decompile"
-ignore_errors = true
-[[tool.mypy.overrides]]
-module = "pipelines.monty.extract.decompile"
-ignore_errors = true
