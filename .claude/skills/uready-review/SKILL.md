@@ -109,8 +109,11 @@ Produce a report (to the user) with:
 5. **Diff vs last review** — what changed since the scoreboard's last date.
 
 Then **update** (these writes are the only mutations a review makes):
-- the **scoreboard** in `.claude/memory/feedback_uready_vocabulary.md` (per-family
-  uready status + date).
+- the **per-family uready status** in each family's `project_<engine>` memory
+  (body-head STATUS section) + its MEMORY.md index line.
+  `feedback_uready_vocabulary.md` holds ONLY the vocabulary + a durable
+  pointer — do NOT append scoreboards there (they accumulate and rot;
+  trimmed 2026-07-16 per the placement rule).
 - the **Move-1 ledger** in `docs/refactor_1_remaining.md` (criterion-5 feature
   accounting + the pending divergence decisions).
 - the **[convergence ledger](../../../docs/the_convergence_ledger.md)** — the review
@@ -122,9 +125,35 @@ Then **update** (these writes are the only mutations a review makes):
   is how the review pre-decides Move-1 convergence incrementally. (Record only — do
   NOT factor code; that's Move 1.)
 
+## Memory-hygiene pass (part of every review)
+
+The mechanical half is `python3 tools/memory_lint.py` — run it first and fix
+any errors. The SEMANTIC half is this review's job (grep can't catch it).
+Over the active memories in `.claude/memory/` (skip `_deprecated/`), check:
+
+1. **Contradicts canon?** Any memory whose claims conflict with the four
+   canon docs (verification modes, the principle, the trichotomy, ledger
+   entries) — canon wins; fix or archive the memory with a "CONTRADICTS
+   CANON" header (precedent: `_deprecated/project_timing_requirements.md`).
+2. **Status frozen at write-time?** Frontmatter descriptions / MEMORY.md
+   lines / "Next steps" sections asserting a state the body's newest entries
+   (or the repo) have since overturned. Fix per CLAUDE.md "Memory hygiene":
+   timeless description, status at body head + index line, supersession
+   markers on stale tails.
+3. **Wrong home?** Technique that belongs in the convergence ledger,
+   status scoreboards in discipline memories, law duplicated outside canon —
+   move per `feedback_knowledge_placement`'s 6-home rule.
+4. **Resolved-but-lingering?** Fully-resolved project memories with nothing
+   open and no load-bearing engine knowledge → `_deprecated/` + README note
+   + drop the index line.
+
+Report the findings with the scorecard; apply the fixes (memory files are
+within this review's write scope).
+
 ## What "good" looks like
 
 A review that ends in "every migrated family is uready, here are the 3 pending
 divergence decisions for Move 1, trigger is met (N≥2)" — i.e. the unification
 design has honest evidence and a short, explicit decision list, instead of
-silently-forking dimensions discovered too late.
+silently-forking dimensions discovered too late. And a memory store where the
+lint is clean and every index line matches its file's head.

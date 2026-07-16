@@ -1,6 +1,6 @@
 ---
 name: project_dmc
-description: "DMC (Demo Music Creator) migration — THE FOCUS ENGINE (10,676 HVSC SIDs, largest family). 72 rounds logged newest-first below (the head of this file IS the current status). V4 family-1 ≈5170/5401 FULL; 2SID/3SID + compilations (incl. heterogeneous dmc_sfx) supported. KEY: data-table addresses are PACKER-PATCHED operands — extract by dataflow, never fixed offsets."
+description: "DMC (Demo Music Creator) migration — THE FOCUS ENGINE (10,676 HVSC SIDs, largest family). Round changelog, NEWEST-FIRST: the head of this file IS the current status (counts live there + in MEMORY.md, not here). KEY: data-table addresses are PACKER-PATCHED operands — extract by dataflow, never fixed offsets."
 metadata: 
   node_type: memory
   type: project

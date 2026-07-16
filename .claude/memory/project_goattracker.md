@@ -1,11 +1,19 @@
 ---
 name: project_goattracker
-description: "GoatTracker family migration state — V1 (original 1.x) is the active target. Extract + composer BUILT (pipelines/goattracker/v1/); authoritative wide batch 164/1359 FULL incl. the player1 'optimized' write-order knob (ledger C16). Tail sections of this file are the old research/plan phase — superseded, kept as RE reference."
+description: "GoatTracker family migration — V1 (original 1.x) is the active target; extract + composer in pipelines/goattracker/v1/. Current status = the STATUS section at the head of the body (+ MEMORY.md line). Tail sections are the old research/plan phase — superseded, kept as RE reference."
 metadata: 
   node_type: memory
   type: project
   originSessionId: c0742216-af17-42da-9a5c-fa8ae0d40172
 ---
+
+## STATUS (head — newest wins; update THIS section, prepend new rounds here)
+
+**2026-07-16:** V1 extract + composer BUILT (`pipelines/goattracker/v1/`);
+authoritative wide batch **164/1359 FULL** incl. the player1 `optimized`
+write-order knob (ledger C16, commit 3f20ab5). The optimized variant needs a
+dedicated engine BODY (shared USF + variant extract done; variant composer
+body TODO). Everything below this section is the historical log.
 
 GoatTracker = 2nd-largest HVSC family after DMC: **8,670 SIDs** (7,311 V2 +
 1,359 V1). Family-doc state `OK`. **Active focus: V1** (the *original*
@@ -164,7 +172,7 @@ exposes the next genuine bug, doesn't flip FULL alone.
 - pattern-walk bound (f814452): clean reject instead of IndexError crash.
 **REMAINING extract buckets (475 fail): filttbl 413 + gatetimer 30 + pattern-overran
 20 + instrument-cluster 10.** The BIG one (filttbl 413) is **IDENTIFIED: it's PLAYER2 = Cadaver's gamemusic-mode
-routine** (full source `docs/src/v1_player2_125.s`; 374/413 match, rest=2SID/other).
+routine** (full source `pipelines/goattracker/docs/src/v1_player2_125.s`; 374/413 match, rest=2SID/other).
 NOT byte-RE — documented player. Detector: global SMC filter sweep `A9 ?? 69 ?? 8D ??
 ?? 8D 16 D4` (+ direct-$D404 wave-exec). SHARED format w/ player1 (8-byte instruments,
 wavetbl/notetbl, songtbl/patttbl, pattern format) → reuse extractors. DIFFERS: NO
@@ -455,7 +463,7 @@ arp is a per-row musical fx, not a new kind.
   self-modified `LDY` operand, **deferred first-play init** (init stashes
   subtune×2 into the play routine; real setup runs on first play()). The V2 docs
   (`player_algorithm.md` etc.) are a **Rosetta stone**, not authoritative.
-- **V1-defining diffs vs V2** (full table in `docs/v1_README.md`): arpeggio
+- **V1-defining diffs vs V2** (full table in `pipelines/goattracker/docs/v1_README.md`): arpeggio
   pattern command `0XY` (root→+X→+Y semis, every tick, X≥8=half-speed, shares
   vibrato counter; REMOVED in V2); per-instrument **inline** wave table;
   **4-scalar per-instrument pulse** (no step table); **filter table from V1.4+**
@@ -467,11 +475,11 @@ arp is a per-row musical fx, not a new kind.
   pre-V1.3 / V1.3-1.4 / V1.5+; cmd meanings shifted V1.25↔V1.53.
 
 ## Key assets (all under pipelines/goattracker/docs/)
-- **Primary 6502 player source** in `docs/src/`: `v1_player1_v153.s` (V1.5 std —
+- **Primary 6502 player source** in `pipelines/goattracker/docs/src/`: `v1_player1_v153.s` (V1.5 std —
   the disassembly reference), `v1_player1_125.s` (V1.25), `v1_gmusic_v153.s`,
   `v1_readme_125/153.txt` (manuals). Plus GT2's `gsong.c` GTS! importer
   (`deprecated/gt2_pipeline/GoatTracker_2.77/src/gsong.c`).
-- Index: `docs/v1_README.md`; provenance: `docs/v1_provenance_log.md`.
+- Index: `pipelines/goattracker/docs/v1_README.md`; provenance: `pipelines/goattracker/docs/v1_provenance_log.md`.
 
 ## Next steps (extractor phase) — ⚠️ SUPERSEDED (kept as RE reference)
 
@@ -536,7 +544,7 @@ arp is a per-row musical fx, not a new kind.
    or (iii) my instrument/command STATE diverged at that point (memwatch was
    inconclusive — used stale labels). NEXT: RE the V1 toneporta↔wave interaction
    (read mt_waveexec + mt_tickntoneport + the wave-cmd dispatch in
-   docs/src/v1_player1_v153.s); verify mine's chninstnum/chnfx/chnwaveptr at the
+   pipelines/goattracker/docs/src/v1_player1_v153.s); verify mine's chninstnum/chnfx/chnwaveptr at the
    div with CORRECT labels (recompute after each code change). Likely revert the
    `jmp pulseexec` hack once the real slide is implemented. Then grammar ext for
    arp/vibrato fx (text round-trip), relocation factory, wide batch.

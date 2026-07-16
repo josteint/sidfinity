@@ -1,11 +1,19 @@
 ---
 name: project_fc_fingerprint_and_standard
-description: "FC player-version fingerprint DB (tools/engine_fingerprint.py) + the dominant 'vanilla' FC player migration (pipelines/future_composer/standard/). 91% of HVSC FC (3673/4024) is ONE player → highest-leverage target. ✅ WIDE BATCH COMPLETE + mass-written: 2528/2672 FULL (94.6%), residue 142 partial (see the triage-cycle sections below). Full effect chain gated; fc_standard regression portfolio (11 members) wired as tier 1 in tools/regression.py. Older RESUME/batch-RUNNING sections in the body are historical."
+description: "FC player-version fingerprint DB (tools/engine_fingerprint.py) + the dominant 'vanilla' FC standard-player migration (pipelines/future_composer/standard/). 91% of HVSC FC is ONE player. Current status = the STATUS section at the head of the body (+ MEMORY.md line); older sections are the migration log."
 metadata: 
   node_type: memory
   type: project
   originSessionId: fea5d0c1-61d2-49f9-8e14-4e5916b95622
 ---
+
+## STATUS (head — newest wins; update THIS section, prepend new rounds here)
+
+**2026-07-16:** wide batch COMPLETE + mass-written — **2528/2672 FULL
+(94.6%)**, residue 142 partial (triage-cycle sections below). Full effect
+chain gated; the fc_standard 11-member portfolio is wired as tier 1 in
+`tools/regression.py`. Older in-body status blocks (batch RUNNING etc.) are
+the historical log.
 
 ## FC player-version fingerprinting — `tools/engine_fingerprint.py`
 Relocation-invariant FC player identification. Traces reachable code from

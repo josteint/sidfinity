@@ -51,7 +51,8 @@ with 32 bytes past `$8D` (the bytes the orig engine would read).
   binary addresses (templates, orderlists, dispatch).
 - `pipelines/companion/extract/` — reads SID binary, parses 5
   subtunes' state templates + orderlists + freq tables.
-- `pipelines/companion/codegen.py` — emits a 6502 engine at $1000
+- `pipelines/composer.py` (shared composer; the earlier per-family
+  `pipelines/companion/codegen.py` is gone) — emits a 6502 engine at $1000
   that reproduces the original frame-by-frame writes; assembles
   via xa65 and wraps as PSID.
 

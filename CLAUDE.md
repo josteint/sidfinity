@@ -146,6 +146,35 @@ HVSC original at `hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.{usf, sidfinity.sid}`.
 - **Schema additions are suspicious by default** — see [`feedback_schema_addition_discipline`](.claude/memory/feedback_schema_addition_discipline.md). Exhaust derivation / `engine_constants` / existing-params alternatives first. `bytes`-typed fields almost always mean you're papering over a representation gap.
 - **The shared core stays parametric.** New engine quirks become config fields on `EngineConfig`, never `if engine == "Foo"` branches.
 
+## Memory hygiene
+
+The 2026-07-16 memory audit found the dominant rot mode is **status frozen at
+write-time** (frontmatter descriptions, index one-liners, "Next steps"
+sections written once while the work moved on). Rules that prevent it:
+
+- **Timeless descriptions.** A memory's frontmatter `description:` says what
+  the file IS, never where the work STANDS. Live status goes in exactly two
+  places: the file's MEMORY.md index line and the head of its body.
+- **Newest-first bodies for `project_<engine>` files.** Prepend rounds; the
+  head IS the current status (the `project_dmc.md` convention — it was the
+  only large file that survived the audit clean). Files with an older
+  oldest-first body instead maintain a `## STATUS (head)` section at the top.
+- **No forward-looking sections without a date.** "Next steps" / "What's
+  left" / "RUNNING" blocks must carry their date; a later head entry
+  supersedes them. When work they describe ships, mark them superseded —
+  don't leave them contradicting the head.
+- **Archive on resolve.** A memory that is fully RESOLVED with nothing open
+  moves to `.claude/memory/_deprecated/` (note in its README) the same
+  session it's declared resolved. If it still carries load-bearing engine
+  knowledge (quirks, formulas, config semantics), it stays — resolved-but-
+  load-bearing is a KEEP.
+- **Lint before committing memory changes:** `python3 tools/memory_lint.py`
+  (<1 s) — checks index↔file consistency, dead `[[links]]`, dead cited repo
+  paths, and stale live-status markers. Errors block; warnings are prompts
+  to verify.
+- The **semantic** review (contradicts canon? wrong home? superseded?) is
+  part of `/uready-review` — run it periodically; grep can't catch those.
+
 ## Build & test
 
 ```bash

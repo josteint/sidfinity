@@ -93,7 +93,8 @@ Per-sub addresses (from `decompile()` auto-discovery on each sub_N.sid):
    linear-PW path runs unconditionally. Without this, 5TT sub_0 inst 7
    lost its per-frame V2.pw_lo=00 writes. Existing engines unaffected.
 
-3. **`pipelines/five_title_tunes/v2/build_compound.py`** —
+3. **`pipelines/five_title_tunes/v2/build_compound.py`** (superseded by
+   the `unified/` layout: `write_unified_usf.py` + the shared composer) —
    - Build 5 sub-engines at $1000, $2000, $3000, $4000, $5000.
    - Assemble init dispatcher at $0B10 (CMP/BNE/LDA #0/JSR chain)
      and play dispatcher at $0B60 (LDA $0BA8 routed through same).
