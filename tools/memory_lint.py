@@ -126,6 +126,8 @@ def main() -> int:
                 f"for >{STALE_DAYS} days — verify still true"
             )
 
+    lint_ledger(errors, warnings)
+
     for e in errors:
         print(f"ERROR   {e}")
     for w in warnings:
@@ -133,6 +135,38 @@ def main() -> int:
     n = len(files)
     print(f"memory_lint: {n} files, {len(errors)} errors, {len(warnings)} warnings")
     return 1 if errors else 0
+
+
+def lint_ledger(errors: list[str], warnings: list[str]) -> None:
+    """Convergence-ledger two-layer consistency (docs/the_convergence_ledger.md
+    = recognition layer; docs/ledger/C<n>.md = full entries)."""
+    main = REPO / "docs" / "the_convergence_ledger.md"
+    entry_dir = REPO / "docs" / "ledger"
+    if not main.exists() or not entry_dir.is_dir():
+        errors.append("L0 ledger: main file or docs/ledger/ missing")
+        return
+    text = main.read_text()
+    card_ids = set(re.findall(r"^### C(\d+) ", text, re.M))
+    index_ids = set(re.findall(r"\| C(\d+) \|", text))
+    file_ids = {re.match(r"C(\d+)$", p.stem).group(1)
+                for p in entry_dir.glob("C*.md")
+                if re.match(r"C(\d+)$", p.stem)}
+    for i in sorted(card_ids - file_ids, key=int):
+        errors.append(f"L1 ledger: card C{i} has no entry file docs/ledger/C{i}.md")
+    for i in sorted(file_ids - card_ids, key=int):
+        errors.append(f"L2 ledger: entry file C{i}.md has no recognition card")
+    for i in sorted(index_ids - card_ids, key=int):
+        errors.append(f"L3 ledger: index row references C{i} but no card exists")
+    for i in sorted(card_ids - index_ids, key=int):
+        warnings.append(f"L4 ledger: card C{i} has no index row (keywords help recognition)")
+    for i in sorted(card_ids & file_ids, key=int):
+        card = re.search(rf"^### C{i} .*?(?=^### C\d+ |\Z)", text, re.M | re.S).group(0)
+        if f"ledger/C{i}.md" not in card:
+            warnings.append(f"L5 ledger: card C{i} lacks its FULL ENTRY pointer")
+        head = re.match(r"### C\d+ [^\n]*", (entry_dir / f"C{i}.md").read_text())
+        if not head:
+            errors.append(f"L6 ledger: entry file C{i}.md does not start with its heading")
+    print(f"ledger_lint: {len(card_ids)} cards, {len(file_ids)} entry files checked")
 
 
 if __name__ == "__main__":

@@ -118,12 +118,19 @@ Then **update** (these writes are the only mutations a review makes):
   accounting + the pending divergence decisions).
 - the **[convergence ledger](../../../docs/the_convergence_ledger.md)** — the review
   is the periodic maintainer (per-solve recording is the everyday CLAUDE.md
-  reflex). Ensure EVERY solution the Phase-2 matrix surfaces has an entry (log any
-  missing as `logged`); then PROMOTE the ones used **≥2×** (reused OR divergent) to
+  reflex). The ledger is TWO layers (since 2026-07-18): the imported
+  recognition layer (index + cards in the main file) and the full entries in
+  `docs/ledger/C<n>.md`. Ensure EVERY solution the Phase-2 matrix surfaces has
+  an entry (log any missing as `logged`: entry file + index row + recognition
+  card); then PROMOTE the ones used **≥2×** (reused OR divergent) to
   `recurring` — pick the one canonical form, set its shared-code location or
-  `factor-candidate` status + occurrence count + boundary. Refresh the Index. This
-  is how the review pre-decides Move-1 convergence incrementally. (Record only — do
-  NOT factor code; that's Move 1.)
+  `factor-candidate` status + occurrence count + boundary, in BOTH layers.
+  **Card-sync check:** for every entry updated since the last review, re-read
+  its card — does the card still carry the entry's tells and current status?
+  (A stale card silently breaks recognition; `tools/memory_lint.py` checks the
+  mechanical card↔file↔index consistency, but tell-coverage is judgment.)
+  This is how the review pre-decides Move-1 convergence incrementally.
+  (Record only — do NOT factor code; that's Move 1.)
 
 ## Memory-hygiene pass (part of every review)
 

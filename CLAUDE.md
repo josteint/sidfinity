@@ -24,10 +24,12 @@ summary of them):
 
 @docs/the_convergence_ledger.md
 
-The Convergence Ledger is fully in context so that a known problem-class is
-RECOGNIZED, not just looked up — before choosing how to solve ANY non-trivial
-problem, check it for a matching entry (the documented failure mode is solving
-first and skipping the check). The verdict CODE
+The Convergence Ledger's RECOGNITION layer (index + per-entry signature
+cards) is fully in context so that a known problem-class is RECOGNIZED, not
+just looked up — before choosing how to solve ANY non-trivial problem, check
+it for a matching entry (the documented failure mode is solving first and
+skipping the check). On a match, READ the full entry at `docs/ledger/C<n>.md`
+BEFORE applying — a card is never enough to act on. The verdict CODE
 (`pipelines/hubbard/verify_cycle.py`) is the oracle all four route to.
 
 ## Current state
@@ -118,7 +120,7 @@ Then:
 1. **Check the engine's project memory** — `.claude/memory/project_<engine>.md`. Reads any prior session's root-cause analysis so you don't re-investigate from scratch.
 2. **Re-anchor in The Principle** (imported above — don't Read the file again) before designing or changing any USF instrument/effect representation: run its tests against your proposal as adversarial checks, per its own §Provenance challenge. Load-bearing.
 3. **Check `deprecated/` for prior attempts** before rewriting something from scratch.
-4. **Convergence ledger reflex** — the full ledger is imported above; before choosing how to solve ANY non-trivial problem, CHECK it for a matching entry (a known class should be recognized from the in-context text — actively check, don't trust passive recall). Then follow its "How to use it": RECORD every solution on first sight (with the placement rule — technique in the entry, occurrences in `project_<engine>`), CANONICALIZE on the 2nd occurrence. `/uready-review` is the periodic maintainer.
+4. **Convergence ledger reflex** — the ledger's recognition layer (index + cards) is imported above; before choosing how to solve ANY non-trivial problem, CHECK it for a matching entry (a known class should be recognized from the in-context cards — actively check, don't trust passive recall); on a match READ the full entry at `docs/ledger/C<n>.md` before applying. Then follow its "How to use it": RECORD every solution on first sight (entry file + index row + recognition card; technique in the entry, occurrences in `project_<engine>`), CANONICALIZE on the 2nd occurrence. `/uready-review` is the periodic maintainer.
 
 ## Doing a Hubbard '85 engine migration
 

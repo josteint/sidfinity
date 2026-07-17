@@ -36,7 +36,7 @@
 
 - [Knowledge placement](feedback_knowledge_placement.md) — 6 kinds → 6 homes (oracle=code, law=canon doc, technique=ledger, discipline=memory, status=project_<engine>, operation=CLAUDE.md); one home, point don't copy; nothing engines×members-shaped in shared containers; NEVER retroactively distill a ledger entry/canon doc.
 - [Re-anchor at decision points](feedback_reanchor_at_decisions.md) — TRIPWIRE. At EVERY representation/correctness decision, re-run CORE TENET + USF principle + uready as adversarial CHECKS that could overturn the easy choice. Tell of drift: citing a precedent to DEFEND an easy choice instead of describing the test I ran to BEAT it.
-- [Convergence ledger](feedback_convergence_ledger.md) — TRIPWIRE. The ledger is imported in full at session start; before ANY non-trivial solution, actively CHECK it for a matching entry (don't trust passive recall); RECORD every solution (1st sight); canonicalize on the 2nd. Weak link = checking BEFORE solving.
+- [Convergence ledger](feedback_convergence_ledger.md) — TRIPWIRE. The ledger's recognition cards are imported at session start (full entries: docs/ledger/C<n>.md — READ before applying); before ANY non-trivial solution, actively CHECK for a matching entry (don't trust passive recall); RECORD every solution (1st sight); canonicalize on the 2nd. Weak link = checking BEFORE solving.
 - [Three filters](feedback_three_filters.md) — every technique passes THREE: CORE TENET (permissive), USF PRINCIPLES (restrict the SCHEMA), MOVE-1 UNIFICATION-READINESS (restrict the COMPOSER — `shared_mechanism(per_engine_config)`, never ad-hoc).
 
 ### Ground truth & methodology

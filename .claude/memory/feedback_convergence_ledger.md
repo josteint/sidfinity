@@ -7,22 +7,28 @@ metadata:
   originSessionId: 61079d2b-5be1-445b-9baa-b2959d4e0ea3
 ---
 
-The Convergence Ledger (`docs/the_convergence_ledger.md`) is imported IN FULL
-at session start (CLAUDE.md canon block, user decision 2026-07-14). Its "How
-to use it" section — CONSULT / RECORD / CANONICALIZE, the placement rule, the
-entry schema — is therefore already in context; this memory does not restate
-it. This memory holds only the failure diagnosis the ledger doesn't:
+The Convergence Ledger's RECOGNITION layer (`docs/the_convergence_ledger.md`:
+index + per-entry signature cards) is imported at session start (CLAUDE.md
+canon block; two-layer split 2026-07-18, benchmark-validated — full entries
+live in `docs/ledger/C<n>.md` and MUST be read before applying a solution).
+Its "How to use it" section — CONSULT / RECORD / CANONICALIZE, the placement
+rule, the entry schema — is therefore already in context; this memory does
+not restate it. This memory holds only the failure diagnosis the ledger
+doesn't:
 
 **Why this is a TRIPWIRE:** the discipline is loaded every session, but the
 *check-BEFORE-solving* step is the one I skip — when I'm deep in a problem I
 just solve it (an off-table fix was once re-derived 3× across
 filter/pulse/wave; DMC v4 `PwmConfig` vs v5 `SweepEnvelope` is the same DOF
 solved twice). Recording-after and the `/uready-review` sweep are reliable;
-the before-check is not. The full-text import exists precisely to attack this
-(a known class should be RECOGNIZED from in-context text, not depend on my
-deciding to look something up — you can't look up what you don't recognize) —
-but recognition must still be ACTIVE: before writing an approach, deliberately
-ask "does the ledger have this class?" rather than trusting passive recall.
+the before-check is not. The in-context recognition cards exist precisely to
+attack this (a known class should be RECOGNIZED from in-context signatures,
+not depend on my deciding to look something up — you can't look up what you
+don't recognize) — but recognition must still be ACTIVE: before writing an
+approach, deliberately ask "does the ledger have this class?" rather than
+trusting passive recall. And a card match is only the first half: READ the
+full `docs/ledger/C<n>.md` entry before applying — cards are recognition
+surface, not application detail.
 
 **The tell that I'm drifting:** I'm partway through implementing a solution to
 a non-trivial problem and I never asked the ledger question — I went straight
