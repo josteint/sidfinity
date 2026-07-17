@@ -3,7 +3,7 @@
 SID `init` — what it is and what USF should capture. A research
 report for the USF design discussion.
 
-Companion reading: **[`the_trichotomy_evidence.md`](the_trichotomy_evidence.md)**
+Companion reading: **[`the_trichotomy_appendix.md`](the_trichotomy_appendix.md)**
 ("SID `init` semantics — a research report") is the long-form research
 artifact — full PSID/RSID spec quotes, the verbatim libsidplayfp
 `psiddrv.a65` stub, and source-by-source analysis. The trichotomy is
@@ -108,7 +108,7 @@ host-defined wait loop** (libsidplayfp does `jmp idle`). The SID is
 not actively driven during the gap. Whatever init wrote is the
 chip's audible state until play starts overwriting.
 
-See the_trichotomy_evidence.md (§1–4) for the full quoted passages.
+See the_trichotomy_appendix.md (§1–4) for the full quoted passages.
 
 ---
 
@@ -934,7 +934,7 @@ schema addition.
   — Michael Schwendt, Simon White, LaLa, Wilfred Bos.
 - [`libsidplayfp/src/psiddrv.a65`](https://github.com/libsidplayfp/libsidplayfp/blob/master/src/psiddrv.a65)
   — reference PSID driver stub.
-- Companion long-form report — `docs/the_trichotomy_evidence.md` ("SID
+- Companion long-form report — `docs/the_trichotomy_appendix.md` ("SID
   `init` semantics — a research report"): full quoted spec passages and
   source analysis.
 - Frame-0 captures: this report, §2. Generated via `siddump

@@ -1,4 +1,4 @@
-# The Trichotomy — Evidence (SID `init` semantics — a research report)
+# The Trichotomy — Appendix (SID `init` semantics — a research report)
 
 > Companion to [`the_trichotomy.md`](the_trichotomy.md) (the canon doc, which
 > is imported into every session; this file is loaded on demand). It is the
