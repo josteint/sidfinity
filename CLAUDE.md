@@ -5,8 +5,10 @@
 Build the SIDfinity universal SID music player and ML pipeline. Take the
 HVSC catalogue of ~60,000 C64 SID files and translate every engine's binary
 format into a single Unified SID Format (USF) — engine-neutral
-musical data that an ML model can learn from. See `docs/PLAN.md` for the
-roadmap.
+musical data that an ML model can learn from. Roadmap:
+`docs/canary_picker.md` (which engine family to migrate next).
+Unification plan: `docs/refactor_1_remaining.md` (Move 1). Original
+2026-04 vision doc: `deprecated/old_docs/PLAN_2026_04.md`.
 
 ## The canon — the four load-bearing documents
 
