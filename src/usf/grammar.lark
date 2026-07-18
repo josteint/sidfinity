@@ -8,6 +8,10 @@ start: psid_block params_block init_block freq_table_block? offtable_vibdepth_bl
 // ----- default (idle) filter / pulse sweeps (DMC V5) -----
 // The default cutoff / PW modulation the engine applies before/between explicit
 // per-instrument programs — same `swenv_args` form as a per-instrument env.
+// This is PLAY-TIME content (a sweep the play loop performs), not init
+// priming: the initial state stays in init.sid (the trichotomy); the
+// composer continues from the priming value and applies these phases.
+// Absent => the value holds at the priming value.
 default_filter_block: "default_filter" "{" swenv_args "}"
 default_pulse_block: "default_pulse" "{" swenv_args "}"
 
@@ -24,6 +28,8 @@ arp_program: "prog" INT ":" "[" (signed_int ("," signed_int)*)? "]"
 // ----- pulse programs (FC pulse-width-sweep library) -----
 // `prog N: lo=L hi=H [wrap] seg T S [flip] (x3)` — PW ramps between
 // bounds L/H, switching step S when a counter crosses threshold T.
+// `flip` after a segment reverses sweep direction at that threshold;
+// `wrap` snaps at the bound instead of bouncing. Exactly 3 segments.
 pulse_programs_block: "pulse_programs" "{" pulse_program* "}"
 pulse_program: "prog" INT ":" "lo" "=" number "hi" "=" number pp_wrap? pp_seg pp_seg pp_seg
 pp_wrap: "wrap"
@@ -73,8 +79,11 @@ drum_program: "drum" INT ":" "wave" dnum_list "tone" dnum_list
 dnum_list: "=" "[" (number ("," number)*)? "]"
 
 // ----- wave programs (FC standard-player wave/freq envelope library) -----
-// `prog N: ctrl=[..] freq=[..]` — parallel per-frame waveform ($D404) and
-// freq ($D400/01) tables, indexed by note frame-counter (capped 15).
+// `prog N: ctrl=[..] freq=[..] [loop=K]` — parallel per-frame waveform
+// ($D404) and freq ($D400/01) tables, indexed by the note frame-counter
+// (capped 15); `loop=K` wraps the program at step K. The composer lays
+// programs at sel*16 stride and derives the pointer tables. DMC v5 uses
+// prog 0 as the idle wave a resting voice freewheels through.
 wave_programs_block: "wave_programs" "{" wave_program* "}"
 wave_program: "prog" INT ":" "ctrl" dnum_list "freq" dnum_list ("loop" "=" INT)?
 
@@ -105,6 +114,8 @@ psid_field: "title" ":" STRING       -> psid_title
           | "sid3" ":" INT           -> psid_sid3
           | "sid3" ":" CNAME         -> psid_sid3_name
           | "start_song" ":" INT     -> psid_start_song
+          // PSID speed bitmask: bit N set = subtune N is CIA-timed
+          // (play() at the CIA rate), clear = VBI 50 Hz.
           | "speed" ":" number       -> psid_speed
 
 // ----- params -----
@@ -129,6 +140,10 @@ param_value: signed_int      -> param_number
 init_block: "init" "{" init_inner* "}"
 init_inner: init_voice | init_sid_block
 
+// Common (Hubbard-'85-shaped) voice-state fields: ctrl (SID ctrl byte
+// at engine init), dur_field (vibrato carry-path initial duration),
+// pwm_period (PWM accumulator), pwm_dir (up/down), instr (starting
+// instrument ref), slide_v (cached freq-hi for the skydive effect).
 init_voice: "voice" INT "{" init_field+ "}"
 init_field: CNAME ":" init_value
 init_value: number           -> init_number
@@ -199,7 +214,9 @@ init_behavior_field: "silence_all_voices_on_frame_0" ":" bool   -> ib_silence_al
 
 // ----- master_vol (optional) -----
 // Master-volume modulation algorithm — replaces 5 flat per-tune
-// `master_vol_*` keys (one musical concept, scattered).
+// `master_vol_*` keys (one musical concept, scattered). The fade is
+// vol = clamp(base - subtrahend_voice's orderlist position, 0..$0F),
+// advanced per `trigger`; see .claude/memory/project_hubbard_song_end_fade.md.
 master_vol_block: "master_vol" "{" master_vol_field+ "}"
 master_vol_field: "subtrahend_voice" ":" INT       -> mv_subtrahend_voice
                 | "base" ":" number                -> mv_base
@@ -477,6 +494,10 @@ ol_repeat: "*" INT
 ol_transpose: "+" INT
 ol_transpose_neg: "-" INT
 ol_voiceinc: "^" INT
+// loop@N len=L — the loop PICKS UP note length L (ticks): the engine's
+// length state carries over the wrap, so the head pattern's first note
+// (which states no length) plays pass 1 at its written duration and
+// passes 2+ at L. May combine with the transpose pickup: loop@N+T len=L.
 ol_looplen: "len" "=" INT
 // loop@N — wrap to entry N, the head re-establishing its stated
 // transpose. loop@N+T — wrap CARRYING transpose T over (the engine's

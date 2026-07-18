@@ -127,6 +127,7 @@ def main() -> int:
             )
 
     lint_ledger(errors, warnings)
+    lint_usf_spec(errors, warnings)
 
     for e in errors:
         print(f"ERROR   {e}")
@@ -167,6 +168,41 @@ def lint_ledger(errors: list[str], warnings: list[str]) -> None:
         if not head:
             errors.append(f"L6 ledger: entry file C{i}.md does not start with its heading")
     print(f"ledger_lint: {len(card_ids)} cards, {len(file_ids)} entry files checked")
+
+
+def lint_usf_spec(errors: list[str], warnings: list[str]) -> None:
+    """Anti-fiction check: docs/usf_format.md must never present a format
+    token (`name:` / `name {` / `name=`) the grammar doesn't define. The
+    doc is the contract-and-rationale layer; src/usf/grammar.lark is the
+    normative block-by-block reference (asymmetric merge, 2026-07-18)."""
+    doc_p = REPO / "docs" / "usf_format.md"
+    gram_p = REPO / "src" / "usf" / "grammar.lark"
+    if not doc_p.exists() or not gram_p.exists():
+        errors.append("U0 usf spec or grammar missing")
+        return
+    doc = doc_p.read_text()
+    gram = gram_p.read_text()
+    # skip the sections that talk about tokens which deliberately DON'T exist
+    doc = doc.split("## Things the format deliberately does NOT have")[0]
+    doc = re.sub(r"## No `version:`.*?(?=\n## )", "", doc, flags=re.S)
+    vocab = set(re.findall(r'"([a-z_][a-z0-9_]*)"', gram))
+    vocab |= set(re.findall(r"^([a-z_][a-z0-9_]*):", gram, re.M))
+    n = 0
+    neg = re.compile(r"\bNo\b|\bnot\b|\bnever\b|gone|deliberately", re.I)
+    for line in doc.splitlines():
+        if neg.search(line):
+            continue
+        for snippet in re.findall(r"`([^`]+)`", line):
+            # a snippet PRESENTED AS SYNTAX: `name:` `name=` `name { ... }`
+            m = re.fullmatch(r"([a-z_][a-z0-9_]*)(?:\s+N)?\s*(?::|=|\{.*)", snippet)
+            if not m:
+                continue
+            n += 1
+            tok = m.group(1)
+            if tok not in vocab:
+                errors.append(f"U1 usf_format.md presents `{tok}` as a format "
+                              f"token but the grammar does not define it")
+    print(f"usf_spec_lint: {n} format tokens checked against the grammar")
 
 
 if __name__ == "__main__":
