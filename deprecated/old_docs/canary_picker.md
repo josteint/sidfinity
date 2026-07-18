@@ -1,3 +1,17 @@
+> **⚠️ SUPERSEDED 2026-07-18 — archived. Do not resume this strategy.**
+> The canary-per-family plan was replaced by the WHOLE-FAMILY GRIND:
+> (1) a canary can't represent a family — pass/fail varies by DATA and
+> per-member patches (wedges, compilations, editor quirks), not by the
+> player code a canary exercises; (2) grinding every family to full
+> coverage BEFORE Move-1 gives the unification a complete verified
+> oracle (per-family FULLs), so the heavy lifting happens in quarantined
+> per-family code, not inside the shared skeleton. Per-SID sequencing is
+> also dropped — the working loop is "next partial by path, fix first
+> divergence, let the batch propagate" (e.g. tools/dmc_next_partial.py).
+> Next-family selection = largest un-migrated family with engine_docs
+> state OK, via the hvsc84.parquet catalogue. Kept for the curated
+> candidate tables' provenance (Cujo's list at trondal.com/sid).
+
 # Canary SID Picker — Top 50 Engines
 
 ## Progress (as of 2026-06-06)

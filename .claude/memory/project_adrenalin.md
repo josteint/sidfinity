@@ -13,7 +13,7 @@ de Bree). MoN/FutureComposer per sidid. 4 subtunes, 9:25. PSID load=$0000
 
 **Why:** 3rd FC family canary. Hawkeye + Cybernoid_II are both Jeroen Tel;
 their feature mix overlaps. Adrenalin is the only non-Tel candidate in
-`docs/canary_picker.md` row 3 of engine #4 — proves the feature-driven FC
+`deprecated/old_docs/canary_picker.md` (archived) row 3 of engine #4 — proves the feature-driven FC
 composer generalises beyond Tel's subset.
 
 **Authoritative notes:** `pipelines/future_composer/adrenalin/RE_NOTES.md`

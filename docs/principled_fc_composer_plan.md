@@ -204,7 +204,7 @@ USF schema additions, deletion of ~500 lines of verbatim emission +
 
 5. **More SIDs may surface gaps.** Adrenalin exposed this gap.
    Picking ONE more multi-subtune non-Tel FC SID besides
-   Adrenalin (e.g., Eliminator or Tomcat from `canary_picker`
+   Adrenalin (e.g., Eliminator or Tomcat from the archived `canary_picker`
    row 4 or row 5) before declaring "done" would reduce the risk
    of re-discovery.
 

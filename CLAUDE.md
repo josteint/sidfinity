@@ -5,10 +5,17 @@
 Build the SIDfinity universal SID music player and ML pipeline. Take the
 HVSC catalogue of ~60,000 C64 SID files and translate every engine's binary
 format into a single Unified SID Format (USF) — engine-neutral
-musical data that an ML model can learn from. Roadmap:
-`docs/canary_picker.md` (which engine family to migrate next).
-Unification plan: `docs/refactor_1_remaining.md` (Move 1). Original
-2026-04 vision doc: `deprecated/old_docs/PLAN_2026_04.md`.
+musical data that an ML model can learn from. Strategy: grind ENGINE BY
+ENGINE to full family coverage (no canary sampling — pass/fail varies by
+per-member data/patches, not player code; superseded plan archived at
+`deprecated/old_docs/canary_picker.md`). Next family = the largest
+un-migrated family whose `engine_docs` state is OK (research done), via
+the `hvsc84.parquet` catalogue; within a family, work the next-partial-
+by-path loop and let each fix propagate through the batch. Move 1 (the
+composer unification, `docs/refactor_1_remaining.md`) waits until the
+grind is done or demonstrably saturated — the user decides; NO automatic
+trigger. Original 2026-04 vision doc:
+`deprecated/old_docs/PLAN_2026_04.md`.
 
 ## The canon — the four load-bearing documents
 
