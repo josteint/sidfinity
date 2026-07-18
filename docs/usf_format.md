@@ -1,11 +1,15 @@
-# USF v2 — file format specification
+# USF — file format specification
 
-USF v2 is the on-disk format for the project's *Unified SID Format*
+USF is the on-disk format for the project's *Unified SID Format*
 representation of SID music. One `.usf` file holds everything
 except sample audio; samples live in sibling `.flac` files.
 
-The format is the load-bearing input to the codegen. The codegen MUST
+The format is the load-bearing input to the composer. The composer MUST
 NOT peek at any other source — `usf + flacs → sid` is the whole input.
+
+The executable definition is `src/usf/grammar.lark` (parser/writer in
+`src/usf/`); this document is the human-readable contract. If the two
+disagree, the grammar is what runs — fix whichever one is wrong.
 
 ## Goals
 
@@ -51,9 +55,6 @@ Chimera.sample3.flac           ; only present if subtune 3 is digi
 ## Top-level structure
 
 ```
-version: 2
-engine: chimera
-
 psid {
   title:      "Chimera"
   author:     "Rob Hubbard"
@@ -89,26 +90,22 @@ subtune 2 digi  { sample: Chimera.sample2.flac }
 subtune 3 digi  { sample: Chimera.sample3.flac }
 ```
 
-Top-level entries appear in this order. The parser enforces it.
+Top-level entries appear in this order (the parser's start rule
+enforces it): `psid`, `params`, `init`, then the optional blocks
+`freq_table` / `offtable_vibdepth` / `state_layout` / `song_end` /
+`init_behavior` / `master_vol` / `sfx` / `dmc_sfx` / `default_filter` /
+`default_pulse`, then the FC aux blocks (any order among themselves),
+then `instrument` blocks, then `subtune` blocks.
 
-## `version`
+## No `version:`, no `engine:` — deliberately
 
-```
-version: 2
-```
-
-The first non-comment token of the file. The parser rejects any
-version it does not implement, with a clear message.
-
-## `engine`
-
-```
-engine: chimera
-```
-
-A bare identifier naming the engine pipeline (e.g. `chimera`,
-`commando`, `monty`, `devils_galop`, `action_biker`). The codegen
-uses this to pick its engine asm + EngineConfig defaults.
+Earlier revisions opened with `version:` and `engine:` fields. Both
+are gone. The file starts directly with `psid {`. There is no format
+version token (the grammar in `src/usf/grammar.lark` IS the version),
+and there is deliberately no engine identity anywhere in the file: the
+composer is engine-blind (`docs/the_principle.md` §8) — per-engine
+differences ride `params` values and named feature fields, never an
+engine name the build could dispatch on.
 
 ## `psid` block
 
@@ -124,6 +121,7 @@ PSID/RSID metadata reproduced in the rebuilt SID file. Fields:
 | `sid2`       | keyword | second chip's SID model (multi-SID only) |
 | `sid3`       | keyword | third chip's SID model (3SID only)       |
 | `start_song` | integer | 1-indexed default subtune                |
+| `speed`      | integer | PSID speed bitmask (bit N set = subtune N is CIA-timed, not VBI) |
 
 `sid2` / `sid3` appear ONLY when the original header states the extra
 chip's model explicitly (PSID flags bits 6-7 / 8-9); the spec value
@@ -176,6 +174,81 @@ This replaces the original engine's freq-table-overlap-as-state-
 storage trick. The codegen places the values wherever convenient in
 the output binary.
 
+An `init` entry may also be a **`sid { ... }` block — SID-chip
+priming** (the init trichotomy, `docs/the_trichotomy.md`): the
+specific chip state the play loop relies on but does not itself
+write, emitted by the composer's universal init after its
+silence-clear reset. All sub-fields optional; missing = "don't prime
+that slot". Multi-SID: `sid N { ... }` (N = 2/3) primes chip N; bare
+`sid` = chip 1.
+
+```
+init {
+  voice 1 { ... }                       ; engine-state priming (above)
+  sid {
+    master_vol: $1F                     ; $D418 (default $0F)
+    filter { cutoff_lo: $00  cutoff_hi: $10  res_routing: $F0 }
+    voice 1 {
+      envelope_prime: ($09, $00)        ; (AD, SR) pre-set
+      pw_init:   $0800                  ; 16-bit pulse width
+      ctrl_init: $08                    ; ctrl byte pre-set
+      freq_init: $2200                  ; 16-bit frequency pre-set
+    }
+  }
+}
+```
+
+## `freq_table { ... }` (optional)
+
+Per-tune frequency-table bytes (the 96-entry musical table). The
+composer places them at its canonical freq-table address; when
+present, the build needs no engine constants for the freq region —
+the tune is self-contained. (Off-table freq reads are carried
+per-instrument as `offtable_freq`; the old `freq_overrun` opaque
+post-table window was removed 2026-06-21.)
+
+## `offtable_vibdepth { ... }` (optional, DMC v4)
+
+Note-keyed vibrato depths for notes that overshoot the 96-entry
+vibdepth table: `at (note, depth)` per entry — the depth byte the
+original's out-of-range read produced, keyed by the note that
+produced it.
+
+## `state_layout { ... }` (optional, Hubbard off-table arp)
+
+Names which state bytes the engine reads when a note's pitch index
+runs past the freq table into the per-voice state region (`n_voices`,
+plus `scalar N const/var` and `per_voice N const/var` rows). Default
+(omitted) = the 3-voice Commando-family layout; Human Race emits its
+own 2-voice layout.
+
+## `song_end { ... }` (optional)
+
+End-of-orderlist behavior — what the engine's `$FE` STOP and `$FF`
+LOOP markers do: `stop_marker:` keyword, `fill_value:` byte written on
+song end, `loop_marker:` keyword. Replaces the old flat params keys
+(`freeze_on_stop` / `stop_fill` / `loop_silences_song`).
+
+## `init_behavior { ... }` (optional)
+
+Engine first-frame play behavior: `silence_all_voices_on_frame_0:`
+bool, `no_first_attack_voice: N`, `master_vol_every_frame: $XX` /
+`master_vol_every_note: $XX` (the engine re-asserts `$D418` every
+frame / at every note-load). Replaces the old flat flags.
+
+## `master_vol { ... }` (optional, Hubbard song-end fade)
+
+The master-volume modulation algorithm (one musical concept):
+`subtrahend_voice`, `base`, `trigger`, `reset_on_loop`,
+`underflow_clamp` — the fade is `clamp(base - voice_orderpos)`
+driven by the named voice.
+
+## `sfx { ... }` (optional, Hubbard SFX bookkeeping)
+
+Presence signals the tune carries an SFX sub-engine;
+`framectr_ofs` / `state_ofs` are its per-tune-stable state offsets.
+The per-effect records live in `subtune N sfx` blocks (below).
+
 ## `arp_programs { ... }` (FC arpeggio library)
 
 ```
@@ -225,6 +298,40 @@ value as a counter crosses that segment's threshold (`seg T A`), and snaps to
 `final` once the counter passes `end`; `d418` is written to `$D418` (master
 volume + filter routing). Exactly three segments. The composer lays the
 10-byte programs out and computes the `filterbytes` pointer table itself.
+
+## `wave_programs { ... }` (FC standard-player wave/freq envelope library)
+
+```
+wave_programs {
+  prog 0: ctrl=[$11, $81, $41, $40] freq=[$00, $0C, $00, $0C] loop=2
+}
+```
+
+Optional. Each `prog N` (selected by an instrument's wave-select
+nibble) is a pair of parallel per-frame tables indexed by the note's
+frame counter (capped at 15): `ctrl[k]` is written to the `$D404`
+waveform control and `freq[k]` drives the pitch (absolute or
+note-relative per the engine's mode). Optional `loop=K` wraps the
+program at step K. The composer lays the programs out at sel*16
+stride and computes the pointer tables itself. (DMC v5 uses
+`prog 0` as the idle wave a resting voice freewheels through.)
+
+## `filter_mod { ... }` (DMC global cutoff LFO)
+
+```
+filter_mod {
+  prog 1: start=$80 init_phase=0 stop_phase=12 step (4, 8) step (-4, 8)
+}
+```
+
+Optional. A song-global free-running cutoff contour advancing one
+position per play() call: `start` is the contour value at position 0;
+each `step (delta, frames)` adds `delta` per frame for `frames` frames
+(the step frames sum to the period; deltas close the loop mod 256).
+Filter program N's `init` cutoff samples the contour at
+`(init_phase + t) mod period` and its `stop` cutoff at
+`(stop_phase + t)` — two phase-offset taps of one LFO, sampled at
+filter note-init.
 
 ## `drum_programs { ... }` (FC percussion library)
 
@@ -370,6 +477,30 @@ instrument 1 lead {
     wave-position state equals the value the original sonifies, and serves
     the read live.
 
+  - `slide`: per-instrument freq-slide config — `mode=`,
+    `initial_dir=`, `upper_delta=`, `lower_delta=`, `step=`,
+    `high_oct_arp=`, `half_rate=` (slide ticks every other frame —
+    DMC dual effect). Replaces the old per-engine `fx: freq_slide`
+    flag.
+  - `incby2`: per-instrument inc-by-2 slide config — `mode=`, `step=`,
+    `onset=`, `late_gate=`, `every_frame=`. Replaces the old
+    per-engine `fx: inc_by2` flag.
+  - `pulse_prog`: FC pulse-program selector — `program=N` (1-7 into
+    `pulse_programs`; 0 = disabled), `increment=` per-frame PW step.
+  - `filter_prog`: FC/DMC filter-program selector — `program=N`,
+    `keep_running=` (no re-init at note start — legato filter),
+    `strange=` (bidirectional cutoff sweep), `double_voice=` (lo-freq
+    detune trick), `aux_bits=` (not-yet-RE'd high-nibble bits,
+    documented deferral).
+  - `effects`: named instrument effect flags (FC fx3 bits + DMC
+    flags): `tone_arp`, `pulse_arp`, `drum`, `tonesweep_up`,
+    `wave_arp`, `noise_tick`, `pulse_run`, `filter_program`,
+    `noise_attack` (first-frame max-freq noise burst — DMC cymbal).
+  - `wave_start_on_marker`: the editor started this instrument's wave
+    ON its own loop marker; carried only when an off-table read
+    sonifies the engine's first-read-chase scratch (sibling of
+    `wave_table_pos`).
+
 Field set is engine-determined. Fields not relevant to an engine
 omit cleanly.
 
@@ -433,6 +564,12 @@ subtune 0 music {
 ```
 
 - `tempo` is the frames-per-tick value.
+- A music body may also carry, between `tempo` and the voices:
+  `tempo N: T` (chip N's tempo, multi-SID), `is_sfx: true` (FC family
+  — a subtune structurally identical to music but with SFX runtime
+  semantics: the engine doesn't sustain gate on song-end), and
+  per-subtune `params { }` / `init { }` overrides of the top-level
+  blocks.
 - Three voices per chip. An ordinary tune has exactly `voice 1..3`; a
   2SID tune `voice 1..6`; a 3SID tune `voice 1..9` (any other count is
   a parse error).
@@ -491,8 +628,9 @@ voice 1 {
   - `*b` — **repeats**: play the pattern `b` times (e.g. `0*3` plays
     pattern 0 three times). Omitted means once. A lossless run-length
     form of an expanded orderlist (`0 0 0` == `0*3`).
-  - `+c` — **transpose**: a semitone / freq-table-index offset added to
-    the entry's notes (FC's `SeqTranspose`; non-negative). Omitted = 0.
+  - `+c` / `-c` — **transpose**: a signed semitone / freq-table-index
+    offset added to the entry's notes (FC's `SeqTranspose`).
+    Omitted = 0.
   - `^d` — **voiceinc** ("sound transpose"): an offset added to the
     entry's wave/instrument-program index (FC's `SeqVoiceinc`).
     Omitted = 0; rare.
@@ -561,6 +699,23 @@ Columns (whitespace-separated):
    stated commands) to keep a live `sectpos` shadow that those reads
    are redirected to.
 
+   Full flag inventory (see `src/usf/grammar.lark` `fx_flag` for the
+   authoritative list): `tie` · `no_release` · `porta=N` · `tempo=N`
+   (row-level tempo change) · `vol=N` · `song_pos=N` / `section_end=N`
+   (Clever Music sync counters) · `glide=N` · `glide_up=$R` /
+   `glide_down=$R` / `glide_onset=N` · `glide_ticks=N` /
+   `glide_hold=N` (trace-lift slide granularity / staircase hold) ·
+   `glide_to=NOTE` (two-pitch glide; with `noretrig` = slide from the
+   sounding note) · `wave_adjust=N` · `filter=$XX` (direct `$D417`) ·
+   `noretrig` (legato, skip ADSR/wave reload) · `gate_toggle` (DMC
+   SWITCH) · `gate_tie` (hold + flip gate bit) · `set_dur=$XX` /
+   `set_instr=N` (positioned sticky-state markers) · `frq=$XX` /
+   `fade_in=$XX` / `fade_out=$XX` / `adr=$XX` / `srr=$XX` (DMC V5
+   positioned sector commands) · `freq_bias=$XX` / `f0_vib_width=N` /
+   `f0_wave_count=N` (DMC family-4) · `dur_cmd` / `instr_cmd` /
+   `vol_cmd` / `soft_cmd=N` (stated-command placement) · `fx:NAME`
+   (engine-bit names: `fx:drum`, `fx:arp`, `fx:vibrato`, ...).
+
 A line with no pitch (`---`) and no instrument is a rest of the given
 duration.
 
@@ -594,6 +749,8 @@ filter registers (`$D415`-`$D418`), so the track decomposes them into
 - `route` — filter routing, which voices pass through the filter
   (`$D417` low nibble).
 - `cutoff` — filter cutoff, high 8 bits (`$D416`).
+- `cutoff_lo` — filter cutoff, low 3 bits (`$D415`), for engines that
+  write it.
 
 Each `at N` event names the step index `N` (same step axis as the voice
 patterns) and lists only the fields that **change** at that step; a field
@@ -618,15 +775,31 @@ subtune 2 digi {
 }
 ```
 
-The sample reference is a relative filename. The parser checks the
-file exists in the same directory and that its Vorbis-comment engine
-field matches the parent USF's `engine:`.
+The sample reference is a relative filename, resolved against the
+USF's own directory at build time (the digi build reads the sidecar's
+Vorbis-comment metadata — `native_bits`, `method`, `timer_source`).
 
 ### `subtune N sfx`
 
-(Reserved for Commando-style 16-byte SFX records — covered in a
-follow-up spec when SFX is migrated to USF. For now, an `sfx`
-subtune block contains engine-specific fields TBD.)
+A Hubbard '85 sound-effect record (one effect per subtune):
+
+```
+subtune 4 sfx {
+  v1: $00 $08 $21 $00 $F5 $F7      ; six voice-1 record bytes
+  v2: $00 $08 $21 $00 $F5 $F7      ; six voice-2 record bytes
+  sweep: start=$30 end=$60 rate=2 direction=up
+  v2_offset: $02
+  flags: toggle_v1 skip_both
+  extended_freq { $C0: $1D  $C1: $1F }
+}
+```
+
+`sweep` is the frequency sweep; `flags` are the per-frame voice
+toggle/skip behaviors; `extended_freq` overlays freq-table bytes the
+sweep reads past the 96-entry musical region (sfx index ≥ 192 or a V2
+sweep underflow) — the composer applies the overlay before assembly.
+The top-level `sfx { }` block (above) carries the sub-engine's state
+offsets.
 
 ## Validation layers
 
@@ -635,20 +808,16 @@ syntax error (line, column, expected vs got).
 
 Layer 2 — references: every `iN` / `i:name` in a pattern resolves to
 a defined `instrument`. Every orderlist entry resolves to a defined
-`pattern` in the same voice. Every `sample:` resolves to an
-existing FLAC sidecar.
+`pattern` in the same voice.
 
 Layer 3 — lengths: per-pattern, durations sum to declared `length=`.
 
-Layer 4 — sidecar fingerprint: each `.flac`'s Vorbis comments are
-internally consistent (native_bits, method, engine all populated)
-and `engine` matches the USF's `engine:`.
+Layer 4 — sidecars (build time, not parse time): each referenced
+`.flac` must exist next to the USF with internally consistent Vorbis
+comments (`native_bits`, `method`, `timer_source` populated); the
+digi build fails cleanly otherwise.
 
-Layer 5 (`usf lint`) — soft warnings: instrument defined but never
-used; orderlist position 0 referenced only once (might be a typo);
-durations way out of distribution; etc. Opt-in.
-
-Layers 1-4 must pass before codegen runs. Layer 5 is informational.
+Layers 1-3 must pass before the composer runs; layer 4 at digi build.
 
 ## Round-trip invariant
 

@@ -1,4 +1,4 @@
-// USF v2 grammar — see docs/usf_v2_format.md for the contract.
+// USF grammar — see docs/usf_format.md for the human-readable contract.
 //
 // Lark grammar (LALR friendly). Whitespace and comments are ignored
 // between tokens. Top-level order is enforced by the start rule.
@@ -123,7 +123,7 @@ param_value: signed_int      -> param_number
 // `init_inner*`: each entry is either an init_voice (engine-state
 // priming — per-voice runtime state the play loop reads on tick 1)
 // OR an init_sid_block (SID-chip priming — master_vol, filter,
-// per-voice envelope_prime / pw_init). See docs/sid_init_report.md
+// per-voice envelope_prime / pw_init). See docs/the_trichotomy.md
 // for the trichotomy. Both are optional; an empty `init { }` block
 // means "no overrides, use composer defaults."
 init_block: "init" "{" init_inner* "}"
