@@ -137,12 +137,19 @@ Layers 1-3 must pass before the composer runs; layer 4 at digi build.
 
 ## Round-trip invariant
 
-For any well-formed `Chimera.usf`, `write(parse(text)) == text` as
-bytes. The writer:
+The writer's output is a **canonical fixpoint**: for any well-formed
+text, `write(parse(write(parse(text)))) == write(parse(text))` as
+bytes — parse→write is idempotent. Byte-identity against a stored
+`.usf` therefore holds exactly when the stored file was produced by
+the CURRENT writer (a stale mass-written file may differ in
+formatting/annotations without any musical change — the C20
+freshness rule applies to USF text too). The writer:
 
 - Emits fields in a fixed order within each block.
 - Uses a canonical layout (one space after `:`, aligned columns in
   pattern bodies where feasible).
+- Emits its own generated annotation comments (e.g. an instrument's
+  effect summary); input comments are dropped at parse (lossy).
 - Always emits `length=` on every pattern.
 - Always emits `loop@N` even when N == 0.
 - Never invents fields the parser would not produce.
