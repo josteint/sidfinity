@@ -72,9 +72,17 @@ class InstrumentRef:
 
 @dataclass
 class NoteRow:
-    """One row inside a pattern body."""
+    """One row inside a pattern body.
+
+    `duration` is STATED notation: an int = the source stream states a
+    duration command on this row; None = the row INHERITS the previously
+    played row's duration (orderlist play order, across pattern
+    boundaries, carrying over the loop wrap; a leading inherited run
+    resolves from `init.voice_state` dur_field). `instr` has the same
+    stated semantics (None = inherit). Resolution: src/usf/resolve.py.
+    """
     pitch: Pitch
-    duration: int
+    duration: Optional[int]
     instr: Optional[InstrumentRef] = None
     fx_flags: tuple = ()  # tuple of strings — 'tie', 'fx:drum', etc.
 
@@ -83,7 +91,9 @@ class NoteRow:
 class Pattern:
     """A named pattern inside a voice block."""
     id: int
-    length: int          # declared length in ticks (validated against sum of durations)
+    # declared length in ticks (validated against sum of durations);
+    # None for patterns with stated-inherited rows (context-dependent)
+    length: Optional[int]
     rows: list[NoteRow] = field(default_factory=list)
 
 

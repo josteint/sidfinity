@@ -66,18 +66,41 @@ def _check_refs(usf: UsfFile) -> None:
 
 
 def _check_lengths(usf: UsfFile) -> None:
-    """Layer 3 — each pattern's row durations sum to declared length."""
+    """Layer 3 — duration consistency.
+
+    A pattern that DECLARES `length=` must be fully stated (every row
+    carries a duration) and the durations must sum to it. A pattern
+    with stated-inherited rows (any duration absent) must NOT declare a
+    length (its total is entry-context-dependent); the voice must
+    resolve cleanly under the shared inheritance interpreter
+    (src/usf/resolve.py) — same walk the composers run."""
+    from src.usf.resolve import needs_resolution, resolve_voice
     for sub in usf.subtunes:
         if not isinstance(sub, MusicSubtune):
             continue
+        init_by_id = {v.id: v for v in (sub.init.voices if sub.init else [])}
         for voice in sub.voices:
             for pat in voice.patterns:
-                actual = sum(r.duration for r in pat.rows)
-                if actual != pat.length:
+                stated = [r.duration for r in pat.rows]
+                if pat.length is not None:
+                    if any(d is None for d in stated):
+                        raise UsfValidationError(
+                            f'subtune {sub.id} voice {voice.id} pattern '
+                            f'{pat.id}: declares length={pat.length} but '
+                            f'has stated-inherited rows (omit length=)')
+                    actual = sum(stated)
+                    if actual != pat.length:
+                        raise UsfValidationError(
+                            f'subtune {sub.id} voice {voice.id} pattern '
+                            f'{pat.id}: durations sum to {actual}, declared '
+                            f'length={pat.length}')
+            if needs_resolution(voice):
+                try:
+                    resolve_voice(voice, init_by_id.get(voice.id))
+                except Exception as e:
                     raise UsfValidationError(
-                        f'subtune {sub.id} voice {voice.id} pattern '
-                        f'{pat.id}: durations sum to {actual}, declared '
-                        f'length={pat.length}')
+                        f'subtune {sub.id} voice {voice.id}: stated-row '
+                        f'resolution failed: {e}') from e
 
 
 def _check_sidecars(usf: UsfFile, usf_dir: str) -> None:

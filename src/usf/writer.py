@@ -598,11 +598,13 @@ def _write_orderlist(o: Orderlist) -> str:
 
 
 def _write_pattern(p: Pattern) -> list[str]:
-    lines = [f'    pattern {p.id} length={p.length} {{']
-    # Column-align pitch / duration / instrument / flags.
+    length = f' length={p.length}' if p.length is not None else ''
+    lines = [f'    pattern {p.id}{length} {{']
+    # Column-align pitch / duration / instrument / flags. A row with no
+    # duration (stated-inherited) keeps an empty column for alignment.
     for row in p.rows:
         pitch = _format_pitch(row.pitch)
-        dur = str(row.duration)
+        dur = str(row.duration) if row.duration is not None else ''
         instr = _format_instr_ref(row.instr) if row.instr else ''
         flags = ' '.join(row.fx_flags)
         parts = [pitch.ljust(3), dur.rjust(3)]

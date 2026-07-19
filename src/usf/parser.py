@@ -926,10 +926,15 @@ class _T(Transformer):
         return o
 
     def pattern_block(self, items):
-        # INT INT note_row*
+        # INT ["length" = INT] note_row*  — length omitted for patterns
+        # with stated-inherited rows (context-dependent total)
         pat_id = int(items[0])
-        length = int(items[1])
-        rows = list(items[2:])
+        length = None
+        idx = 1
+        if idx < len(items) and isinstance(items[idx], Token):
+            length = int(items[idx])
+            idx += 1
+        rows = list(items[idx:])
         return Pattern(id=pat_id, length=length, rows=rows)
 
     def voice_block(self, items):
@@ -1355,8 +1360,11 @@ class _T(Transformer):
 
     def note_row(self, items):
         pitch = items[0]
-        dur = int(items[1])
-        idx = 2
+        idx = 1
+        dur = None                    # absent = stated-inherited
+        if idx < len(items) and isinstance(items[idx], Token):
+            dur = int(items[idx])
+            idx += 1
         instr = None
         if idx < len(items) and isinstance(items[idx], InstrumentRef):
             instr = items[idx]

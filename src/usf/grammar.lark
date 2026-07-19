@@ -530,9 +530,18 @@ ol_looplen: "len" "=" INT
 orderlist_terminator: "loop" "@" INT (ol_transpose | ol_transpose_neg)? ol_looplen?  -> ol_loop
                     | "stop"                        -> ol_stop
 
-pattern_block: "pattern" INT "length" "=" INT "{" note_row* "}"
+// `length=` is omitted for patterns containing STATED-inherited rows
+// (their total is entry-context-dependent — see note_row below).
+pattern_block: "pattern" INT ("length" "=" INT)? "{" note_row* "}"
 
-note_row: pitch INT instr_ref? fx_flag*
+// The duration INT is STATED notation: present = the source stream
+// states a duration command on this row; absent = the row INHERITS the
+// previously played row's duration (orderlist play order, across
+// pattern boundaries, carrying over the loop wrap; a leading run
+// resolves from init.voice_state dur_field). Instrument refs have the
+// same stated semantics (absent = inherit — the long-standing FC
+// convention, now normative).
+note_row: pitch INT? instr_ref? fx_flag*
 pitch: NOTE_NAME      -> pitch_named
      | "---"          -> pitch_rest
 fx_flag: "tie"                  -> fx_tie
