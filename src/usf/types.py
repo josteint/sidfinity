@@ -129,6 +129,14 @@ class Orderlist:
     # intro-pass effective values (parser computes them from the marks).
     stated: bool = False
     stated_marks: list = field(default_factory=list)
+    # `stated_trail` — a TRAILING stated transpose command (after the last
+    # entry, before the wrap marker): it never affects an entry directly but
+    # sets the value the wrap CARRIES. Serialized as `+T` on the stated
+    # list's loop terminator. None = no trailing command.
+    stated_trail: object = None
+    # `stated_vmarks[i]` — the stated VOICEINC command before entry i (FC:
+    # voiceinc is sticky exactly like transpose), or None = inherit.
+    stated_vmarks: list = field(default_factory=list)
     extra_cmds: list = field(default_factory=list)
     intro_entries: list = field(default_factory=list)
     # Loop PICKUP transpose (`loop@N+T`): the transpose in effect when the

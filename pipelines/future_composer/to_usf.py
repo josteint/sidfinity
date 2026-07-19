@@ -361,6 +361,13 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
     orderlist_transposes: list[int] = []
     orderlist_voiceincs: list[int] = []
     orderlist_repeats: list[int] = []
+    # STATED command marks (the physical notation): the transpose/voiceinc
+    # command bytes actually present before each jump (last value wins —
+    # a dead double-command has no audible or emission effect in FC).
+    tmarks: list = []
+    vmarks: list = []
+    pend_t = None
+    pend_v = None
     transpose = 0
     repeats = 0
     voiceinc = 0
@@ -373,12 +380,14 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
     for cmd in seq.commands:
         if isinstance(cmd, SeqTranspose):
             transpose = cmd.semitones
+            pend_t = cmd.semitones
             if not orderlist_entries:
                 explicit_head_transpose = True
         elif isinstance(cmd, SeqRepeats):
             repeats = cmd.count
         elif isinstance(cmd, SeqVoiceinc):
             voiceinc = cmd.inc
+            pend_v = cmd.inc
         elif isinstance(cmd, SeqPatternJump):
             fc_id = cmd.pattern_id
             key = (fc_id, persisted_length)
@@ -397,6 +406,10 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
             orderlist_transposes.append(transpose)
             orderlist_voiceincs.append(voiceinc)
             orderlist_repeats.append(repeats + 1)   # FC count = extra plays
+            tmarks.append(pend_t)
+            vmarks.append(pend_v)
+            pend_t = None
+            pend_v = None
             repeats = 0
             persisted_length = key_final[key]       # carry to next pattern
         elif isinstance(cmd, SeqEnd):
@@ -477,6 +490,18 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
                           transposes=orderlist_transposes,
                           voiceincs=orderlist_voiceincs,
                           repeats=orderlist_repeats)
+    # STATED form (D6 resolution, 2026-07-19): the marks are the notation;
+    # effectives + the wrap pickup stay populated in-memory (identical to
+    # the legacy materialization, so the composer is unchanged); the writer
+    # emits marks and derives the rest on re-parse.
+    orderlist.stated = True
+    orderlist.stated_marks = tmarks
+    # a command between the last jump and the wrap: pend_t was never
+    # flushed onto an entry — it is the TRAILING command (sets the value
+    # the wrap carries; witness: Spacewriter_tune_4's trailing reset-to-N)
+    orderlist.stated_trail = pend_t
+    if any(x is not None for x in vmarks):
+        orderlist.stated_vmarks = vmarks
     return VoiceBlock(id=voice_id, orderlist=orderlist,
                       patterns=usf_patterns)
 

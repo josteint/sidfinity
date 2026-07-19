@@ -563,8 +563,10 @@ def _write_orderlist(o: Orderlist) -> str:
                      if i < len(getattr(o, 'extra_cmds', []) or []) else 0)
             if extra:
                 s += f'!{extra}'
-            if vi:
-                s += f'^{vi}'
+            vm = (o.stated_vmarks[i]
+                  if i < len(getattr(o, 'stated_vmarks', []) or []) else None)
+            if vm is not None:
+                s += f'^{vm}'
             parts.append(s)
             continue
         tr = o.transpose_at(i)
@@ -577,7 +579,14 @@ def _write_orderlist(o: Orderlist) -> str:
         parts.append(s)
     if o.loop_to is not None:
         s = f'loop@{o.loop_to}'
-        if o.loop_transpose is not None:
+        if getattr(o, 'stated', False):
+            # stated lists: the pickup is DERIVED (head unmarked inherits
+            # the carried value); only a TRAILING stated command needs
+            # serializing — `+T` on the terminator IS that command.
+            tr = getattr(o, 'stated_trail', None)
+            if tr is not None:
+                s += (f'+{tr}' if tr >= 0 else f'-{-tr}')
+        elif o.loop_transpose is not None:
             s += (f'+{o.loop_transpose}' if o.loop_transpose >= 0
                   else f'-{-o.loop_transpose}')
         if o.loop_length is not None:

@@ -867,7 +867,7 @@ class _T(Transformer):
         # tr is None when the modifier is ABSENT (stated form: absent =
         # inherit; legacy form: absent = 0 — voice_block resolves).
         pid = None
-        rep, tr, vi, intro, extra = 1, None, 0, None, 0
+        rep, tr, vi, intro, extra = 1, None, None, None, 0
         for it in items:
             if isinstance(it, tuple):
                 kind, val = it[0], it[1] if len(it) > 1 else None
@@ -916,8 +916,6 @@ class _T(Transformer):
         # the `stated` keyword). Stash the raw lists on the Orderlist.
         if all(r == 1 for r in repeats):
             repeats = []
-        if not any(voiceincs):
-            voiceincs = []
         o = Orderlist(entries=entries, loop_to=loop_to, stop=stop,
                       loop_transpose=loop_transpose,
                       loop_length=loop_length,
@@ -945,8 +943,9 @@ class _T(Transformer):
         raw = orderlist.transposes            # None = modifier absent
         if stated:
             # STATED form: raw values are the stated command marks; the
-            # effective (intro-pass) transposes are derived by inheritance
-            # (cur starts at 0 — the engine's init transpose).
+            # effective (first-pass) values are derived by inheritance
+            # (cur starts at 0 — the engine's init state). Voiceinc is a
+            # sticky command too (FC) — same derivation.
             orderlist.stated = True
             orderlist.stated_marks = list(raw)
             eff, cur = [], 0
@@ -955,9 +954,38 @@ class _T(Transformer):
                     cur = v
                 eff.append(cur)
             orderlist.transposes = eff if any(eff) else []
+            vraw = orderlist.voiceincs        # None = modifier absent
+            if any(x is not None for x in vraw):
+                orderlist.stated_vmarks = list(vraw)
+                veff, cur = [], 0
+                for x in vraw:
+                    if x is not None:
+                        cur = x
+                    veff.append(cur)
+                orderlist.voiceincs = veff if any(veff) else []
+            else:
+                orderlist.voiceincs = []
+            # Wrap PICKUP re-derivation (engines whose state persists over
+            # the wrap consume it; others ignore). The carried value C is
+            # the trailing stated command if present (a stated list's
+            # `loop@N+T` annotation IS the trailing command), else the
+            # end-of-list effective. The head inherits C only when
+            # unmarked; a marked head re-establishes.
+            if orderlist.loop_to is not None:
+                trail = orderlist.loop_transpose      # terminator +T = trail
+                orderlist.stated_trail = trail
+                carried = trail if trail is not None else (
+                    eff[-1] if eff else 0)
+                if raw and raw[orderlist.loop_to] is None and carried:
+                    orderlist.loop_transpose = carried
+                else:
+                    orderlist.loop_transpose = None
         else:
             orderlist.transposes = (
                 [v or 0 for v in raw] if any(v for v in raw) else [])
+            orderlist.voiceincs = (
+                [x or 0 for x in orderlist.voiceincs]
+                if any(x for x in orderlist.voiceincs) else [])
         return VoiceBlock(id=voice_id, orderlist=orderlist, patterns=patterns)
 
     # ----- notes + pitches + instrument refs + fx -----
