@@ -346,7 +346,7 @@ def _write_filter_programs(progs: dict) -> list[str]:
 def _write_filter_mod(mods: dict) -> list[str]:
     """Emit `filter_mod { prog N: start= init_phase= stop_phase=
     step (d, f) ... }` — the song-global looped cutoff LFO."""
-    lines = ['filter_mod {']
+    lines = ['filter_mod {  ; song-global looped cutoff LFO (two phase-offset taps)']
     for n in sorted(mods):
         m = mods[n]
         parts = [f'start={m["start"]}', f'init_phase={m["init_phase"]}',
@@ -372,7 +372,7 @@ def _write_drum_programs(progs: dict) -> list[str]:
 
 def _write_wave_programs(progs: dict) -> list[str]:
     """Emit `wave_programs { prog N: ctrl=[..] freq=[..] }`."""
-    lines = ['wave_programs {']
+    lines = ['wave_programs {  ; per-frame waveform + pitch envelopes, by note frame-counter']
     for n in sorted(progs):
         p = progs[n]
         c = ', '.join(str(x) for x in p['ctrl'])
@@ -650,7 +650,7 @@ def _write_subtune(s) -> list[str]:
 def _write_dmc_sfx(e: SfxEngine) -> list[str]:
     def _bl(name, data):
         return f'  {name}: ' + ' '.join(_hex(b) for b in data)
-    lines = ['dmc_sfx {']
+    lines = ['dmc_sfx {  ; embedded SFX sequencer: shared tables + per-song trigger records']
     lines.append(f'  init_counter: {e.init_counter}')
     lines.append(f'  live_counter_fidx: {e.live_counter_fidx}')
     lines.append(_bl('filter_lfo', e.filter_lfo))
@@ -690,7 +690,7 @@ def _write_dmc_sfx(e: SfxEngine) -> list[str]:
 # ---------------------------------------------------------------------------
 
 def _write_freq_table(bytes_: list[int]) -> list[str]:
-    lines = ['freq_table {']
+    lines = ['freq_table {  ; per-tune tuning table (96-entry musical region + tail)']
     # 16 bytes per line for readability.
     for i in range(0, len(bytes_), 16):
         row = ' '.join(_hex(b) for b in bytes_[i:i + 16])
@@ -700,7 +700,7 @@ def _write_freq_table(bytes_: list[int]) -> list[str]:
 
 
 def _write_state_layout(d: dict) -> list[str]:
-    lines = ['state_layout {']
+    lines = ['state_layout {  ; which state bytes off-table arp notes sonify']
     if d.get('n_voices') is not None:
         lines.append(f'  n_voices: {d["n_voices"]}')
     for slot in d.get('scalars', []):
@@ -729,7 +729,7 @@ def _write_sfx(cfg: SfxConfig) -> list[str]:
         parts.append(f'  framectr_ofs: {_hex(cfg.framectr_ofs)}')
     if cfg.state_ofs is not None:
         parts.append(f'  state_ofs: {_hex(cfg.state_ofs)}')
-    return ['sfx {', *parts, '}']
+    return ['sfx {  ; tune carries a sound-effect sub-engine', *parts, '}']
 
 
 def _write_master_vol(cfg: MasterVolConfig) -> list[str]:
@@ -745,7 +745,7 @@ def _write_master_vol(cfg: MasterVolConfig) -> list[str]:
         parts.append('  reset_on_loop: true')
     if cfg.underflow_clamp:
         parts.append('  underflow_clamp: true')
-    return ['master_vol {', *parts, '}']
+    return ['master_vol {  ; master-volume fade: clamp(base - voice orderlist position)', *parts, '}']
 
 
 def _write_init_behavior(cfg: InitBehaviorConfig) -> list[str]:
@@ -759,7 +759,7 @@ def _write_init_behavior(cfg: InitBehaviorConfig) -> list[str]:
         parts.append(f'  master_vol_every_frame: ${cfg.master_vol_every_frame:02X}')
     if cfg.master_vol_every_note:
         parts.append(f'  master_vol_every_note: ${cfg.master_vol_every_note:02X}')
-    return ['init_behavior {', *parts, '}']
+    return ['init_behavior {  ; engine first-frame play behavior', *parts, '}']
 
 
 def _write_song_end(cfg: SongEndConfig) -> list[str]:
@@ -772,7 +772,7 @@ def _write_song_end(cfg: SongEndConfig) -> list[str]:
         parts.append(f'  fill_value: {_hex(cfg.fill_value)}')
     if cfg.loop_marker != 'loop':
         parts.append(f'  loop_marker: {cfg.loop_marker}')
-    return ['song_end {', *parts, '}']
+    return ['song_end {  ; what the stop/loop markers do at end of orderlist', *parts, '}']
 
 
 def write(usf: UsfFile) -> str:
@@ -788,7 +788,7 @@ def write(usf: UsfFile) -> str:
         lines.extend(_write_freq_table(usf.freq_table))
     if getattr(usf, 'offtable_vibdepth', None):
         lines.append('')
-        lines.append('offtable_vibdepth {')
+        lines.append('offtable_vibdepth {  ; vibrato depths for notes past the table')
         for note, depth in usf.offtable_vibdepth:
             lines.append(f'  at({note}, {depth})')
         lines.append('}')
