@@ -1,5 +1,15 @@
 # Exact-learning frameworks for SID reproduction — research synthesis (2026-07-01)
 
+> **STATUS 2026-07-19:** the immediate wall this research served (Jupiter41's
+> off-table pulse) was closed the SAME DAY by a far simpler route (ledger
+> C2/C8 — capture + truncate, no learning machinery). The grey-box thesis
+> ("use the binary only to NAME the coupling variable") materialized as
+> `tools/taint_source.py` and is now standard practice (ledger C2/C11).
+> Keep as the Move-1-era reference for exact-learning approaches (spectral
+> WFA / register-automata / CEGIS) if compact behavioral models are ever
+> needed for the ML representation itself.
+
+
 **Context.** The "reframe" investigation hit a wall: Jupiter41's off-table pulse is NOT a
 deterministic function of its complete *local* state (`$1800` pulsepos + `$1830` counter +
 `$182A/D` accumulator → still only 84–94% predictable), so it couples to hidden/external

@@ -1,3 +1,9 @@
+> **✅ COMPLETED & ARCHIVED 2026-07-19.** The campaign this plan scoped is
+> done: §9 fully closed — the whole FC build is orig-free (model-USF
+> buildable), both canaries (Cyb II 2/2 + Hawkeye 12/12) de-verbatim,
+> PSID header synthesized. See project_fc_principled_composer.md for the
+> landed findings; verdict = verify_featuredriven.
+
 # Principled FC composer — plan
 
 ## Status (2026-06-06)

@@ -1,3 +1,9 @@
+> **✅ COMPLETED & ARCHIVED 2026-07-19.** Phases D0-D4 shipped 2026-05
+> (Chimera 4/4: music frame-exact + digi cycle-strict; FLAC sidecars +
+> Vorbis metadata). D5 (generalise to $D418 4-bit digi) remains future
+> work, tracked by reference_digi_pipeline.md (the durable reference —
+> the file names in this plan predate the composer dissolution).
+
 # USF2 — digi support plan
 
 Handle digitised-sample playback in the USF2 pipeline. First target:

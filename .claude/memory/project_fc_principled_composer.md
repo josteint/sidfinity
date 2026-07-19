@@ -11,7 +11,7 @@ Bringing the FC composer (`pipelines/future_composer/composer_asm.py`) up
 to the USF principle: today its `build_via_asm_featuredriven` emits engine
 code from features but the **data tail (patterns + sequences +
 pattern_ptr_table + aux tables) is still verbatim-copied from the orig
-HVSC binary**. Plan: `docs/principled_fc_composer_plan.md`.
+HVSC binary**. Plan: `deprecated/old_docs/principled_fc_composer_plan.md`.
 
 **Verdict tool:** `verify_featuredriven(cfg)` — frame-exact writelog match
 (NOT instruction-sequence exact; the composer chooses its own layout per CORE TENET).

@@ -7,7 +7,7 @@ metadata:
   originSessionId: 0dddd211-01d5-48ea-b899-54adc79e22ae
 ---
 
-The USF digi support, phased D0..D5 in `docs/usf_digi_plan.md`.
+The USF digi support, phased D0..D5 in `deprecated/old_docs/usf_digi_plan.md`.
 Phases D0..D3c are done (2026-05-23, commits 8052172..922f59c).
 
 ## Files
@@ -49,7 +49,7 @@ Phases D0..D3c are done (2026-05-23, commits 8052172..922f59c).
   + digi region + samples (re-packed from USF). RSID v2, inline
   load=$1000, init=$9F80, play=0.
 
-## Representation principle (per `docs/usf_digi_plan.md`)
+## Representation principle (per `deprecated/old_docs/usf_digi_plan.md`)
 
 - **Symbolic descriptor** (rate, bit depth, method, engine, sample
   reference): in the USF text. Tokenisable.

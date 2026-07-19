@@ -1,5 +1,15 @@
 # Unified off-table-read transform — design proposal (2026-06-30)
 
+> **⚠️ SUPERSEDED 2026-07-01 — the proposal below was never implemented.**
+> The motivating family-4 blocker (Jupiter41) was closed via a simpler
+> route: ledger **C2** (`_capture_env` truncate-on-cap) + **C8**
+> (overflow-gated pool dedup); family-4 went 0→26 FULL. The decomposer
+> go/no-go in this doc itself concluded NOT MATURE — do not resume that
+> plan. Kept for: the REALIZE→CLASSIFY→FIT method, the taint methodology
+> session records, and the deprecated/python_experiments math-tool
+> inventory. Companion memory: project_offtable_unified.md (same marker).
+
+
 Status: **proposal** (not yet implemented). Synthesised from a 3-agent sweep of the
 codebase, the convergence ledger, and the full git history. Decision pending.
 
