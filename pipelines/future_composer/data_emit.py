@@ -258,12 +258,8 @@ def build_pattern_pool(music_subtunes: list, instr_as_wavecount: bool = False):
                 continue
 
             lm: dict[int, int] = {}
-            omit_ids = set()
-            if (getattr(ol, 'loop_length', None) is not None
-                    and ol.loop_to is not None and ol.entries):
-                omit_ids.add(ol.entries[ol.loop_to])
             for pat in v.patterns:
-                lm[pat.id] = _intern(pat.rows, pat.id in omit_ids)
+                lm[pat.id] = _intern(pat.rows, False)
             localmaps[(sub.id, v.id)] = lm
             entrymaps[(sub.id, v.id)] = None
     return slot_streams, localmaps, entrymaps

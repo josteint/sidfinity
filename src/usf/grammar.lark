@@ -519,15 +519,10 @@ ol_repeat: "*" INT
 ol_transpose: "+" INT
 ol_transpose_neg: "-" INT
 ol_voiceinc: "^" INT
-// loop@N len=L — the loop PICKS UP note length L (ticks): the engine's
-// length state carries over the wrap, so the head pattern's first note
-// (which states no length) plays pass 1 at its written duration and
-// passes 2+ at L. May combine with the transpose pickup: loop@N+T len=L.
-ol_looplen: "len" "=" INT
 // loop@N — wrap to entry N, the head re-establishing its stated
 // transpose. loop@N+T — wrap CARRYING transpose T over (the engine's
 // state persists; the head plays passes 2+ under T — standard FC).
-orderlist_terminator: "loop" "@" INT (ol_transpose | ol_transpose_neg)? ol_looplen?  -> ol_loop
+orderlist_terminator: "loop" "@" INT (ol_transpose | ol_transpose_neg)?  -> ol_loop
                     | "stop"                        -> ol_stop
 
 // `length=` is omitted for patterns containing STATED-inherited rows

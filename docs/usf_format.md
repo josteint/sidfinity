@@ -127,7 +127,16 @@ Layer 2 — references: every `iN` / `i:name` in a pattern resolves to
 a defined `instrument`; every orderlist entry resolves to a defined
 `pattern` in the same voice.
 
-Layer 3 — lengths: per-pattern, durations sum to declared `length=`.
+Layer 3 — lengths: a pattern that declares `length=` must be fully
+stated (every row carries a duration) and the durations must sum to
+it. Row durations are STATED notation: a row may omit its duration
+(and instrument) and INHERIT the previously played row's, in
+orderlist play order, across pattern boundaries and over the loop
+wrap; a leading inherited run resolves from `init { voice N {
+dur_field / instr } }`. Patterns containing inherited rows omit
+`length=` (their total is entry-context-dependent) and the voice must
+resolve cleanly under the shared interpreter (`src/usf/resolve.py`) —
+the same walk the composers run at build time.
 
 Layer 4 — sidecars (build time, not parse time): each referenced
 `.flac` must exist next to the USF with internally consistent Vorbis
@@ -150,7 +159,9 @@ freshness rule applies to USF text too). The writer:
   pattern bodies where feasible).
 - Emits its own generated annotation comments (e.g. an instrument's
   effect summary); input comments are dropped at parse (lossy).
-- Always emits `length=` on every pattern.
+- Emits `length=` on every fully-stated pattern; omits it (and the
+  omitted rows' duration column) for patterns with stated-inherited
+  rows.
 - Always emits `loop@N` even when N == 0.
 - Never invents fields the parser would not produce.
 

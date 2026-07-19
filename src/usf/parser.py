@@ -823,14 +823,11 @@ class _T(Transformer):
 
     # ----- voice / orderlist / patterns -----
     def ol_loop(self, items):
-        loop_tr = loop_len = None
+        loop_tr = None
         for it in items[1:]:
-            if isinstance(it, tuple):
-                if it[0] == 'tr':
-                    loop_tr = it[1]        # ('tr', T) from ol_transpose
-                elif it[0] == 'll':
-                    loop_len = it[1]       # ('ll', L) from ol_looplen
-        return ('loop', (int(items[0]), loop_tr, loop_len))
+            if isinstance(it, tuple) and it[0] == 'tr':
+                loop_tr = it[1]            # ('tr', T) from ol_transpose
+        return ('loop', (int(items[0]), loop_tr))
 
     def ol_stop(self, _):
         return ('stop', None)
@@ -849,9 +846,6 @@ class _T(Transformer):
 
     def ol_voiceinc(self, items):
         return ('vi', int(items[0]))
-
-    def ol_looplen(self, items):
-        return ('ll', int(items[0]))
 
     def ol_intro(self, items):
         return ('intro', int(items[0]))
@@ -893,7 +887,7 @@ class _T(Transformer):
         repeats = []
         loop_to = None
         loop_transpose = None
-        loop_length = None
+
         stop = False
         intros = []
         extras = []
@@ -908,7 +902,7 @@ class _T(Transformer):
                 intros.append(intro)
                 extras.append(extra)
             elif kind == 'loop':
-                loop_to, loop_transpose, loop_length = it[1]
+                loop_to, loop_transpose = it[1]
             elif kind == 'stop':
                 stop = True
         # Raw transpose slots are None where the modifier was absent; the
@@ -918,7 +912,6 @@ class _T(Transformer):
             repeats = []
         o = Orderlist(entries=entries, loop_to=loop_to, stop=stop,
                       loop_transpose=loop_transpose,
-                      loop_length=loop_length,
                       transposes=transposes, voiceincs=voiceincs,
                       repeats=repeats)
         o.intro_entries = intros if any(x is not None for x in intros) else []
