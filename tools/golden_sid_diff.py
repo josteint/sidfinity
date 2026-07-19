@@ -2,7 +2,7 @@
 """Golden byte-identity harness for DMC family-1 carrier refactors.
 
 The DMC composer→extract relocation + representation tidy-ups (see
-docs/dmc_composer_to_extract_plan.md) are *carrier* refactors: they move where
+deprecated/old_docs/dmc_composer_to_extract_plan.md) are *carrier* refactors: they move where
 information lives without changing what the composer emits. The proof that
 "nothing broke" is therefore that the rebuilt .sid is MD5-identical to a
 pre-change baseline (identical bytes => identical $D400-$D418 write-stream =>

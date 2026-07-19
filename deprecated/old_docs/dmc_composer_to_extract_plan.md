@@ -1,3 +1,15 @@
+> **✅ COMPLETED & ARCHIVED 2026-07-19.** Every phase is done or superseded:
+> Phase 0 (golden harness) + A (per-read off-table serving, ledger C6/C7)
+> landed 2026-07-09; D (renames) 2026-07-10; C (environment/init typing) +
+> E (writer role comments) 2026-07-19; B's deferred "clean fix" — the
+> orderlist DE-UNROLL — done 2026-07-19 (ledger **C32**: physical stated
+> form; otrk_pad/period/rcmd dissolved, legacy fallback kept), which also
+> fixed a latent off-by-one in the fitted-rcmd emission. F (closeout
+> batch/portfolio/mass-write) tracked in `project_dmc.md` round 73. The
+> carrier-refactor byte-identity methodology this plan introduced is now a
+> CLAUDE.md working convention. The in-body phase checklists below were NOT
+> retro-ticked — this header supersedes them.
+
 # Plan — DMC family-1: relocate composer→extract, tidy USF representation, add readability
 
 **Status:** proposed, not started. Verdict-relevant work (Phase A/B) + representation

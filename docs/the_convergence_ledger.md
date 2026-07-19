@@ -117,6 +117,7 @@ practice, not code to factor).
 | track $FF loop into an OUT-OF-IMAGE sector (garbage sector# past the ptr table → $0000) · engine sonifies live ZEROPAGE as notes (6510 port $00=$2F/$01=$37 then static zp, read via ($F8),y=$0000) · extract overlays libsidplayfp runtime low-RAM (C9, py65 can't reproduce env zp) gated on _loops_offimage · port + $F8/$F9 read-time corrections · regr-safe: unplayed decode = byte-identical | C29 | logged |
 | LOSSY ENUM over independently-toggleable flag bits · USF enum assumed two editor flags mutually exclusive (gate hold $10 / never-release $08) · engine gives one priority so the co-set bit is MECHANICALLY DEAD · but the raw flags byte is OBSERVABLE via a state-as-data read (off-table fxf) → reconstruction misses the dead bit · carry the masked flag as an elidable boolean CO-FIELD, keep the enum = the EFFECTIVE articulation | C30 | logged |
 | COMPILATION · one file packs N INDEPENDENT players + a per-subtune SMC dispatch wrapper (subtune→(base,song)) · header overstates songs, sub0 FULL others silent/garbage · ≥2 jump-table bases · unified-merge (renumber+dedup instruments) · heterogeneous engines (dmc_sfx) · distinct from C27 parallel chips | C31 | logged |
+| orderlist STATE carries over the loop wrap · extractor unrolls passes until state closure · USF stores ~2× the physical track · fitted byte-counter phase params (pad/period/rcmd) + fit-failure residue · fold to PHYSICAL stated form by DIRECT OBSERVATION (stated command marks + intro-decode variants), never fitting | C32 | logged |
 
 ---
 
@@ -474,6 +475,24 @@ practice, not code to factor).
   SMELL: any enum derived from independent flag bits — round-trip-verify
   reconstruction against the raw byte per instrument.
 - FULL ENTRY: [`ledger/C30.md`](ledger/C30.md) — read it before applying.
+
+### C32 — orderlist state carries over the loop wrap (state-closure unroll → physical stated form)
+- PRESENTS: a family's USF orderlists are ~2× the physical track with a loop
+  into the second copy — the walk unrolled until (wrap target, carried
+  state) repeated, because transpose/sticky state persists over the wrap and
+  the intro pass decodes differently from the steady loop. Fitted per-voice
+  phase params model the byte-position counter off-table reads sonify; a
+  fit-failure residue class exists.
+- CANONICAL: fold to the PHYSICAL `orderlist stated:` form by DIRECT
+  OBSERVATION (never fitting): stated transpose-command marks from offset
+  deltas (absent = inherit; state carries over the wrap), `~intro` decode
+  variants where the first pass differs, physical loop@S; composer
+  re-derives the unrolled emission + counter seeds from the notation.
+  Fallback discipline: an unfoldable voice keeps the ENTIRE old path.
+  Gate = full-family golden byte-identity. WARNING: the fitted model had a
+  latent off-by-one on rho-shaped tracks — fitting against one alignment
+  and emitting under another is how coincidental fits become latent bugs.
+- FULL ENTRY: [`ledger/C32.md`](ledger/C32.md) — read it before applying.
 
 ### C31 — COMPILATION: one file packs N independent players; a dispatch wrapper selects (player, song)
 - PRESENTS: the PSID header overstates songs; subtune 0 rebuilds FULL while

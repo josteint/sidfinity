@@ -7,6 +7,37 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 73 (2026-07-19): the DE-UNROLL + plan-doc closeout — orderlist physical stated form [ledger C32], environment/init typing [trichotomy §4.3/§4.5], writer role comments
+The dmc_composer_to_extract_plan's remaining phases executed + the parked
+de-unroll done in one arc (user-directed "wrap up the loose ends"):
+- **Phase C:** `environment { cia_period, play_repeat }` (typed top-level
+  block, v4+v5) + `init { slide_phase }` priming — the params keys gone.
+  Golden 91/91 byte-identical. (Grammar start rule restructured into a
+  repeated `top_block` group — an 11th chained optional exploded LALR
+  construction from seconds to minutes.)
+- **Phase E:** writer per-block role comments (the fingerprint had shipped
+  2026-07-10 untracked).
+- **DE-UNROLL [C32]:** `orderlist stated:` physical form — stated
+  transpose-command marks (absent = inherit, state carries over the wrap),
+  `~intro` decode variants, `!k` dead cmd bytes, physical loop@S. Extract
+  folds `_walk_track`'s 2-pass state-closure unroll by DIRECT OBSERVATION;
+  composer re-derives the unrolled emission + $1726 counter seeds from the
+  notation. `otrk_pad`/`otrk_period`/`otrk_rcmd` DISSOLVED (fold-failure
+  voices keep the full old fitted path — no member can downgrade).
+  **Latent bug found+fixed:** the fitted-rcmd emission was off-by-one on
+  ALL pass-0 counter seeds of rho-shaped tracks (loop target ≠ slot 0) —
+  423/5401 members carried wrong-but-never-sonified seed bytes.
+  GATE: full family-1 golden diff = 4971 byte-identical + 423
+  write-stream-inert (individually classified) + 0 regressions; full
+  pipeline regression green (8 families). Also fixed the golden harness
+  classifier (wrong result key; path never exercised before).
+- Empirical basis (2 probes, 40 members/154 voices): every looping walk =
+  exactly 2 passes by construction (closure must WALK the repeat to see
+  it); 82% byte-identical duplicate passes; the rest = transpose
+  inheritance + sticky-decode intro variants; loop_to == wrap boundary
+  always.
+- Closeout batch + portfolio re-derive + mass-write: see below / F rows.
+
 ## ✅ ROUND 72 (2026-07-10): HETEROGENEOUS compilation — migrated the `dmc_sfx` sub-player — Canyon_Tank_Duel (Bayliss) 13/13 partial → FULL (0 regr) [ledger C31 heterogeneous]
 First still-partial f1 by hvsc path after Balloonacy (r71):
 `MUSICIANS/B/Bayliss_Richard/Canyon_Tank_Duel.sid` — the FIRST heterogeneous
@@ -1139,7 +1170,7 @@ verbatim at pos 6..16, emits sidoff/fbit/fmask/spd/mvol OUTSIDE the window).
 `offtable_redirect` and `sectpos_shadow` deleted from the USF (they described
 HVSC memory geometry) → per-read `live(off,note,lo,hi)` vs `at(...)` flag on
 `offtable_freq`; composer re-derives redirect = `not (static read at a
-live-served idx)`. Byte-identical all 5401. See ledger C7 + `docs/dmc_composer_to_extract_plan.md`.]
+live-served idx)`. Byte-identical all 5401. See ledger C7 + `deprecated/old_docs/dmc_composer_to_extract_plan.md`.]
 Default byte-identical (Hardcore/Intro_Music_2 MD5 old-vs-new; 98_Mix = itself
 a carrier, byte-shifted but verified FULL). Real-probe census over all 1212
 stored-offtable f1 members: exactly 10 carriers (Bakewell×4/Finn×3/98_Mix/
