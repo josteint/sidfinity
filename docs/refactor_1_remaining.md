@@ -215,21 +215,21 @@ divergence list Move 1 must reconcile (extends the DMC-only decisions 1-4 above)
   (linear) — unify the depth axis, or keep as shape variants?
 - **D5 — Arpeggio:** per-inst `arp.offsets` (Hubbard) vs global `arp_programs`
   library (FC) — unify?
-- **D6 — Orderlist transpose semantics (fork created 2026-07-19, ledger C32):**
-  `orderlist stated:` (DMC) — `+c` = a STATED command mark, absent = inherit,
-  state carries over the loop wrap — vs plain `orderlist:` (FC) — `+c` =
-  per-entry EFFECTIVE offset, absent = 0, wrap-carry via the `loop@N+T` /
-  `len=L` pickup annotations. Same surface operator, mode-conditional
-  semantics — a context-dependent token meaning for the ML tokenizer.
-  LIKELY DIRECTION: unify on STATED everywhere — FC's transposes are also
-  physically stated commands in its seq streams (the effective form was our
-  extractor's materialization), and stated inheritance subsumes the pickup
-  annotations as the general case. Migrating FC = extract change + golden
-  gate; do at Move 1 (or as an FC round). KNOWN DEPTH LIMIT of the DMC form:
-  `~intro` variants MATERIALIZE pass-dependent sector decodes; the endpoint
-  is stated-duration pattern rows (sticky inheritance in NoteRow), which
-  would make `~` derivable and shrink the pattern pool — the deliberately
-  deferred second half of the de-unroll (C32 boundary note).
+- **D6 — Orderlist transpose semantics — ✅ RESOLVED 2026-07-19 (same day):**
+  unified on STATED everywhere. FC migrated: transpose + voiceinc stated
+  marks (both sticky; `^0` reset distinguishable from absent), the wrap
+  pickup `+T` now DERIVED from the marks, trailing wrap commands serialized
+  as the stated terminator's `+T` (they set the carried value — a trailing
+  reset flipped 61 members until represented; C20-diagnosed). Composer
+  unchanged (consumes parser-derived effectives). Gates: FC batch 2528 FULL
+  = exact baseline; regression green. `+c` now has ONE semantics across
+  DMC + FC. REMAINING (the deferred deep half, C32 boundary): `len=L`
+  length-pickup + DMC `~intro` variants + FC's (fc_id, init_len) pattern
+  materialization are all the SAME phenomenon — sticky DURATION state —
+  whose endpoint is stated-duration pattern rows (inheritance in NoteRow),
+  making all three derivable and shrinking pattern pools. That is a full
+  representation project (shared NoteRow semantics + Layer-3 validation +
+  DMC sector decode + both composers' resolution interpreters).
 
 **Vindicated this review:** `freq_overrun` flipped single-consumer → REUSED (FC
 standard + DMC v5) — a dimension that looked FC-specific is now shared; recorded
