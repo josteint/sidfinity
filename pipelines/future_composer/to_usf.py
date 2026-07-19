@@ -55,7 +55,7 @@ import struct
 from pathlib import Path
 
 from src.usf import (
-    UsfFile, PsidMeta, Params, InitState,
+    UsfFile, PsidMeta, Params, InitState, InitVoice,
     Instrument, MusicSubtune, VoiceBlock, Orderlist, Pattern, NoteRow,
     Pitch, InstrumentRef, VibratoConfig, PulseProgConfig, FilterProgConfig,
 )
@@ -75,13 +75,6 @@ from pipelines.future_composer.engine_model import (
 # ---------------------------------------------------------------------------
 
 _NOTE_NAMES = ('C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B')
-
-
-def _row_eq_except_duration(a, b) -> bool:
-    """NoteRow equality ignoring duration (the loop_length inheritance
-    proof compares the wrap-length head rebuild against the head rows)."""
-    return (a.pitch == b.pitch and a.instr == b.instr
-            and a.fx_flags == b.fx_flags)
 
 
 def _pitch_from_byte(p: int) -> Pitch:
@@ -233,9 +226,9 @@ def _inst_to_usf(inst: FCInstrument, offtable: list | None = None) -> Instrument
 # Patterns
 # ---------------------------------------------------------------------------
 
-def _build_pattern_rows(fc_pat: FCPattern,
-                        init_length: int = 1) -> tuple[list[NoteRow], int, int]:
-    """Walk FC pattern events; emit note rows.
+def _build_pattern_rows(fc_pat: FCPattern) -> tuple[list[NoteRow],
+                                                    int | None]:
+    """Walk FC pattern events; emit STATED note rows.
 
     The pattern body stores the *pure motif* — neither transpose nor
     voiceinc is folded in. Both are sequence-level modifiers carried on
@@ -246,15 +239,17 @@ def _build_pattern_rows(fc_pat: FCPattern,
     reused unchanged at every (transpose, voiceinc) it appears with, so
     the pattern pool stays at the base motif count (<=64).
 
-    `init_length` is the engine's persisted nootleng+1 (duration) on entry
-    to this pattern. FC's nootleng PERSISTS across patterns, so a pattern
-    whose first note has no setlen inherits the previous pattern's length;
-    threading `init_length` makes that first note's duration correct. The
-    composer always emits an explicit setlen, so the rebuilt pattern is
-    self-contained (different bytes from orig, identical write-log).
+    Durations are STATED notation (D6 piece 2): a row carries a duration
+    only where the FC stream has $8x setlen byte(s) before the note (the
+    value = the resolved $80-chain total); an absent duration INHERITS —
+    the engine's nootleng PERSISTS across rows, patterns and the loop
+    wrap, and the shared interpreter (src/usf/resolve.py) / the
+    composer's own persisting nootleng resolve it. One fc pattern is
+    therefore ONE USF pattern regardless of entry context (the old
+    (fc_id, init_len) variant materialization is gone).
 
-    Returns (rows, total_length_in_frames, final_length) — final_length is
-    the duration to carry into the next pattern.
+    Returns (rows, total_length_or_None) — None when any row inherits
+    (the total is entry-context-dependent).
     """
     rows: list[NoteRow] = []
     pending_glide: int | None = None
@@ -262,7 +257,7 @@ def _build_pattern_rows(fc_pat: FCPattern,
     pending_wave_adjust: int | None = None
     pending_filter: int | None = None
     pending_noretrig: bool = False    # $F0 seen → next note doesn't retrigger
-    cur_length: int = init_length  # persisted nootleng+1 (set by PatSetLength)
+    cur_length: int | None = None  # stated setlen chain total; None = inherit
     cur_instr: InstrumentRef | None = None
     length_seen_first = False      # for chained PatSetLength tracking
 
@@ -321,11 +316,13 @@ def _build_pattern_rows(fc_pat: FCPattern,
                 instr=cur_instr, fx_flags=tuple(flags),
             ))
             cur_instr = None         # only attach on the row after a change
+            cur_length = None        # next row states its own $8x or inherits
         elif isinstance(evt, PatEnd):
             break
 
-    total_length = sum(r.duration for r in rows)
-    return rows, max(total_length, 1), cur_length
+    if any(r.duration is None for r in rows):
+        return rows, None            # context-dependent total
+    return rows, max(sum(r.duration for r in rows), 1)
 
 
 # ---------------------------------------------------------------------------
@@ -347,16 +344,15 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
             id=voice_id,
             orderlist=Orderlist(stop=True),
             patterns=[],
-        )
+        ), False
 
     orderlist_entries: list[int] = []
     # Patterns are pure motifs; transpose/voiceinc ride the orderlist and
-    # repeats stay run-length-encoded. Dedup by (fc_id, init_length): FC's
-    # note length (nootleng) PERSISTS across patterns, so a pattern is only
-    # the same USF pattern when it's entered with the same persisted length.
-    pattern_key_to_id: dict[tuple, int] = {}    # (fc_id, init_len) -> usf_id
+    # repeats stay run-length-encoded. Durations are STATED (D6 piece 2):
+    # dedup by fc_id alone — entry context no longer materializes variants
+    # (inheritance is notation the interpreter/player resolves).
+    pattern_key_to_id: dict[int, int] = {}       # fc_id -> usf_id
     pattern_specs: dict[int, tuple] = {}         # usf_id -> (rows, length)
-    key_final: dict[tuple, int] = {}             # (fc_id, init_len) -> final_len
 
     orderlist_transposes: list[int] = []
     orderlist_voiceincs: list[int] = []
@@ -371,7 +367,6 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
     transpose = 0
     repeats = 0
     voiceinc = 0
-    persisted_length = 1            # engine nootleng+1 at song start
     loop_to: int | None = None
     stop = False
     unrolled = False
@@ -390,19 +385,15 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
             pend_v = cmd.inc
         elif isinstance(cmd, SeqPatternJump):
             fc_id = cmd.pattern_id
-            key = (fc_id, persisted_length)
-            if key not in pattern_key_to_id:
+            if fc_id not in pattern_key_to_id:
                 usf_id = len(pattern_key_to_id)
-                pattern_key_to_id[key] = usf_id
+                pattern_key_to_id[fc_id] = usf_id
                 if fc_id in patterns:
-                    rows, length, final = _build_pattern_rows(
-                        patterns[fc_id], persisted_length)
+                    rows, length = _build_pattern_rows(patterns[fc_id])
                 else:
-                    rows, length, final = [], 1, persisted_length
+                    rows, length = [], 1
                 pattern_specs[usf_id] = (rows, length)
-                key_final[key] = final
-            usf_pat_id = pattern_key_to_id[key]
-            orderlist_entries.append(usf_pat_id)
+            orderlist_entries.append(pattern_key_to_id[fc_id])
             orderlist_transposes.append(transpose)
             orderlist_voiceincs.append(voiceinc)
             orderlist_repeats.append(repeats + 1)   # FC count = extra plays
@@ -411,22 +402,16 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
             pend_t = None
             pend_v = None
             repeats = 0
-            persisted_length = key_final[key]       # carry to next pattern
         elif isinstance(cmd, SeqEnd):
             stop = True
             break
         elif isinstance(cmd, SeqWrap):
             loop_to = 0
-            # KNOWN GAP — the persisted-LENGTH wrap carry (witness
-            # Excite @70676, Baster V1 wrap): when persisted_length here
-            # differs from the head entry's incoming length AND the head
-            # pattern's first note is length-inherited, passes 2+ play a
-            # different head duration. Unrolling does NOT work (the
-            # composer's $FF always wraps the cursor to 0; encode drops
-            # loop_to). The principled fix mirrors loop_transpose: an
-            # Orderlist `loop_length` annotation + encode omitting the
-            # head's first length byte so the composer's own persisting
-            # nootleng reproduces both passes. Next round.
+            # The persisted-LENGTH wrap carry is stated notation now: a
+            # length-inherited loop head simply has no stated duration,
+            # and nootleng persistence (interpreter / player) supplies
+            # each pass's value — the old `loop@N len=L` annotation and
+            # the deep-chain reject class are both gone.
             break
 
     usf_patterns: list[Pattern] = []
@@ -447,35 +432,6 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
         # pass-2+ entries — no annotation needed)
         loop_transpose = transpose          # the running value at the wrap
 
-    # Loop PICKUP length (`loop@N len=L`) — the loop_transpose mirror for
-    # nootleng: the engine's note-length state carries over the wrap, so a
-    # head whose first note is length-INHERITED (no $8x before it) plays
-    # passes 2+ at the end-of-list length while pass 1 used the start
-    # state. Annotated only when the head variant proves inheritance: the
-    # wrap-length rebuild of the head fc-pattern must equal the head rows
-    # except row 0's duration, each equal to its incoming length. The
-    # encoder then omits the head's first length byte and the composer's
-    # own persisting nootleng reproduces every pass (witness: Excite).
-    loop_length = None
-    if loop_to is not None and orderlist_entries:
-        head_usf = orderlist_entries[loop_to]
-        head_fc, head_len = next(
-            k for k, v in pattern_key_to_id.items() if v == head_usf)
-        wrap_len = persisted_length
-        if wrap_len != head_len and head_fc in patterns:
-            rows_w, _lw, _fw = _build_pattern_rows(patterns[head_fc],
-                                                   wrap_len)
-            head_rows, _hl = pattern_specs[head_usf]
-            if (len(rows_w) == len(head_rows) and head_rows
-                    and head_rows[0].duration == head_len
-                    and rows_w[0].duration == wrap_len
-                    and rows_w[1:] == head_rows[1:]
-                    and _row_eq_except_duration(rows_w[0], head_rows[0])):
-                loop_length = wrap_len
-            # else: deeper-than-row-0 inheritance or an explicit head —
-            # explicit heads need nothing; deep chains stay partial and
-            # re-bucket in the wide batch.
-
     # Omit each modifier list when it carries no information.
     if not any(orderlist_transposes):
         orderlist_transposes = []
@@ -486,7 +442,6 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
     orderlist = Orderlist(entries=orderlist_entries,
                           loop_to=loop_to, stop=stop,
                           loop_transpose=loop_transpose,
-                          loop_length=loop_length,
                           transposes=orderlist_transposes,
                           voiceincs=orderlist_voiceincs,
                           repeats=orderlist_repeats)
@@ -502,8 +457,19 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
     orderlist.stated_trail = pend_t
     if any(x is not None for x in vmarks):
         orderlist.stated_vmarks = vmarks
+    # Does the voice's FIRST played row inherit its duration? Then it
+    # resolves from the engine's init state (nootleng+1 = 1) — which must
+    # be IN the USF for it to stay the complete spec: the subtune emits
+    # `init { voice N { dur_field: 1 } }` (trichotomy §4.5 engine-state
+    # priming; src/usf/resolve.py seeds from it).
+    needs_seed = False
+    for pid in orderlist_entries:
+        rows, _l = pattern_specs[pid]
+        if rows:
+            needs_seed = rows[0].duration is None
+            break
     return VoiceBlock(id=voice_id, orderlist=orderlist,
-                      patterns=usf_patterns)
+                      patterns=usf_patterns), needs_seed
 
 
 # ---------------------------------------------------------------------------
@@ -523,14 +489,22 @@ def _subtune_to_usf(sub: FCSubtune, song: FCSong) -> MusicSubtune:
                          if s.start_addr == addr), None)
         seqs = (_find(sub.seq_v0_addr), _find(sub.seq_v1_addr),
                 _find(sub.seq_v2_addr))
-    voices = [
+    built = [
         _voice_to_usf(1, seqs[0], pats),
         _voice_to_usf(2, seqs[1], pats),
         _voice_to_usf(3, seqs[2], pats),
     ]
+    voices = [vb for vb, _ in built]
+    # Voices whose first played row inherits its duration resolve it from
+    # the engine's init state — stated in USF as per-voice dur_field
+    # priming (the resolver's seed; nootleng+1 = 1 at song start).
+    seed_voices = [InitVoice(id=vb.id, dur_field=1)
+                   for vb, needs in built if needs]
+    sub_init = InitState(voices=seed_voices) if seed_voices else None
     return MusicSubtune(
         id=sub.id + 1,                  # USF subtunes are 1-based
         tempo=sub.speedbyte + 1,        # frames per step
+        init=sub_init,
         voices=voices,
         is_sfx=sub.is_sfx,
     )

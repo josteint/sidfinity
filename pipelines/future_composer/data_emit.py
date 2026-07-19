@@ -33,6 +33,9 @@ $00-$3F limit; see composer_asm h3_command_dispatch):
 """
 from __future__ import annotations
 
+import dataclasses
+
+from src.usf.resolve import needs_resolution, resolve_voice
 from src.usf.types import VoiceBlock, Orderlist, Pattern, NoteRow, Pitch
 
 
@@ -180,40 +183,95 @@ def _row_key(r: NoteRow):
 
 def build_pattern_pool(music_subtunes: list, instr_as_wavecount: bool = False):
     """Collect every voice's patterns into a global dense pool, deduped by
-    content. Returns (slot_streams, localmaps):
+    content. Returns (slot_streams, localmaps, entrymaps):
 
       slot_streams[slot] — encoded FC pattern bytes for global slot `slot`
       localmaps[(sub.id, voice.id)][local_pat_id] — global slot for that
-        voice's local USF pattern id
+        voice's local USF pattern id (legacy fully-stated voices)
+      entrymaps[(sub.id, voice.id)] — per-ORDERLIST-ENTRY global slots for
+        stated-inherited voices (one USF pattern can materialize
+        differently per entry context), or None for legacy voices
+
+    STATED-inherited voices (any row without a duration — D6 piece 2) run
+    the shared resolution interpreter (src/usf/resolve.py) and emit each
+    entry's MATERIALIZED effective rows — dedup by encoded content
+    collapses the (overwhelmingly common) identical materializations. The
+    loop-head `omit_first_len` (the engine's persisting nootleng carrying
+    the wrap) is DERIVED: the head's first row states no duration and its
+    pass-2 resolution differs from pass 1 — replacing the old extract-
+    annotated `loop@N len=L`, and extending it to deep inheritance chains
+    (the old row-0-only fold's reject class).
     """
     slot_streams: list[bytes] = []
     key_to_slot: dict[tuple, int] = {}
     localmaps: dict[tuple, dict[int, int]] = {}
+    entrymaps: dict[tuple, list | None] = {}
     for sub in music_subtunes:
+        init_by_id = {iv.id: iv for iv in
+                      (sub.init.voices if sub.init else [])}
         for v in sub.voices:
-            lm: dict[int, int] = {}
             ol = v.orderlist
-            omit_ids = set()
-            if (getattr(ol, 'loop_length', None) is not None
-                    and ol.loop_to is not None and ol.entries):
-                omit_ids.add(ol.entries[ol.loop_to])
-            for pat in v.patterns:
-                omit = pat.id in omit_ids
-                key = (tuple(_row_key(r) for r in pat.rows), omit)
+
+            def _intern(rows, omit):
+                key = (tuple(_row_key(r) for r in rows), omit)
                 slot = key_to_slot.get(key)
                 if slot is None:
                     slot = len(slot_streams)
                     key_to_slot[key] = slot
                     slot_streams.append(encode_pattern(
-                        pat.rows, instr_as_wavecount=instr_as_wavecount,
+                        rows, instr_as_wavecount=instr_as_wavecount,
                         omit_first_len=omit))
-                lm[pat.id] = slot
+                return slot
+
+            if needs_resolution(v):
+                passes = resolve_voice(v, init_by_id.get(v.id),
+                                       n_passes=2)
+                pass1 = passes[0]
+                pat_by_id = {p.id: p for p in v.patterns}
+                # loop-head runtime inheritance: head first row inherited
+                # AND the carried wrap value actually differs from pass 1
+                omit_head = False
+                head_rows_m = None
+                if (ol.loop_to is not None and len(passes) > 1
+                        and passes[1] and pass1):
+                    h1 = pass1[ol.loop_to]
+                    h2 = passes[1][0]
+                    head_src = pat_by_id[ol.entries[ol.loop_to]].rows
+                    if (head_src and head_src[0].duration is None
+                            and h1 and h2
+                            and h2[0].duration != h1[0].duration):
+                        omit_head = True
+                        head_rows_m = [
+                            dataclasses.replace(rr.row, duration=rr.duration)
+                            for rr in h1]
+                entry_slots = []
+                for i, resolved in enumerate(pass1):
+                    rows_m = [dataclasses.replace(rr.row,
+                                                  duration=rr.duration)
+                              for rr in resolved]
+                    omit = (omit_head
+                            and ol.entries[i] == ol.entries[ol.loop_to]
+                            and rows_m == head_rows_m)
+                    entry_slots.append(_intern(rows_m, omit))
+                entrymaps[(sub.id, v.id)] = entry_slots
+                localmaps[(sub.id, v.id)] = {}
+                continue
+
+            lm: dict[int, int] = {}
+            omit_ids = set()
+            if (getattr(ol, 'loop_length', None) is not None
+                    and ol.loop_to is not None and ol.entries):
+                omit_ids.add(ol.entries[ol.loop_to])
+            for pat in v.patterns:
+                lm[pat.id] = _intern(pat.rows, pat.id in omit_ids)
             localmaps[(sub.id, v.id)] = lm
-    return slot_streams, localmaps
+            entrymaps[(sub.id, v.id)] = None
+    return slot_streams, localmaps, entrymaps
 
 
 def encode_sequence(orderlist: Orderlist, localmap: dict[int, int],
-                    persist_modifiers: bool = False) -> bytes:
+                    persist_modifiers: bool = False,
+                    entry_slots: list | None = None) -> bytes:
     """Encode one voice's orderlist into an FC sequence byte stream.
 
     Transpose/voiceinc are delta-encoded (emitted only when they change,
@@ -255,7 +313,7 @@ def encode_sequence(orderlist: Orderlist, localmap: dict[int, int],
                 raise ValueError(f'repeat count {rep} exceeds the $B0-$FD '
                                  f'command (max 64 plays); chaining TODO')
             out.append(0xB0 + r)               # $B0-$FD repeat (offset-coded)
-        slot = localmap[pid]
+        slot = entry_slots[i] if entry_slots is not None else localmap[pid]
         if slot > 0x7F:
             raise ValueError(f'pattern slot {slot} exceeds 127 (1-byte '
                              f'jump $00-$7F); needs 16-bit pattern index')
@@ -279,7 +337,7 @@ def build_music_data(music_subtunes: list, music_base: int,
       pattern streams   concatenated, one per global slot
       sequence streams  concatenated, one per (subtune, voice)
     """
-    slot_streams, localmaps = build_pattern_pool(
+    slot_streams, localmaps, entrymaps = build_pattern_pool(
         music_subtunes, instr_as_wavecount=instr_as_wavecount)
     n_slots = len(slot_streams)
     n_sub = max((s.id for s in music_subtunes), default=0)   # 1-based ids
@@ -290,7 +348,8 @@ def build_music_data(music_subtunes: list, music_base: int,
         for v in sub.voices:
             seqs[(sub.id - 1, v.id - 1)] = encode_sequence(
                 v.orderlist, localmaps[(sub.id, v.id)],
-                persist_modifiers=instr_as_wavecount)
+                persist_modifiers=instr_as_wavecount,
+                entry_slots=entrymaps.get((sub.id, v.id)))
 
     seq_table_addr = music_base
     seq_table_size = 6 * n_sub

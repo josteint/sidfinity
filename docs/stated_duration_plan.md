@@ -29,12 +29,23 @@ FC standard family, all 2670 full+partial members:
 | `len=L` voices today | 20 (19 members) |
 | deep-chain wrap rejects (stuck partial today) | 6 voices (4 members) |
 
-DMC v4 families 1+2, all full+partial members (5,826): see
-tmp/probe_dmc_stated_dur.log AGGREGATE/CHANNELS. Key finding from the
-sample: `~intro` variants differ overwhelmingly by **vol and instr
-carry, not duration** — the DMC side must state all three sticky
-channels (which the sector stream states uniformly as command bytes;
-the extract already records them as `dcmd/icmd/vcmd` byte facts).
+DMC v4 families 1+2, all 5,825 full+partial members:
+
+| measure | count |
+|---|---|
+| members with `~intro` variants | 1,673 (29%), over 10,343 slots |
+| variant carry channels | **vol 7,345 · instr 2,250 · instr+vol 746 · dur 2** |
+| pattern pool effective → stated | 124,434 → 117,514 (−5.6%) |
+| patterns with inherit-dependent head rows | 1,654 |
+| fold-fail voices (stay on the legacy fallback) | 319 |
+
+The decisive finding: DMC's `~intro` variants are ~100% **volume and
+instrument** carry (duration carry: 2 slots corpus-wide), and zero
+variants differ by anything besides the three sticky channels — so the
+DMC side states all three (which the sector stream states uniformly as
+command bytes; the extract already records them as `dcmd/icmd/vcmd`
+byte facts), and the stated form provably subsumes the whole `~intro`
+mechanism.
 
 ## Representation (shared, engine-blind)
 

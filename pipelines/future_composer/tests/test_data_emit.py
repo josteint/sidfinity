@@ -22,20 +22,35 @@ def _rowsig(rows):
             for r in rows]
 
 
+def _materialized(rows, seed=1):
+    """Resolve stated-inherited durations with a simple thread (seed=1 =
+    the engine's init nootleng+1) so the encoder sees effective rows —
+    what build_pattern_pool's interpreter feeds it."""
+    import dataclasses
+    out, cur = [], seed
+    for r in rows:
+        cur = r.duration if r.duration is not None else cur
+        out.append(dataclasses.replace(r, duration=cur))
+    return out
+
+
 def test_pattern_encode_roundtrips_to_same_content():
     """Every Cyb II pattern: USF rows -> FC bytes -> decode -> lower must
-    reproduce the same NoteRows."""
+    reproduce the same NoteRows (durations materialized, as the composer's
+    resolution interpreter does)."""
     song = extract(CYBERNOID_II)
     assert song.patterns
     for fc_id, pat in song.patterns.items():
-        rows, _, _ = _build_pattern_rows(pat)
+        rows, _ = _build_pattern_rows(pat)
+        rows = _materialized(rows)
         encoded = encode_pattern(rows)
         assert encoded[-1] == 0xFF, f'pat {fc_id} not $FF-terminated'
         ev, _ = _parse_pattern(encoded)
         reb = FCPattern(id=0, start_addr=0, bytes_raw=encoded,
                         events=ev, notes_count=0)
-        reb_rows, _, _ = _build_pattern_rows(reb)
-        assert _rowsig(reb_rows) == _rowsig(rows), f'pattern {fc_id} mismatch'
+        reb_rows, _ = _build_pattern_rows(reb)
+        assert _rowsig(_materialized(reb_rows)) == _rowsig(rows), \
+            f'pattern {fc_id} mismatch'
 
 
 def test_build_music_data_layout_consistent():
