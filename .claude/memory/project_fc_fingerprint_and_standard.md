@@ -9,6 +9,14 @@ metadata:
 
 ## STATUS (head — newest wins; update THIS section, prepend new rounds here)
 
+**2026-07-19:** orderlists migrated to the STATED form (D6 resolved,
+ledger C32 sibling): transpose+voiceinc stated-command marks, derived wrap
+pickup, trailing commands as terminator `+T` (a trailing reset flipped 61
+members until represented — C20-diagnosed). Corpus re-mass-written (2528,
+0 err) + all 4 canary USFs; batch = exact baseline 2528/142; regression
+green incl. Tel canaries building from stated notation (non-persist wrap
+behavior stays an engine knob — notation is engine-blind).
+
 **2026-07-16:** wide batch COMPLETE + mass-written — **2528/2672 FULL
 (94.6%)**, residue 142 partial (triage-cycle sections below). Full effect
 chain gated; the fc_standard 11-member portfolio is wired as tier 1 in
