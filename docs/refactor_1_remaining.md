@@ -223,13 +223,19 @@ divergence list Move 1 must reconcile (extends the DMC-only decisions 1-4 above)
   reset flipped 61 members until represented; C20-diagnosed). Composer
   unchanged (consumes parser-derived effectives). Gates: FC batch 2528 FULL
   = exact baseline; regression green. `+c` now has ONE semantics across
-  DMC + FC. REMAINING (the deferred deep half, C32 boundary): `len=L`
-  length-pickup + DMC `~intro` variants + FC's (fc_id, init_len) pattern
-  materialization are all the SAME phenomenon — sticky DURATION state —
-  whose endpoint is stated-duration pattern rows (inheritance in NoteRow),
-  making all three derivable and shrinking pattern pools. That is a full
-  representation project (shared NoteRow semantics + Layer-3 validation +
-  DMC sector decode + both composers' resolution interpreters).
+  DMC + FC. **PIECE 2 ✅ RESOLVED 2026-07-20 — stated-duration pattern
+  rows:** `len=L`, FC's (fc_id, init_len) pattern materialization
+  (probe: 18,147 phantom duplicate patterns = +41% pool, 97% of
+  members) and DMC's `~intro` variants (10,343 slots, ~100% vol/instr
+  carry) all dissolved into stated NoteRow values (present iff the
+  stream states the command; absent = inherit, over wraps and pattern
+  boundaries; init.voice_state seeds) + ONE shared resolution
+  interpreter `src/usf/resolve.py` consumed by both composers and
+  Layer-3. Gates: FC golden 2527/2528 byte-identical (the 1 diff =
+  the predicted deep-chain member, re-verified FULL) + DMC family-1
+  golden 5394/5394; recoveries Man_of_Noise + Love_Boat_Tune
+  partial→FULL. Ledger C32 canonicalized (2×). D6 is now FULLY closed
+  — orderlist AND pattern-row sticky state are stated everywhere.
 
 **Vindicated this review:** `freq_overrun` flipped single-consumer → REUSED (FC
 standard + DMC v5) — a dimension that looked FC-specific is now shared; recorded

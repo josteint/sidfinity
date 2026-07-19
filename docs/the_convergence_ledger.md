@@ -117,7 +117,7 @@ practice, not code to factor).
 | track $FF loop into an OUT-OF-IMAGE sector (garbage sector# past the ptr table → $0000) · engine sonifies live ZEROPAGE as notes (6510 port $00=$2F/$01=$37 then static zp, read via ($F8),y=$0000) · extract overlays libsidplayfp runtime low-RAM (C9, py65 can't reproduce env zp) gated on _loops_offimage · port + $F8/$F9 read-time corrections · regr-safe: unplayed decode = byte-identical | C29 | logged |
 | LOSSY ENUM over independently-toggleable flag bits · USF enum assumed two editor flags mutually exclusive (gate hold $10 / never-release $08) · engine gives one priority so the co-set bit is MECHANICALLY DEAD · but the raw flags byte is OBSERVABLE via a state-as-data read (off-table fxf) → reconstruction misses the dead bit · carry the masked flag as an elidable boolean CO-FIELD, keep the enum = the EFFECTIVE articulation | C30 | logged |
 | COMPILATION · one file packs N INDEPENDENT players + a per-subtune SMC dispatch wrapper (subtune→(base,song)) · header overstates songs, sub0 FULL others silent/garbage · ≥2 jump-table bases · unified-merge (renumber+dedup instruments) · heterogeneous engines (dmc_sfx) · distinct from C27 parallel chips | C31 | logged |
-| orderlist STATE carries over the loop wrap · extractor unrolls passes until state closure · USF stores ~2× the physical track · fitted byte-counter phase params (pad/period/rcmd) + fit-failure residue · fold to PHYSICAL stated form by DIRECT OBSERVATION (stated command marks + intro-decode variants), never fitting | C32 | logged |
+| engine STICKY STATE materialized into effective variants · orderlist state over the loop wrap (fitted pad/period/rcmd) · pattern-row sticky duration/instr/vol (FC (fc_id,init_len) variants · len=L pickup · DMC ~intro decode variants) · fold to STATED notation (value present iff the stream states the command; absent = inherit) + ONE shared resolution interpreter (src/usf/resolve.py) · re-derivation assert, fallback wholesale | C32 | canonicalized (2×) |
 
 ---
 
@@ -476,22 +476,26 @@ practice, not code to factor).
   reconstruction against the raw byte per instrument.
 - FULL ENTRY: [`ledger/C30.md`](ledger/C30.md) — read it before applying.
 
-### C32 — orderlist state carries over the loop wrap (state-closure unroll → physical stated form)
-- PRESENTS: a family's USF orderlists are ~2× the physical track with a loop
-  into the second copy — the walk unrolled until (wrap target, carried
-  state) repeated, because transpose/sticky state persists over the wrap and
-  the intro pass decodes differently from the steady loop. Fitted per-voice
-  phase params model the byte-position counter off-table reads sonify; a
-  fit-failure residue class exists.
-- CANONICAL: fold to the PHYSICAL `orderlist stated:` form by DIRECT
-  OBSERVATION (never fitting): stated transpose-command marks from offset
-  deltas (absent = inherit; state carries over the wrap), `~intro` decode
-  variants where the first pass differs, physical loop@S; composer
-  re-derives the unrolled emission + counter seeds from the notation.
-  Fallback discipline: an unfoldable voice keeps the ENTIRE old path.
-  Gate = full-family golden byte-identity. WARNING: the fitted model had a
-  latent off-by-one on rho-shaped tracks — fitting against one alignment
-  and emitting under another is how coincidental fits become latent bugs.
+### C32 — engine sticky state materialized into effective variants → fold to STATED notation
+- PRESENTS: an extractor bakes engine STICKY state (transpose over the loop
+  wrap; note length / instrument / volume carried across pattern
+  boundaries) into per-context EFFECTIVE copies — orderlists ~2× the
+  physical track with fitted byte-counter phase params (pad/period/rcmd);
+  pattern pools inflated by entry-context variants (FC `(fc_id, init_len)`
+  dedup — 41% phantom duplicates; `loop@N len=L` wrap pickup; DMC `~intro`
+  decode variants — ~100% vol/instr carry); fit/fold-failure residue
+  classes stuck partial.
+- CANONICAL: fold to STATED notation by DIRECT OBSERVATION (never fitting):
+  a value is written only where the source stream states the command
+  (presence = the byte fact), absent = inherit — over wraps and pattern
+  boundaries; leading runs resolve from init.voice_state seeds. ONE shared
+  resolution interpreter (`src/usf/resolve.py`) serves both composers
+  (compose-time materialization → byte-identity gate) + Layer-3. The
+  extract RE-RUNS the resolver against the walk's ground truth (both
+  passes); any mismatch → keep the effective form WHOLESALE. Emit no form
+  the composer can't structurally discriminate (vol-only inheritance;
+  auxiliary width shadows need ONE unambiguous source). WARNING: fitted
+  models breed latent bugs (rho off-by-one) — observe, don't fit.
 - FULL ENTRY: [`ledger/C32.md`](ledger/C32.md) — read it before applying.
 
 ### C31 — COMPILATION: one file packs N independent players; a dispatch wrapper selects (player, song)
