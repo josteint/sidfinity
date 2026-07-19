@@ -1,104 +1,94 @@
 {
  "engine": "dmc_v4",
  "portfolio": [
-  "DEMOS/A-F/Deinonychus_01.sid",
-  "MUSICIANS/B/Bax/Music_for_Game.sid",
-  "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
-  "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+  "MUSICIANS/C/Compod/Nocturno.sid",
+  "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-  "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+  "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+  "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
  ],
  "dimensions": {
   "fx:cymbal": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid"
   ],
   "fx:drum": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid"
   ],
   "fx:dual_slide": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "fx:filter": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "fx:filter_keep": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "fx:gate_hold": [
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid"
   ],
   "fx:gate_open": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "fx:gate_release_early": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "fx:pulse_keep": [
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "fx:vib_delay": [
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "fx:vib_ramp": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "fx:vibrato": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "knob:cia_multispeed": [
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid"
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid"
   ],
   "knob:dual_phase": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid"
   ],
   "knob:high_load": [
@@ -106,122 +96,112 @@
    "MUSICIANS/P/PFK/Home_Invasion_main.sid"
   ],
   "knob:idle_mask": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid"
   ],
   "knob:idle_note": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "knob:idle_wave": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "knob:layout_2entry": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid"
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "knob:loop_target": [
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid"
   ],
   "knob:relocated": [
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid"
   ],
   "knob:routing_shadow": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid"
   ],
   "pat:gate_toggle": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "pat:glide": [
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid"
   ],
   "pat:slide": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid"
   ],
   "pat:soft": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid"
   ],
   "pat:vol": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "struct:filter_defs": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "struct:inst_growth": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "struct:multi_subtune": [
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid"
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "struct:per_tune_tuning": [
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid"
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "track:loop": [
-   "DEMOS/A-F/Deinonychus_01.sid",
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "track:stop": [
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid"
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid"
   ],
   "track:transpose": [
-   "MUSICIANS/B/Bax/Music_for_Game.sid",
-   "MUSICIANS/K/KB/1_67_Years_T_O_M_intro.sid",
-   "MUSICIANS/K/KB/PayDay-Ingame_tune.sid",
+   "MUSICIANS/C/Compod/Nocturno.sid",
+   "MUSICIANS/K/KB/Who_the_Fuck_Is_Aetsch.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ]
  },
- "corpus_full": 5472
+ "corpus_full": 5654
 }

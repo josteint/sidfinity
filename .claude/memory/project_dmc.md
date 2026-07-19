@@ -36,7 +36,14 @@ de-unroll done in one arc (user-directed "wrap up the loose ends"):
   it); 82% byte-identical duplicate passes; the rest = transpose
   inheritance + sticky-decode intro variants; loop_to == wrap boundary
   always.
-- Closeout batch + portfolio re-derive + mass-write: see below / F rows.
+- CLOSEOUT (F): authoritative batch **5170 FULL / 173 partial / 7 error**
+  — FULL count EXACTLY the pre-change baseline (zero verdict movement).
+  Mass-write 5221 written / 0 err (corpus now in `orderlist stated:` form;
+  partials keep stale pre-form .usf until they go FULL). Portfolio
+  RE-DERIVED (new track:loop/stop/transpose + struct dimensions; includes
+  Deepspace_Travel from the latent-bug class); final full regression green
+  (8 families). dmc_composer_to_extract_plan.md ARCHIVED (all phases
+  done/superseded — see its header).
 
 ## ✅ ROUND 72 (2026-07-10): HETEROGENEOUS compilation — migrated the `dmc_sfx` sub-player — Canyon_Tank_Duel (Bayliss) 13/13 partial → FULL (0 regr) [ledger C31 heterogeneous]
 First still-partial f1 by hvsc path after Balloonacy (r71):
