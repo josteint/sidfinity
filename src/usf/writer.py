@@ -169,8 +169,20 @@ def _write_init_sid(sid: InitSid, chip: int = 1) -> list[str]:
     return lines
 
 
+def _write_environment(env) -> list[str]:
+    lines = ['environment {  ; how the host drives play(): CIA rate / per-VBI repeats']
+    if env.cia_period:
+        lines.append(f'  cia_period: {_hex(env.cia_period, 4)}')
+    if env.play_repeat != 1:
+        lines.append(f'  play_repeat: {env.play_repeat}')
+    lines.append('}')
+    return lines
+
+
 def _write_init(state: InitState) -> list[str]:
     lines = ['init {']
+    if getattr(state, 'slide_phase', 0):
+        lines.append(f'  slide_phase: {state.slide_phase}')
     if state.sid is not None:
         lines.extend(_write_init_sid(state.sid))
     if getattr(state, 'sid2', None) is not None:
@@ -783,6 +795,9 @@ def write(usf: UsfFile) -> str:
     lines.extend(_write_params(usf.params))
     lines.append('')
     lines.extend(_write_init(usf.init))
+    if getattr(usf, 'environment', None) is not None:
+        lines.append('')
+        lines.extend(_write_environment(usf.environment))
     if usf.freq_table is not None:
         lines.append('')
         lines.extend(_write_freq_table(usf.freq_table))

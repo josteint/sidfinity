@@ -764,6 +764,25 @@ class InitState:
     # Multi-SID: chip 2/3's priming (`sid 2 { }` / `sid 3 { }` blocks).
     sid2: Optional[InitSid] = None
     sid3: Optional[InitSid] = None
+    # Global engine-state priming (trichotomy §4.5): the initial phase bit
+    # of the engine's half-rate slide clock — shifts WHICH frames the
+    # dual-effect voices update on (audible interleave phase). Scalar, not
+    # per-voice (one clock shared by all sliding voices). 0 = default.
+    slide_phase: int = 0
+
+
+@dataclass
+class Environment:
+    """The trichotomy's ENVIRONMENT category (docs/the_trichotomy.md
+    §4.3): how the host drives play() — temporal, never SID state.
+
+      `cia_period`: the CIA1 timer A latch programmed at init (multispeed
+        play() rate); 0 = single-speed vblank.
+      `play_repeat`: whole-play() repeats per invocation (>1 = the play
+        vector runs the body N× per VBI — ledger C24's whole-play form).
+    """
+    cia_period: int = 0
+    play_repeat: int = 1
 
 
 @dataclass
@@ -997,6 +1016,8 @@ class UsfFile:
     psid: PsidMeta
     params: Params
     init: InitState
+    # Playback environment (trichotomy §4.3) — None = single-speed vblank.
+    environment: Optional[Environment] = None
     instruments: list[Instrument] = field(default_factory=list)
     subtunes: list[Subtune] = field(default_factory=list)
     # Per-tune freq table (v3 only). 320 bytes — first 192 are the

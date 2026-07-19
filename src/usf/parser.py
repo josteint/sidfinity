@@ -12,6 +12,7 @@ from lark import Lark, Transformer, Token, v_args
 from lark.exceptions import LarkError
 
 from src.usf.types import (
+    Environment,
     UsfFile, PsidMeta, Params, InitVoice, InitState,
     InitSid, InitSidVoice, InitFilter,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
@@ -187,8 +188,15 @@ class _T(Transformer):
         # (SID-chip priming). Returned unchanged; init_block sorts.
         return items[0]
 
+    def init_slide_phase(self, items):
+        return ('_init_slide_phase', int(items[0]))
+
     def init_block(self, items):
         voices = [it for it in items if isinstance(it, InitVoice)]
+        slide_phase = 0
+        for it in items:
+            if isinstance(it, tuple) and it and it[0] == '_init_slide_phase':
+                slide_phase = it[1]
         sids = {}
         for it in items:
             if isinstance(it, tuple) and it and it[0] == '_init_sid':
@@ -201,12 +209,31 @@ class _T(Transformer):
                         f'init sid block for chip {chip} appears twice')
                 sids[chip] = sid
         return InitState(voices=voices, sid=sids.get(1),
-                         sid2=sids.get(2), sid3=sids.get(3))
+                         sid2=sids.get(2), sid3=sids.get(3),
+                         slide_phase=slide_phase)
 
     # ----- init.sid -----
     def ifilt_lo(self, items):  return ('cutoff_lo', items[0])
     def ifilt_hi(self, items):  return ('cutoff_hi', items[0])
     def ifilt_res(self, items): return ('res_routing', items[0])
+
+    def top_block(self, items):
+        # Pass-through for the grouped top-level optional blocks (the
+        # grammar groups them into one repeated rule for LALR size; each
+        # inner handler returns a ('key', value) tuple).
+        return items[0]
+
+    def env_cia_period(self, items):
+        return ('cia_period', int(items[0]))
+
+    def env_play_repeat(self, items):
+        return ('play_repeat', int(items[0]))
+
+    def environment_block(self, items):
+        e = Environment()
+        for k, v in items:
+            setattr(e, k, v)
+        return ('environment', e)
 
     def isid_master_vol(self, items):
         return ('master_vol', items[0])
@@ -1296,10 +1323,15 @@ class _T(Transformer):
         default_filter = None
         default_pulse = None
         dmc_sfx = None
+        environment = None
         offtable_vibdepth = []
+        seen_blocks = set()
         for it in items:
             if isinstance(it, tuple):
                 k, v = it
+                if k in seen_blocks:
+                    raise UsfParseError(f'duplicate top-level block: {k}')
+                seen_blocks.add(k)
                 if k == 'freq_table':
                     freq_table = v
                 elif k == 'offtable_vibdepth':
@@ -1340,6 +1372,8 @@ class _T(Transformer):
                     default_pulse = v
                 elif k == 'dmc_sfx':
                     dmc_sfx = v
+                elif k == 'environment':
+                    environment = v
             elif isinstance(it, PsidMeta):
                 psid = it
             elif isinstance(it, Params):
@@ -1353,7 +1387,8 @@ class _T(Transformer):
                 subtunes.append(it)
         return UsfFile(
             psid=psid, params=params,
-            init=init, instruments=instruments, subtunes=subtunes,
+            init=init, environment=environment,
+            instruments=instruments, subtunes=subtunes,
             freq_table=freq_table, state_layout=state_layout,
             song_end=song_end, init_behavior=init_behavior,
             master_vol=master_vol, sfx=sfx, arp_programs=arp_programs,

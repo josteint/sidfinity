@@ -857,7 +857,7 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     pat_lo = _ptr_tab('<')
     pat_hi = _ptr_tab('>')
 
-    slide_phase = int(usf.params.fields.get('slide_phase', 0)) & 1
+    slide_phase = int(getattr(usf.init, 'slide_phase', 0) or 0) & 1
     # noise-attack (cymbal) onset: 0 = the burst fires at note-init
     # (canon — frame 1); 1 = one frame later (family 2 — frame 2, gated
     # by the post-note guard). A musical timing parameter of the effect.
@@ -1118,7 +1118,7 @@ fx_dual_up:
     # CIA multispeed: when the original drives play() via a CIA1 timer
     # (PSID speed bit set), the rebuild programs the SAME timer A latch
     # so libsidplayfp calls OUR play() at the identical rate. 0 = VBI.
-    cia_period = int(usf.params.fields.get('cia_period', 0)) & 0xFFFF
+    cia_period = int(usf.environment.cia_period if usf.environment else 0) & 0xFFFF
     cia_init = ''
     if cia_period:
         cia_init = (
@@ -1132,7 +1132,7 @@ fx_dual_up:
     # engine N times per VBI. Emit the JT play entry as an N-fold JSR wrapper
     # (the original's `JSR play x N : RTS`), so each VBI logs N play()s worth of
     # writes — matching the orig's per-frame write count under flat capture.
-    play_repeat = max(1, int(usf.params.fields.get('play_repeat', 1)))
+    play_repeat = max(1, int(usf.environment.play_repeat if usf.environment else 1))
     # PLAY-PHASE wrapper (factory-observed, ledger C9): the original's play
     # vector cycles full-play / effects-only calls — the DMC slow-tempo /
     # smooth-effects editing trick (e.g. 'PFFF' = full play every 4th call;
@@ -2599,8 +2599,8 @@ def build_dmc_sid(usf: UsfFile) -> bytes:
     code = assemble(asm)
     # CIA multispeed: set the PSID speed bit for every subtune so
     # libsidplayfp drives play() via the CIA1 timer A our init programs.
-    speed = ((1 << len(usf.subtunes)) - 1) if usf.params.fields.get(
-        'cia_period') else 0
+    speed = ((1 << len(usf.subtunes)) - 1) if (
+        usf.environment and usf.environment.cia_period) else 0
     # Header clock/SID-model flags from the USF psid block (extracted from
     # the orig header): the write-log verdict is BLIND to these, but a 6581
     # build of an 8580 tune sounds wrong (filter curve, combined waves) —

@@ -149,8 +149,8 @@ def usf_to_model(usf: UsfFile) -> V5Model:
         lo_fchi=flt.cutoff_hi if flt else 0,
         lo_fclo=flt.cutoff_lo if flt else 0,
         lo_spdctr=spdctr, lo_notes=notes, lo_mvolfrac=mvolfrac,
-        cia_period=(int(usf.params.fields.get('cia_period', 0))
-                    if usf.params and usf.params.fields else 0),
+        cia_period=(int(usf.environment.cia_period)
+                    if getattr(usf, 'environment', None) else 0),
         title=usf.psid.title, author=usf.psid.author,
         released=usf.psid.released,
         clock=usf.psid.clock, sid_model=usf.psid.sid,

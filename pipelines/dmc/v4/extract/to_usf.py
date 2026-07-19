@@ -22,6 +22,7 @@ from __future__ import annotations
 import os
 
 from src.usf.types import (
+    Environment,
     UsfFile, PsidMeta, Params, InitState, InitSid, InitFilter, InitVoice,
     Instrument, PwmConfig, VibratoConfig, EnvelopeConfig,
     FreqSlideConfig, FilterProgConfig, ArpConfig,
@@ -331,15 +332,7 @@ def model_to_usf(m: DmcModel) -> UsfFile:
         psid=PsidMeta(title=m.title, author=m.author, released=m.released,
                       clock=m.clock, sid=m.sid_model,
                       start_song=m.start_song),
-        # slide_phase: initial phase bit of the global half-rate slide
-        # clock (work-file leftover; shifts WHICH frames dual-effect
-        # voices update on — audible interleave phase). cia_period: the
-        # multispeed CIA1 timer A latch (0 = single-speed VBI).
         params=Params(fields={
-            **({'slide_phase': m.dual_phase} if m.dual_phase else {}),
-            **({'cia_period': m.cia_period} if m.cia_period else {}),
-            # internal-multispeed play-repeat count (>1 = play() loops Nx/VBI)
-            **({'play_repeat': m.play_repeat} if m.play_repeat > 1 else {}),
             # otrk phase-offset scalars (see _otrk_pad)
             **pad_fields,
             # family-2 build knobs (factory-probed; empty for canon)
@@ -348,13 +341,22 @@ def model_to_usf(m: DmcModel) -> UsfFile:
         # freewheel schedule for stopped voices is unverified vs the orig
         # (see composer_asm DMC_OFFTABLE_STATE note); priming would change
         # gate-logic behaviour for every member with $1786-8 leftovers.
+        # slide_phase: engine-state priming (trichotomy §4.5) — initial
+        # phase bit of the global half-rate slide clock (work-file
+        # leftover; shifts WHICH frames dual-effect voices update on).
         init=InitState(voices=[
             InitVoice(id=v + 1,
                       note=m.idle_notes[v] or None,
                       gate_mask=m.idle_masks[v] or None,
                       dur_reload=durrel[v] or None)
             for v in range(3)
-            if m.idle_notes[v] or m.idle_masks[v] or durrel[v]]),
+            if m.idle_notes[v] or m.idle_masks[v] or durrel[v]],
+            slide_phase=m.dual_phase or 0),
+        # environment (trichotomy §4.3): CIA multispeed latch /
+        # whole-play() per-VBI repeats. None = single-speed vblank.
+        environment=(Environment(cia_period=m.cia_period or 0,
+                                 play_repeat=m.play_repeat or 1)
+                     if (m.cia_period or m.play_repeat > 1) else None),
         instruments=[_instrument_to_usf(m.instruments[k], m.wavepos_layout,
                                         m.offtable_canon)
                      for k in sorted(m.instruments)],
