@@ -9,6 +9,25 @@ metadata:
 
 ## STATUS (head — newest wins; update THIS section, prepend new rounds here)
 
+**2026-07-20: STATED-DURATION pattern rows (D6 piece 2, ledger C32
+canonicalized) — batch 2530 FULL / 140 partial (baseline 2528/142 + 2
+recoveries, 0 regressions), corpus re-mass-written (2530, 0 err).**
+Patterns dedup by fc_id alone — the (fc_id, init_len) variant
+materialization is GONE (probe: 18,147 phantom duplicates = +41% of the
+corpus pattern pool, in 97% of members; true behavioral variants only
+156 in 41 members). Rows carry $8x setlen marks only where the FC
+stream states them (absent = inherit; chained $8x = the resolved
+total); `loop@N len=L` + the deep-chain reject class replaced by
+DERIVED head omission; voices whose first played row inherits emit
+per-subtune `init { voice N { dur_field: 1 } }` (the resolver seed).
+Composer: build_pattern_pool runs `src/usf/resolve.py` and interns
+per-entry materialized rows (dedup by encoded bytes collapses the
+redundancy — emission byte-identical: golden 2527/2528, the 1 diff =
+Text_Editor_1_3_intro, the predicted deep-chain FULL member,
+re-verified FULL). RECOVERIES: Man_of_Noise + Love_Boat_Tune
+partial→FULL (the wrap-carry deep-chain class, unrepresentable
+before). Breda_Hub stays partial (different first divergence, play 84).
+
 **2026-07-19:** orderlists migrated to the STATED form (D6 resolved,
 ledger C32 sibling): transpose+voiceinc stated-command marks, derived wrap
 pickup, trailing commands as terminator `+T` (a trailing reset flipped 61

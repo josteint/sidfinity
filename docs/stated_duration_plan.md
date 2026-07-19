@@ -116,3 +116,18 @@ then feeding their existing encoders:
 
 Fallback rule (user-ratified scope): any member that doesn't fold
 keeps its current representation wholesale.
+
+## Outcome (2026-07-20)
+
+- src/usf capability + resolver: regression green, committed 83776309.
+- FC: golden 2527/2528 byte-identical (1 predicted expected-diff,
+  re-verified FULL); full batch **2530 FULL / 140 partial** = baseline
+  + 2 recoveries (Man_of_Noise, Love_Boat_Tune — the deep-chain wrap
+  class), 0 regressions; corpus mass-written 2530/0 err (15d4c87d).
+- DMC: family-1 golden **5394/5394 byte-identical** (7 known both-err);
+  dmc_smoke 6/6; regression green (ca22acce). The Nocturno lesson
+  (sectpos width source) + the vol-discriminability fallback guard are
+  recorded in ledger C32.
+- `len=L` retired end-to-end + spec updated (acf52066); C32
+  canonicalized 2×, D6 fully closed (d77603f6).
+- DMC full family batch + mass-write: see project_dmc round 74.
