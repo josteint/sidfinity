@@ -516,48 +516,102 @@ class _Model:
                 # otrk_pad phase scalar, extract-measured; the dual_phase
                 # pattern). Off-table reads sonify this counter ($1726,x), so
                 # the runtime keeps otrk,x as real state seeded per entry.
-                pad = int(usf.params.fields.get(
-                    f'otrk_pad_s{sub.id}_v{v.id}', 0) or 0)
-                period = int(usf.params.fields.get(
-                    f'otrk_period_s{sub.id}_v{v.id}', 0) or 0) \
-                    or len(ol.entries) or 1
-                legacy = bool(usf.params.fields.get(
-                    f'otrk_legacy_s{sub.id}_v{v.id}', 0))
-                # rcmd = bitmask of physical entries the composer preceded with
-                # a REDUNDANT transpose command (their arrangement); the byte
-                # offset is DERIVED from it (each such command = +1 byte for
-                # that entry onward, within the period). See _otrk_rcmd_model.
-                rcmd = int(usf.params.fields.get(
-                    f'otrk_rcmd_s{sub.id}_v{v.id}', 0) or 0)
-                # cur = the transpose the leading command already set (matches
-                # _otrk_model / _otrk_rcmd_model — avoids double-counting a
-                # leading transpose command; pad covers its byte)
-                cur0 = ol.transpose_at(0) if ol.entries else 0
-                off, cur, red = pad, cur0, 0
-                for i, e in enumerate(ol.entries):
-                    p = i % period
-                    if i and p == 0:
-                        off, cur, red = pad, cur0, 0  # physical-track boundary
+                def _emit_entry(pid, t, val):
                     enc = _encode_pattern(
                         [_row_event(r, self.inst_slot)
-                         for r in pat_by_local[e].rows],
-                        _pattern_secvals(pat_by_local[e].rows)
+                         for r in pat_by_local[pid].rows],
+                        _pattern_secvals(pat_by_local[pid].rows)
                         if self.sectpos else None)
                     gid = pat_ids.get(enc)
                     if gid is None:
                         gid = len(self.patterns)
                         self.patterns.append(enc)
                         pat_ids[enc] = gid
-                    t = ol.transpose_at(i)
-                    if t != cur:
-                        off, cur = off + 1, t
-                    if rcmd & (1 << p):
-                        red += 1
-                    # legacy: unmodeled counter phase (piecewise redundancy)
-                    # -> the historical entry+1 approximation, unchanged
-                    val = (i + 1) if legacy else (off + red)
-                    track += bytes([(t + 64) & 0xFF, gid, val & 0xFF])
-                    off += 1
+                    return bytes([(t + 64) & 0xFF, gid, val & 0xFF])
+
+                if getattr(ol, 'stated', False):
+                    # STATED (physical, de-unrolled) form: entries are the
+                    # physical track; transpose marks are the notation
+                    # (absent = inherit, state carries over the wrap);
+                    # intro_entries carry the first-pass decode where the
+                    # loop-carried sector state makes it differ. Emission =
+                    # intro pass + steady cycle — reproducing the walk's
+                    # 2-pass state-closure unroll byte-for-byte. The byte
+                    # offset of each slot's sector byte (the $1726 counter
+                    # value off-table reads sonify) is DERIVED from the
+                    # marks; the fitted otrk_pad/period/rcmd params are gone.
+                    P = len(ol.entries)
+                    marks = list(ol.stated_marks or [None] * P)
+                    extras = list(ol.extra_cmds or [0] * P)
+                    intros = list(ol.intro_entries or [None] * P)
+                    offs = []
+                    cum = 0
+                    for i in range(P):
+                        if marks[i] is not None:
+                            cum += 1 + (extras[i] or 0)
+                        offs.append(cum + i)
+                    eff = []
+                    cur = 0
+                    for i in range(P):
+                        if marks[i] is not None:
+                            cur = marks[i]
+                        eff.append(cur)
+                    for i in range(P):
+                        pid = intros[i] if intros[i] is not None \
+                            else ol.entries[i]
+                        track += _emit_entry(pid, eff[i], offs[i] & 0xFF)
+                    if ol.loop_to is not None:
+                        S = ol.loop_to
+                        cur = eff[P - 1] if P else 0
+                        for i in range(S, P):
+                            if marks[i] is not None:
+                                cur = marks[i]
+                            track += _emit_entry(ol.entries[i], cur,
+                                                 offs[i] & 0xFF)
+                else:
+                    pad = int(usf.params.fields.get(
+                        f'otrk_pad_s{sub.id}_v{v.id}', 0) or 0)
+                    period = int(usf.params.fields.get(
+                        f'otrk_period_s{sub.id}_v{v.id}', 0) or 0) \
+                        or len(ol.entries) or 1
+                    legacy = bool(usf.params.fields.get(
+                        f'otrk_legacy_s{sub.id}_v{v.id}', 0))
+                    # rcmd = bitmask of physical entries the composer preceded with
+                    # a REDUNDANT transpose command (their arrangement); the byte
+                    # offset is DERIVED from it (each such command = +1 byte for
+                    # that entry onward, within the period). See _otrk_rcmd_model.
+                    rcmd = int(usf.params.fields.get(
+                        f'otrk_rcmd_s{sub.id}_v{v.id}', 0) or 0)
+                    # cur = the transpose the leading command already set (matches
+                    # _otrk_model / _otrk_rcmd_model — avoids double-counting a
+                    # leading transpose command; pad covers its byte)
+                    cur0 = ol.transpose_at(0) if ol.entries else 0
+                    off, cur, red = pad, cur0, 0
+                    for i, e in enumerate(ol.entries):
+                        p = i % period
+                        if i and p == 0:
+                            off, cur, red = pad, cur0, 0  # physical-track boundary
+                        enc = _encode_pattern(
+                            [_row_event(r, self.inst_slot)
+                             for r in pat_by_local[e].rows],
+                            _pattern_secvals(pat_by_local[e].rows)
+                            if self.sectpos else None)
+                        gid = pat_ids.get(enc)
+                        if gid is None:
+                            gid = len(self.patterns)
+                            self.patterns.append(enc)
+                            pat_ids[enc] = gid
+                        t = ol.transpose_at(i)
+                        if t != cur:
+                            off, cur = off + 1, t
+                        if rcmd & (1 << p):
+                            red += 1
+                        # legacy: unmodeled counter phase (piecewise redundancy)
+                        # -> the historical entry+1 approximation, unchanged
+                        val = (i + 1) if legacy else (off + red)
+                        track += bytes([(t + 64) & 0xFF, gid, val & 0xFF])
+                        off += 1
+
                 # loop tail emitted by the data section as a label-arithmetic
                 # 16-bit target ($FF, <lbl+n*3, >lbl+n*3): a 3-byte-entry
                 # track exceeds 255 bytes past 85 entries, so both the loop
@@ -567,6 +621,10 @@ class _Model:
                 if ol.stop:
                     track.append(0xFE)
                     voices.append((bytes(track), None))
+                elif getattr(ol, 'stated', False):
+                    # stated form: the emitted cycle starts right after the
+                    # intro pass — loop target = entry index P
+                    voices.append((bytes(track), len(ol.entries)))
                 else:
                     voices.append((bytes(track), (ol.loop_to or 0)))
             sid = sub.init.sid if (sub.init and sub.init.sid) else None

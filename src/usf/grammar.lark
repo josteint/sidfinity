@@ -502,12 +502,19 @@ g_field: "dyn" "=" number      -> g_dyn
        | "mode" "=" number      -> g_mode
        | "route" "=" number     -> g_route
 
-voice_block: "voice" INT "{" "orderlist" ":" orderlist pattern_block* "}"
+// `orderlist stated:` = the PHYSICAL de-unrolled track form (DMC): entry
+// modifiers are STATED transpose commands (absent = inherit; state carries
+// over the loop wrap), `~b` = intro-pass decode variant, `!k` = k extra dead
+// command bytes. Plain `orderlist:` = per-entry EFFECTIVE transposes (FC).
+voice_block: "voice" INT "{" "orderlist" ol_stated? ":" orderlist pattern_block* "}"
+ol_stated: "stated"
 orderlist: orderlist_entry+ orderlist_terminator?
          | orderlist_terminator
 // entry: a[*b][+c][^d]  — a=pattern id, b=repeats, c=transpose, d=voiceinc.
 // Operand first, then a homogeneous list of <operator><parameter> modifiers.
-orderlist_entry: INT ol_repeat? (ol_transpose | ol_transpose_neg)? ol_voiceinc?
+orderlist_entry: INT ol_intro? ol_repeat? (ol_transpose | ol_transpose_neg)? ol_extra? ol_voiceinc?
+ol_intro: "~" INT
+ol_extra: "!" INT
 ol_repeat: "*" INT
 ol_transpose: "+" INT
 ol_transpose_neg: "-" INT

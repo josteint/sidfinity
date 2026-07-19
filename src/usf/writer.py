@@ -544,9 +544,30 @@ def _write_orderlist(o: Orderlist) -> str:
     parts = []
     for i, e in enumerate(o.entries):
         rep = o.repeat_at(i)
-        tr = o.transpose_at(i)
         vi = o.voiceinc_at(i)
         s = str(e)
+        if getattr(o, 'stated', False):
+            # stated form: b[~i][*r][+c][!k][^d]; +c emitted iff a command
+            # byte exists (incl. +0 / redundant re-statements)
+            intro = (o.intro_entries[i]
+                     if i < len(getattr(o, 'intro_entries', []) or []) else None)
+            if intro is not None:
+                s += f'~{intro}'
+            if rep != 1:
+                s += f'*{rep}'
+            mark = (o.stated_marks[i]
+                    if i < len(getattr(o, 'stated_marks', []) or []) else None)
+            if mark is not None:
+                s += f'+{mark}' if mark >= 0 else f'{mark}'
+            extra = (o.extra_cmds[i]
+                     if i < len(getattr(o, 'extra_cmds', []) or []) else 0)
+            if extra:
+                s += f'!{extra}'
+            if vi:
+                s += f'^{vi}'
+            parts.append(s)
+            continue
+        tr = o.transpose_at(i)
         if rep != 1:
             s += f'*{rep}'
         if tr:
@@ -587,7 +608,9 @@ def _write_pattern(p: Pattern) -> list[str]:
 
 def _write_voice(v: VoiceBlock) -> list[str]:
     lines = [f'  voice {v.id} {{']
-    lines.append(f'    orderlist: {_write_orderlist(v.orderlist)}')
+    kw = 'orderlist stated:' if getattr(v.orderlist, 'stated', False) \
+        else 'orderlist:'
+    lines.append(f'    {kw} {_write_orderlist(v.orderlist)}')
     for p in sorted(v.patterns, key=lambda x: x.id):
         lines.extend(_write_pattern(p))
     lines.append('  }')

@@ -114,6 +114,23 @@ class Orderlist:
     entries: list[int] = field(default_factory=list)
     loop_to: Optional[int] = None      # position to jump to after the list
     stop: bool = False                  # true iff terminator is `stop`
+    # ----- STATED form (`orderlist stated:`) — physical de-unrolled track -----
+    # When True, the list is the PHYSICAL track (one pass) and the transpose
+    # modifiers are STATED COMMANDS (the notation the composer typed, incl.
+    # redundant re-statements): `stated_marks[i]` = the command value before
+    # entry i, or None (no command byte — the entry INHERITS the running
+    # transpose; state carries over the loop wrap, so the intro pass and the
+    # steady loop derive different effective values). `extra_cmds[i]` = extra
+    # dead command bytes before entry i (overwritten before any note; audible
+    # only through the track byte-position counter some members sonify).
+    # `intro_entries[i]` = the pattern the slot plays on the INTRO pass when
+    # the carried sector state makes its first decode differ (None = same as
+    # `entries[i]`, the steady decode). `transposes` then holds the DERIVED
+    # intro-pass effective values (parser computes them from the marks).
+    stated: bool = False
+    stated_marks: list = field(default_factory=list)
+    extra_cmds: list = field(default_factory=list)
+    intro_entries: list = field(default_factory=list)
     # Loop PICKUP transpose (`loop@N+T`): the transpose in effect when the
     # list wraps — the engine's transpose state CARRIES OVER the wrap, so a
     # loop head with no explicit transpose plays passes 2+ under the

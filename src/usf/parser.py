@@ -853,24 +853,37 @@ class _T(Transformer):
     def ol_looplen(self, items):
         return ('ll', int(items[0]))
 
+    def ol_intro(self, items):
+        return ('intro', int(items[0]))
+
+    def ol_extra(self, items):
+        return ('extra', int(items[0]))
+
+    def ol_stated(self, _):
+        return ('stated_flag',)
+
     def orderlist_entry(self, items):
-        # a[*b][+c][^d] → ('entry', pattern_id, transpose, voiceinc, repeats)
-        # The bare Token is the pattern id (operand, first); modifier
-        # sub-rules arrive as tagged tuples.
+        # a[~i][*b][+c][!k][^d] → ('entry', pid, tr, vi, rep, intro, extra)
+        # tr is None when the modifier is ABSENT (stated form: absent =
+        # inherit; legacy form: absent = 0 — voice_block resolves).
         pid = None
-        rep, tr, vi = 1, 0, 0
+        rep, tr, vi, intro, extra = 1, None, 0, None, 0
         for it in items:
             if isinstance(it, tuple):
-                kind, val = it
+                kind, val = it[0], it[1] if len(it) > 1 else None
                 if kind == 'rep':
                     rep = val
                 elif kind == 'tr':
                     tr = val
                 elif kind == 'vi':
                     vi = val
+                elif kind == 'intro':
+                    intro = val
+                elif kind == 'extra':
+                    extra = val
             else:
                 pid = int(it)
-        return ('entry', pid, tr, vi, rep)
+        return ('entry', pid, tr, vi, rep, intro, extra)
 
     def orderlist(self, items):
         # entries followed by optional terminator
@@ -882,31 +895,37 @@ class _T(Transformer):
         loop_transpose = None
         loop_length = None
         stop = False
+        intros = []
+        extras = []
         for it in items:
             kind = it[0]
             if kind == 'entry':
-                _, pid, tr, vi, rep = it
+                _, pid, tr, vi, rep, intro, extra = it
                 entries.append(pid)
                 transposes.append(tr)
                 voiceincs.append(vi)
                 repeats.append(rep)
+                intros.append(intro)
+                extras.append(extra)
             elif kind == 'loop':
                 loop_to, loop_transpose, loop_length = it[1]
             elif kind == 'stop':
                 stop = True
-        # Omit each modifier list when it carries no information (clean
-        # round-trip output + backward-compatible default).
-        if not any(transposes):
-            transposes = []
-        if not any(voiceincs):
-            voiceincs = []
+        # Raw transpose slots are None where the modifier was absent; the
+        # stated-vs-legacy resolution happens in voice_block (which sees
+        # the `stated` keyword). Stash the raw lists on the Orderlist.
         if all(r == 1 for r in repeats):
             repeats = []
-        return Orderlist(entries=entries, loop_to=loop_to, stop=stop,
-                         loop_transpose=loop_transpose,
-                         loop_length=loop_length,
-                         transposes=transposes, voiceincs=voiceincs,
-                         repeats=repeats)
+        if not any(voiceincs):
+            voiceincs = []
+        o = Orderlist(entries=entries, loop_to=loop_to, stop=stop,
+                      loop_transpose=loop_transpose,
+                      loop_length=loop_length,
+                      transposes=transposes, voiceincs=voiceincs,
+                      repeats=repeats)
+        o.intro_entries = intros if any(x is not None for x in intros) else []
+        o.extra_cmds = extras if any(extras) else []
+        return o
 
     def pattern_block(self, items):
         # INT INT note_row*
@@ -917,8 +936,28 @@ class _T(Transformer):
 
     def voice_block(self, items):
         voice_id = int(items[0])
-        orderlist = items[1]
-        patterns = list(items[2:])
+        stated = any(isinstance(it, tuple) and it and it[0] == 'stated_flag'
+                     for it in items)
+        rest = [it for it in items
+                if not (isinstance(it, tuple) and it and it[0] == 'stated_flag')]
+        orderlist = rest[1]
+        patterns = list(rest[2:])
+        raw = orderlist.transposes            # None = modifier absent
+        if stated:
+            # STATED form: raw values are the stated command marks; the
+            # effective (intro-pass) transposes are derived by inheritance
+            # (cur starts at 0 — the engine's init transpose).
+            orderlist.stated = True
+            orderlist.stated_marks = list(raw)
+            eff, cur = [], 0
+            for v in raw:
+                if v is not None:
+                    cur = v
+                eff.append(cur)
+            orderlist.transposes = eff if any(eff) else []
+        else:
+            orderlist.transposes = (
+                [v or 0 for v in raw] if any(v for v in raw) else [])
         return VoiceBlock(id=voice_id, orderlist=orderlist, patterns=patterns)
 
     # ----- notes + pitches + instrument refs + fx -----

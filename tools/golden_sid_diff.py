@@ -158,7 +158,7 @@ def _writestream_class(rel: str, new_sid: bytes) -> str:
             # (NOT match==len: legacy `match` is max(with-init, post-init) and is
             # on a different basis than len_a/len_b — comparing them false-fires).
             r = compare_instruction_stream(a, b)
-            if r['first_diff'] is not None or r['len_a'] != r['len_b']:
+            if not (r['match_all'] == r['len_all_a'] == r['len_all_b']):
                 return 'REGRESSION'
         return 'inert'
     except Exception as e:  # noqa: BLE001

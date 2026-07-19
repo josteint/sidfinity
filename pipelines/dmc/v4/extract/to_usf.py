@@ -162,6 +162,103 @@ def _instrument_to_usf(inst, wavepos_layout: bool = False,
     )
 
 
+def _fold_stated_orderlist(v):
+    """Fold _walk_track's state-closure unroll into the PHYSICAL stated
+    form (the de-unroll, 2026-07-18): one pass of physical entries with
+    per-entry STATED transpose-command marks (directly observed from the
+    track's byte offsets — a command byte is either there or not; no
+    fitting), per-slot INTRO-pass decode variants where the loop-carried
+    sector state makes the first decode differ, and a physical loop slot.
+    The composer re-derives the unrolled emission (full pass + cycle),
+    the effective transposes of both passes, and the byte-offset counter
+    values the off-table reads sonify — all from this form; the fitted
+    otrk_pad/otrk_period/otrk_rcmd params are gone.
+
+    Returns (entries, marks, extras, intros, loop_slot_or_None) or None
+    when the walk output doesn't fit the universal 2-pass rho structure
+    (→ caller keeps the legacy representation + otrk_legacy flag)."""
+    n = len(v.entries)
+    offs = v.entry_offsets
+    if not offs or len(offs) != n:
+        return None
+
+    def _marks_for(prefix_lo, prefix_hi):
+        """Derive (mark, extra) per slot in [prefix_lo, prefix_hi) from
+        the observed byte offsets; None on inconsistency."""
+        marks, extras = [], []
+        for i in range(prefix_lo, prefix_hi):
+            prev_end = (offs[i - 1] + 1) if i > prefix_lo else 0
+            gap = offs[i] - prev_end     # command bytes before this sector
+            if gap < 0:
+                return None
+            if gap == 0:
+                # no command byte: transpose must be inherited unchanged
+                inherited = v.transposes[i - 1] if i > prefix_lo else 0
+                if v.transposes[i] != inherited:
+                    return None
+                marks.append(None)
+                extras.append(0)
+            else:
+                marks.append(v.transposes[i])
+                extras.append(gap - 1)
+        return marks, extras
+
+    if v.stop or v.loop_to is None:
+        r = _marks_for(0, n)
+        if r is None:
+            return None
+        marks, extras = r
+        return list(v.entries), marks, extras, [None] * n, None
+
+    # rho structure: pass0 = slots 0..B-1 (whole physical track), then the
+    # cycle (loop target .. end) walked once more until state closure.
+    B = n
+    for i in range(1, n):
+        if offs[i] <= offs[i - 1]:
+            B = i
+            break
+    if B == n or v.loop_to != B:
+        return None
+    r = _marks_for(0, B)
+    if r is None:
+        return None
+    marks, extras = r
+    # align cycle entries to physical slots by byte offset (exact identity)
+    off_to_slot = {offs[i]: i for i in range(B)}
+    slots = [off_to_slot.get(offs[j]) for j in range(B, n)]
+    if any(sl is None for sl in slots):
+        return None
+    S = slots[0]
+    if slots != list(range(S, S + len(slots))) or S + len(slots) != B:
+        return None
+    # steady decode = cycle pass; intro decode = pass0 where it differs
+    entries = list(v.entries[:B])
+    intros = [None] * B
+    for j in range(B, n):
+        sl = slots[j - B]
+        if v.entries[j] != entries[sl]:
+            intros[sl] = entries[sl]        # intro variant = pass-0 decode
+            entries[sl] = v.entries[j]      # base = steady decode
+    # verify the derived effective transposes reproduce BOTH walked passes:
+    # pass0 from cur=0, cycle continuing from pass0's end value
+    cur = 0
+    eff0 = []
+    for i in range(B):
+        if marks[i] is not None:
+            cur = marks[i]
+        eff0.append(cur)
+    if eff0 != list(v.transposes[:B]):
+        return None
+    cur = eff0[-1]
+    for j in range(B, n):
+        sl = slots[j - B]
+        if marks[sl] is not None:
+            cur = marks[sl]
+        if cur != v.transposes[j]:
+            return None
+    return entries, marks, extras, intros, S
+
+
 def _otrk_model(v):
     """The otrk phase scalars (pad, period): the engine's track counter
     ($1726,x) counts BYTES of the orig encoding, where a transpose command
@@ -249,6 +346,12 @@ def _emit_otrk_fields(m) -> dict:
     fields = {}
     for song in m.songs:
         for vi, v in enumerate(song.voices):
+            # de-unrolled (stated-form) voices carry their track notation
+            # per-entry — no fitted params needed. The fitted models below
+            # survive ONLY as the fallback for walks that don't fold (so no
+            # member's behavior can regress from the de-unroll).
+            if _fold_stated_orderlist(v) is not None:
+                continue
             r = _otrk_model(v)
             if r is not None:
                 pad, period = r
@@ -289,10 +392,27 @@ def model_to_usf(m: DmcModel) -> UsfFile:
                             length=sum(r.duration for r in rows),
                             rows=[_row_to_usf(r, cmd_flags) for r in rows])
                     for i, rows in enumerate(v.patterns)]
-            ol = Orderlist(entries=list(v.entries),
-                           transposes=(list(v.transposes)
-                                       if any(v.transposes) else []),
-                           loop_to=v.loop_to, stop=v.stop)
+            folded = _fold_stated_orderlist(v)
+            if folded is not None:
+                ents, marks, extras, intros, loop_slot = folded
+                ol = Orderlist(entries=ents, loop_to=loop_slot,
+                               stop=loop_slot is None, stated=True)
+                ol.stated_marks = marks
+                ol.extra_cmds = (extras if any(extras) else [])
+                ol.intro_entries = (intros if any(x is not None
+                                                 for x in intros) else [])
+                # derived intro-pass effective transposes (parser parity)
+                eff, cur = [], 0
+                for mk in marks:
+                    if mk is not None:
+                        cur = mk
+                    eff.append(cur)
+                ol.transposes = eff if any(eff) else []
+            else:
+                ol = Orderlist(entries=list(v.entries),
+                               transposes=(list(v.transposes)
+                                           if any(v.transposes) else []),
+                               loop_to=v.loop_to, stop=v.stop)
             voices.append(VoiceBlock(id=vi + 1, orderlist=ol, patterns=pats))
         sub_init = InitState(sid=InitSid(
             master_vol=song.master_vol,
