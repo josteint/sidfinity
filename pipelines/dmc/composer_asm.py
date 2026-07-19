@@ -32,8 +32,11 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
+import dataclasses
+
 from src.usf.types import (UsfFile, Pitch, MusicSubtune, InitState,
-                           DmcSfxSubtune)
+                           DmcSfxSubtune, InstrumentRef)
+from src.usf.resolve import resolve_voice
 from src.composer_runtime.xa65 import assemble
 from src.composer_runtime.psid import build_header
 from pipelines.dmc.engine_constants import FREQ_LO, FREQ_HI, VIBDEPTH
@@ -452,6 +455,34 @@ def _pattern_secvals(rows) -> list:
     return vals
 
 
+def _dmc_rows_stated(vb) -> bool:
+    """True iff the voice's rows are in STATED-inherited form and need the
+    resolution interpreter: any row omits its duration, or any NOTE row
+    omits its instrument (DMC's effective form always carries both; vol
+    can't discriminate — the extract guarantees a stated voice with no
+    dur/instr inheritance has no ACTIVE vol inheritance either, falling
+    back wholesale otherwise)."""
+    return any(r.duration is None
+               or (not r.pitch.is_rest and r.instr is None)
+               for p in vb.patterns for r in p.rows)
+
+
+def _materialize_row(rr):
+    """ResolvedRow -> the effective NoteRow the event encoder consumes
+    (what the old extract materialized): resolved duration; resolved
+    instrument on note rows; `vol=` flag present iff the resolved volume
+    is nonzero (the effective-form convention _row_event reads)."""
+    row = rr.row
+    flags = [f for f in row.fx_flags if not f.startswith('vol=')]
+    if rr.vol:
+        flags.insert(0, f'vol={rr.vol}')
+    instr = row.instr
+    if not row.pitch.is_rest:
+        instr = InstrumentRef(id=rr.instr_id)
+    return dataclasses.replace(row, duration=rr.duration, instr=instr,
+                               fx_flags=tuple(flags))
+
+
 class _Model:
     """Everything the asm emitter needs, distilled from the USF."""
 
@@ -516,17 +547,35 @@ class _Model:
                 # otrk_pad phase scalar, extract-measured; the dual_phase
                 # pattern). Off-table reads sonify this counter ($1726,x), so
                 # the runtime keeps otrk,x as real state seeded per entry.
-                def _emit_entry(pid, t, val):
-                    enc = _encode_pattern(
-                        [_row_event(r, self.inst_slot)
-                         for r in pat_by_local[pid].rows],
-                        _pattern_secvals(pat_by_local[pid].rows)
-                        if self.sectpos else None)
+                def _intern(events, secvals):
+                    enc = _encode_pattern(events, secvals)
                     gid = pat_ids.get(enc)
                     if gid is None:
                         gid = len(self.patterns)
                         self.patterns.append(enc)
                         pat_ids[enc] = gid
+                    return gid
+
+                def _emit_entry(pid, t, val):
+                    gid = _intern(
+                        [_row_event(r, self.inst_slot)
+                         for r in pat_by_local[pid].rows],
+                        _pattern_secvals(pat_by_local[pid].rows)
+                        if self.sectpos else None)
+                    return bytes([(t + 64) & 0xFF, gid, val & 0xFF])
+
+                def _emit_resolved(pid, resolved, t, val):
+                    # stated rows: events from the MATERIALIZED effective
+                    # rows (the resolution interpreter's output); sectpos
+                    # widths from the stated SOURCE rows' *_cmd placement
+                    # flags — sonified members carry them on stated rows
+                    # too (redundant with value presence, but ONE
+                    # unambiguous width source across stated + fallback)
+                    gid = _intern(
+                        [_row_event(_materialize_row(rr), self.inst_slot)
+                         for rr in resolved],
+                        _pattern_secvals(pat_by_local[pid].rows)
+                        if self.sectpos else None)
                     return bytes([(t + 64) & 0xFF, gid, val & 0xFF])
 
                 if getattr(ol, 'stated', False):
@@ -556,18 +605,46 @@ class _Model:
                         if marks[i] is not None:
                             cur = marks[i]
                         eff.append(cur)
-                    for i in range(P):
-                        pid = intros[i] if intros[i] is not None \
-                            else ol.entries[i]
-                        track += _emit_entry(pid, eff[i], offs[i] & 0xFF)
-                    if ol.loop_to is not None:
-                        S = ol.loop_to
-                        cur = eff[P - 1] if P else 0
-                        for i in range(S, P):
-                            if marks[i] is not None:
-                                cur = marks[i]
-                            track += _emit_entry(ol.entries[i], cur,
+                    if _dmc_rows_stated(v):
+                        # STATED rows (D6 piece 2): run the shared
+                        # resolution interpreter over intro pass + steady
+                        # cycle — re-deriving the walk's 2-pass unroll
+                        # (the old stored `~intro` variants) at compose
+                        # time from the notation + init seeds.
+                        iv = next((x for x in
+                                   (sub.init.voices if sub.init else [])
+                                   if x.id == v.id and
+                                   (x.dur_field or x.instr)), None)
+                        passes = resolve_voice(
+                            v, iv,
+                            n_passes=2 if ol.loop_to is not None else 1)
+                        for i in range(P):
+                            track += _emit_resolved(
+                                ol.entries[i], passes[0][i], eff[i],
+                                offs[i] & 0xFF)
+                        if ol.loop_to is not None:
+                            S = ol.loop_to
+                            cur = eff[P - 1] if P else 0
+                            for j, i in enumerate(range(S, P)):
+                                if marks[i] is not None:
+                                    cur = marks[i]
+                                track += _emit_resolved(
+                                    ol.entries[i], passes[1][j], cur,
+                                    offs[i] & 0xFF)
+                    else:
+                        for i in range(P):
+                            pid = intros[i] if intros[i] is not None \
+                                else ol.entries[i]
+                            track += _emit_entry(pid, eff[i],
                                                  offs[i] & 0xFF)
+                        if ol.loop_to is not None:
+                            S = ol.loop_to
+                            cur = eff[P - 1] if P else 0
+                            for i in range(S, P):
+                                if marks[i] is not None:
+                                    cur = marks[i]
+                                track += _emit_entry(ol.entries[i], cur,
+                                                     offs[i] & 0xFF)
                 else:
                     pad = int(usf.params.fields.get(
                         f'otrk_pad_s{sub.id}_v{v.id}', 0) or 0)

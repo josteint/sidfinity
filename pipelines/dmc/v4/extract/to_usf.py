@@ -115,6 +115,140 @@ def _row_to_usf(r: DmcRow, cmd_flags: bool = False) -> NoteRow:
                    fx_flags=tuple(flags))
 
 
+def _row_to_usf_stated(r: DmcRow, cmd_flags: bool) -> NoteRow:
+    """STATED row form (D6 piece 2): duration / instrument / volume are
+    carried only where the sector stream states the command byte — value
+    presence is the byte fact; an absent value INHERITS the previously
+    played row's, per src/usf/resolve.py. One physical sector is
+    therefore ONE pattern regardless of entry sticky state (the `~intro`
+    decode variants dissolve). `cmd_flags` (sectpos-sonified members
+    only — arrangement, §8, the same gate as the effective form) keeps
+    the dur_cmd/instr_cmd/vol_cmd/soft_cmd placement flags: on stated
+    rows they are redundant with value presence, but they keep the
+    composer's sectpos byte-width math on ONE unambiguous source
+    (fallback voices carry flags without presence semantics — presence-
+    based widths there would miscount)."""
+    flags = []
+    if r.vcmd:
+        flags.append(f'vol={r.vol}')
+    if cmd_flags:
+        if r.dcmd:
+            flags.append('dur_cmd')
+        if r.icmd:
+            flags.append('instr_cmd')
+        if r.vcmd:
+            flags.append('vol_cmd')
+        if r.softcmd:
+            flags.append(f'soft_cmd={r.softcmd}')
+    if r.gate_toggle:
+        flags.append('gate_toggle')
+    if r.soft or r.glide_slide:
+        flags.append('noretrig')
+    if r.glide_speed or r.glide_slide or r.glide_to is not None:
+        flags.append(f'glide={r.glide_speed}')
+    if r.glide_to is not None:
+        flags.append(f'glide_to={_pitch(r.glide_to)}')
+    dur = r.duration if r.dcmd else None
+    instr = InstrumentRef(id=r.instr + 1) if r.icmd else None
+    pitch = Pitch.rest() if r.note is None else _pitch(r.note)
+    return NoteRow(pitch=pitch, duration=dur, instr=instr,
+                   fx_flags=tuple(flags))
+
+
+def _stated_voice_form(v, ents, intros, loop_slot, soft_flags):
+    """Fold a walked voice's EFFECTIVE pattern pool into the stated form.
+
+    Returns (patterns_rows, entries, needs_instr_seed) — the deduped
+    stated pattern pool (list of row-lists, ids = list index), the
+    remapped physical entries, and whether a leading note row consumes
+    the engine's init instrument (sticky 0 = USF i1, emitted as
+    per-subtune `init { voice N { instr: i1 } }` priming so the USF stays
+    the complete spec) — or None when the stated form fails to reproduce
+    the walk's effective decode (caller keeps the effective representation
+    wholesale; no member downgrades).
+
+    Verification is the C32 discipline: re-run the SHARED resolver
+    (src/usf/resolve.py) over the stated notation (intro pass + steady
+    cycle, sticky threading) and require the resolved effective
+    (duration, instrument, volume) of every row in BOTH passes to equal
+    the walk's ground truth.
+    """
+    stated = [[_row_to_usf_stated(r, soft_flags) for r in rows]
+              for rows in v.patterns]
+
+    def _key(rows):
+        return tuple((r.pitch.name, r.pitch.octave, r.duration,
+                      r.instr.id if r.instr else None, r.fx_flags)
+                     for r in rows)
+
+    remap, pool = {}, []
+    key_to_id = {}
+    for pid, rows in enumerate(stated):
+        k = _key(rows)
+        nid = key_to_id.get(k)
+        if nid is None:
+            nid = len(pool)
+            key_to_id[k] = nid
+            pool.append(rows)
+        remap[pid] = nid
+    # the intro variant must MERGE with its steady slot (probe: 100% of
+    # variants are sticky-channel carry; anything else falls back)
+    for sl, ip in enumerate(intros):
+        if ip is not None and remap[ip] != remap[ents[sl]]:
+            return None
+    entries = [remap[p] for p in ents]
+
+    # consistency: shared-resolver re-derivation vs the walk's decode
+    from src.usf.resolve import StickyState, resolve_rows
+    st = StickyState(dur=0, instr_id=None, vol=0)
+    needs_instr_seed = False
+    vol_inherit_active = False
+
+    def _check_pass(slot_range, eff_pids):
+        nonlocal needs_instr_seed, vol_inherit_active
+        for sl, pid_eff in zip(slot_range, eff_pids):
+            rows = pool[entries[sl]]
+            resolved = resolve_rows(rows, st)
+            eff = v.patterns[pid_eff]
+            if len(resolved) != len(eff):
+                return False
+            for rr, dr in zip(resolved, eff):
+                if rr.duration != dr.duration or rr.vol != dr.vol:
+                    return False
+                if dr.vol and not any(f.startswith('vol=')
+                                      for f in rr.row.fx_flags):
+                    vol_inherit_active = True
+                if rr.instr_id is None:
+                    if dr.instr != 0:
+                        return False
+                    needs_instr_seed = True
+                elif rr.instr_id != dr.instr + 1:
+                    return False
+        return True
+
+    n = len(ents)
+    pass0 = [intros[sl] if intros[sl] is not None else ents[sl]
+             for sl in range(n)]
+    if not _check_pass(range(n), pass0):
+        return None
+    if loop_slot is not None:
+        if not _check_pass(range(loop_slot, n),
+                           [ents[sl] for sl in range(loop_slot, n)]):
+            return None
+    # DISCRIMINABILITY guard: the composer detects stated-row voices by
+    # dur/instr inheritance (vol alone can't discriminate stated from
+    # effective). A voice with NO dur/instr inheritance but ACTIVE vol
+    # inheritance (a flagless row whose effective volume is nonzero)
+    # would be misread as effective — keep such a voice on the effective
+    # representation wholesale.
+    has_marker = any(
+        r.duration is None or (not r.pitch.is_rest and r.instr is None)
+        for rows in pool for r in rows)
+    if vol_inherit_active and not has_marker:
+        return None
+    return pool, entries, needs_instr_seed
+
+
 def _instrument_to_usf(inst, wavepos_layout: bool = False,
                        canon: bool = True) -> Instrument:
     effects = set()
@@ -387,20 +521,34 @@ def model_to_usf(m: DmcModel) -> UsfFile:
     subtunes = []
     for song in m.songs:
         voices = []
+        seed_voices = []
         for vi, v in enumerate(song.voices):
-            pats = [Pattern(id=i,
-                            length=sum(r.duration for r in rows),
-                            rows=[_row_to_usf(r, cmd_flags) for r in rows])
-                    for i, rows in enumerate(v.patterns)]
             folded = _fold_stated_orderlist(v)
+            stated_form = None
             if folded is not None:
                 ents, marks, extras, intros, loop_slot = folded
-                ol = Orderlist(entries=ents, loop_to=loop_slot,
+                stated_form = _stated_voice_form(v, ents, intros, loop_slot,
+                                                 cmd_flags)
+            if folded is not None and stated_form is not None:
+                # STATED rows (D6 piece 2): one pattern per physical
+                # sector; the `~intro` decode variants are re-derived by
+                # the composer's resolution interpreter, not stored.
+                pool, entries, instr_seed = stated_form
+                if instr_seed:
+                    seed_voices.append(InitVoice(
+                        id=vi + 1, instr=InstrumentRef(id=1)))
+                pats = []
+                for i, rows in enumerate(pool):
+                    full = all(r.duration is not None for r in rows)
+                    pats.append(Pattern(
+                        id=i,
+                        length=(sum(r.duration for r in rows)
+                                if full else None),
+                        rows=rows))
+                ol = Orderlist(entries=entries, loop_to=loop_slot,
                                stop=loop_slot is None, stated=True)
                 ol.stated_marks = marks
                 ol.extra_cmds = (extras if any(extras) else [])
-                ol.intro_entries = (intros if any(x is not None
-                                                 for x in intros) else [])
                 # derived intro-pass effective transposes (parser parity)
                 eff, cur = [], 0
                 for mk in marks:
@@ -408,16 +556,45 @@ def model_to_usf(m: DmcModel) -> UsfFile:
                         cur = mk
                     eff.append(cur)
                 ol.transposes = eff if any(eff) else []
+            elif folded is not None:
+                # stated ORDERLIST, effective rows (the stated-row fold
+                # failed its re-derivation — keep the walk's decode
+                # wholesale: materialized intro variants + effective pool)
+                ents, marks, extras, intros, loop_slot = folded
+                pats = [Pattern(id=i,
+                                length=sum(r.duration for r in rows),
+                                rows=[_row_to_usf(r, cmd_flags)
+                                      for r in rows])
+                        for i, rows in enumerate(v.patterns)]
+                ol = Orderlist(entries=ents, loop_to=loop_slot,
+                               stop=loop_slot is None, stated=True)
+                ol.stated_marks = marks
+                ol.extra_cmds = (extras if any(extras) else [])
+                ol.intro_entries = (intros if any(x is not None
+                                                 for x in intros) else [])
+                eff, cur = [], 0
+                for mk in marks:
+                    if mk is not None:
+                        cur = mk
+                    eff.append(cur)
+                ol.transposes = eff if any(eff) else []
             else:
+                pats = [Pattern(id=i,
+                                length=sum(r.duration for r in rows),
+                                rows=[_row_to_usf(r, cmd_flags)
+                                      for r in rows])
+                        for i, rows in enumerate(v.patterns)]
                 ol = Orderlist(entries=list(v.entries),
                                transposes=(list(v.transposes)
                                            if any(v.transposes) else []),
                                loop_to=v.loop_to, stop=v.stop)
             voices.append(VoiceBlock(id=vi + 1, orderlist=ol, patterns=pats))
-        sub_init = InitState(sid=InitSid(
-            master_vol=song.master_vol,
-            filter=InitFilter(res_routing=m.d417_shadow)
-            if m.d417_shadow else None))
+        sub_init = InitState(
+            voices=seed_voices,
+            sid=InitSid(
+                master_vol=song.master_vol,
+                filter=InitFilter(res_routing=m.d417_shadow)
+                if m.d417_shadow else None))
         subtunes.append(MusicSubtune(id=song.id, tempo=song.speed,
                                      voices=voices, init=sub_init))
 
