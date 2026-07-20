@@ -27,6 +27,10 @@ Text_Editor_1_3_intro, the predicted deep-chain FULL member,
 re-verified FULL). RECOVERIES: Man_of_Noise + Love_Boat_Tune
 partial→FULL (the wrap-carry deep-chain class, unrepresentable
 before). Breda_Hub stays partial (different first divergence, play 84).
+Uready review 2026-07-20: all 6 criteria PASS for the stated form; one
+corpus-unhit pre-existing latent (mid-list `*r` repeat with inherited
+head + internal dur change — ledger C32 boundary note has the fix
+shape).
 
 **2026-07-19:** orderlists migrated to the STATED form (D6 resolved,
 ledger C32 sibling): transpose+voiceinc stated-command marks, derived wrap

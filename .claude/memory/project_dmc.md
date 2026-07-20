@@ -42,6 +42,14 @@ project (docs/stated_duration_plan.md; FC side in
   baseline** (zero verdict movement); mass-write re-run (corpus now
   stated-rows form). `loop@N len=L` retired from the grammar (FC-only
   form, subsumed); `~i` intro syntax RETAINED for the fallback class.
+- **LATENT (uready review 2026-07-20, masked today):** `merge_2sid_usf`
+  builds the merged subtune init from the FILE-level idle-priming
+  voices only and never reads `u.subtunes[0].init.voices` — a 2SID
+  member whose stated voice consumes the engine-init INSTR seed
+  (`instr: i1`, per-subtune) would lose it (resolver seeds instr None
+  → wrong first instrument). No current 2SID member hits it (golden
+  green). Fix when touched: propagate per-subtune init voices through
+  the merge (+ `_split_chip_usf`), or assert seedlessness at merge.
 
 ## ✅ ROUND 73 (2026-07-19): the DE-UNROLL + plan-doc closeout — orderlist physical stated form [ledger C32], environment/init typing [trichotomy §4.3/§4.5], writer role comments
 The dmc_composer_to_extract_plan's remaining phases executed + the parked

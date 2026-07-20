@@ -236,6 +236,21 @@ divergence list Move 1 must reconcile (extends the DMC-only decisions 1-4 above)
   golden 5394/5394; recoveries Man_of_Noise + Love_Boat_Tune
   partial→FULL. Ledger C32 canonicalized (2×). D6 is now FULLY closed
   — orderlist AND pattern-row sticky state are stated everywhere.
+  **Uready-review verdict (2026-07-20, focused):** the stated form
+  landed as ONE representation with ZERO new cross-family divergence —
+  `src/usf/resolve.py` is a single shared interpreter with two composer
+  consumers + Layer-3 (Move-1-style factoring done up front, the C21
+  lesson applied); NoteRow stated duration/instr semantics, Pattern
+  `length=` omission, and `stated_marks` are reused same-form across FC
+  + DMC; `InitVoice.dur_field` gained a second consumer (resolver seed
+  beside Hubbard's duration-counter init — same §4.5 concept; the
+  grammar comment is still Hubbard-phrased, one-line doc fix
+  candidate). Single-consumer-by-nature (not forks): FC
+  `stated_vmarks`/`stated_trail` (voiceinc doesn't exist in DMC), DMC
+  `~i` (fallback-only) / `!k` / `*_cmd` flags (sectpos arrangement) /
+  per-subtune instr seed / stated `vol=`. Two corpus-unhit latents on
+  file: the C32 mid-list-repeat boundary note + project_dmc's 2SID
+  seed-merge gap.
 
 **Vindicated this review:** `freq_overrun` flipped single-consumer → REUSED (FC
 standard + DMC v5) — a dimension that looked FC-specific is now shared; recorded
