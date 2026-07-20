@@ -18,7 +18,12 @@ move is the default.
 scan — the reader has to open it and notice the banner. Moving it out makes its
 non-live status unambiguous by LOCATION, so a stale proposal can't be mistaken
 for pending work. It's the CLAUDE.md "Archive on resolve" memory rule applied to
-docs.
+docs. **Deprecate, never DELETE:** the user browses `deprecated/` from time to
+time to see whether an old idea fits a new situation, so the file's residual
+value is preserved by the move itself — the archived doc IS the idea library.
+(A recurring source of these: the project's early "throw math at it and see what
+happens" explorations — decomposers, Z3/SMT, exact-learning/automata machinery —
+little of which stuck; e.g. the 2026-07-20 off-table cluster.)
 
 **How to apply:** the test is "does every live fact in it already live elsewhere
 (a memory, a ledger entry, code)?" — if yes, deprecate. Repo convention:

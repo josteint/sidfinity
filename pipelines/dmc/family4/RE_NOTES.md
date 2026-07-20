@@ -466,7 +466,7 @@ the orig's PW per off-table pointer. The play-sim horizon is correct and necessa
 first. Horizon prototype in the session transcript; NOT committed.
 
 ### 🧩 OBSERVE-AND-FIT PROTOTYPE + the DE-FUSION COUPLING (2026-06-30) — supersedes the ptr-19 framing
-Prototyped Phase 1 of the unified off-table transform (`docs/offtable_unified_transform.md`)
+Prototyped Phase 1 of the unified off-table transform (`deprecated/old_docs/offtable_unified_transform.md`, deprecated 2026-07-20)
 on this blocker. OBSERVING the orig's actual PW writes (vs re-implementing the walk)
 gave the divergence directly: at PW_lo=$60 the orig switches from PW_lo +$20 to **PW_hi
 +$08** (the off-table sweep); committed `_capture_env` keeps ramping PW_lo. Observation

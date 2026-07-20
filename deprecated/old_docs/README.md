@@ -33,8 +33,9 @@ Moved 2026-07-14 (repo deprecation sweep):
 - `offtable_freq_plan.md` — the final off-table-freq plan; all 7 phases
   ✅ DONE 2026-06-21 (absolute-freq wave steps, FC unification, schema
   cleanup). Still cited by ledger C6 + DMC/FC memories as the design
-  rationale. The living successor doc on the recurring class is
-  `docs/offtable_unified_transform.md`.
+  rationale. The recurring off-table class is now tracked by ledger
+  C2/C6/C11 (the successor proposal `offtable_unified_transform.md` was
+  never implemented — also archived here, below).
 - `cia_aware_verdict_plan.md` — CIA-aware per-play() verdict for
   `verify_all`; IMPLEMENTED 2026-06-07 (commit f82b347). The shipped
   behaviour is documented in `docs/the_core_tenet.md` (Mode 1, CIA
@@ -74,3 +75,11 @@ Moved 2026-07-20:
   Adrenalin-specific analysis + open target live in the
   `project_adrenalin` memory. Sub 0 done (Adrenalin[0] 1/1 in
   `tools/regression.py`).
+- `offtable_unified_transform.md` + `exact_learning_research.md` — the
+  off-table "throw math at it" cluster (REALIZE→CLASSIFY→FIT transform +
+  the exact-learning literature survey it spawned). Never implemented;
+  the real off-table wins were ledger C2/C8 (capture-and-truncate), and
+  the grey-box thesis shipped as `tools/taint_source.py`. Kept for
+  idea-mining (census taxonomy, taint method, deprecated math-tool
+  inventory, spectral-WFA/register-automata references). Companion
+  memory: `project_offtable_unified`.

@@ -1,5 +1,15 @@
 # Exact-learning frameworks for SID reproduction — research synthesis (2026-07-01)
 
+> **📦 ARCHIVED 2026-07-20.** Moved out of `docs/` — a late instance of the
+> project's early "throw math at it" mode; little of that math stuck. Its
+> motivating premise (the off-table pulse "couples to hidden state", the
+> combination-lock framing) was refuted the same day by the taint check in the
+> sibling doc (`offtable_unified_transform.md`) — the source is 100% static, no
+> hidden coupling. The one surviving idea (grey-box: read the binary just to
+> NAME the coupling variable) shipped as `tools/taint_source.py`. Kept here for
+> idea-mining if compact behavioral models (spectral WFA / register automata /
+> CEGIS) are ever wanted for the ML representation itself.
+
 > **STATUS 2026-07-19:** the immediate wall this research served (Jupiter41's
 > off-table pulse) was closed the SAME DAY by a far simpler route (ledger
 > C2/C8 — capture + truncate, no learning machinery). The grey-box thesis

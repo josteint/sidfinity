@@ -1,5 +1,14 @@
 # Unified off-table-read transform — design proposal (2026-06-30)
 
+> **📦 ARCHIVED 2026-07-20.** Moved out of `docs/` — a late instance of the
+> project's early "throw math at it" mode (observe-and-fit / decomposer /
+> exact-learning machinery); little of that math stuck. The actual off-table
+> wins came from the simple C2/C8 route, not this transform. Kept here for
+> idea-mining: the census taxonomy (§"Census taxonomy"), the taint
+> methodology, and the `deprecated/python_experiments` math-tool inventory
+> may transfer to a different situation. Sibling: `exact_learning_research.md`
+> (the deep-research survey this thread spawned).
+
 > **⚠️ SUPERSEDED 2026-07-01 — the proposal below was never implemented.**
 > The motivating family-4 blocker (Jupiter41) was closed via a simpler
 > route: ledger **C2** (`_capture_env` truncate-on-cap) + **C8**
