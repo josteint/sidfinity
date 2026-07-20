@@ -9,6 +9,23 @@ metadata:
 
 ## STATUS (head — newest wins; update THIS section, prepend new rounds here)
 
+**2026-07-20 (later): mid-list `*r` repeat inherited-head omission
+landed (the uready-review latent, C32 piece-2 boundary — now closed).**
+`build_pattern_pool` extends the derived head-$8x omission to mid-list
+repeated entries whose head row inherits its duration and whose pattern
+changes it internally (condition: `resolved[-1].duration !=
+resolved[0].duration`; replays 2+ then take the engine's runtime
+nootleng carry, exact for play 1 too). NOT corpus-unhit after all:
+fresh full-family golden (2530 baseline, post-acf52066 code) came back
+2529 identical + ONE diff = DEMOS/M-R/One.sid — sub 1 v2 pattern 19
+(head inherits 8, internal change to 32) repeated ×17/×57 at entries
+141/145 of 201; re-verified FULL (play 141117/141117 over 226.5 s) —
+the repeats sit past the verified window, where the OLD stamped bytes
+were latently wrong and the new omission matches runtime carry.
+Synthetic proof tmp/test_fc_midlist_repeat.py. Residual corner (both
+omission paths, corpus-unhit): stated-value-coincidence re-anchor miss
+— see the C32 boundary note.
+
 **2026-07-20: STATED-DURATION pattern rows (D6 piece 2, ledger C32
 canonicalized) — batch 2530 FULL / 140 partial (baseline 2528/142 + 2
 recoveries, 0 regressions), corpus re-mass-written (2530, 0 err).**

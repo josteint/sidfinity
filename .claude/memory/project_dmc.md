@@ -7,6 +7,29 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 75 (2026-07-20): 2SID seed-merge gap CLOSED (the r74 latent)
+`merge_2sid_usf` now carries per-SUBTUNE init voices (the stated-row
+resolver seeds, `instr: i1`) onto the merged subtune init as a level
+DISTINCT from the file-level idle-priming voices; `_split_chip_usf`
+recovers each level separately per chip. Facts established:
+- The live 2SID-merge population is exactly ONE member
+  (Surgeon/Nice_Dream_2SID) — all other 326 corpus multi-SID PSIDs are
+  not-DMC (312) or hit known scope gaps (8 Rayden multi-subtune assert,
+  4 Phobos freq-table-disagreement assert, Voice_2SID IndexError,
+  Time_2SID wave_marker_chain).
+- Nice_Dream DOES carry seeds (chip1 v2, chip2 v1+v3; all 6 voices take
+  the stated resolution path) — the pre-fix drop was INERT only because
+  `needs_instr_seed` fires on leading REST rows (walk instr = sticky 0)
+  and `_materialize_row` stamps instr on note rows only; a first NOTE
+  row inheriting instr would have KeyError'd in `_row_event`
+  (`inst_slot[None]`) pre-fix. Post-fix correct by construction.
+- Gates: multi-SID golden byte-identity 327/327 (tmp/dmc_2sid_golden.py,
+  baseline pre-change), dmc_smoke 6/6, synthetic merge→write→parse→split
+  seed-roundtrip proof (tmp/test_2sid_seed_merge.py), full regression.
+- Still-open sibling (unchanged, corpus-inert): the merge drops per-chip
+  `init.slide_phase` (one scalar slot for N chips) and supports
+  single-subtune members only.
+
 ## ✅ ROUND 74 (2026-07-20): STATED pattern rows (D6 piece 2) — ~intro variants dissolved [ledger C32 CANONICALIZED 2×]
 The C32 boundary note's "deferred deep half" executed as a cross-family
 project (docs/stated_duration_plan.md; FC side in
@@ -42,7 +65,7 @@ project (docs/stated_duration_plan.md; FC side in
   baseline** (zero verdict movement); mass-write re-run (corpus now
   stated-rows form). `loop@N len=L` retired from the grammar (FC-only
   form, subsumed); `~i` intro syntax RETAINED for the fallback class.
-- **LATENT (uready review 2026-07-20, masked today):** `merge_2sid_usf`
+- **LATENT — RESOLVED in round 75 (above):** `merge_2sid_usf`
   builds the merged subtune init from the FILE-level idle-priming
   voices only and never reads `u.subtunes[0].init.voices` — a 2SID
   member whose stated voice consumes the engine-init INSTR seed
