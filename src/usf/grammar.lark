@@ -149,10 +149,12 @@ init_inner: init_voice | init_sid_block | init_slide_phase
 // bit of the shared half-rate slide clock (dual-effect update parity).
 init_slide_phase: "slide_phase" ":" number
 
-// Common (Hubbard-'85-shaped) voice-state fields: ctrl (SID ctrl byte
-// at engine init), dur_field (vibrato carry-path initial duration),
-// pwm_period (PWM accumulator), pwm_dir (up/down), instr (starting
-// instrument ref), slide_v (cached freq-hi for the skydive effect).
+// Common voice-state fields: ctrl (SID ctrl byte at engine init),
+// dur_field (initial note-duration state — Hubbard's vibrato carry-path
+// duration counter, AND the stated-row resolver's duration seed:
+// src/usf/resolve.py, trichotomy §4.5), pwm_period (PWM accumulator),
+// pwm_dir (up/down), instr (starting instrument ref — also the
+// resolver's instrument seed), slide_v (cached freq-hi, skydive).
 init_voice: "voice" INT "{" init_field+ "}"
 init_field: CNAME ":" init_value
 init_value: number           -> init_number
