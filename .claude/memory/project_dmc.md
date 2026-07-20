@@ -7,6 +7,42 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 74 (2026-07-20): STATED pattern rows (D6 piece 2) — ~intro variants dissolved [ledger C32 CANONICALIZED 2×]
+The C32 boundary note's "deferred deep half" executed as a cross-family
+project (docs/stated_duration_plan.md; FC side in
+[[project_fc_fingerprint_and_standard]]):
+- **Stated (dur/instr/vol) rows:** folded voices emit NoteRows whose
+  duration/instrument/`vol=` are present IFF the sector stream states
+  the command byte (presence = byte fact); absent = inherit
+  (`src/usf/resolve.py`, the ONE shared interpreter — also Layer-3 +
+  both composers). One pattern per physical sector ⇒ `~intro` decode
+  variants GONE from USF (probe over 5,825 members: 10,343 intro
+  slots in 1,673 members — channels vol 7,345 / instr 2,250 / both
+  746 / dur 2; zero non-sticky variants — the stated form provably
+  subsumes the mechanism). Pool −5.6%.
+- **Extract self-verification (C32 discipline):** re-runs the shared
+  resolver against the walk's decode for BOTH passes; mismatch ⇒ keep
+  the effective representation wholesale. Guards: vol-only inheritance
+  with no dur/instr marker is composer-indistinguishable from the
+  effective form ⇒ fallback; instr seed (engine sticky 0 = i1) emitted
+  as per-subtune init-voice priming when a leading row consumes it
+  (dur seed 0 = the dur_field default, no emission).
+- **Composer:** stated branch runs the resolution interpreter (intro
+  pass + steady cycle re-derive the walk's 2-pass unroll at compose
+  time); `_dmc_rows_stated` (any inherited dur, or note-row instr)
+  picks the path. **Nocturno lesson:** sonified members KEEP the
+  `*_cmd` placement flags on stated rows — redundant with presence,
+  but the sectpos byte-width math needs ONE unambiguous source across
+  stated + fallback voices (presence-only widths silently collapsed on
+  a fully-stated voice routed down the effective path; 30 crash + 1
+  wrong-width members caught by the golden gate).
+- **GATES:** family-1 golden **5394/5394 byte-identical** (7 known
+  both-err); dmc_smoke 6/6; full regression green (8 families);
+  authoritative batch **5221 FULL / 173 partial / 7 error = EXACT
+  baseline** (zero verdict movement); mass-write re-run (corpus now
+  stated-rows form). `loop@N len=L` retired from the grammar (FC-only
+  form, subsumed); `~i` intro syntax RETAINED for the fallback class.
+
 ## ✅ ROUND 73 (2026-07-19): the DE-UNROLL + plan-doc closeout — orderlist physical stated form [ledger C32], environment/init typing [trichotomy §4.3/§4.5], writer role comments
 The dmc_composer_to_extract_plan's remaining phases executed + the parked
 de-unroll done in one arc (user-directed "wrap up the loose ends"):
