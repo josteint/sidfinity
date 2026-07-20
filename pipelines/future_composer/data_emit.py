@@ -252,6 +252,19 @@ def build_pattern_pool(music_subtunes: list, instr_as_wavecount: bool = False):
                     omit = (omit_head
                             and ol.entries[i] == ol.entries[ol.loop_to]
                             and rows_m == head_rows_m)
+                    # mid-list `*r` repeat runtime inheritance (the C32
+                    # piece-2 boundary case): replays 2+ enter the pattern
+                    # with the END-of-play nootleng, not the stamped
+                    # first-play value — when the head row inherits AND the
+                    # pattern changes its duration internally, the head $8x
+                    # must stay omitted so the engine's runtime carry serves
+                    # every play (play 1's carry-in is the stamped value, so
+                    # omission is exact for it too).
+                    if (not omit and ol.repeat_at(i) > 1 and resolved
+                            and resolved[0].row.duration is None
+                            and resolved[-1].duration
+                            != resolved[0].duration):
+                        omit = True
                     entry_slots.append(_intern(rows_m, omit))
                 entrymaps[(sub.id, v.id)] = entry_slots
                 localmaps[(sub.id, v.id)] = {}
