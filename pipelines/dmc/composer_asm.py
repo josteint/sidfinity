@@ -358,9 +358,11 @@ def _row_event(row, inst_slot: dict) -> tuple:
     vol = int(flags.get('vol', 0))
     gspd = int(flags.get('glide', 0))
     if row.pitch.is_rest:
+        # legacy (materialized/effective) voices: notes re-state slot/vol, so
+        # rest/switch carry no sticky update (None -> flags=0).
         if 'gate_toggle' in flags:
-            return ('switch', row.duration)
-        return ('rest', row.duration)
+            return ('switch', row.duration, None, None)
+        return ('rest', row.duration, None, None)
     note = _note_num(row.pitch)
     slot = inst_slot[row.instr.id]
     if 'noretrig' in flags and 'glide' in flags and 'glide_to' not in flags:
@@ -371,28 +373,73 @@ def _row_event(row, inst_slot: dict) -> tuple:
         # glide up/down toward glide_to), not the slide path (Gangstallica
         # V2: slide held the OLD base and stepped down where the orig rebased
         # to A and stepped up — family-1 round 18).
-        return ('slide', gspd, note, row.duration)
+        return ('slide', gspd, note, row.duration, None, None)
     soft = 1 if 'noretrig' in flags else 0
     if 'glide_to' in flags:
-        tgt = flags['glide_to']
-        # NB the `len(tgt)==3` guard drops the '#' for a 2-digit-octave sharp
-        # (F#10 -> parsed as F-10, one semitone low). This LOOKS like a bug, but
-        # DO NOT "fix" it by `sep = tgt[1]`: glide_to octave-10+ targets are
-        # off-table "notes" (raw noteB byte $7E etc.) whose arrival check reads
-        # freqhi[126]=$1725=dtmph — a DYNAMIC scratch byte (C11 hard boundary).
-        # The parsed-125 target terminates the sweep on freqhi[125]=$1724=dtmpl,
-        # which is in a self-consistent balance with the composer's state; the
-        # "correct" 126 breaks it. Verified: `sep=tgt[1]` REGRESSED 20/104 FULL
-        # members (Calypso C-3->F#10 = a 90-semitone sweep, not a real glide),
-        # recovered 0 (Plasmachaos, the degenerate gla==125 case, has an otrk
-        # 2nd blocker). Round-22 investigation; left as-is.
-        sep = tgt[1] if len(tgt) == 3 else '-'
-        name = tgt[0] + ('#' if sep == '#' else '')
-        target = int(tgt[2:]) * 12 + NOTE_IDX[name]
-        if target == note and len(tgt) > 3 and tgt[1] == '#':
-            target = int(tgt[2:]) * 12 + NOTE_IDX[tgt[0] + '#']
+        target = _glide_target(flags['glide_to'], note)
         return ('note', soft, note, row.duration, slot, vol, gspd, target)
     return ('note', soft, note, row.duration, slot, vol, 0, None)
+
+
+def _glide_target(tgt: str, note: int) -> int:
+    """Parse a `glide_to=` flag into an absolute note number."""
+    # NB the `len(tgt)==3` guard drops the '#' for a 2-digit-octave sharp
+    # (F#10 -> parsed as F-10, one semitone low). This LOOKS like a bug, but
+    # DO NOT "fix" it by `sep = tgt[1]`: glide_to octave-10+ targets are
+    # off-table "notes" (raw noteB byte $7E etc.) whose arrival check reads
+    # freqhi[126]=$1725=dtmph — a DYNAMIC scratch byte (C11 hard boundary).
+    # The parsed-125 target terminates the sweep on freqhi[125]=$1724=dtmpl,
+    # which is in a self-consistent balance with the composer's state; the
+    # "correct" 126 breaks it. Verified: `sep=tgt[1]` REGRESSED 20/104 FULL
+    # members (Calypso C-3->F#10 = a 90-semitone sweep, not a real glide),
+    # recovered 0 (Plasmachaos, the degenerate gla==125 case, has an otrk
+    # 2nd blocker). Round-22 investigation; left as-is.
+    sep = tgt[1] if len(tgt) == 3 else '-'
+    name = tgt[0] + ('#' if sep == '#' else '')
+    target = int(tgt[2:]) * 12 + NOTE_IDX[name]
+    if target == note and len(tgt) > 3 and tgt[1] == '#':
+        target = int(tgt[2:]) * 12 + NOTE_IDX[tgt[0] + '#']
+    return target
+
+
+def _row_event_stated(rr, inst_slot: dict) -> tuple:
+    """Statedness-driven event for a STATED voice (D6 piece 3, the sticky
+    EMISSION change). Every event kind emits its instrument slot / vol override
+    ONLY where the source row STATES it (`None` = inherited — the player keeps
+    its sticky `curinst,x` / `volovr,x` register). The duration is always carried
+    (resolved `rr.duration`) — DMC's dur carry is 2 slots corpus-wide, not worth
+    a sticky seed.
+
+    Emission is by STATEDNESS (C32 "presence = the byte fact"), never
+    value-equality: statedness is pattern-intrinsic, so byte-keyed dedup still
+    collapses the ~intro variants. The sonified sectpos ($1729) / otrk ($1726)
+    counters are reproduced from the explicit per-event shadow (decoupled from
+    what this emission carries), so the sticky change is safe for the
+    off-table-sonified members."""
+    row = rr.row
+    flags = {f.split('=')[0]: (f.split('=')[1] if '=' in f else True)
+             for f in row.fx_flags}
+    # slot / vol are carried on EVERY event kind (note/rest/switch/slide),
+    # emitted only where the SOURCE states them (None = inherit). A rest that
+    # states an instrument updates the engine's sticky state (the resolver folds
+    # it in) — carrying it lets the player's ev_rest update curinst,x so a
+    # following inherited note reads the right instrument. Statedness is
+    # pattern-intrinsic, so byte-keyed dedup still collapses the ~intro variants.
+    slot = inst_slot[row.instr.id] if row.instr is not None else None
+    vol = next((int(f[4:]) for f in row.fx_flags if f.startswith('vol=')), None)
+    if row.pitch.is_rest:
+        if 'gate_toggle' in flags:
+            return ('switch', rr.duration, slot, vol)
+        return ('rest', rr.duration, slot, vol)
+    note = _note_num(row.pitch)
+    gspd = int(flags.get('glide', 0))
+    if 'noretrig' in flags and 'glide' in flags and 'glide_to' not in flags:
+        return ('slide', gspd, note, rr.duration, slot, vol)
+    soft = 1 if 'noretrig' in flags else 0
+    if 'glide_to' in flags:
+        return ('note', soft, note, rr.duration, slot, vol, gspd,
+                _glide_target(flags['glide_to'], note))
+    return ('note', soft, note, rr.duration, slot, vol, 0, None)
 
 
 def _encode_pattern(rows_events: list, secvals: list | None = None) -> bytes:
@@ -401,23 +448,47 @@ def _encode_pattern(rows_events: list, secvals: list | None = None) -> bytes:
     every handler stores it to sectpos,x at fetch, mirroring the orig's
     per-byte INC + $7F reset settled value."""
     out = bytearray()
+
+    def _sv_tail(slot, vol):
+        # STICKY slot/vol values (D6 piece 3), appended only when stated (None =
+        # inherit -> the player keeps its sticky curinst,x / volovr,x).
+        return ([slot] if slot is not None else []) + \
+               ([vol] if vol is not None else [])
+
+    def _dur_sv(dur, slot, vol):
+        # rest/switch/slide have no flags byte, so slot/vol PRESENCE rides the
+        # two free high bits of the always-present duration byte (dur <= $3F):
+        # bit6 = slot, bit7 = vol. A plain rest is thus [op, dur] — no extra byte.
+        return (dur & 0x3F) | (0x40 if slot is not None else 0) \
+                            | (0x80 if vol is not None else 0)
+
     for k, ev in enumerate(rows_events):
         kind = ev[0]
         sp = [] if secvals is None else [secvals[k] & 0xFF]
         if kind == 'rest':
-            out += bytes([0x02] + sp + [ev[1] & 0x3F])
+            _, dur, slot, vol = ev
+            out += bytes([0x02] + sp + [_dur_sv(dur, slot, vol)]
+                         + _sv_tail(slot, vol))
         elif kind == 'switch':
-            out += bytes([0x03] + sp + [ev[1] & 0x3F])
+            _, dur, slot, vol = ev
+            out += bytes([0x03] + sp + [_dur_sv(dur, slot, vol)]
+                         + _sv_tail(slot, vol))
         elif kind == 'slide':
-            _, gspd, note, dur = ev
-            out += bytes([0x04] + sp + [gspd, note, dur & 0x3F])
+            _, gspd, note, dur, slot, vol = ev
+            out += bytes([0x04] + sp + [gspd, note, _dur_sv(dur, slot, vol)]
+                         + _sv_tail(slot, vol))
         else:
             _, soft, note, dur, slot, vol, gspd, target = ev
-            # glide tail keyed on TARGET PRESENCE, not speed truthiness: a
-            # mode-0 glide with speed 0 is the engine's glide-cancel (glsp
-            # gets STORED 0), which must reach ev_note's glide path (C22).
+            # notes already carry a flags byte, so slot/vol presence rides
+            # evflags bit3 (slot) / bit4 (vol) — no extra byte. glide tail keyed
+            # on TARGET PRESENCE, not speed truthiness: a mode-0 glide with
+            # speed 0 is the engine's glide-cancel (glsp STORED 0), which must
+            # reach ev_note's glide path (C22).
             f = soft | (2 if target is not None else 0)
-            out += bytes([0x01] + sp + [f, note, dur & 0x3F, slot, vol])
+            f |= (0x08 if slot is not None else 0) \
+                 | (0x10 if vol is not None else 0)
+            out += bytes([0x01] + sp + [f, note, dur & 0x3F]
+                         + _sv_tail(slot, vol))
             if target is not None:
                 out += bytes([gspd, target])
     out.append(0x00)
@@ -465,22 +536,6 @@ def _dmc_rows_stated(vb) -> bool:
     return any(r.duration is None
                or (not r.pitch.is_rest and r.instr is None)
                for p in vb.patterns for r in p.rows)
-
-
-def _materialize_row(rr):
-    """ResolvedRow -> the effective NoteRow the event encoder consumes
-    (what the old extract materialized): resolved duration; resolved
-    instrument on note rows; `vol=` flag present iff the resolved volume
-    is nonzero (the effective-form convention _row_event reads)."""
-    row = rr.row
-    flags = [f for f in row.fx_flags if not f.startswith('vol=')]
-    if rr.vol:
-        flags.insert(0, f'vol={rr.vol}')
-    instr = row.instr
-    if not row.pitch.is_rest:
-        instr = InstrumentRef(id=rr.instr_id)
-    return dataclasses.replace(row, duration=rr.duration, instr=instr,
-                               fx_flags=tuple(flags))
 
 
 class _Model:
@@ -564,15 +619,17 @@ class _Model:
                         if self.sectpos else None)
                     return bytes([(t + 64) & 0xFF, gid, val & 0xFF])
 
+                # D6 piece 3 STICKY EMISSION: every event emits its instrument
+                # slot / vol only where the SOURCE row states it (None = inherit
+                # -> the player keeps its sticky curinst,x / volovr,x); duration
+                # is always carried. rest/switch/slide carry a stated slot/vol
+                # too, so a rest's instrument command still updates the sticky
+                # state at the player. Byte-keyed dedup then collapses the
+                # (formerly per-entry) ~intro variants that differed only by
+                # carried slot/vol.
                 def _emit_resolved(pid, resolved, t, val):
-                    # stated rows: events from the MATERIALIZED effective
-                    # rows (the resolution interpreter's output); sectpos
-                    # widths from the stated SOURCE rows' *_cmd placement
-                    # flags — sonified members carry them on stated rows
-                    # too (redundant with value presence, but ONE
-                    # unambiguous width source across stated + fallback)
                     gid = _intern(
-                        [_row_event(_materialize_row(rr), self.inst_slot)
+                        [_row_event_stated(rr, self.inst_slot)
                          for rr in resolved],
                         _pattern_secvals(pat_by_local[pid].rows)
                         if self.sectpos else None)
@@ -1814,6 +1871,10 @@ ini_v:
         sta gla,x                    ; read tracks orig from init; glsp=0 so
         lda iglb,x                   ; fx_glide stays gated off until an arm)
         sta glb,x
+        lda #$00                     ; sticky-emission seeds (D6 piece 3): a
+        sta curinst,x                ; leading inherited slot resolves to the
+        sta volovr,x                 ; engine sticky (i1 = slot 0) / vol 0 —
+                                     ; matches the resolver's StickyState seed
         inx
         cpx #$03
         bne ini_v
@@ -1931,26 +1992,47 @@ adv:                                 ; pattern ptr += A (16-bit)
         sta $f9
         rts
 
+sc_slotvol:                          ; STICKY slot/vol suffix (D6 piece 3) for
+        lda evflags                  ; rest/switch/slide: the raw duration byte
+        and #$40                     ; is stashed in evflags — bit6 = slot, bit7
+        beq scv_novol                ; = vol. y is at the duration byte; read the
+        iny                          ; STATED slot/vol into the sticky
+        lda ($f8),y                  ; curinst,x / volovr,x, then advance the
+        sta curinst,x                ; pattern pointer by the bytes consumed.
+scv_novol:
+        lda evflags
+        and #$80
+        beq scv_adv
+        iny
+        lda ($f8),y
+        sta volovr,x
+scv_adv:
+        iny
+        tya
+        jmp adv                      ; ptr += y+1, then rts back to the caller
+
 ev_rest:
 {sp_fetch}        ldy {ev1}
-        lda ($f8),y
+        lda ($f8),y                  ; dur byte (bit6=slot bit7=vol present)
+        sta evflags
+        and #$3F
         sta dur,x
         sta durrel,x                 ; live $173E shadow
-        lda {adv2}
-        jsr adv
+        jsr sc_slotvol
         jsr peekend
         jmp {rest_jmp}
 
 ev_switch:
 {sp_fetch}        ldy {ev1}
-        lda ($f8),y
+        lda ($f8),y                  ; dur byte (bit6=slot bit7=vol present)
+        sta evflags
+        and #$3F
         sta dur,x
         sta durrel,x                 ; live $173E shadow
         lda gatemask,x
         eor {switch_eor}             ; canon $01 = gate bit; wedge = wider cut
         sta gatemask,x
-        lda {adv2}
-        jsr adv
+        jsr sc_slotvol
         jsr peekend
         jmp {rest_jmp}
 
@@ -1966,40 +2048,51 @@ ev_slide:                            ; glide mode 1: current -> target
         lda curnote,x
         sta gla,x
         iny
-        lda ($f8),y                  ; duration
+        lda ($f8),y                  ; dur byte (bit6=slot bit7=vol present)
+        sta evflags
+        and #$3F
         sta dur,x
         sta durrel,x                 ; live $173E shadow
-        lda {adv4}
-        jsr adv
+        jsr sc_slotvol
         jsr peekend
         jmp {rest_jmp}
 
 ev_note:
 {sp_fetch}        ldy {ev1}
-        lda ($f8),y                  ; flags (1=soft 2=glide)
+        lda ($f8),y                  ; flags (1=soft 2=glide 8=slot 16=vol)
         sta evflags
         iny
         lda ($f8),y                  ; note
         clc
         adc transp,x
         sta curnote,x
-        tay
-        jsr reload_base              ; base freq freqlo/hi[curnote];
-                                     ; off-table idx served live (redirect)
-        ldy {ev3}
-        lda ($f8),y                  ; duration
+        sty patix                    ; save the byte index across reload_base
+        tay                          ; reload_base BEFORE the dur/slot/vol
+        jsr reload_base              ; updates: its off-table redirect sonifies
+        ldy patix                    ; live dur/durrel, so it must read their
+                                     ; PRE-update values (was the original order)
+        iny
+        lda ($f8),y                  ; duration (always carried)
         sta dur,x
         sta durrel,x                 ; live $173E shadow
-        iny
-        lda ($f8),y                  ; instrument slot
-        sta curinst,x
-        iny
-        lda ($f8),y                  ; vol override
-        sta volovr,x
         lda evflags
-        and #$02
-        beq ev_n_noglide
-        ldy {ev6}
+        and #$08                     ; instrument slot STATED? (else sticky)
+        beq evn_noslot
+        iny
+        lda ($f8),y
+        sta curinst,x
+evn_noslot:
+        lda evflags
+        and #$10                     ; vol override STATED? (else sticky)
+        beq evn_novol
+        iny
+        lda ($f8),y
+        sta volovr,x
+evn_novol:
+        lda evflags
+        and #$02                     ; glide?
+        beq evn_ngl
+        iny
         lda ($f8),y                  ; glide speed
         sta glsp,x
         iny
@@ -2009,11 +2102,9 @@ ev_note:
         sta glb,x
         lda curnote,x                ; glide start = this note
         sta gla,x
-        lda {adv8}
-        jsr adv
-        jmp ev_n_softq
-ev_n_noglide:
-        lda {adv6}
+evn_ngl:
+        iny                          ; advance = bytes consumed (y+1)
+        tya
         jsr adv
 ev_n_softq:
         lda evflags
@@ -2524,6 +2615,7 @@ wjmp:     .dsb 1, 0                  ; orig $171F shared-scratch shadow (raw
                                      ; pulse speed byte / glide step / wave
                                      ; jump-back distance — last writer wins)
 evflags:  .dsb 1, 0
+patix:    .dsb 1, 0                  ; ev_note byte-index saved across reload_base
 otrk:     .dsb 3, 0                  ; orig track byte-offset shadow (= $1726)
 wnote:    .dsb 3, 0                  ; orig arp-note shadow (= $1783)
 durrel:   .dsb 3, 0                  ; orig duration-reload shadow (= $173E)
