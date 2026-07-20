@@ -5,7 +5,6 @@
 - [Composer dissolution](project_composer_dissolution.md) — Phase 8 done; `composer_hubbard.py` DELETED. Hubbard '85 family lives entirely in `pipelines/composer.py` (feature-driven asm, 18 chunk emitters + typed args). `tools/regression.py` = verdict.
 - [FC principled composer](project_fc_principled_composer.md) — ✅ COMPLETE. §9 fully closed: the whole FC build is orig-free (model-USF buildable); both canaries (Cyb II 2/2 + Hawkeye 12/12) de-verbatim, PSID header synthesized. Verdict = `verify_featuredriven`.
 - [FC fingerprint DB + standard player](project_fc_fingerprint_and_standard.md) — `tools/engine_fingerprint.py` reloc-invariant fingerprinting; 91% of HVSC FC is ONE vanilla "standard" player (distinct from the Tel composer). **✅ 2530/2672 FULL (94.7%), mass-written in stated-duration form (D6 piece 2).** Residue 140 partial. Per-round detail in topic file — READ IT first.
-- [Off-table unified transform](project_offtable_unified.md) — recurring "engine reads past the freq/wave/pulse table" across ALL engines; the unifying-transform proposal was NEVER implemented (the "throw math at it" cluster, deprecated 2026-07-20 → `deprecated/old_docs/offtable_unified_transform.md` + `exact_learning_research.md`). The real wins were ledger C2/C6/C8/C11 (capture+truncate, pool dedup) + `tools/taint_source.py` (grey-box). Census taxonomy + math-tool inventory kept for idea-mining.
 
 ## Per-engine project memories
 

@@ -38,6 +38,7 @@ they no longer load on session start. Source preserved for archaeology.
 - `project_math_brainstorm.md` — Das Model era math ideas (Das Model deprecated)
 - `project_hubbard_remaining_partials.md` — archived 2026-07-16: self-declared FULLY RESOLVED (71/71); the CIA per-play() verdict it produced now lives in docs/the_core_tenet.md + CLAUDE.md; ~60% is explicitly-labeled wrong theory kept as trail
 - `project_timing_requirements.md` — archived 2026-07-16: pre-USF era; CONTRADICTS canon (claims per-frame state snapshots suffice = Trap A, and understates within-frame write order). The correct law is docs/the_core_tenet.md's two verification modes
+- `project_offtable_unified.md` — archived 2026-07-20: a 192-line session log of the off-table "throw math at it" exploration (observe-and-fit / decomposer / segmenter). The unifying transform was NEVER implemented; the real off-table wins were ledger C2/C6/C8/C11 (capture+truncate, pool dedup) + the grey-box taint check (`tools/taint_source.py`). Its companion docs were deprecated the same day to `deprecated/old_docs/` (offtable_unified_transform.md + exact_learning_research.md). Kept for archaeology: the census taxonomy, the taint method, and the deprecated math-tool inventory (strip_decompose / z3_decompose / taint_tracker).
 
 ## If you need to revive one
 
