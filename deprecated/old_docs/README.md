@@ -14,9 +14,9 @@ Session plans and codegen plans from earlier phases. Kept for historical context
 - `PLAN_2026_04.md` — the project's top-level development plan as
   of 2026-04-09. Captures the long-term vision (neural net → USF →
   SIDfinity player) but the per-step status (GT2/DMC transpilers
-  "in progress") is out of date. Replaced by `docs/canary_picker.md`
-  + `docs/refactor_1_remaining.md` as the operational plan;
-  `docs/PLAN.md` is now a thin pointer to those two.
+  "in progress") is out of date. The operational plan is now
+  `docs/refactor_1_remaining.md` (Move 1) + CLAUDE.md's Project goal;
+  `PLAN.md` and `canary_picker.md` were both retired (below).
 - `usf_instrument_program_plan_2026_v1era.md` — USF v1 era blueprint
   for "instruments as 6502 programs" with Lean-codegen verification.
   Superseded by the principled-instrument refactor (typed musical
@@ -52,3 +52,25 @@ Moved 2026-07-14 (repo deprecation sweep):
   `pipelines/engine_model.py`. The dataclass-tree part lives on in that
   file; the codegen layer this doc describes (`universal_codegen`) was
   dissolved into `pipelines/composer.py` (Phase 8).
+
+Moved 2026-07-18/19 (docs de-rot sweep — each carries its own banner):
+
+- `canary_picker.md` — the per-family canary-selection strategy.
+  Superseded by the whole-family grind (canaries can't represent a
+  family; grinding gives Move 1 a complete oracle). Selection method now
+  lives in CLAUDE.md's Project goal.
+- `usf_digi_plan.md` — USF digi-support plan; phases D0-D4 shipped 2026-05
+  (Chimera 4/4). Durable successor: `reference_digi_pipeline` memory.
+- `principled_fc_composer_plan.md` — the FC principled-composer plan;
+  completed (FC §9 closed, model-USF buildable). Status lives in the
+  `project_fc_principled_composer` memory.
+- `dmc_composer_to_extract_plan.md` — the DMC composer→extract carrier
+  moves; all phases done/superseded. Status lives in `project_dmc`.
+
+Moved 2026-07-20:
+
+- `adrenalin_multisong_plan.md` — plan to finish FC Adrenalin subs 1/2/3
+  via 5TT-style unification. Subsumed by ledger C31 (COMPILATION); the
+  Adrenalin-specific analysis + open target live in the
+  `project_adrenalin` memory. Sub 0 done (Adrenalin[0] 1/1 in
+  `tools/regression.py`).

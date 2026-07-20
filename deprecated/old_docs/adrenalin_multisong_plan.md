@@ -1,3 +1,14 @@
+> **SUPERSEDED / ARCHIVED 2026-07-20.** This FC-Adrenalin finish plan (subs
+> 1/2/3 via 5TT-style unification) is subsumed by ledger **C31** (COMPILATION:
+> N independent players + per-subtune dispatch → unified-merge into one model),
+> whose full entry names FC Adrenalin + 5-Title-Tunes as analogues. The
+> Adrenalin-specific breakdown (engine A @ $7A00; subs 2/3 = engine A relocated
+> to $1000; sub 1 = a different engine @ $1021; canonical shared freq table)
+> lives — more completely — in the `project_adrenalin` memory, which also tracks
+> the open target (full 4/4 still needs multi-independent-song FC support).
+> Nothing here is live that isn't held there. Sub 0 is done + tracked in
+> `tools/regression.py` (Adrenalin[0] 1/1).
+
 # Adrenalin — finish via the 5-Title-Tunes UNIFICATION (plan)
 
 ## Goal
