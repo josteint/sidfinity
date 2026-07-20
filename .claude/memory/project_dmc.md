@@ -7,6 +7,48 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 76 (2026-07-20): STICKY slot/vol pattern EMISSION (D6 piece 3) — the SID gets the compaction too
+The generated SID no longer spells out an instrument slot + vol override on
+EVERY note row; they ride the sticky player registers `curinst,x` / `volovr,x`
+and are emitted only where the SOURCE row STATES them (`_row_event_stated` +
+`_encode_pattern`, `pipelines/dmc/composer_asm.py`). Motivation (user): USF-ML
+compaction is not the only goal — SIDs built from USF should be EFFICIENT too;
+D6-piece-2 was a carrier refactor (byte-identical SID), so the stated-form
+savings never reached the SID. This is an EMISSION change (write-log verdict,
+NOT byte-identity — golden diff DIFFS by design).
+- **Emission by STATEDNESS, never value-equality** (C32 "presence = byte fact"):
+  statedness is pattern-intrinsic, so byte-keyed dedup still collapses the
+  ~intro variants; value-equality would reintroduce them.
+- **`dur` stays always-carried** — DMC dur-carry is 2 slots corpus-wide, not
+  worth the `dur_field`(resolver seed) vs `dur_reload`(durrel/$173E seed)
+  landmine + the `dur,x` fetch-countdown double-duty.
+- **rest/switch/slide carry a stated slot/vol too** — a rest's instrument
+  command updates the engine sticky state (the resolver folds it in), so
+  dropping it stales a following inherited note (the bug: Nocturno sub1 V2 has
+  rests stating instr). Presence packed into the two FREE HIGH BITS of the
+  always-present dur byte (bit6=slot bit7=vol) → NO penalty on a plain rest
+  (`[op,dur]`); notes ride the existing flags byte (bit3/bit4). Player:
+  `sc_slotvol` shared suffix + `curinst,x`/`volovr,x` seeded 0 at init.
+- **`reload_base` kept AHEAD of the dur/slot/vol writes** — its off-table
+  redirect SONIFIES live `dur`/`durrel`, so it must read pre-update values
+  (saved byte-index in `patix`). Latent ordering dep, now pinned.
+- **Edge cases (your transpose-0-style concern) safe by construction**: the
+  sonified sectpos ($1729) / otrk ($1726) counters are reproduced from the
+  EXPLICIT per-event shadow (`_pattern_secvals`/`_row_secwidth`), decoupled from
+  what emission carries — a value-redundant-but-stated command still advances
+  them.
+- GATES: **full family-1 batch 5221/173/7 = EXACT r74 baseline, member-by-member
+  0 regressions / 0 gains** across all 5401; regression.py green (8 families);
+  dmc_smoke 6/6; 44-member stratified before/after 0-regr; **pattern-pool −21.9%**
+  on the sample (Nocturno −20%, Music_for_Game −12%). Commit 45ddd89e.
+- OPEN (offered, not done): the orderlist/track 2-pass unroll is now-redundant
+  (patterns dedup → steady-tail entries duplicate the intro loop portion). The
+  natural next efficiency step = de-unroll the track ($FF loop + runtime
+  inheritance, C32-piece-1-at-emission); left out as a separate change with its
+  own $1726-counter verification. Corpus NOT mass-written in the compact form
+  yet (composer-only change; stored .sid artifacts are stale-but-FULL, not the
+  coverage source of truth).
+
 ## ✅ ROUND 75 (2026-07-20): 2SID seed-merge gap CLOSED (the r74 latent)
 `merge_2sid_usf` now carries per-SUBTUNE init voices (the stated-row
 resolver seeds, `instr: i1`) onto the merged subtune init as a level
