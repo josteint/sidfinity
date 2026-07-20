@@ -2578,12 +2578,18 @@ def _split_chip_usf(usf: UsfFile, ci: int) -> UsfFile:
             for k, v in enumerate(sub.voices[ci * 3: ci * 3 + 3])]
     ivs = [dataclasses.replace(iv, id=iv.id - ci * 3)
            for iv in usf.init.voices if ci * 3 < iv.id <= ci * 3 + 3]
+    # per-subtune resolver seeds (stated rows) live on the SUBTUNE init —
+    # a distinct level from the file-level idle voices above
+    seed_ivs = [dataclasses.replace(iv, id=iv.id - ci * 3)
+                for iv in (sub.init.voices if sub.init else [])
+                if ci * 3 < iv.id <= ci * 3 + 3]
     chip_sid = [usf.init.sid, usf.init.sid2, usf.init.sid3][ci]
     tempo = [sub.tempo, sub.tempo2, sub.tempo3][ci]
     if tempo is None:
         tempo = sub.tempo
     init = InitState(voices=ivs, sid=chip_sid)
-    subt = MusicSubtune(id=1, tempo=tempo, voices=vren, init=init)
+    subt = MusicSubtune(id=1, tempo=tempo, voices=vren,
+                        init=InitState(voices=seed_ivs, sid=chip_sid))
     return dataclasses.replace(usf, instruments=instrs,
                                filter_programs=filters, subtunes=[subt],
                                init=init)

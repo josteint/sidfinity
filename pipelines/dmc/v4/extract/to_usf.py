@@ -735,6 +735,7 @@ def merge_2sid_usf(models, sid2_model=None, sid3_model=None) -> UsfFile:
     merged_filters = {}
     all_voices = []
     init_voices = []
+    seed_voices = []        # per-SUBTUNE resolver seeds (stated rows)
     chip_sids = []          # per-chip InitSid priming
     tempos = []
     for ci, u in enumerate(usfs):
@@ -759,6 +760,13 @@ def merge_2sid_usf(models, sid2_model=None, sid3_model=None) -> UsfFile:
         # per-voice idle priming (top-level init.voices), voices renumbered
         for iv in u.init.voices:
             init_voices.append(dataclasses.replace(iv, id=ci * 3 + iv.id))
+        # per-SUBTUNE engine-state priming (the stated-row resolver seeds,
+        # e.g. `instr: i1`) rides the subtune init in the per-chip USF —
+        # a DISTINCT level from the file-level idle voices above; keep it
+        # on the merged subtune so _split_chip_usf recovers it per chip
+        if sub.init:
+            for iv in sub.init.voices:
+                seed_voices.append(dataclasses.replace(iv, id=ci * 3 + iv.id))
         # per-chip SID priming (master vol + $D417 routing shadow) rides the
         # subtune init.sid in the per-chip USF
         chip_sids.append(sub.init.sid if sub.init else None)
@@ -769,8 +777,13 @@ def merge_2sid_usf(models, sid2_model=None, sid3_model=None) -> UsfFile:
         sid=chip_sids[0],
         sid2=chip_sids[1] if len(chip_sids) > 1 else None,
         sid3=chip_sids[2] if len(chip_sids) > 2 else None)
+    sub_init = InitState(
+        voices=seed_voices,
+        sid=chip_sids[0],
+        sid2=chip_sids[1] if len(chip_sids) > 1 else None,
+        sid3=chip_sids[2] if len(chip_sids) > 2 else None)
     subtune = MusicSubtune(
-        id=1, tempo=tempos[0], voices=all_voices, init=init,
+        id=1, tempo=tempos[0], voices=all_voices, init=sub_init,
         tempo2=tempos[1] if len(tempos) > 1 and tempos[1] != tempos[0]
         else None,
         tempo3=tempos[2] if len(tempos) > 2 and tempos[2] != tempos[0]
