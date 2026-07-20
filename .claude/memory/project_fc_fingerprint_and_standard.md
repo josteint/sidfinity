@@ -15,16 +15,24 @@ landed (the uready-review latent, C32 piece-2 boundary — now closed).**
 repeated entries whose head row inherits its duration and whose pattern
 changes it internally (condition: `resolved[-1].duration !=
 resolved[0].duration`; replays 2+ then take the engine's runtime
-nootleng carry, exact for play 1 too). NOT corpus-unhit after all:
-fresh full-family golden (2530 baseline, post-acf52066 code) came back
-2529 identical + ONE diff = DEMOS/M-R/One.sid — sub 1 v2 pattern 19
-(head inherits 8, internal change to 32) repeated ×17/×57 at entries
-141/145 of 201; re-verified FULL (play 141117/141117 over 226.5 s) —
-the repeats sit past the verified window, where the OLD stamped bytes
-were latently wrong and the new omission matches runtime carry.
-Synthetic proof tmp/test_fc_midlist_repeat.py. Residual corner (both
-omission paths, corpus-unhit): stated-value-coincidence re-anchor miss
-— see the C32 boundary note.
+nootleng carry, exact for play 1 too). VERDICT-INERT (the review's
+"corpus-unhit" holds at the verdict level: batch stays 2530/2530 FULL),
+but NOT byte-inert: the stricter fresh full-family GOLDEN byte-identity
+gate (2530 baseline = pre-fix code) found ONE carrier — 2529 identical
++ 1 diff = DEMOS/M-R/One.sid (sub 1 v2 pattern 19: head inherits 8,
+internal change to 32, repeated ×17/×57 at entries 141/145 of a 201-
+entry stop-orderlist). CLASSIFIED past-window: old AND new code BOTH
+verify FULL with the identical play stream (play 141117/141117,
+first_play_diff=None over 226.5 s) — the omit-vs-stamp divergence on
+replays 2+ falls entirely past songlength, so it never moved the
+verdict. New bytes match the orig's inherited-head semantics by
+construction (orig emits no setlen on the inherited head → keeps the
+carried nootleng 32; the old code re-stamped the play-1 value 8 on
+every replay = latently wrong past the window). Stored One.sid
+artifacts refreshed to the new build (md5 4b82d4fd…). Synthetic proof
+tmp/test_fc_midlist_repeat.py; golden gate tmp/fc_golden.py. Residual
+corner (both omission paths, corpus-unhit): stated-value-coincidence
+re-anchor miss — see the C32 boundary note.
 
 **2026-07-20: STATED-DURATION pattern rows (D6 piece 2, ledger C32
 canonicalized) — batch 2530 FULL / 140 partial (baseline 2528/142 + 2
