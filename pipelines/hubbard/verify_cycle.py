@@ -307,7 +307,11 @@ def _trichotomy_compare(fa: list, fb: list, close_tol: int = 176,
         return {
             'mode': 'trichotomy', 'shift_d': None,
             'init_len_a': 0, 'init_len_b': 0,
-            'state_match': False, 'state_diff': [],
+            # An EMPTY-on-both-sides stream (a chip a subtune does not sound)
+            # has no alignment to recover but trivially identical end-of-init
+            # state — report that honestly instead of a bare False, which
+            # mis-buckets in divergence_census as a Check-A state failure.
+            'state_match': la == lb == 0, 'state_diff': [],
             'play_match': m, 'play_overlap': n,
             'play_full': m == n == la == lb, 'close': la == lb,
             'len_post_a': la, 'len_post_b': lb,
@@ -496,7 +500,11 @@ def compare_instruction_stream(a: list[Frame], b: list[Frame],
             agg = dict(fail)                 # localise on the failing chip
             agg['is_full'] = False
         else:
-            agg = dict(rs[0])
+            # Represent the run by the MOST INFORMATIVE chip, not chip 1: a
+            # subtune need not sound every chip (C27), and an unsounded chip's
+            # substream is empty on both sides, so `rs[0]` would report
+            # play_match=0 / overlap=0 for a member that is exactly correct.
+            agg = dict(max(rs, key=lambda r: r['play_overlap']))
             if mode == 'trichotomy':
                 # Conservative aggregation for the caller's safety gates.
                 agg['audio_guaranteed'] = all(r['audio_guaranteed'] for r in rs)

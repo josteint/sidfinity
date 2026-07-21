@@ -1442,6 +1442,46 @@ def _play_unit_repeat_probe(path: str, base: int):
     return ','.join(str(u) for u in units)
 
 
+def _loop_target_probe(mem, base: int, strict: bool = False):
+    """C19 STATIC opcode probe — does this player read the byte AFTER a track
+    `$FF` as the loop POSITION (True) or always loop to 0 (False)?
+
+    The canonical player stores the loop position inline (`STA base+$726,x`);
+    the JSR-hook variant calls a 7-byte stub `INY / LDA (zp),y / STA
+    base+$726,x / RTS` that fetches the next track byte first. The stub's
+    ZEROPAGE track pointer is NOT a constant: a multi-SID chip-2 player is
+    chip 1's copy with its own zp pair (Rayden's Disco_Zak uses `$F6` where
+    chip 1 uses `$F8`), and the pointer is engine-internal — the composer
+    picks its own — so accept any zp operand and key on the SHAPE.
+
+    `strict` raises DMCV4Unsupported on an unrecognised site/hook (the
+    canonical build's behaviour, where the masked identity compare is the
+    real gate); otherwise an unknown site returns the canonical False.
+    (The reset-all-to-0 JSR hook is classified on the dataflow path — see
+    dataflow.locate.)
+    """
+    d = base - 0x1000
+    site = _LOOP_SITE + d
+    op = mem[site]
+    if op == 0x9D and _rd16(mem, site + 1) == 0x1726 + d:
+        return False                                 # canonical loop-to-0
+    if op == 0x20:                                   # JSR hook
+        hook = _rd16(mem, site + 1)
+        if (mem[hook] == 0xC8 and mem[hook + 1] == 0xB1     # INY / LDA (zp),y
+                and mem[hook + 3] == 0x9D                   # STA base+$726,x
+                and _rd16(mem, hook + 4) == 0x1726 + d
+                and mem[hook + 6] == 0x60):                 # RTS
+            return True
+        if strict:
+            raise DMCV4Unsupported(
+                'loop_hook_unknown', bytes(mem[hook:hook + 14]).hex())
+        return False
+    if strict:
+        raise DMCV4Unsupported('loop_site_unknown',
+                               bytes(mem[site:site + 3]).hex())
+    return False
+
+
 def _sid_header_multi(sid_path: str):
     """Read the PSID v3/v4 multi-SID header fields. Returns
     (n_chips, sid2_addr, sid3_addr, sid2_model, sid3_model). Addresses are
@@ -1464,21 +1504,48 @@ def _sid_header_multi(sid_path: str):
 
 
 def _config_at_base(sid_path: str, hvsc_root: str, base: int,
-                    name: str) -> DMCV4Config:
+                    name: str, chip_addr: int = 0) -> DMCV4Config:
     """Construct a DMCV4Config for a canonical/2entry DMC v4 player at a
     KNOWN base (used for multi-SID sub-players, where the dispatch wrapper
-    overwrote one player's jump table so base-detection can't find it). All
+    overwrote one player's jump table so base-detection can't find it).
+
+    A sub-player is an ORDINARY DMC player that happens not to own the PSID
+    vectors — exactly what `_build_via_canon(base_override=)` was built for
+    (C31's compilation members), so run the FULL canonical build first: it
+    runs every knob probe (track_loop_target, hold_gateoff, hard_restart,
+    the C19 wedge probes, rest_effects, cymbal ...) and the masked identity
+    compare. Hand-rolling the config here instead silently defaulted all of
+    them — the structural form of C9's "a second build path never measured
+    the parameter" (Mc_Dieter's V2 track loops to a stated position, and the
+    defaulted `track_loop_target=False` looped it to 0 instead).
+
+    The bare fallback below keeps every member that the canonical build
+    refuses (a wrapper-clobbered jump table, an unhandled sub-build variant)
+    exactly as it built before — no member can regress to unsupported. All
     operand + fixed-table sites are canon-relative; the write-log verify is
     the gate on a mislocation."""
+    try:
+        cfg = _build_via_canon(sid_path, hvsc_root, base_override=base,
+                               chip_addr=chip_addr)
+        cfg.name = name
+        return cfg
+    except DMCV4Unsupported:
+        pass
     d = base - 0x1000
     at = lambda a: a + d                                       # noqa: E731
+    # The bare fallback still runs the STANDALONE static probes — a knob left
+    # at its default here is silently wrong music, not a refusal (the track
+    # loop target decides whether the song repeats its whole orderlist or the
+    # tail from a stated position).
+    mem = _load(os.path.join(hvsc_root, sid_path))[0]
     return DMCV4Config(
         sid_path=sid_path, name=name, base=base,
         op_instr=at(0x1227), op_wavectrl=at(0x159C), op_wavefreq=at(0x15B9),
         op_filtdef=at(0x1296), op_tunetab=at(0x180E),
         op_secp_lo=at(0x1103), op_secp_hi=at(0x1108),
         freq_lo_addr=at(0x1647), freq_hi_addr=at(0x16A7),
-        vibdepth_addr=at(0x1888), d417_shadow_addr=at(0x1018))
+        vibdepth_addr=at(0x1888), d417_shadow_addr=at(0x1018),
+        track_loop_target=_loop_target_probe(mem, base))
 
 
 def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
@@ -1521,7 +1588,9 @@ def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
         if bases is None:
             return None
     base0 = os.path.splitext(os.path.basename(sid_path))[0]
-    cfgs = [_config_at_base(sid_path, hvsc_root, b, f'{base0}_chip{i + 1}')
+    addrs = [0xD400, _sid_header_multi(path)[1], _sid_header_multi(path)[2]]
+    cfgs = [_config_at_base(sid_path, hvsc_root, b, f'{base0}_chip{i + 1}',
+                            chip_addr=addrs[i])
             for i, b in enumerate(bases)]
     # CIA multispeed (C9: measure, don't assume). The dispatch wrapper is
     # driven by the timer it programs at init, and a C18 phase schedule
@@ -1536,7 +1605,6 @@ def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
             cp = _cia_period_from_writelog(path, 0)
         if 0x0100 <= cp <= 0xFFFF:
             cia = cp
-    addrs = [0xD400, _sid_header_multi(path)[1], _sid_header_multi(path)[2]]
     for ci, cfg in enumerate(cfgs):
         cfg.cia_period = cia
         keep = _multisid_keep_regs(mem, cfg.base, addrs[ci])
@@ -2125,7 +2193,8 @@ def _dataflow_knob_probes(mem, load: int) -> dict:
 
 
 def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84',
-                     base_override: 'int | None' = None) -> DMCV4Config:
+                     base_override: 'int | None' = None,
+                     chip_addr: int = 0) -> DMCV4Config:
     mem, s = _load(os.path.join(hvsc_root, sid_path))
 
     # ---- base detection. The canonical jump table is `JMP base+$1D /
@@ -2341,23 +2410,7 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84',
     # JSR hook — LDA #0/STA $1726/$1727/$1728, a synchronized loop-to-start —
     # is a wedge that fails the masked compare below with player_code_mismatch
     # and is classified on the dataflow path; see dataflow.locate.)
-    loop_target = False
-    op = mem[at(_LOOP_SITE)]
-    if op == 0x9D and _rd16(mem, at(_LOOP_SITE) + 1) == reloc(0x1726):
-        pass                                     # canonical loop-to-0
-    elif op == 0x20:                             # JSR hook
-        hook_at = _rd16(mem, at(_LOOP_SITE) + 1)
-        ok = (bytes(mem[hook_at:hook_at + 4]) == bytes.fromhex('c8b1f89d')
-              and _rd16(mem, hook_at + 4) == reloc(0x1726)
-              and mem[hook_at + 6] == 0x60)
-        if not ok:
-            raise DMCV4Unsupported(
-                'loop_hook_unknown', bytes(mem[hook_at:hook_at + 14]).hex())
-        loop_target = True
-    else:
-        raise DMCV4Unsupported(
-            'loop_site_unknown',
-            bytes(mem[at(_LOOP_SITE):at(_LOOP_SITE) + 3]).hex())
+    loop_target = _loop_target_probe(mem, base, strict=True)
     for i in range(_LOOP_SITE, _LOOP_SITE + 3):
         masked[i - 0x1000] = 1
     # ---- canon sub-build knob probes: variants that either map to an
@@ -2421,6 +2474,23 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84',
     if base_override is not None:
         for i in range(0x1006, 0x100C):
             masked[i - 0x1000] = 1
+    # MULTI-SID sub-player (C27): the editor builds chip 2/3's player by
+    # copying chip 1's and adding the chip offset to every `$D4xx` store
+    # operand, so those two operand bytes differ from canon exactly like a
+    # relocated address does. Mask them — but ONLY where the member's
+    # operand is the canon register or its chip-relocated twin, so a real
+    # wedge (any other value) still fails the compare. Which stores the
+    # relocation MISSED is probed separately (`_multisid_keep_regs`, C19).
+    if chip_addr and chip_addr != 0xD400:
+        for i in range(0x1000, 0x18E8 - 2):
+            if canon[i - 0x1000] not in (0x8D, 0x99, 0x9D):     # STA abs/,y/,x
+                continue
+            tgt = canon[i - 0x1000 + 1] | (canon[i - 0x1000 + 2] << 8)
+            if not (0xD400 <= tgt <= 0xD418):
+                continue
+            got = mem[at(i) + 1] | (mem[at(i) + 2] << 8)
+            if got in (tgt, tgt - 0xD400 + chip_addr):
+                masked[i - 0x1000 + 1] = masked[i - 0x1000 + 2] = 1
     # compare the player region (code + fixed tables + vibdepth);
     # operand BYTES are masked (they relocate); the surrounding opcodes
     # are base-invariant and must match canonical exactly.
