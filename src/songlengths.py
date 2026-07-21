@@ -12,14 +12,41 @@ Durations can also have milliseconds: m:ss.mmm
 """
 
 import hashlib
+import os
 import sys
+
+
+# Parsing Songlengths.md5 walks ~60,000 lines and ~87,000 duration fields —
+# about 0.5s. Both the extract and the verify paths call it once PER MEMBER, so
+# a batch over thousands of members re-parsed the same unchanged file thousands
+# of times (~40 min of CPU across a full DMC v4 batch, and 0.5s on every
+# regression task). Cache it.
+#
+# Keyed on (path, mtime, size) so an updated HVSC drop is re-read rather than
+# served stale. The cached dict is SHARED, not copied: it is ~60k entries and
+# the only consumer (get_durations) just reads. Treat it as read-only.
+#
+# Two callers grew their own ad-hoc `_SL_DB` caches around this function
+# (dmc/v4/extract/engine_model.py, dmc/v5/extract/to_usf.py); they still work
+# and now simply hit this cache instead. Four other call sites had none.
+_DB_CACHE: dict = {}
 
 
 def load_database(path):
     """Parse Songlengths.md5 into a dict keyed by MD5 hash.
 
-    Returns: {md5_hex: [duration_seconds, ...], ...}
+    Returns: {md5_hex: [duration_seconds, ...], ...} — cached, read-only.
     """
+    try:
+        st = os.stat(path)
+        key = (os.path.abspath(path), st.st_mtime_ns, st.st_size)
+    except OSError:
+        key = None
+    if key is not None:
+        cached = _DB_CACHE.get(key)
+        if cached is not None:
+            return cached
+
     db = {}
     with open(path, 'r') as f:
         for line in f:
@@ -34,6 +61,8 @@ def load_database(path):
             for d in durations_str.strip().split():
                 durations.append(_parse_duration(d))
             db[md5] = durations
+    if key is not None:
+        _DB_CACHE[key] = db
     return db
 
 
