@@ -2781,10 +2781,17 @@ subsav: .byt $00
     sidm = {6581: 1, 8580: 2, 'both': 3}.get(usf.psid.sid, 0)
     m2 = {6581: 1, 8580: 2, 'both': 3}.get(usf.psid.sid2, 0)
     m3 = {6581: 1, 8580: 2, 'both': 3}.get(usf.psid.sid3, 0)
+    # CIA multispeed: set the PSID speed bit for every subtune so the host
+    # drives play() off the timer each player programs (build_dmc_sid does
+    # the same for single-chip). Without it a multispeed member is called at
+    # vblank and, under a C18 phase schedule that divides the rate, plays at
+    # 1/N speed — an exact per-chip PREFIX of 1/N the length.
+    speed = ((1 << len(usf.subtunes)) - 1) if (
+        usf.environment and usf.environment.cia_period) else 0
     header = build_header(
         load=0, init=LOAD, play=LOAD + 3,
         songs=len(usf.subtunes), start_song=usf.psid.start_song,
-        title=usf.psid.title, author=usf.psid.author,
+        speed=speed, title=usf.psid.title, author=usf.psid.author,
         released=usf.psid.released,
         flags=(clock << 2) | (sidm << 4) | (m2 << 6) | (m3 << 8),
         sid2_addr=0xD420 if n_chips >= 2 else 0,

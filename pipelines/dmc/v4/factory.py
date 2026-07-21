@@ -1523,8 +1523,22 @@ def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
     base0 = os.path.splitext(os.path.basename(sid_path))[0]
     cfgs = [_config_at_base(sid_path, hvsc_root, b, f'{base0}_chip{i + 1}')
             for i, b in enumerate(bases)]
+    # CIA multispeed (C9: measure, don't assume). The dispatch wrapper is
+    # driven by the timer it programs at init, and a C18 phase schedule
+    # DIVIDES that rate (Rayden: latch $2663 = 100Hz with a period-2 P_F123
+    # schedule, or $1331 = 200Hz with period 4 — both a 50Hz music tick).
+    # Built as vblank, such a member plays at 1/N speed: a per-chip EXACT
+    # PREFIX of ~1/N the original's length, with no content divergence.
+    cia = 0
+    if s.get('speed', 0) & 1:
+        cp = _cia_period_from_init(path, 0)
+        if not (0x0100 <= cp <= 0xFFFF):
+            cp = _cia_period_from_writelog(path, 0)
+        if 0x0100 <= cp <= 0xFFFF:
+            cia = cp
     addrs = [0xD400, _sid_header_multi(path)[1], _sid_header_multi(path)[2]]
     for ci, cfg in enumerate(cfgs):
+        cfg.cia_period = cia
         keep = _multisid_keep_regs(mem, cfg.base, addrs[ci])
         if keep:
             cfg.extra_params['multisid_keep_regs'] = \
