@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-21T21:29:03.831Z
+  modified: 2026-07-21T21:34:00.458Z
 ---
 
 ## ✅ ROUND 79 (2026-07-21): multi-SID DETECTION — 9 → 14 of the 19 corpus multi-SID members
@@ -71,9 +71,27 @@ carriers were vblank (Nice_Dream, Bamse); it surfaced the moment r79 made the
   **Rayden: 13 members → 8 FULL, 5 partial.** f1 = **5229 full / 172 partial /
   0 error**.
 - **REMAINING Rayden partials + first divergence:** Dark_Knight 104628 (sub 1
-  FULL), Disco_Zak_Remix 72335, Mc_Dieter 38931 ($D407 V2 freq lo, orig $FF vs
-  $9E), Mopped_Tester 17516, TrubbleLaBubble 0. All are content divergences,
-  not plumbing.
+  FULL), Disco_Zak_Remix 72335, Mc_Dieter 38931 (see next bullet),
+  Mopped_Tester 17516, TrubbleLaBubble 0. All are content divergences, not
+  plumbing.
+- **Mc_Dieter 38931 — IN PROGRESS, the observation (2026-07-21, not yet
+  diagnosed).** Capture the RIGHT way: `writelog_per_irq_capture` + filter
+  `w[1] < 0x20` for chip 0 (the flat `find_first_divergence` is wrong here,
+  C28). Sub 0, chip-0 index 38931 = **irq 2305**. The orig emits a 3-write V2
+  block — `freqlo=$FF, freqhi=$FF, ctrl=$81` — which EXACTLY mirrors the V1
+  block 3 writes earlier in the same irq (`[38926-38928]` V1 `freqlo=$FF,
+  freqhi=$FF, ctrl=$81`). The rebuild instead starts a fresh NOTE on V2:
+  5 writes, `freqlo=$9E, freqhi=$0B, pwlo=$00, pwhi=$04, ctrl=$09`.
+  So the orig is putting V2 into the same freq-`$FFFF` / ctrl-`$81` state it
+  just put V1 into, while we play a note. Preceding writes agree exactly
+  (`[38929-38930]` V2 `SR=$8A, AD=$08` on BOTH sides — an AD/SR pair with no
+  freq, i.e. the note-fetch/hard-restart shape), so the divergence is in what
+  follows the fetch, not the fetch itself.
+  NEXT STEP (recipe step 2): identify which engine path emits the
+  `freq=$FFFF` + `ctrl=$81` shape for a voice — it is NOT a normal note-init —
+  then diff that path against the composer's emitter. Candidate readings to
+  test: an off-table freq read yielding $FFFF (C6/C2), or a track/orderlist
+  stop-state the rebuild decodes as a playable row. NB `$81` = noise+gate.
 - **COMPARATOR ARTIFACT worth fixing:** Mc_Dieter's subs 1/2 report match 0
   because the trichotomy shift recovery FAILS at full songlength and falls
   into the no-alignment early return; at 30 s the same subtunes report 38931.
