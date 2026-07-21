@@ -3195,6 +3195,24 @@ def _inputs_from_usf(usf) -> _Inputs:
 # ---------------------------------------------------------------------------
 
 
+def _compose_bitpack_asm(inputs: _Inputs, codec, load_addr: int = LOAD) -> str:
+    """Prep the pattern pool + encode the notes + compose the fully-
+    resolved bitpack-skeleton asm. The single shared bitpack music-asm
+    path: both `_emit_asm_bitpack` (non-digi, returns the asm) and
+    `_emit_sid_bp` (the digi auto-pack loop, assembles + PSID-wraps it)
+    call it, so there is one music composer for both.
+
+    `_compose_engine_asm_bp` produces FULLY-RESOLVED asm: every
+    per-engine knob is threaded into the chunk emitters; the codec's
+    note_asm sentinels are resolved by `_resolve_codec_note_asm`.
+    """
+    pat_order, pat_slot = _pattern_pool(inputs.scores)
+    pat_bytes, codec_extra = codec.encode(pat_order)
+    return _compose_engine_asm_bp(
+        inputs, codec, pat_slot, pat_bytes, codec_extra,
+        load_addr=load_addr)
+
+
 def _emit_sid_bp(inputs: _Inputs, out_path: str, codec,
                       load_addr: int = LOAD) -> str:
     """Emit a SID file from a fully-prepared `_Inputs`. No I/O of the
@@ -3204,17 +3222,10 @@ def _emit_sid_bp(inputs: _Inputs, out_path: str, codec,
     combined music+digi build (Chimera) which may pack the music
     engine closer to the digi region's dispatcher.
 
-    `_compose_engine_asm_bp` produces FULLY-RESOLVED asm: every
-    per-engine knob is threaded into the chunk emitters; the codec's
-    note_asm sentinels are resolved by `_resolve_codec_note_asm`.
-    This function just xa65-assembles the result and wraps it in a
-    PSID v2 header.
+    Composes via the shared `_compose_bitpack_asm`, then just
+    xa65-assembles the result and wraps it in a PSID v2 header.
     """
-    pat_order, pat_slot = _pattern_pool(inputs.scores)
-    pat_bytes, codec_extra = codec.encode(pat_order)
-    asm = _compose_engine_asm_bp(
-        inputs, codec, pat_slot, pat_bytes, codec_extra,
-        load_addr=load_addr)
+    asm = _compose_bitpack_asm(inputs, codec, load_addr=load_addr)
 
     from src.composer_runtime import assemble
     code = assemble(asm)
@@ -5706,13 +5717,12 @@ def _emit_asm_simple_shape(model, usf) -> str:
 
 def _emit_asm_bitpack(usf) -> str:
     """asm gen for USFs the universal chain can't handle — produces
-    bitpack-skeleton asm via the lifted `_compose_engine_asm_bp`
-    chain. The intermediate `_Inputs` carrier is still here; folding
-    it into `model`-direct emission is a separate refactor."""
+    bitpack-skeleton asm via the shared `_compose_bitpack_asm` helper
+    (pattern pool + encode + `_compose_engine_asm_bp`), the same music
+    composer the digi auto-pack loop's `_emit_sid_bp` uses. The
+    intermediate `_Inputs` carrier is still here; folding it into
+    `model`-direct emission is a separate refactor."""
     from pipelines.hubbard.note_codec import BitPackCodec
     codec = BitPackCodec()
     inputs = _inputs_from_usf(usf)
-    pat_order, pat_slot = _pattern_pool(inputs.scores)
-    pat_bytes, codec_extra = codec.encode(pat_order)
-    return _compose_engine_asm_bp(
-        inputs, codec, pat_slot, pat_bytes, codec_extra, load_addr=LOAD)
+    return _compose_bitpack_asm(inputs, codec, load_addr=LOAD)

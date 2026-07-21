@@ -30,9 +30,9 @@ has GROWN exactly as the 06-18 review predicted — +3 standalone composers besi
 it (`build_dmc_sid`, `build_v5_sid`, FC `composer_asm`). The §8 cover-story gap
 the original Status describes is unchanged; closing it is Move 1.
 
-**Move 2 (digi fold) is partially landed and its plan below is superseded** —
-the non-digi case no longer routes through the bitpack path, but the digi
-orchestration is intentionally kept separate (see that section).
+**Move 2 (digi fold) is ✅ CLOSED** — the music-asm composer was already shared
+(the dedup Move 2 wanted); the digi *orchestration* stays separate by design,
+now with no code duplication behind it (see that section).
 
 Everything below this head is the dated historical record, kept for the
 reasoning it captures.
@@ -328,25 +328,34 @@ no static extract↔USF roundtrip checker for DMC (behavioral-only validation).
 
 ---
 
-## Move 2 (digi fold) — SUPERSEDED (partially landed; digi kept separate)
+## Move 2 (digi fold) — ✅ CLOSED (the dedup that mattered already happened)
 
-**Outcome (verified 2026-07-21).** Half of this landed and the other half was
-deliberately dropped:
+The 2026-06-03 premise ("~100 lines of duplication: digi bypasses the unified
+`emit_asm` via its own `_emit_bitpack_bytes`/`_emit_combined_sid_bp`/
+`_emit_sid_bp` chain — retire all three by folding digi in") is **obsolete**.
+Traced 2026-07-21:
 
-- The **non-digi** case no longer routes through the bitpack path — it goes
-  through `emit_sid_from_usf`'s unified asm-then-PSID-wrap pipeline (the dedup
-  this section wanted).
-- The three digi functions (`_emit_bitpack_bytes`, `_emit_combined_sid_bp`,
-  `_emit_sid_bp`) are **intentionally retained**, not retired.
-  `_emit_bitpack_bytes` is now the digi-only entry; its docstring records why
-  digi stays separate — its orchestration is structurally different (iterative
-  auto-pack of music against the digi dispatcher base, inline-load PSID
-  encoding, sample-blob assembly), so folding it into the unified pipeline was
-  judged not worth the coupling.
+- **The music-asm composer is already shared.** Both the non-digi bitpack path
+  (`emit_asm` → `_emit_asm_bitpack`) and the digi path (`_emit_sid_bp`) funnel
+  through the ONE `_compose_engine_asm_bp` — there is no second music composer.
+  This is the substantive dedup Move 2 wanted, and the `emit_asm` unification
+  delivered it silently. What non-digi no longer uses is `_emit_sid_bp` (the
+  file-writing wrapper); it uses the shared `_assemble` + `_psid_header` tail.
+- **The digi orchestration STAYS separate — and that's correct, not debt.**
+  `_emit_combined_sid_bp` (+ its entry `_emit_bitpack_bytes`) owns a genuinely
+  different output shape: iteratively auto-pack the music engine against the
+  digi dispatcher base, inline-load PSID encoding, sample-blob assembly. Folding
+  it *into* `emit_asm` would make the engine-blind entry digi-aware — adding
+  engine-specific complexity to the unified path for one engine. Keeping the
+  boundary is the right call.
+- **The last overlap is gone (2026-07-21).** `_emit_sid_bp`'s pattern-pool +
+  encode + compose was the only remaining duplicate of `_emit_asm_bitpack`;
+  both now call the shared `_compose_bitpack_asm` helper. Byte-identity gate:
+  the Hubbard '85 family (10 members) + Chimera all rebuild MD5-identical, and
+  full regression stays green.
 
-So the original "retire all three by folding digi in" plan is **withdrawn**.
-The composer keeps one deliberate structural exception for digi; Chimera 4/4 +
-full regression stay byte-exact through the current split.
+So the composer keeps exactly one deliberate structural exception — the digi
+*orchestration* — with no code duplication behind it. Nothing further to do here.
 
 ---
 
@@ -484,8 +493,8 @@ artifact.
   standard / basic_program are migrated; the cross-family divergences
   the unified skeleton must reconcile are enumerated (D1–D5; D6 done).
   Move 1 stays deferred by user decision, not by lack of evidence.
-- **Move 2 (digi fold) is partially landed and withdrawn.** The
-  non-digi merge happened; digi orchestration is intentionally kept
-  separate.
+- **Move 2 (digi fold) is CLOSED.** The music composer was already
+  shared; the last overlap is deduped; digi orchestration stays
+  separate by design.
 - **Move 1 sub-moves are sketched but deferred.** D.1 (unified note
   codec) is the natural starting point when this picks back up.
