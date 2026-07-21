@@ -1561,17 +1561,24 @@ def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
     if n_chips < 2:
         return None
     mem, s = _load(path)
-    if mem[s['play']] != 0x4C:
-        return None
-    play_wrap = _rd16(mem, s['play'] + 1)
-    bases = []
-    a = play_wrap
+    # The static scan wants the wrapper's first call. `JMP wrapper` is the
+    # common play vector; a wrapper that IS the play vector (a C18 phase
+    # cycler inlined there) is scanned from the vector itself. Neither shape
+    # is required — an unrecognised one just finds no calls and falls through
+    # to the observation path below, which is the C18 answer to wrapper
+    # variety. (play == 0 means the tune installs its own IRQ: nothing to
+    # scan at all.)
+    if not (s['load'] <= s['play'] < 0x10000):
+        bases, a = [], None
+    else:
+        a = _rd16(mem, s['play'] + 1) if mem[s['play']] == 0x4C else s['play']
+        bases = []
     # JSR <player play> ($20), or BIT ($2C) — the wrapper neuters a chip's
     # call by patching the opcode $20<->$2C per subtune (see
     # multisid_active_chips), so a member SAVED while a chip-only subtune was
     # selected ships that call as BIT. It still names its player (C19: never
     # assume the file-image state of a toggled byte).
-    while mem[a] in (0x20, 0x2C):
+    while a is not None and mem[a] in (0x20, 0x2C):
         t = _rd16(mem, a + 1)
         if t - 3 >= 0 and mem[t - 3] == 0x4C and mem[t] == 0x4C:
             bases.append(t - 3)                 # play = JT entry (base+3)
@@ -1701,10 +1708,19 @@ def _observe_player_bases(sid_path: str, n_chips: int,
     run of `JSR <player play>`; when a C18 phase cycler sits in front of the
     per-chip calls the scan sees an `LDA #imm` and gives up. Rather than
     teach it each wrapper shape (C18: observe, never parse), run the member's
-    init under py65 and collect the JSR targets that look like a DMC player's
-    2-entry JUMP TABLE: page-aligned (players are relocated to a page
-    boundary — true of all known carriers) with `JMP` at both +0 and +3.
-    First-seen order is the wrapper's call order = chip order.
+    init under py65 and collect the CALL targets that look like a DMC
+    player's 2-entry JUMP TABLE: page-aligned (players are relocated to a
+    page boundary — true of all known carriers) with `JMP` at both +0 and
+    +3. First-seen order is the wrapper's call order = chip order.
+
+    A wrapper need not use JSR: an init that sets up chip 1 and TAIL-JUMPS
+    into chip 2's init (Surgeon's Cow_Anus_Fucked: `JSR $1000 / LDA #$00 /
+    JMP $3000`) reaches its second player by `JMP`. So the JSR-only pass
+    runs FIRST — unchanged for every member it already resolves — and only
+    when that fails does a second pass also accept `JMP` targets. Ordering
+    it this way is zero-regression by construction: a member whose JSR pass
+    already found exactly `n_chips` can never be pushed over the count by
+    the looser scan.
 
     Returns the base list, or None if it doesn't find exactly `n_chips`.
     """
@@ -1719,30 +1735,34 @@ def _observe_player_bases(sid_path: str, n_chips: int,
     for i, b in enumerate(s['payload']):
         if s['load'] + i < 0x10000:
             img[s['load'] + i] = b
-    mpu = MPU()
-    mem = ObservableMemory()
-    for i, b in enumerate(s['payload']):
-        if s['load'] + i < 0x10000:
-            mem[s['load'] + i] = b
-    mpu.memory = mem
-    mpu.stPush(0x00)
-    mpu.stPush(0x00)                       # RTS sentinel -> PC = $0001
-    mpu.pc = s['init']
-    mpu.a = 0
-    found = []
-    for _ in range(max_steps):
-        if mpu.pc == 0x0001:
-            break
-        if mem[mpu.pc] == 0x20:            # JSR abs
-            t = mem[mpu.pc + 1] | (mem[mpu.pc + 2] << 8)
-            if not (t & 0xFF) and img[t] == 0x4C and img[t + 3] == 0x4C \
-                    and t not in found:
-                found.append(t)
-        try:
-            mpu.step()
-        except Exception:
-            return None
-    return found if len(found) == n_chips else None
+
+    def _scan(call_ops):
+        mpu = MPU()
+        mem = ObservableMemory()
+        for i, b in enumerate(s['payload']):
+            if s['load'] + i < 0x10000:
+                mem[s['load'] + i] = b
+        mpu.memory = mem
+        mpu.stPush(0x00)
+        mpu.stPush(0x00)                   # RTS sentinel -> PC = $0001
+        mpu.pc = s['init']
+        mpu.a = 0
+        found = []
+        for _ in range(max_steps):
+            if mpu.pc == 0x0001:
+                break
+            if mem[mpu.pc] in call_ops:    # JSR abs (+ JMP abs on the retry)
+                t = mem[mpu.pc + 1] | (mem[mpu.pc + 2] << 8)
+                if not (t & 0xFF) and img[t] == 0x4C and img[t + 3] == 0x4C \
+                        and t not in found:
+                    found.append(t)
+            try:
+                mpu.step()
+            except Exception:
+                return None
+        return found if len(found) == n_chips else None
+
+    return _scan((0x20,)) or _scan((0x20, 0x4C))
 
 
 def multisid_active_chips(sid_path: str, bases, n_subtunes: int,
