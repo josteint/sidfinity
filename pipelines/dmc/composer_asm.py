@@ -2618,12 +2618,13 @@ def _split_chip_usf(usf: UsfFile, ci: int) -> UsfFile:
     standalone form (so the sub-USF is byte-for-byte what a single-chip
     extraction of that player would produce), take its 3 voices (renumbered
     1-3, note refs un-shifted), and its own priming. freq_table / wave
-    programs / params are shared."""
+    programs / params are shared. Every subtune is carved (the chips share
+    one subtune list — subtune s of the merged USF holds chip ci's subtune s
+    with its own tempo/priming)."""
     import dataclasses
     from pipelines.dmc.v4.extract.to_usf import (
         MULTISID_INSTR_STRIDE as ISTR, MULTISID_FILTER_STRIDE as FSTR,
         _offset_note_refs)
-    sub = usf.subtunes[0]
     ilo, ihi = ci * ISTR, (ci + 1) * ISTR       # id in (ilo, ihi]
     flo, fhi = ci * FSTR, (ci + 1) * FSTR
     instrs = []
@@ -2635,27 +2636,34 @@ def _split_chip_usf(usf: UsfFile, ci: int) -> UsfFile:
             instrs.append(dataclasses.replace(i, id=i.id - ilo, filter_prog=fp))
     filters = {p - flo: d for p, d in usf.filter_programs.items()
                if flo < p <= fhi}
-    vren = [dataclasses.replace(v, id=k + 1,
-                                patterns=[dataclasses.replace(
-                                    p, rows=_offset_note_refs(p.rows, -ilo))
-                                    for p in v.patterns])
-            for k, v in enumerate(sub.voices[ci * 3: ci * 3 + 3])]
     ivs = [dataclasses.replace(iv, id=iv.id - ci * 3)
            for iv in usf.init.voices if ci * 3 < iv.id <= ci * 3 + 3]
-    # per-subtune resolver seeds (stated rows) live on the SUBTUNE init —
-    # a distinct level from the file-level idle voices above
-    seed_ivs = [dataclasses.replace(iv, id=iv.id - ci * 3)
-                for iv in (sub.init.voices if sub.init else [])
-                if ci * 3 < iv.id <= ci * 3 + 3]
-    chip_sid = [usf.init.sid, usf.init.sid2, usf.init.sid3][ci]
-    tempo = [sub.tempo, sub.tempo2, sub.tempo3][ci]
-    if tempo is None:
-        tempo = sub.tempo
-    init = InitState(voices=ivs, sid=chip_sid)
-    subt = MusicSubtune(id=1, tempo=tempo, voices=vren,
-                        init=InitState(voices=seed_ivs, sid=chip_sid))
+    file_sid = [usf.init.sid, usf.init.sid2, usf.init.sid3][ci]
+    subts = []
+    for sub in usf.subtunes:
+        vren = [dataclasses.replace(v, id=k + 1,
+                                    patterns=[dataclasses.replace(
+                                        p, rows=_offset_note_refs(p.rows, -ilo))
+                                        for p in v.patterns])
+                for k, v in enumerate(sub.voices[ci * 3: ci * 3 + 3])]
+        # per-subtune resolver seeds (stated rows) live on the SUBTUNE init —
+        # a distinct level from the file-level idle voices above
+        seed_ivs = [dataclasses.replace(iv, id=iv.id - ci * 3)
+                    for iv in (sub.init.voices if sub.init else [])
+                    if ci * 3 < iv.id <= ci * 3 + 3]
+        # this subtune's own per-chip priming; falls back to the file-level
+        # block for USFs written before per-subtune `sid 2/3` was emitted
+        chip_sid = ([sub.init.sid, sub.init.sid2, sub.init.sid3][ci]
+                    if sub.init else None) or file_sid
+        tempo = [sub.tempo, sub.tempo2, sub.tempo3][ci]
+        if tempo is None:
+            tempo = sub.tempo
+        subts.append(MusicSubtune(
+            id=sub.id, tempo=tempo, voices=vren,
+            init=InitState(voices=seed_ivs, sid=chip_sid)))
+    init = InitState(voices=ivs, sid=file_sid)
     return dataclasses.replace(usf, instruments=instrs,
-                               filter_programs=filters, subtunes=[subt],
+                               filter_programs=filters, subtunes=subts,
                                init=init)
 
 
