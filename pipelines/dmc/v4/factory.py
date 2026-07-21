@@ -1499,7 +1499,12 @@ def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
     play_wrap = _rd16(mem, s['play'] + 1)
     bases = []
     a = play_wrap
-    while mem[a] == 0x20:                       # JSR <player play>
+    # JSR <player play> ($20), or BIT ($2C) — the wrapper neuters a chip's
+    # call by patching the opcode $20<->$2C per subtune (see
+    # multisid_active_chips), so a member SAVED while a chip-only subtune was
+    # selected ships that call as BIT. It still names its player (C19: never
+    # assume the file-image state of a toggled byte).
+    while mem[a] in (0x20, 0x2C):
         t = _rd16(mem, a + 1)
         if t - 3 >= 0 and mem[t - 3] == 0x4C and mem[t] == 0x4C:
             bases.append(t - 3)                 # play = JT entry (base+3)
@@ -1546,6 +1551,21 @@ def multisid_active_chips(sid_path: str, bases, n_subtunes: int,
     from py65.memory import ObservableMemory
     from seed_disassembly import parse_psid
     s = parse_psid(sid_path)
+    # Watch each player's own ENTRY VECTORS, not an address RANGE: players
+    # can sit less than a page apart and the dispatch wrapper itself can lie
+    # inside a player's nominal page (Dark_Knight: players $E000/$EE00,
+    # wrapper $FC00), so ranges both overlap each other and swallow the
+    # wrapper — which reports every chip active in every subtune. Entry =
+    # the jump-table slots (base, base+3), or the direct 2entry play handler
+    # at base+$50 when there is no table (mirrors the wrapper scan above).
+    img = bytearray(0x10000)
+    for i, b in enumerate(s['payload']):
+        if s['load'] + i < 0x10000:
+            img[s['load'] + i] = b
+    entries = []
+    for b in bases:
+        jt = img[b] == 0x4C and img[b + 3] == 0x4C
+        entries.append((b, b + 3 if jt else b + 0x50))
     out = []
     for sub in range(n_subtunes):
         mpu = MPU()
@@ -1564,10 +1584,10 @@ def multisid_active_chips(sid_path: str, bases, n_subtunes: int,
             for _ in range(max_steps):
                 if mpu.pc == 0x0001:
                     return True
-                for ci, b in enumerate(bases):
-                    if b <= mpu.pc < b + 0x1000:
-                        # A at the player's entry vector = its song number
-                        if watch_song and mpu.pc == b and ci not in seen:
+                for ci, (ini, ply) in enumerate(entries):
+                    if mpu.pc == ini or mpu.pc == ply:
+                        # A at the player's init vector = its song number
+                        if watch_song and mpu.pc == ini and ci not in seen:
                             seen[ci] = mpu.a
                         seen.setdefault(ci, 0)
                 try:
