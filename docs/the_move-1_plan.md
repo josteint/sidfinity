@@ -28,6 +28,10 @@ the pre-decided record of what Move 1 must reconcile. Live content:
   where emission shouldn't change; write-stream-exact where code layout does).
 - **The open principle question** — is `pattern.encoding='bitpack'` a covert
   `*Kind` engine-id or a real small enum?
+- **Two open escape-hatch debts (must not silently persist)** — the residual
+  `Params.fields` init-phase keys (v5 `speed_ctr_init` / `fade_frac_init`,
+  borderline §7) and the `glide_to` off-table-target parse quirk; both detailed
+  in the 06-18 / 07-06 review snapshots below.
 - **Parked design** — the audio-equivalence verdict (former ledger C15); a
   Move-1-era-ONLY consideration, never proposed during per-engine work.
 
@@ -228,6 +232,14 @@ are behavior-named (good); the `*_init`/`*_phase`/`cia_period` keys are
 uncleared init-phase state (borderline §7 — affect the write stream, so not
 pure bookkeeping, but not musical content either). Flag for a future pass.
 
+**[UPDATE 2026-07-21]** Partly resolved since: `cia_period` → typed
+`Environment` block (§4.3) and `slide_phase` → `InitVoice.slide_phase` (§4.5) —
+the two init-phase keys that were the actual §7 concern. **Still open:** v5's
+`speed_ctr_init` / `fade_frac_init` (uncleared init-phase state, still
+`Params.fields` string keys in `pipelines/dmc/v5/from_usf.py`). The family-2
+keys (`cymbal_onset`/`vib_ramp`/…) stay params **by design** — behavior-named
+C19-wedge knobs, per the 07-06 pending-decision-2 note. Surfaced in the head.
+
 **Diff vs last review:** the only previously-recorded divergence was DMC
 `SweepEnvelope` vs FC `filter_programs`/`pulse_programs`. This review adds
 the DMC-INTERNAL v4↔v5 fork (3 musical concepts, 2 forms) — the first time
@@ -326,12 +338,18 @@ Pending decisions added for the human (also in ledger C7 note):
 3. **`glide_to` off-table-target parse quirk** — documented Move-1 debt
    (dynamic-byte-terminated sweep representation), must not silently persist.
 
-Process gaps (why DMC is still not uready — C4/C6, not representation):
-f1 closeout batch pending (~5019/5401); f2 stale at 2413/2889 (Jul 4 — all
-rounds 22-41 landed f1; the shared-composer fixes make a f2 recovery sweep
-due); regression portfolio derived at 4770 FULL, re-derive due; v4+family2
-RE_NOTES.md frozen Jun 14 while residue lives only in project memory. Minor:
-no static extract↔USF roundtrip checker for DMC (behavioral-only validation).
+Process gaps (why DMC is still not uready — C4/C6, not representation).
+**[SUPERSEDED 2026-07-21 — live DMC status is in `project_dmc`; the counts below
+are the 2026-07-06 audit snapshot and are stale (f1 is materially higher now).
+The load-bearing FINDING stands: DMC's non-uready gap is process/residue (C4/C6
+— triage, batch/portfolio freshness, RE_NOTES sync), NOT a representation fork —
+which is why DMC supplies the richest divergence evidence yet still doesn't count
+toward the Move-1 trigger.]** As of that audit: f1 closeout batch pending
+(~5019/5401); f2 stale at 2413/2889 (Jul 4 — all rounds 22-41 landed f1; the
+shared-composer fixes make a f2 recovery sweep due); regression portfolio derived
+at 4770 FULL, re-derive due; v4+family2 RE_NOTES.md frozen Jun 14 while residue
+lives only in project memory. Minor: no static extract↔USF roundtrip checker for
+DMC (behavioral-only validation).
 
 ---
 
