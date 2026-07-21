@@ -5,8 +5,46 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-21T20:20:09.128Z
+  modified: 2026-07-21T21:05:18.397Z
 ---
+
+## ✅ ROUND 78 (2026-07-21): the family-1 ERROR BUCKET — multi-SID × multi-subtune
+f1 was **5,221 full / 173 partial / 0 unsupported / 7 error**; all 7 errors
+were `AssertionError: multi-SID merge supports single-subtune members only`
+(the Rayden 2SID builds, 2 chips × 3 subtunes). Now **0 error**, and 2 of the
+7 are FULL. Three layers, each observed rather than assumed:
+- **The assertion itself** — `merge_2sid_usf`/`_split_chip_usf` only ever
+  handled `subtunes[0]`. Generalised subtune-wise using the EXISTING schema
+  (`tempo 2/3`, `sid 2/3` already ride the subtune). Commit 4c4dbca1.
+- **C19 (12th occ) — the relocation miss.** `_reloc_sid_regs` hardcoded
+  `keep_res=True` (never relocate `$D417`), generalised from the single
+  carrier Nice_Dream; Rayden's builds DO relocate it, so chip 2's res/route
+  write was simply missing (first div at flat position 21). Static operand
+  probe → `multisid_keep_regs` param; default now fully relocated. Census: of
+  10,676 DMC members, 19 multi-SID headers, 8 detected, 7 fully-relocated + 1
+  keep=`$17` ⇒ 0 FULL exposure.
+- **C27 refinement / C18 — per-subtune chip selection.** The wrapper gates
+  each player by SMC-patching its call opcode `$20`↔`$2C` (sub 0 = both, 1 =
+  chip 1, 2 = chip 2) AND hardcodes `LDA #$00` before both inits, so each chip
+  always plays its own song 0. Observed under py65 (`multisid_active_chips`);
+  represented by which VOICES a subtune carries — no new field.
+- **Two latent bugs surfaced:** the merge kept only chip 1's params (dropping
+  per-voice otrk scalars + any chip-2 wedge — now renumbered/asserted), and
+  the trichotomy comparator's no-alignment early return omitted
+  `audio_guaranteed` (reachable once a chip's substream can be empty).
+- **Bamse_Bert + Zipped_out FULL** (3/3 subtunes). Remaining 5 are partial on
+  per-member CONTENT divergences, not multi-SID plumbing: Blue_Max +
+  Leprechaun_Boot_V1 fail only their chip-2-only subtune; Disco_Zak (72335),
+  Mopped_Tester (17516), TrubbleLaBubble (0) fail sub 0 too.
+- **NOT DONE — the 6 undetected Rayden siblings** (DSR-FLT_Cracktroh,
+  Dark_Knight, Leprechaun_Boot_V2, Mc_Dieter, Mythig, Physician_Remake).
+  Identical chip/subtune structure but `dmc_v4_config_2sid` rejects them: 5
+  have an SMC-counter play wrapper (`A9 00 D0 0A EE B1 0F ...` at $0FB0 — a
+  C18 phase wrapper stacked on the 2SID dispatch) and Dark_Knight's is saved
+  with one call already neutered (`20 03 E0 2C 03 EE` — the C19 save-moment
+  trap). They currently run as single-player and verify ~0. Worth a round.
+- Gates: usf_corpus_check 84 = the documented pre-existing set; dmc_smoke 6/6;
+  full regression green (0 regr, 8 families). Commits 4c4dbca1, 4b0f77bb.
 
 ## 📋 CORPUS REFRESH (2026-07-21, EPYC): f1 + v5 re-verified & re-written; the stored `.usf` corpus had silently rotted
 Not a round — a full re-verify + mass-write after the host move, prompted by

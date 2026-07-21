@@ -104,7 +104,7 @@ practice, not code to factor).
 | HETEROGENEOUS per-step write shapes in a trace-lift · one superset order can't embed all steps (conflicting reg orders / intra-step dups / sections) · cluster steps by EXACT write shape → K positional templates + per-step template id | C17 | logged |
 | play-vector WRAPPER with per-call PHASE behaviour · slow-tempo / multispeed-effects cycler · every Nth call runs the full play, others run effects-only / register-refresh / nothing · wrapper shapes vary (SMC, DEC+dual-JMP, parity AND) — OBSERVE entry-point reachability under py65, don't parse · arm F-ENTRY variant: wavestep ($1591) vs vibrato half-cycle ($1567, flips reshape vibrato to a square) → `effect_entry_variant: vibflip` | C18 | logged |
 | TRICHOTOMY VERDICT alignment · rebuild emits its OWN init (universal reset+priming) so streams differ by an init prefix · Check A end-of-init state + aligned play-stream compare · TWO implementations exist: `verify_cycle._trichotomy_compare` (FC, shift recovery) + `usf_roundtrip._compare_music/_split_aligned` (basic_program, known-init-length + probe search) — CONSULT MISS, factor at Move 1 | C21 | factor-candidate (2×) |
-| hand-patched player WEDGE inside the canon body · SMC opcode toggle · 1-byte opcode patch · JMP over canonical loads · runtime state ≠ static file byte · PWM bound-shift (LSR count) wedge · init-PREFIX `LDA #imm` hard-forces the played tune record (extract walks the wrong record) · STATIC opcode probe, never a bounded stream scan · census carriers both sides · reproduce semantics behind a factory-probed param (EXTRACT-only when the wedge changes a derived musical value; COMPOSER param when it changes a write-stream TIMING/VALUE, e.g. $D418 re-asserted every frame · SWITCH gate-toggle EOR immediate) | C19 | canonicalized (11×) |
+| hand-patched player WEDGE inside the canon body · SMC opcode toggle · 1-byte opcode patch · JMP over canonical loads · runtime state ≠ static file byte · PWM bound-shift (LSR count) wedge · init-PREFIX `LDA #imm` hard-forces the played tune record (extract walks the wrong record) · STATIC opcode probe, never a bounded stream scan · census carriers both sides · reproduce semantics behind a factory-probed param (EXTRACT-only when the wedge changes a derived musical value; COMPOSER param when it changes a write-stream TIMING/VALUE, e.g. $D418 re-asserted every frame · SWITCH gate-toggle EOR immediate · multi-SID relocation MISS) | C19 | canonicalized (12×) |
 | stale-FULL palimpsest · recorded 'full' the current code can't reproduce · hides members from residue censuses · verify the STORED build first, then USF-diff/param-bisect to attribute · never mass-write with code that didn't produce the verdict | C20 | canonicalized |
 | AMBIGUOUS round-trip flag encoding · two distinct engine ops render to OVERLAPPING USF flag sets · the decoder's branch test uses a SUBSET of the discriminator → misroutes one op onto the other's path · matches for most content (paths coincide when inputs coincide), diverges on the distinguishing case | C22 | canonicalized (2×) |
 | a play-phase/schedule TOKEN hides a per-member behavioural ambiguity · same P_F123 token = note-init-on-F vs deferred 2-frame arm · fixing one class REGRESSES same-token FULLs · NOT derivable from the token/multispeed → OBSERVE the distinguishing write-footprint per member · regression-safe when the "changed" verdict has no false positive | C23 | logged |
@@ -344,7 +344,13 @@ practice, not code to factor).
   before landing. Extract-only when the wedge changes a derived musical
   value; composer param when it changes write-stream timing/value. Probe must
   anchor on the REACHABLE site (a loose byte-pattern probe false-fires).
-  11 occurrences — the full entry catalogues every known wedge.
+  ALSO COVERS a build-TOOL miss, not only a hand patch (the multi-SID
+  relocation leaving one store operand un-offset). COROLLARY: **a default
+  generalised from ONE observed carrier is an un-probed hardcode in
+  disguise** — probe the operand, never enshrine the quirk (`keep_res=True`
+  was wrong for 7 of 8 carriers). Watch GRANULARITY: the wedge can be
+  per-STORE while the knob is per-register.
+  12 occurrences — the full entry catalogues every known wedge.
 - FULL ENTRY: [`ledger/C19.md`](ledger/C19.md) — read it before applying.
 
 ### C20 — stale-FULL palimpsest
@@ -450,7 +456,14 @@ practice, not code to factor).
   (reg = chip*$20+reg). Voices number through chips; chip addresses are
   pipeline constants, never USF content. Per-instance write-stream QUIRKS
   (e.g. an editor build leaving chip 2's $D417 res/route write on chip 1)
-  are per-chip CONFIG reproduced as-is — not bugs to normalize away.
+  are per-chip CONFIG reproduced as-is — not bugs to normalize away, but
+  PROBE them per member (C19 12th occ) — never hardcode one carrier's quirk
+  as the default. A subtune need NOT sound every chip, and the wrapper picks
+  each chip's SONG (Rayden: sub 0 both / 1 chip-1 / 2 chip-2, every chip
+  always playing its own song 0) — observe both under py65 (C18), represent
+  by which VOICES the subtune carries (no new field). TRAP: the merge kept
+  only chip 1's params, silently dropping per-voice otrk scalars + any chip-2
+  wedge.
 - FULL ENTRY: [`ledger/C27.md`](ledger/C27.md) — read it before applying.
 
 ### C28 — multi-SID VERDICT: compare each chip's stream independently
