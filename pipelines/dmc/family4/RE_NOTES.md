@@ -44,7 +44,7 @@ and splits them cleanly:
   the exact tolerance rule is not yet cracked. **⇒ NEXT (STRICT-MATCH — user
   policy 2026-07-01: every SID always gets the strict write-stream match; the
   former ledger C15 "audio-equivalence" relaxation is REMOVED, parked in
-  refactor_1_remaining.md for the Move-1 era only): REPRODUCE the orig's $1016
+  the_move-1_plan.md for the Move-1 era only): REPRODUCE the orig's $1016
   2-phase EXACTLY in the composer** so the leadin idle-play COUNT + the
   durctr/hard-restart timing match bit-for-bit. Family4-gated: an actual
   DEC/BMI/reset-to-1 toggle seeded from mem[base+$16] (a new small counter

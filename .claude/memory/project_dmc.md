@@ -2369,7 +2369,7 @@ unblock-builds, not new FULLs — Black_Sun etc from the `}` fix).
   composer's spdctr counter ≠ the orig $1016 DEC/BMI/reset-to-1 toggle; only
   represents phase 0/1). **⇒ NEXT = STRICT MATCH (user policy 2026-07-01: every
   SID always gets the strict write-stream verdict; ledger C15 "audio-equivalence"
-  REMOVED — parked in refactor_1_remaining.md, Move-1-era-only): REPRODUCE the
+  REMOVED — parked in the_move-1_plan.md, Move-1-era-only): REPRODUCE the
   $1016 2-phase EXACTLY in the composer** (family4-gated DEC/BMI/reset-to-1
   toggle seeded from mem[base+$16] — a NEW counter shaped like the orig's; the
   LEFT_SPDCTR=mem[base+$16] attempt FAILED because the composer's reload-to-speed

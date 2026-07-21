@@ -1,6 +1,6 @@
 ---
 name: uready-review
-description: Audit migrated engine families for "uready" (unification-readiness, the 6-criteria gate) AND do the cross-engine feature-reuse review that docs/refactor_1_remaining.md Move 1 depends on. Read-only analysis — surfaces decisions, never changes representations. Run periodically to keep the composer-skeleton unification honest.
+description: Audit migrated engine families for "uready" (unification-readiness, the 6-criteria gate) AND do the cross-engine feature-reuse review that docs/the_move-1_plan.md Move 1 depends on. Read-only analysis — surfaces decisions, never changes representations. Run periodically to keep the composer-skeleton unification honest.
 argument-hint: "[engine-family | all]  (default: all migrated families)"
 user-invocable: true
 allowed-tools: Agent Bash Read Grep Glob Edit Write
@@ -10,7 +10,7 @@ effort: high
 # uready + cross-engine reuse review — $ARGUMENTS
 
 You are running the **periodic unification-readiness audit**. Its job is the
-safeguard `docs/refactor_1_remaining.md` (Move 1) relies on but that nothing
+safeguard `docs/the_move-1_plan.md` (Move 1) relies on but that nothing
 exercises automatically: keep the per-family composers + per-family USF features
 from quietly diverging while we defer the composer-skeleton unification.
 
@@ -21,7 +21,7 @@ those are deliberate decisions the human makes with the report in hand. (If you
 spot a one-line obvious doc/comment fix, note it; don't refactor.)
 
 Read FIRST, in full:
-- `docs/refactor_1_remaining.md` (Move 1, the §8 risk, the open principle question)
+- `docs/the_move-1_plan.md` (Move 1, the §8 risk, the open principle question)
 - `docs/the_principle.md` (§7 forbidden shape, §8 composer twin, §9 four tests)
 - `.claude/memory/feedback_uready_vocabulary.md` (the 6 criteria + the live scoreboard)
 
@@ -114,7 +114,7 @@ Then **update** (these writes are the only mutations a review makes):
   `feedback_uready_vocabulary.md` holds ONLY the vocabulary + a durable
   pointer — do NOT append scoreboards there (they accumulate and rot;
   trimmed 2026-07-16 per the placement rule).
-- the **Move-1 ledger** in `docs/refactor_1_remaining.md` (criterion-5 feature
+- the **Move-1 ledger** in `docs/the_move-1_plan.md` (criterion-5 feature
   accounting + the pending divergence decisions).
 - the **[convergence ledger](../../../docs/the_convergence_ledger.md)** — the review
   is the periodic maintainer (per-solve recording is the everyday CLAUDE.md

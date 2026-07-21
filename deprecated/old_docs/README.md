@@ -15,7 +15,7 @@ Session plans and codegen plans from earlier phases. Kept for historical context
   of 2026-04-09. Captures the long-term vision (neural net → USF →
   SIDfinity player) but the per-step status (GT2/DMC transpilers
   "in progress") is out of date. The operational plan is now
-  `docs/refactor_1_remaining.md` (Move 1) + CLAUDE.md's Project goal;
+  `docs/the_move-1_plan.md` (Move 1) + CLAUDE.md's Project goal;
   `PLAN.md` and `canary_picker.md` were both retired (below).
 - `usf_instrument_program_plan_2026_v1era.md` — USF v1 era blueprint
   for "instruments as 6502 programs" with Lean-codegen verification.
@@ -90,7 +90,7 @@ Moved 2026-07-21:
   `(fc_id, init_len)` materialization + DMC `~intro` decode variants
   folded into stated NoteRow values + one shared resolver
   `src/usf/resolve.py`). Fully shipped 2026-07-20; live facts held in
-  `docs/refactor_1_remaining.md` D6, ledger C32 (canonicalized 2×), and
+  `docs/the_move-1_plan.md` D6, ledger C32 (canonicalized 2×), and
   the `project_dmc` / `project_fc_fingerprint_and_standard` memories.
   Kept for its probe tables (phantom-duplicate FC-pattern count; DMC
   carry-channel breakdown).

@@ -173,7 +173,7 @@ init reveals a different binary layout.
 
 This is exactly the kind of cross-engine diversity the
 "migrate-more-engines-first" recommendation in
-`docs/refactor_1_remaining.md` argues for. The FC sanity check
+`docs/the_move-1_plan.md` argues for. The FC sanity check
 confirms: even within the "MoN/FutureComposer" sidid umbrella, there
 are multiple structural shapes the current extract can't handle.
 

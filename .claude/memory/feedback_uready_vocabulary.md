@@ -11,7 +11,7 @@ metadata:
 user 2026-06-11. An engine family is *uready* when its migration follows
 the principles well enough that (a) we can leave it and move to another
 engine, and (b) the composer-skeleton unification
-([`docs/refactor_1_remaining.md`](../../docs/refactor_1_remaining.md)
+([`docs/the_move-1_plan.md`](../../docs/the_move-1_plan.md)
 Move 1, a.k.a. the grand-unification/tokenization stage) doesn't have to
 struggle more than necessary because of it.
 

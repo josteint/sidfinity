@@ -1,4 +1,11 @@
-# Refactor 1 — what's deferred and why
+# The Move 1 plan — composer-skeleton unification (deferred)
+
+<!-- Formerly refactor_1_remaining.md. "Refactor 1" was the composer refactor;
+     Phase B landed, and what remained was Move 1 (skeleton unification, still
+     deferred) + Move 2 (digi fold, now closed). The live content is the Move 1
+     plan, hence the rename. Historical "Refactor 1 / Phase B" references below
+     are kept as-is — they are accurate history. -->
+
 
 ## STATUS (head, 2026-07-21)
 

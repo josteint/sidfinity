@@ -2,7 +2,7 @@
 > `(fc_id, init_len)` materialization and DMC's `~intro` decode variants folded
 > into stated NoteRow values + one shared resolver) is fully SHIPPED — see its
 > own `## Outcome (2026-07-20)` section below. The live facts are held elsewhere:
-> `docs/refactor_1_remaining.md` D6 (both pieces, probe numbers, gates, recoveries,
+> `docs/the_move-1_plan.md` D6 (both pieces, probe numbers, gates, recoveries,
 > the uready verdict), ledger **C32** (the stated-notation fold technique,
 > canonicalized 2×), and the per-round status in the `project_dmc` /
 > `project_fc_fingerprint_and_standard` memories. Nothing here is live that
@@ -12,7 +12,7 @@
 
 # Stated-duration pattern rows — D6 piece 2 (2026-07-19)
 
-The deferred deep half of D6 (docs/refactor_1_remaining.md) / the C32
+The deferred deep half of D6 (docs/the_move-1_plan.md) / the C32
 boundary note: FC's `len=L` wrap pickup, FC's `(fc_id, init_len)`
 pattern-variant materialization, and DMC's `~intro` orderlist decode
 variants are ONE phenomenon — **sticky pattern-row state (duration, and

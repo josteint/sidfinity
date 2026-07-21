@@ -226,7 +226,7 @@ principled.
   output goal).
 - `tools/regression.py FC: 14 ok` becomes a true principled-rebuild
   signal instead of a verbatim-copy tautology.
-- The composer unification trigger in `docs/refactor_1_remaining.md`
+- The composer unification trigger in `docs/the_move-1_plan.md`
   (2+ large engine families migrated principled) advances — FC family
   becomes a real second principled family alongside Hubbard '85.
 

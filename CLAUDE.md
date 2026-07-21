@@ -12,7 +12,7 @@ per-member data/patches, not player code; superseded plan archived at
 un-migrated family whose `engine_docs` state is OK (research done), via
 the `hvsc84.parquet` catalogue; within a family, work the next-partial-
 by-path loop and let each fix propagate through the batch. Move 1 (the
-composer unification, `docs/refactor_1_remaining.md`) waits until the
+composer unification, `docs/the_move-1_plan.md`) waits until the
 grind is done or demonstrably saturated — the user decides; NO automatic
 trigger. Original 2026-04 vision doc:
 `deprecated/old_docs/PLAN_2026_04.md`.

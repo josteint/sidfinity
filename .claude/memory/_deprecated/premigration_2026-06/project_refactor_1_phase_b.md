@@ -140,7 +140,7 @@ least two of:
 - 2+ other large engine families migrated (Music_Assembler ~6k,
   Future_Composer ~4k, Soundmonitor ~3.6k SIDs)
 
-**Substantive plan lives at:** `docs/refactor_1_remaining.md` —
+**Substantive plan lives at:** `docs/the_move-1_plan.md` —
 includes Move 2 (digi fold — landable any time, doesn't depend on
 corpus richness) and Move 1 sub-moves (D.1 unified note codec, D.2
 unified per-voice state, D.3 unified player skeleton).

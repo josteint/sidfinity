@@ -35,7 +35,7 @@ are companion/Bowden-era niche engines below the top-50 cutoff.
 A breadth-first selection list for migrating one canary SID per engine
 family in the HVSC top 50. The goal is structural coverage — exercise the
 feature space of as many distinct engine shapes as possible — to inform
-the deferred composer-unification work (`docs/refactor_1_remaining.md`).
+the deferred composer-unification work (`docs/the_move-1_plan.md`).
 
 ## How candidates were chosen
 

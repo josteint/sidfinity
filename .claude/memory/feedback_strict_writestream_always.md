@@ -1,6 +1,6 @@
 ---
 name: feedback_strict_writestream_always
-description: "USER POLICY: every SID always gets the STRICT write-stream match. Never propose relaxing the verdict (audio-equivalence / inaudible-write drops). Ledger C15 removed; design parked in refactor_1_remaining.md for the Move-1 era only."
+description: "USER POLICY: every SID always gets the STRICT write-stream match. Never propose relaxing the verdict (audio-equivalence / inaudible-write drops). Ledger C15 removed; design parked in the_move-1_plan.md for the Move-1 era only."
 metadata: 
   node_type: memory
   type: feedback
@@ -21,7 +21,7 @@ mid-corpus.
 - Never propose an audio-equivalence / inaudible-writes verdict relaxation
   during per-engine migration work. The former ledger C15 is REMOVED (a ⛔
   tombstone remains in the ledger index); its design is parked in
-  `docs/refactor_1_remaining.md` under "Move-1-era considerations" and may be
+  `docs/the_move-1_plan.md` under "Move-1-era considerations" and may be
   *considered* only around Move 1, when most/all engines are uready — not before.
 - When an idle/gate-off freewheel divergence blocks a member, the answer is to
   REPRODUCE the writes: the CORE TENET explicitly permits reproducing the

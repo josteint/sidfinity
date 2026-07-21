@@ -21,7 +21,7 @@ GoatTracker 1.x by Cadaver, NOT GoatTracker 2 — user-directed 2026-06-29).
 
 **⛔ POLICY OVERRIDE (user, 2026-07-01) — supersedes every C15/audio-equivalence
 mention below:** every SID always gets the STRICT write-stream match; ledger C15
-is REMOVED (design parked in `docs/refactor_1_remaining.md`, Move-1-era-only —
+is REMOVED (design parked in `docs/the_move-1_plan.md`, Move-1-era-only —
 never propose it during per-engine work). The V1 idle-freewheel partials must be
 solved by REPRODUCING the idle writes (the core tenet permits reproducing the
 mechanism; the composer — not USF — may carry/derive the idle state). References
