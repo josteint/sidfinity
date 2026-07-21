@@ -221,7 +221,12 @@ practice, not code to factor).
   via `--writelog-per-irq --per-irq-debug`, round to the integer factor).
   TELL for the single-speed default latch: a PSID speed-bit tune whose init
   programs no timer runs at the environment default $4025 (~60 Hz) — built
-  as vblank it under-runs ~20% with a perfect prefix.
+  as vblank it under-runs ~20% with a perfect prefix. TELL for a WHOLLY
+  UNMEASURED rate (a second build path that defaulted `cia_period=0`): an
+  exact prefix at a clean 1/N of the orig's length, no content divergence —
+  right notes, wrong speed (distinct from C25's ~0.5% drift). A C18 phase
+  schedule DIVIDES the rate, so period and multispeed factor read together.
+  When a param is measured in one build path, grep the OTHER constructors.
 - FULL ENTRY: [`ledger/C9.md`](ledger/C9.md) — read it before applying.
 
 ### C10 — chip-global ($D415-$D418) automation that varies during the song

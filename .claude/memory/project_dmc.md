@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-21T21:21:02.150Z
+  modified: 2026-07-21T21:29:03.831Z
 ---
 
 ## ✅ ROUND 79 (2026-07-21): multi-SID DETECTION — 9 → 14 of the 19 corpus multi-SID members
@@ -44,12 +44,41 @@ cured by OBSERVING instead of parsing (C18) — commits 1b7c1e9b, ffd6af68.
   partial: Mythig 6→211288, Physician_Remake 3→105284, Leprechaun_Boot_V2
   6→68864, DSR-FLT_Cracktroh 6→64076, Mc_Dieter 3→29904. Dark_Knight sub 1
   FULL, subs 0/2 at 104628.
-- **NEXT BLOCKER (independent of detection): the F phase UNDER-EMITS.** The
-  rebuild's stream is ~HALF the orig's on the phase members (Mythig 425125 vs
-  850011 writes) — the per-chip prefix matches deep then runs out. Investigate
-  what `base+$591` actually writes per call vs the composer's F routine. NB
-  the flat `find_first_divergence` is the WRONG instrument on these (multi-SID
-  verdict is per-chip, C28) — it reports position 0 on a cross-chip adjacency.
+- **THE "F PHASE UNDER-EMITS" READING WAS WRONG — it was the CIA RATE**
+  (fixed below; ledger C9 3rd occurrence). The half-length exact prefix was
+  the right notes at the wrong speed, not missing writes.
+- NB the flat `find_first_divergence` is the WRONG instrument on multi-SID
+  members (the verdict is per-chip, C28) — it reports position 0 on a
+  cross-chip adjacency. Use `writelog_per_irq_capture` +
+  `compare_instruction_stream(n_chips=N)`.
+
+## ✅ ROUND 80 (2026-07-21): the multi-SID CIA rate — +4 FULL (multi-SID 4 → 8)
+`_config_at_base` (the multi-SID sub-player constructor) never set
+`cia_period`, and `build_dmc_2sid_sid` never passed `speed=` to the header, so
+EVERY multispeed multi-SID member built as vblank. Invisible while the only
+carriers were vblank (Nice_Dream, Bamse); it surfaced the moment r79 made the
+5 CIA-timed Rayden members detectable. Commit 268590f3.
+- **TELL: a per-chip EXACT PREFIX at a clean 1/N of the orig's length with NO
+  content divergence.** Distinct from C25's ~0.5% cycle-creep drift. I first
+  mis-read it as "the F phase under-emits" — the giveaway was that the prefix
+  was exact and the ratio was exactly 2.
+- **A C18 phase schedule DIVIDES the timer rate**, so the two must be read
+  together: latch `$2663` (100 Hz) + period-2 `P_F123`, and `$1331` (200 Hz) +
+  period-4, BOTH give a 50 Hz music tick. Mc_Dieter's phase `INC` is wedged to
+  `BIT` so it never divides — a genuine 100 Hz tune.
+- **+4 FULL:** Mythig (422427), Physician_Remake (420481), Leprechaun_Boot_V2
+  (137598), DSR-FLT_Cracktroh (128053) — all 3 subtunes each.
+  **Rayden: 13 members → 8 FULL, 5 partial.** f1 = **5229 full / 172 partial /
+  0 error**.
+- **REMAINING Rayden partials + first divergence:** Dark_Knight 104628 (sub 1
+  FULL), Disco_Zak_Remix 72335, Mc_Dieter 38931 ($D407 V2 freq lo, orig $FF vs
+  $9E), Mopped_Tester 17516, TrubbleLaBubble 0. All are content divergences,
+  not plumbing.
+- **COMPARATOR ARTIFACT worth fixing:** Mc_Dieter's subs 1/2 report match 0
+  because the trichotomy shift recovery FAILS at full songlength and falls
+  into the no-alignment early return; at 30 s the same subtunes report 38931.
+  A shift-recovery failure is currently indistinguishable from a real
+  position-0 divergence in the batch output.
 - **STILL UNDETECTED (5 of 19, none Rayden):** Kordiaukis_01, 4_Ever_Young,
   Popel_Premiere_Intr0h, Cow_Anus_Fucked, Mothafucka — different wrapper
   shapes, not yet characterised.
