@@ -9,11 +9,12 @@ against the original SID's write-log. Verification surfaces per family:
   - FC + DMC: `verify_featuredriven` / `verify_dmc` (trichotomy).
 
 PARALLEL: every per-member verify is an independent task (build to a distinct
-path + capture + compare); they run across a Pool(8) — the same pool-safety the
+path + capture + compare); they run across a pool sized by `src.jobs`
+(all available CPUs, capped at the task count) — the same pool-safety the
 family batch tools (fc_family_batch / dmc_family_batch) already rely on. Tasks
 return structured results; the main process prints them grouped per family in
 the original order and aggregates the verdict. Set REGRESSION_JOBS=1 to force
-sequential (debugging).
+sequential (debugging), or REGRESSION_JOBS=N / SIDFINITY_JOBS=N to pin width.
 
 Run:
     python3 tools/regression.py
@@ -25,6 +26,8 @@ import sys
 from multiprocessing import Pool
 
 sys.path.insert(0, '.')
+
+from src.jobs import default_jobs
 
 
 HUBBARD_ENGINES = [
@@ -68,6 +71,18 @@ COMPANION_USFS = [
 KNOWN_PARTIAL: dict[str, set[int]] = {}
 KNOWN_PARTIAL_HUBBARD: dict[str, set[int]] = {}
 
+# Jay_Derrett RSID members whose rebuild reproduces the IRQ-driven MUSIC but
+# not the main-loop $D418 volume-register DIGI. Not a regression — a gap that
+# was always there and is only now visible: the verdict used to capture the
+# original with py65, which follows the IRQ handler only and is structurally
+# blind to main-loop writes. On these two that digi is ~97% of everything the
+# chip receives (Trigger_Happy: 29,053 of 29,671 writes; Thundercross: 37,194
+# of 37,893) and the rebuild emits 2. Filtering $D418, py65 and siddump agree
+# on the music exactly, so the two capture methods never disagreed — py65
+# simply saw less. Osmium has no digi and matches 708/708.
+# Removing them from this set is the definition of "the digi is modelled".
+KNOWN_PARTIAL_JD: set[str] = {'Trigger_Happy', 'Thundercross'}
+
 
 def _n_subs(sid: str) -> int:
     with open(sid, 'rb') as f:
@@ -87,7 +102,11 @@ def _w_hubbard(nick: str, cn: str, fn: str) -> dict:
     cfg = getattr(import_module(f'pipelines.hubbard.{nick}.config'), cn)
     out = f'{HUBBARD_BASE}/{fn}.sidfinity.sid'
     build_from_usf(f'{HUBBARD_BASE}/{fn}.usf', out)
-    rows = list(verify_all([(cfg, out)]).values())[0][0]
+    # jobs=1: we are already inside a regression Pool worker, and Pool workers
+    # are daemonic — an inner Pool would die with "daemonic processes are not
+    # allowed to have children" on any cache miss. The outer pool is the
+    # parallelism. See src/jobs.py.
+    rows = list(verify_all([(cfg, out)], jobs=1).values())[0][0]
     known = KNOWN_PARTIAL_HUBBARD.get(nick, set())
     sub_ok = sub_partial = sub_fail = 0
     for st, b in rows:
@@ -210,17 +229,30 @@ def _w_jd(kind: str, name: str) -> dict:
         status = 'OK' if ok else f'FAIL {detail}'
         tag = 'typeb'
     else:  # rsid
-        from pipelines.companion.jay_derrett.build import (
-            capture_writes_via_py65)
+        # The ORIGINAL is captured with siddump --force-rsid, not py65. These
+        # are RSID tunes with play=$0000 that install their own IRQ handler at
+        # $0314; plain siddump sees 0 writes (which is why py65 was used here),
+        # but --force-rsid runs the real RSID environment and captures the true
+        # stream — ~100x faster (10.3s -> 0.1s) and, unlike py65, it sees
+        # main-loop writes too. See KNOWN_PARTIAL_JD for what that exposed.
+        #
+        # Both sides are now captured the same way, so this uses the project's
+        # standard comparator instead of the old hand-rolled prefix walk (which
+        # sliced [2:] off the rebuild to paper over the mismatched init).
         _build(name)
-        orig = capture_writes_via_py65(f'{base}/{name}.sid', 0, n_frames=50)
-        reb = writelog_capture(f'{base}/{name}.sidfinity.sid', 0, duration=1.0)
-        fa = [(r, v) for f in orig for c, r, v in f]
-        fb = [(r, v) for f in reb for c, r, v in f][2:]  # skip reb init $D418
-        n = min(len(fa), len(fb))
-        div = next((i for i in range(n) if fa[i] != fb[i]), None)
-        ok = div is None and n > 500
-        status = 'OK' if ok else f'FAIL diverge#{div} ({n} matched)'
+        a = writelog_capture(f'{base}/{name}.sid', 0, duration=1.0,
+                             force_rsid=True)
+        b = writelog_capture(f'{base}/{name}.sidfinity.sid', 0, duration=1.0)
+        r = compare_instruction_stream(a, b)
+        ok = r['is_full']
+        detail = (f"match_all={r['match_all']}/{r['len_all_a']} "
+                  f"reb_len={r['len_all_b']}")
+        if not ok and name in KNOWN_PARTIAL_JD:
+            return {'family': 'Jay_Derrett',
+                    'line': f'  {name:18s} (rsid)  KNOWN-PARTIAL '
+                            f'(main-loop $D418 digi not modelled) {detail}',
+                    'ok': 0, 'partial': 1, 'fail': 0, 'total': 1}
+        status = 'OK' if ok else f'FAIL {detail}'
         tag = 'rsid'
     return {'family': 'Jay_Derrett',
             'line': f'  {name:18s} ({tag})  {status}',
@@ -382,7 +414,7 @@ _FAMILY_ORDER = [
 
 def main():
     tasks = _build_tasks()
-    jobs = int(os.environ.get('REGRESSION_JOBS', '8'))
+    jobs = default_jobs('REGRESSION_JOBS', cap=len(tasks))
     n = len(tasks)
     print(f'Regression: {n} tasks across {jobs} workers '
           f'(live progress in completion order)\n', flush=True)
@@ -424,7 +456,7 @@ def main():
     h_reg = h_total - h_ok - h_part
     c_ok, c_part, c_fail, _ = agg['Companion']
     cme_ok, _, cme_fail, _ = agg['C64ME']
-    jd_ok, _, jd_fail, _ = agg['Jay_Derrett']
+    jd_ok, jd_part, jd_fail, _ = agg['Jay_Derrett']
     fc_ok, _, fc_fail, _ = agg['FC']
     dmc_ok, _, dmc_fail, _ = agg['DMC']
     bp_ok, _, bp_fail, _ = agg['Basic_Program']
@@ -433,7 +465,8 @@ def main():
           f'{h_reg} regressed  (of {h_total})')
     print(f'Companion:  {c_ok} ok  +  {c_part} known-partial  +  {c_fail} regressed')
     print(f'C64ME:      {cme_ok} ok  +  {cme_fail} regressed  (of 15)')
-    print(f'Jay_Derrett:  {jd_ok} ok  +  {jd_fail} regressed  (of 17 wired / 20 total)')
+    print(f'Jay_Derrett:  {jd_ok} ok  +  {jd_part} known-partial  +  '
+          f'{jd_fail} regressed  (of 17 wired / 20 total)')
     print(f'FC:         {fc_ok} ok  +  {fc_fail} regressed')
     print(f'DMC:        {dmc_ok} ok  +  {dmc_fail} regressed')
     print(f'Basic_Program: {bp_ok} ok  +  {bp_fail} regressed')
