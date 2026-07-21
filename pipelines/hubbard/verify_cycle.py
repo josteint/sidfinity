@@ -312,6 +312,13 @@ def _trichotomy_compare(fa: list, fb: list, close_tol: int = 176,
             'play_full': m == n == la == lb, 'close': la == lb,
             'len_post_a': la, 'len_post_b': lb,
             'first_play_diff': first_play_diff,
+            # A chip that a subtune does not sound has an EMPTY substream on
+            # both sides: no alignment to recover, but a trivially exact
+            # (and trivially audio-safe) match. Keep the full key set so the
+            # multi-chip aggregation below can read it unconditionally.
+            'init_canonical': la == lb == 0,
+            'init_canonical_orig': la == 0, 'init_canonical_reb': lb == 0,
+            'audio_guaranteed': m == n == la == lb,
             'is_full': m == n == la == lb,
         }
 

@@ -713,18 +713,23 @@ class _T(Transformer):
                                     'appears twice')
             globals_[chip] = evs
         voices = rest
-        # Multi-SID validation: exactly 3 voices per chip, numbered
-        # consecutively 1..3N (chip of voice v = (v-1)//3 + 1).
-        if len(voices) not in (3, 6, 9):
+        # Multi-SID validation: voices come in whole 3-voice CHIP BLOCKS
+        # (chip of voice v = (v-1)//3 + 1), ascending. A multi-SID subtune
+        # need not sound every chip — a dispatch wrapper may gate a chip's
+        # player off for some subtunes — so the blocks present may start
+        # above 1 and skip (a chip-2-only subtune is voices 4..6).
+        if not voices or len(voices) % 3:
             raise UsfParseError(
                 f'music subtune has {len(voices)} voice blocks; '
-                'expected 3 (one chip), 6 (2SID) or 9 (3SID)')
+                'expected a multiple of 3 (one block per sounding chip)')
         ids = [v.id for v in voices]
-        if ids != list(range(1, len(voices) + 1)):
+        blocks = sorted({(i - 1) // 3 for i in ids})
+        if ids != sorted(ids) or len(blocks) != len(voices) // 3 or \
+                ids != [3 * b + k for b in blocks for k in (1, 2, 3)]:
             raise UsfParseError(
-                f'voice blocks must be numbered 1..{len(voices)} '
-                f'in order, got {ids}')
-        n_chips = len(voices) // 3
+                'voice blocks must be whole ascending 3-voice chip blocks '
+                f'(1-3, 4-6, 7-9), got {ids}')
+        n_chips = blocks[-1] + 1
         for chip in list(tempos) + list(globals_):
             if chip > n_chips:
                 raise UsfParseError(

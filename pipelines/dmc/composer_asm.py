@@ -35,7 +35,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 import dataclasses
 
 from src.usf.types import (UsfFile, Pitch, MusicSubtune, InitState,
-                           DmcSfxSubtune, InstrumentRef)
+                           DmcSfxSubtune, InstrumentRef, VoiceBlock,
+                           Orderlist)
 from src.usf.resolve import resolve_voice
 from src.composer_runtime.xa65 import assemble
 from src.composer_runtime.psid import build_header
@@ -846,20 +847,21 @@ def _byt(data, per=16) -> str:
     return '\n'.join(lines) if lines else '        .byt $00'
 
 
-def _reloc_sid_regs(asm: str, reg_delta: int, keep_res: bool = True) -> str:
+def _reloc_sid_regs(asm: str, reg_delta: int, keep_regs=()) -> str:
     """Relocate the SID register operands ($D400-$D418) by `reg_delta` — used
     to point a second/third player instance at chip 2 ($D420) / chip 3
     ($D440). Only 4-hex-digit `$d4NN` words with NN in $00-$18 are register
     writes (verified: no data literal takes that form — the freq table etc.
     emit single bytes `$D4`, never words), so a targeted rewrite is safe.
 
-    `keep_res`: the resonance/routing write ($D417) is NOT relocated on the
-    2SID members observed (the editor left that one operand un-offset, so
-    both players' res/route land on chip 1 — a per-instance write-stream
-    quirk, reproduced faithfully). Cutoff ($16) and vol/mode ($18) DO
-    relocate."""
+    `keep_regs`: registers this chip's player stores to CHIP 1 rather than
+    its own, because the editor's relocation missed those operands (C19) —
+    e.g. Surgeon/Nice_Dream's res/route `$D417`, so both players' res/route
+    land on chip 1. Probed per member by `factory._multisid_keep_regs`;
+    empty (a fully relocated player) is the default and the common case."""
     if reg_delta == 0:
         return asm
+    keep_regs = frozenset(keep_regs)
     # safety: no $d4NN word may hide in a data line
     for ln in asm.split('\n'):
         code = ln.split(';')[0]
@@ -869,14 +871,14 @@ def _reloc_sid_regs(asm: str, reg_delta: int, keep_res: bool = True) -> str:
 
     def _sub(mobj):
         nn = int(mobj.group(1), 16)
-        if nn > 0x18 or (keep_res and nn == 0x17):
+        if nn > 0x18 or nn in keep_regs:
             return mobj.group(0)
         return f'${(0xD400 + nn + reg_delta):04x}'
     return re.sub(r'\$d4([0-9a-f]{2})\b', _sub, asm, flags=re.I)
 
 
 def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
-                    reg_delta: int = 0) -> str:
+                    reg_delta: int = 0, keep_regs=()) -> str:
     m = _Model(usf)
     insts = m.instruments
     n = len(insts)
@@ -2595,7 +2597,7 @@ ioff:     .dsb 3, 0                  ; orig instrument-offset shadow (= $174D)
 {d418_var}{sectpos_bss}state_end:
 {hr_test_var}{dual_vars}        .byt $00
 """
-    return _reloc_sid_regs(asm, reg_delta)
+    return _reloc_sid_regs(asm, reg_delta, keep_regs)
 
 
 def _sanitize_asm(asm: str) -> str:
@@ -2639,13 +2641,34 @@ def _split_chip_usf(usf: UsfFile, ci: int) -> UsfFile:
     ivs = [dataclasses.replace(iv, id=iv.id - ci * 3)
            for iv in usf.init.voices if ci * 3 < iv.id <= ci * 3 + 3]
     file_sid = [usf.init.sid, usf.init.sid2, usf.init.sid3][ci]
+    # per-voice params (`..._v<N>`) renumber back to this chip's 1-3; the
+    # rest are player-wide and carry through (the inverse of merge_2sid_usf)
+    from pipelines.dmc.v4.extract.to_usf import _VOICE_KEY
+    pf = {}
+    for k, v in usf.params.fields.items():
+        mv = _VOICE_KEY.match(k)
+        if not mv:
+            pf[k] = v
+        elif ci * 3 < int(mv.group(2)) <= ci * 3 + 3:
+            pf[f'{mv.group(1)}{int(mv.group(2)) - ci * 3}'] = v
+    params = dataclasses.replace(usf.params, fields=pf)
     subts = []
     for sub in usf.subtunes:
-        vren = [dataclasses.replace(v, id=k + 1,
+        # select by voice ID, not position: a subtune whose dispatch wrapper
+        # skips a chip carries no voices for it (see multisid_active_chips)
+        mine = [v for v in sub.voices if ci * 3 < v.id <= ci * 3 + 3]
+        vren = [dataclasses.replace(v, id=v.id - ci * 3,
                                     patterns=[dataclasses.replace(
                                         p, rows=_offset_note_refs(p.rows, -ilo))
                                         for p in v.patterns])
-                for k, v in enumerate(sub.voices[ci * 3: ci * 3 + 3])]
+                for v in mine]
+        if not vren:
+            # this chip's player is never called for this subtune, but it
+            # still needs a song-table slot so A=subtune stays aligned —
+            # emit a stopped 3-voice placeholder (it produces no writes)
+            vren = [VoiceBlock(id=k + 1,
+                               orderlist=Orderlist(entries=[], stop=True),
+                               patterns=[]) for k in range(3)]
         # per-subtune resolver seeds (stated rows) live on the SUBTUNE init —
         # a distinct level from the file-level idle voices above
         seed_ivs = [dataclasses.replace(iv, id=iv.id - ci * 3)
@@ -2662,7 +2685,7 @@ def _split_chip_usf(usf: UsfFile, ci: int) -> UsfFile:
             id=sub.id, tempo=tempo, voices=vren,
             init=InitState(voices=seed_ivs, sid=chip_sid)))
     init = InitState(voices=ivs, sid=file_sid)
-    return dataclasses.replace(usf, instruments=instrs,
+    return dataclasses.replace(usf, instruments=instrs, params=params,
                                filter_programs=filters, subtunes=subts,
                                init=init)
 
@@ -2672,28 +2695,67 @@ def build_dmc_2sid_sid(usf: UsfFile) -> bytes:
     own origin, chip k>0 writing $D400+k*$20 via reg_delta), then a dispatch
     stub at $1000 whose init/play call each player in turn. The merged
     write-log = [chip1's stream][chip2's stream] (players run sequentially),
-    which is exactly the original's per-frame ordering."""
-    n_chips = len(usf.subtunes[0].voices) // 3
+    which is exactly the original's per-frame ordering.
+
+    A subtune need not sound every chip (Rayden's 2SID builds ship a
+    both-chips subtune plus a chip-1-only and a chip-2-only rendition): a
+    chip sounds in a subtune iff the subtune carries its voices, and the
+    dispatcher gates that chip's init+play calls on a per-subtune activity
+    byte. The original neuters its calls by SMC-patching JSR<->BIT; per the
+    core tenet we emit clean gated calls that produce the same writes."""
+    n_chips = max((max(v.id for v in s.voices) + 2) // 3
+                  for s in usf.subtunes if s.voices)
+    # chip ci sounds in subtune s iff s carries a voice in ci's id block
+    act = [{(v.id - 1) // 3 for v in s.voices} for s in usf.subtunes]
+    # per-chip un-relocated stores (C19, ';'-separated chip order) — empty
+    # for the fully relocated players the editor normally produces
+    keep = [frozenset(int(r, 16) for r in part.split(',') if r)
+            for part in
+            usf.params.fields.get('multisid_keep_regs', '').split(';')]
+    keep += [frozenset()] * (n_chips - len(keep))
     origin = 0x1100                       # players sit above the dispatcher
     blobs = []                            # (origin, bytes)
     entries = []                          # (init_addr, play_addr) per chip
     for ci in range(n_chips):
         sub_usf = _split_chip_usf(usf, ci)
         asm = _sanitize_asm(
-            compose_dmc_asm(sub_usf, origin=origin, reg_delta=ci * 0x20))
+            compose_dmc_asm(sub_usf, origin=origin, reg_delta=ci * 0x20,
+                            keep_regs=keep[ci]))
         blob = assemble(asm)
         blobs.append((origin, blob))
         entries.append((origin, origin + 3))
         origin = (origin + len(blob) + 1) & ~1     # word-align next player
 
-    # dispatcher at $1000: init (A=subtune) calls each player init; play
-    # calls each player play. Players run in chip order so their writes
-    # land chip1-then-chip2 within the frame (matches the original wrapper).
-    init_calls = '\n'.join(
-        f'        jsr ${e[0]:04X}\n        lda subsav'
-        for e in entries)
-    play_calls = '\n'.join(f'        jsr ${e[1]:04X}' for e in entries)
-    disp = f"""        * = $1000
+    # dispatcher at $1000: init (A=subtune) calls each active player's init;
+    # play calls each active player's play. Players run in chip order so
+    # their writes land chip1-then-chip2 within the frame (matches the
+    # original wrapper). `actN` is latched at init from a per-subtune table
+    # so the play path costs one load+branch per chip.
+    gated = any(len(a) != n_chips for a in act)
+    init_calls, play_calls, tables = [], [], []
+    for ci, e in enumerate(entries):
+        if not gated:
+            init_calls.append(f'        jsr ${e[0]:04X}\n        lda subsav')
+            play_calls.append(f'        jsr ${e[1]:04X}')
+            continue
+        init_calls.append(
+            f'        ldx subsav\n'
+            f'        lda actab{ci},x\n'
+            f'        sta act{ci}\n'
+            f'        beq skipi{ci}\n'
+            f'        lda subsav\n'
+            f'        jsr ${e[0]:04X}\n'
+            f'skipi{ci}:')
+        play_calls.append(
+            f'        lda act{ci}\n'
+            f'        beq skipp{ci}\n'
+            f'        jsr ${e[1]:04X}\n'
+            f'skipp{ci}:')
+        tables.append(
+            f'actab{ci}: .byt ' +
+            ','.join('$%02X' % (1 if ci in a else 0) for a in act))
+        tables.append(f'act{ci}: .byt $00')
+    disp = """        * = $1000
         jmp cinit
         jmp cplay
 cinit:
@@ -2704,7 +2766,10 @@ cplay:
 {play_calls}
         rts
 subsav: .byt $00
-"""
+{tables}
+""".format(init_calls='\n'.join(init_calls),
+           play_calls='\n'.join(play_calls),
+           tables='\n'.join(tables))
     dblob = assemble(disp)
     blobs.insert(0, (0x1000, dblob))
     end = max(o + len(b) for o, b in blobs)

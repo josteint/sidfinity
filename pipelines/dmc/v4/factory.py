@@ -1509,8 +1509,115 @@ def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
     if len(bases) != n_chips:
         return None
     base0 = os.path.splitext(os.path.basename(sid_path))[0]
-    return [_config_at_base(sid_path, hvsc_root, b, f'{base0}_chip{i + 1}')
+    cfgs = [_config_at_base(sid_path, hvsc_root, b, f'{base0}_chip{i + 1}')
             for i, b in enumerate(bases)]
+    addrs = [0xD400, _sid_header_multi(path)[1], _sid_header_multi(path)[2]]
+    for ci, cfg in enumerate(cfgs):
+        keep = _multisid_keep_regs(mem, cfg.base, addrs[ci])
+        if keep:
+            cfg.extra_params['multisid_keep_regs'] = \
+                ','.join('%02X' % r for r in keep)
+    return cfgs
+
+
+def multisid_active_chips(sid_path: str, bases, n_subtunes: int,
+                          max_steps: int = 400000):
+    """Which chips' players actually RUN, per subtune.
+
+    A multi-SID dispatch wrapper may gate its per-chip calls on the subtune
+    number — Rayden's 2SID builds ship subtune 0 = both chips, 1 = chip 1
+    only, 2 = chip 2 only, by SMC-patching the four call opcodes $20 (JSR)
+    <-> $2C (BIT). It also chooses the SONG each player is initialised with,
+    independently of the PSID subtune (Rayden hardcodes `LDA #$00` before
+    both calls, so each chip always plays its own song 0) — the multi-SID
+    form of C31's per-subtune (player, song) map. Wrapper shapes vary, so
+    per C18 this OBSERVES under py65 rather than parsing the wrapper: run
+    init(sub) and play() twice, recording which player regions the PC enters
+    and the A each player's init is entered with. The image is reloaded per
+    subtune because the wrapper's patching is SMC.
+
+    Returns a list (one per subtune) of {chip index: song number}, or None
+    if observation fails (caller falls back to "every chip plays subtune s").
+    """
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
+                                    '..', '..', '..', 'tools', 'py65_lib'))
+    from py65.devices.mpu6502 import MPU
+    from py65.memory import ObservableMemory
+    from seed_disassembly import parse_psid
+    s = parse_psid(sid_path)
+    out = []
+    for sub in range(n_subtunes):
+        mpu = MPU()
+        mem = ObservableMemory()
+        for i, b in enumerate(s['payload']):
+            if s['load'] + i < 0x10000:
+                mem[s['load'] + i] = b
+        mpu.memory = mem
+        seen = {}
+
+        def run(pc, acc, watch_song):
+            mpu.stPush(0x00)
+            mpu.stPush(0x00)               # RTS sentinel -> PC = $0001
+            mpu.pc = pc
+            mpu.a = acc
+            for _ in range(max_steps):
+                if mpu.pc == 0x0001:
+                    return True
+                for ci, b in enumerate(bases):
+                    if b <= mpu.pc < b + 0x1000:
+                        # A at the player's entry vector = its song number
+                        if watch_song and mpu.pc == b and ci not in seen:
+                            seen[ci] = mpu.a
+                        seen.setdefault(ci, 0)
+                try:
+                    mpu.step()
+                except Exception:
+                    return False
+            return False
+
+        if not run(s['init'], sub, True):
+            return None
+        for _ in range(2):
+            if not run(s['play'], 0, False):
+                return None
+        out.append(dict(seen))
+    return out
+
+
+def _multisid_keep_regs(mem, base: int, chip_addr: int) -> tuple:
+    """C19 STATIC opcode probe — which SID registers this chip's player still
+    stores to CHIP 1 because the 2SID relocation missed their operand.
+
+    The editor builds chip 2/3's player by copying chip 1's and adding the
+    chip offset to every `$D4xx` store operand. Some builds miss one
+    (Surgeon/Nice_Dream: the res/route `STA $D417`), so that write lands on
+    chip 1 for BOTH players — a real write-stream difference we must
+    reproduce. Read the operands rather than assuming either way: the
+    default is a FULLY relocated player (what most builds produce).
+
+    Returns the registers ALL of whose stores are un-relocated. A register
+    with a MIX (some stores relocated, some not — Nice_Dream's `$D401`, 1 of
+    3) is not representable at register granularity and is skipped: the
+    composer relocates it, matching the pre-probe behaviour. Note the chip's
+    real address is only used to classify the operands; the composer still
+    standardises chip k to $D400+k*$20 (C27) and the verdict is chip-tagged.
+    """
+    if not chip_addr or chip_addr == 0xD400:
+        return ()
+    body = bytes(mem[base:base + 0x1000])
+    own = [0] * 0x19
+    foreign = [0] * 0x19
+    # STA abs ($8D) / STA abs,y ($99) / STA abs,x ($9D)
+    for i in range(len(body) - 2):
+        if body[i] not in (0x8D, 0x99, 0x9D):
+            continue
+        tgt = body[i + 1] | (body[i + 2] << 8)
+        if 0xD400 <= tgt <= 0xD418:
+            foreign[tgt - 0xD400] += 1
+        elif chip_addr <= tgt <= chip_addr + 0x18:
+            own[tgt - chip_addr] += 1
+    return tuple(r for r in range(0x19) if foreign[r] and not own[r])
 
 
 # C19 static-opcode wedge probes with a UNIFORM shape: probe(path, cfg) returns

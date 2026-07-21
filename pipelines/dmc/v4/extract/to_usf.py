@@ -20,6 +20,7 @@ curve stays a fixed engine constant (mechanism, identical family-wide).
 from __future__ import annotations
 
 import os
+import re
 
 from src.usf.types import (
     Environment,
@@ -713,8 +714,13 @@ def _offset_note_refs(rows, di: int):
 MULTISID_INSTR_STRIDE = 100
 MULTISID_FILTER_STRIDE = 100
 
+# A params key ending in `_v<N>` is PER-VOICE (the otrk phase scalars), so it
+# renumbers with its voice when chips are merged into one multi-SID USF.
+_VOICE_KEY = re.compile(r'^(.*_v)(\d+)$')
 
-def merge_2sid_usf(models, sid2_model=None, sid3_model=None) -> UsfFile:
+
+def merge_2sid_usf(models, sid2_model=None, sid3_model=None,
+                   active=None) -> UsfFile:
     """Merge per-chip DmcModels (one per SID chip) into ONE multi-SID USF:
     voices number through the chips (1-3 = chip 1, 4-6 = chip 2, ...), each
     chip's instruments + filter programs live in a disjoint id range (chip
@@ -729,14 +735,54 @@ def merge_2sid_usf(models, sid2_model=None, sid3_model=None) -> UsfFile:
     (`sid 2/3`)."""
     import dataclasses
     usfs = [model_to_usf(m) for m in models]
-    # the chips are one tune played by N players driven by the same subtune
-    # number, so their subtune lists must line up 1:1
-    n_sub = len(usfs[0].subtunes)
-    assert all(len(u.subtunes) == n_sub for u in usfs), \
-        'multi-SID chips disagree on the subtune count'
+    if active is None:
+        # no observation: the chips are one tune driven by the same subtune
+        # number, so their subtune lists must line up 1:1
+        n_sub = len(usfs[0].subtunes)
+        assert all(len(u.subtunes) == n_sub for u in usfs), \
+            'multi-SID chips disagree on the subtune count'
+        active = [{ci: si for ci in range(len(usfs))} for si in range(n_sub)]
+    else:
+        n_sub = len(active)
+        for si, chips in enumerate(active):
+            for ci, song in chips.items():
+                assert song < len(usfs[ci].subtunes), (
+                    f'subtune {si} routes chip {ci + 1} to song {song}, '
+                    f'but it has {len(usfs[ci].subtunes)}')
     # shared musical content must coincide across chips (they're one tune)
     assert all(u.freq_table == usfs[0].freq_table for u in usfs), \
         'multi-SID chips disagree on the freq table'
+
+    # per-chip params, in three classes:
+    #  - `multisid_keep_regs` is per-chip by construction (which of THIS
+    #    chip's stores the relocation left pointing at chip 1, C19) and
+    #    merges into one ';'-separated list in chip order;
+    #  - PER-VOICE keys (`..._v<N>`, e.g. the otrk phase scalars) renumber
+    #    with their voice, exactly like the voice blocks;
+    #  - everything else is a player-wide knob that must AGREE across the
+    #    chips — they are copies of one player, so a disagreement means a
+    #    wedge on a non-first chip, which this merge would otherwise drop on
+    #    the floor (it carries usfs[0]'s params).
+    keep_regs = [u.params.fields.get('multisid_keep_regs', '') for u in usfs]
+    per_voice = {}
+    common = []
+    for ci, u in enumerate(usfs):
+        chip_common = {}
+        for k, v in u.params.fields.items():
+            if k == 'multisid_keep_regs':
+                continue
+            mv = _VOICE_KEY.match(k)
+            if mv:
+                per_voice[f'{mv.group(1)}{int(mv.group(2)) + ci * 3}'] = v
+            else:
+                chip_common[k] = v
+        common.append(chip_common)
+    assert all(c == common[0] for c in common), \
+        f'multi-SID chips disagree on player params: {common}'
+    merged_params = dict(common[0])
+    merged_params.update(per_voice)
+    if any(keep_regs):
+        merged_params['multisid_keep_regs'] = ';'.join(keep_regs)
 
     merged_instruments = []
     merged_filters = {}
@@ -765,8 +811,21 @@ def merge_2sid_usf(models, sid2_model=None, sid3_model=None) -> UsfFile:
         tempos = []
         for ci, u in enumerate(usfs):
             ioff = ci * MULTISID_INSTR_STRIDE
-            sub = u.subtunes[si]
+            if ci not in active[si]:
+                # the dispatch wrapper does not call this chip's player for
+                # this subtune: no voices, no tempo, no priming — the chip
+                # is simply not part of this subtune
+                tempos.append(None)
+                chip_sids.append(None)
+                continue
+            # the wrapper picks the SONG each chip plays (need not be si)
+            sub = u.subtunes[active[si][ci]]
+            # tempo/priming stay positional (one slot per chip) so the split
+            # inverts by chip index
             tempos.append(sub.tempo)
+            # per-chip SID priming (master vol + $D417 routing shadow) rides
+            # the subtune init.sid in the per-chip USF
+            chip_sids.append(sub.init.sid if sub.init else None)
             # voices renumbered through the chips; note refs shifted
             for v in sub.voices:
                 pats = [dataclasses.replace(
@@ -782,9 +841,6 @@ def merge_2sid_usf(models, sid2_model=None, sid3_model=None) -> UsfFile:
                 for iv in sub.init.voices:
                     seed_voices.append(
                         dataclasses.replace(iv, id=ci * 3 + iv.id))
-            # per-chip SID priming (master vol + $D417 routing shadow) rides
-            # the subtune init.sid in the per-chip USF
-            chip_sids.append(sub.init.sid if sub.init else None)
         if si == 0:
             file_chip_sids = chip_sids
         sub_init = InitState(
@@ -792,13 +848,17 @@ def merge_2sid_usf(models, sid2_model=None, sid3_model=None) -> UsfFile:
             sid=chip_sids[0],
             sid2=chip_sids[1] if len(chip_sids) > 1 else None,
             sid3=chip_sids[2] if len(chip_sids) > 2 else None)
+        # the subtune's base tempo is the first SOUNDING chip's (chip 1 may
+        # not be part of this subtune); a chip carries `tempo N` only when
+        # it sounds AND differs from the base
+        base_tempo = next(t for t in tempos if t is not None)
         merged_subtunes.append(MusicSubtune(
-            id=usfs[0].subtunes[si].id, tempo=tempos[0], voices=all_voices,
+            id=si + 1, tempo=base_tempo, voices=all_voices,
             init=sub_init,
-            tempo2=tempos[1] if len(tempos) > 1 and tempos[1] != tempos[0]
-            else None,
-            tempo3=tempos[2] if len(tempos) > 2 and tempos[2] != tempos[0]
-            else None))
+            tempo2=tempos[1] if len(tempos) > 1 and tempos[1] is not None
+            and tempos[1] != base_tempo else None,
+            tempo3=tempos[2] if len(tempos) > 2 and tempos[2] is not None
+            and tempos[2] != base_tempo else None))
 
     base = usfs[0]
     init = InitState(
@@ -809,17 +869,23 @@ def merge_2sid_usf(models, sid2_model=None, sid3_model=None) -> UsfFile:
     psid = dataclasses.replace(base.psid, sid2=sid2_model, sid3=sid3_model)
     return dataclasses.replace(
         base, psid=psid, init=init,
+        params=dataclasses.replace(base.params, fields=merged_params),
         instruments=merged_instruments,
         filter_programs=merged_filters,
         subtunes=merged_subtunes)
 
 
 def write_dmc_2sid_usf(cfgs, out_dir: str, hvsc_root: str = 'hvsc84') -> str:
-    from pipelines.dmc.v4.factory import _sid_header_multi
+    from pipelines.dmc.v4.factory import (_sid_header_multi,
+                                          multisid_active_chips)
     models = [extract(c, hvsc_root=hvsc_root) for c in cfgs]
-    _, _, _, m2, m3 = _sid_header_multi(
-        os.path.join(hvsc_root, cfgs[0].sid_path))
-    usf = merge_2sid_usf(models, sid2_model=m2, sid3_model=m3)
+    path = os.path.join(hvsc_root, cfgs[0].sid_path)
+    _, _, _, m2, m3 = _sid_header_multi(path)
+    # which chips the dispatch wrapper actually calls per subtune (observed,
+    # C18); None on observation failure = every chip plays every subtune
+    active = multisid_active_chips(path, [c.base for c in cfgs],
+                                   len(models[0].songs))
+    usf = merge_2sid_usf(models, sid2_model=m2, sid3_model=m3, active=active)
     base = os.path.splitext(os.path.basename(cfgs[0].sid_path))[0]
     out = os.path.join(out_dir, base + '.usf')
     write_file(usf, out)
