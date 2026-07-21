@@ -611,41 +611,39 @@ class _Model:
                         pat_ids[enc] = gid
                     return gid
 
-                def _emit_entry(pid, t, val):
-                    gid = _intern(
+                def _gid_entry(pid):
+                    return _intern(
                         [_row_event(r, self.inst_slot)
                          for r in pat_by_local[pid].rows],
                         _pattern_secvals(pat_by_local[pid].rows)
                         if self.sectpos else None)
-                    return bytes([(t + 64) & 0xFF, gid, val & 0xFF])
 
-                # D6 piece 3 STICKY EMISSION: every event emits its instrument
-                # slot / vol only where the SOURCE row states it (None = inherit
-                # -> the player keeps its sticky curinst,x / volovr,x); duration
-                # is always carried. rest/switch/slide carry a stated slot/vol
-                # too, so a rest's instrument command still updates the sticky
-                # state at the player. Byte-keyed dedup then collapses the
-                # (formerly per-entry) ~intro variants that differed only by
-                # carried slot/vol.
-                def _emit_resolved(pid, resolved, t, val):
-                    gid = _intern(
+                # D6 piece 3 STICKY slot/vol: a note emits its instrument slot /
+                # vol only where the SOURCE row states it (None = inherit -> the
+                # player keeps its sticky curinst,x / volovr,x); duration is
+                # always carried; rest/switch/slide carry a stated slot/vol too,
+                # so a rest's instrument command still updates the sticky state.
+                # Byte-keyed dedup then collapses the former per-entry ~intro
+                # variants that differed only by carried slot/vol.
+                def _gid_resolved(pid, resolved):
+                    return _intern(
                         [_row_event_stated(rr, self.inst_slot)
                          for rr in resolved],
                         _pattern_secvals(pat_by_local[pid].rows)
                         if self.sectpos else None)
-                    return bytes([(t + 64) & 0xFF, gid, val & 0xFF])
 
+                # ORDERLIST: sticky-TRANSPOSE physical stream (D6 piece 3). A
+                # $FD,(T+64) transpose command wherever the transpose changes —
+                # the original's sticky transpose command, at the stated MARKS —
+                # then a 2-byte [gid, otrk] pattern entry, and a $FF 16-bit-BYTE
+                # loop back to the loop_to entry. The player THREADS the transpose
+                # over the loop wrap at runtime, exactly like the original engine
+                # (which is single-pass, never duplicated), so there is no 2-pass
+                # unroll and non-mark entries drop their transpose byte. otrk (the
+                # sonified $1726 counter) stays the DERIVED per-entry value,
+                # decoupled from this byte layout.
+                loop_target = None
                 if getattr(ol, 'stated', False):
-                    # STATED (physical, de-unrolled) form: entries are the
-                    # physical track; transpose marks are the notation
-                    # (absent = inherit, state carries over the wrap);
-                    # intro_entries carry the first-pass decode where the
-                    # loop-carried sector state makes it differ. Emission =
-                    # intro pass + steady cycle — reproducing the walk's
-                    # 2-pass state-closure unroll byte-for-byte. The byte
-                    # offset of each slot's sector byte (the $1726 counter
-                    # value off-table reads sonify) is DERIVED from the
-                    # marks; the fitted otrk_pad/period/rcmd params are gone.
                     P = len(ol.entries)
                     marks = list(ol.stated_marks or [None] * P)
                     extras = list(ol.extra_cmds or [0] * P)
@@ -656,52 +654,24 @@ class _Model:
                         if marks[i] is not None:
                             cum += 1 + (extras[i] or 0)
                         offs.append(cum + i)
-                    eff = []
-                    cur = 0
-                    for i in range(P):
-                        if marks[i] is not None:
-                            cur = marks[i]
-                        eff.append(cur)
                     if _dmc_rows_stated(v):
-                        # STATED rows (D6 piece 2): run the shared
-                        # resolution interpreter over intro pass + steady
-                        # cycle — re-deriving the walk's 2-pass unroll
-                        # (the old stored `~intro` variants) at compose
-                        # time from the notation + init seeds.
                         iv = next((x for x in
                                    (sub.init.voices if sub.init else [])
                                    if x.id == v.id and
                                    (x.dur_field or x.instr)), None)
-                        passes = resolve_voice(
-                            v, iv,
-                            n_passes=2 if ol.loop_to is not None else 1)
-                        for i in range(P):
-                            track += _emit_resolved(
-                                ol.entries[i], passes[0][i], eff[i],
-                                offs[i] & 0xFF)
-                        if ol.loop_to is not None:
-                            S = ol.loop_to
-                            cur = eff[P - 1] if P else 0
-                            for j, i in enumerate(range(S, P)):
-                                if marks[i] is not None:
-                                    cur = marks[i]
-                                track += _emit_resolved(
-                                    ol.entries[i], passes[1][j], cur,
-                                    offs[i] & 0xFF)
+                        passes = resolve_voice(v, iv, n_passes=1)
+                        gids = [_gid_resolved(ol.entries[i], passes[0][i])
+                                for i in range(P)]
                     else:
-                        for i in range(P):
-                            pid = intros[i] if intros[i] is not None \
-                                else ol.entries[i]
-                            track += _emit_entry(pid, eff[i],
-                                                 offs[i] & 0xFF)
-                        if ol.loop_to is not None:
-                            S = ol.loop_to
-                            cur = eff[P - 1] if P else 0
-                            for i in range(S, P):
-                                if marks[i] is not None:
-                                    cur = marks[i]
-                                track += _emit_entry(ol.entries[i], cur,
-                                                     offs[i] & 0xFF)
+                        gids = [_gid_entry(intros[i] if intros[i] is not None
+                                           else ol.entries[i])
+                                for i in range(P)]
+                    for i in range(P):
+                        if i == ol.loop_to:
+                            loop_target = len(track)
+                        if marks[i] is not None:      # sticky transpose command
+                            track += bytes([0xFD, (marks[i] + 64) & 0xFF])
+                        track += bytes([gids[i], offs[i] & 0xFF])
                 else:
                     pad = int(usf.params.fields.get(
                         f'otrk_pad_s{sub.id}_v{v.id}', 0) or 0)
@@ -710,31 +680,18 @@ class _Model:
                         or len(ol.entries) or 1
                     legacy = bool(usf.params.fields.get(
                         f'otrk_legacy_s{sub.id}_v{v.id}', 0))
-                    # rcmd = bitmask of physical entries the composer preceded with
-                    # a REDUNDANT transpose command (their arrangement); the byte
-                    # offset is DERIVED from it (each such command = +1 byte for
-                    # that entry onward, within the period). See _otrk_rcmd_model.
                     rcmd = int(usf.params.fields.get(
                         f'otrk_rcmd_s{sub.id}_v{v.id}', 0) or 0)
-                    # cur = the transpose the leading command already set (matches
-                    # _otrk_model / _otrk_rcmd_model — avoids double-counting a
-                    # leading transpose command; pad covers its byte)
+                    # cur = the transpose the leading command already set; pad
+                    # covers its byte. off/red model the sonified $1726 counter.
                     cur0 = ol.transpose_at(0) if ol.entries else 0
                     off, cur, red = pad, cur0, 0
+                    prev_t = None
                     for i, e in enumerate(ol.entries):
                         p = i % period
                         if i and p == 0:
                             off, cur, red = pad, cur0, 0  # physical-track boundary
-                        enc = _encode_pattern(
-                            [_row_event(r, self.inst_slot)
-                             for r in pat_by_local[e].rows],
-                            _pattern_secvals(pat_by_local[e].rows)
-                            if self.sectpos else None)
-                        gid = pat_ids.get(enc)
-                        if gid is None:
-                            gid = len(self.patterns)
-                            self.patterns.append(enc)
-                            pat_ids[enc] = gid
+                        gid = _gid_entry(e)
                         t = ol.transpose_at(i)
                         if t != cur:
                             off, cur = off + 1, t
@@ -743,24 +700,24 @@ class _Model:
                         # legacy: unmodeled counter phase (piecewise redundancy)
                         # -> the historical entry+1 approximation, unchanged
                         val = (i + 1) if legacy else (off + red)
-                        track += bytes([(t + 64) & 0xFF, gid, val & 0xFF])
+                        if i == ol.loop_to:
+                            loop_target = len(track)
+                        if t != prev_t:               # sticky transpose command
+                            track += bytes([0xFD, (t + 64) & 0xFF])
+                            prev_t = t
+                        track += bytes([gid, val & 0xFF])
                         off += 1
 
                 # loop tail emitted by the data section as a label-arithmetic
-                # 16-bit target ($FF, <lbl+n*3, >lbl+n*3): a 3-byte-entry
-                # track exceeds 255 bytes past 85 entries, so both the loop
-                # target and the runtime track position must be 16-bit
-                # (Happy_Hour V1: 198 entries / 594 bytes; the old 8-bit
-                # `(loop_to*3) & 0xFF` + `ldy trkpos,x` silently wrapped).
+                # 16-bit BYTE target ($FF, <lbl+off, >lbl+off): a variable-width
+                # track can exceed 255 bytes, so both the loop target and the
+                # runtime track position are 16-bit.
                 if ol.stop:
                     track.append(0xFE)
                     voices.append((bytes(track), None))
-                elif getattr(ol, 'stated', False):
-                    # stated form: the emitted cycle starts right after the
-                    # intro pass — loop target = entry index P
-                    voices.append((bytes(track), len(ol.entries)))
                 else:
-                    voices.append((bytes(track), (ol.loop_to or 0)))
+                    voices.append((bytes(track),
+                                   loop_target if loop_target is not None else 0))
             sid = sub.init.sid if (sub.init and sub.init.sid) else None
             mvol = sid.master_vol if sid and sid.master_vol is not None else 0x0F
             routing = (sid.filter.res_routing
@@ -769,7 +726,9 @@ class _Model:
                 'tracks': voices, 'speed': sub.tempo,
                 'mvol': mvol, 'routing': routing,
             })
-        assert len(self.patterns) <= 255, 'pattern pool overflow'
+        # gid rides byte 0 of a track pattern entry; $FD/$FE/$FF are the
+        # transpose-command / stop / loop opcodes, so gid must stay <= $FC.
+        assert len(self.patterns) <= 253, 'pattern pool overflow (>253)'
         # wave pool with the original's jump-back marker semantics:
         # program bytes followed by $90+(len-loop). The idle program
         # (wave_programs[0]) sits at pool index 0 — the engine's
@@ -1707,11 +1666,10 @@ fx_dual_up:
     data.append('tunetab:\n' + '\n'.join(tune_lines))
     data.append('patlo:\n' + pat_lo)
     data.append('pathi:\n' + pat_hi)
-    for lbl, (blob, loop_to) in track_blobs:
+    for lbl, (blob, loop_off) in track_blobs:
         s = f'{lbl}:' + (('\n' + _byt(blob)) if blob else '')
-        if loop_to is not None:
-            off = loop_to * 3
-            s += f'\n        .byt $FF, <({lbl}+{off}), >({lbl}+{off})'
+        if loop_off is not None:              # loop_off is a BYTE offset now
+            s += f'\n        .byt $FF, <({lbl}+{loop_off}), >({lbl}+{loop_off})'
         data.append(s)
     for i, blob in enumerate(m.patterns):
         data.append(f'pat_{i}:\n' + _byt(blob))
@@ -1920,34 +1878,54 @@ f_newpat:
         lda trkph,x
         sta $f9
 trkrd:
-        ldy #$00                     ; trkpl/trkph = 16-bit entry pointer
-        lda ($f8),y                  ; (a 3-byte-entry track exceeds 255
-        cmp #$FE                     ;  bytes past 85 entries)
-        bne trk1
-        lda #$00                     ; stop: voice off (state freewheels)
+        ldy #$00                     ; trkpl/trkph = 16-bit VARIABLE-width stream
+        lda ($f8),y                  ; ptr: $FD,T transpose commands (sticky, at
+        cmp #$FE                     ; marks) + 2-byte [gid,otrk] pattern entries
+        bne trk1                     ; + $FF loop. gid <= $FC (pool <= 253).
+        lda #$00                     ; $FE stop: voice off (state freewheels)
         sta vactive,x
         rts
 trk1:
         cmp #$FF
-        bne trk2
+        bne trk1b
         iny
-        lda ($f8),y                  ; loop: 16-bit address of the loop entry
+        lda ($f8),y                  ; $FF loop: 16-bit BYTE address of the entry
         sta trkpl,x
         iny
         lda ($f8),y
         sta trkph,x
         jmp f_newpat
-trk2:
-        sec
-        sbc #64                      ; entry byte 0 = transpose + 64
+trk1b:
+        cmp #$FD
+        bne trk2
+        iny                          ; $FD transpose command: STICKY like the orig
+        lda ($f8),y                  ; — set transp, advance 2 bytes, read the
+        sec                          ; next entry (transpose threads at runtime,
+        sbc #64                      ; not baked per entry)
         sta transp,x
+        lda $f8
+        clc
+        adc #$02
+        sta $f8
+        bcc trk1c
+        inc $f9
+trk1c:
+        jmp trkrd
+trk2:                                ; pattern entry: byte0 = gid, byte1 = otrk
+        sta trkg
         iny
-        iny
-        lda ($f8),y                  ; entry byte 2 = orig track byte-offset
-        sta otrk,x                   ; ($1726,x) of this entry's sector byte
-        dey
-        lda ($f8),y                  ; entry byte 1 = pattern id
-        tay
+        lda ($f8),y                  ; $1726,x of this entry's sector byte
+        sta otrk,x
+        lda $f8                      ; advance the track ptr by 2 -> next entry
+        clc                          ; and store it (pat_end no longer advances)
+        adc #$02
+        sta $f8
+        sta trkpl,x
+        lda $f9
+        adc #$00
+        sta $f9
+        sta trkph,x
+        ldy trkg
         lda patlo,y
         sta patl,x                   ; 16-bit running pattern pointer
         sta $f8                      ; (patterns may exceed 255 bytes)
@@ -2129,17 +2107,10 @@ ev_n_hard:
         rts                          ; fetch frame writes nothing else
 
 pat_end:
-        lda trkpl,x                  ; 16-bit entry pointer += 3
-        clc
-        adc #$03
-        sta trkpl,x
-        bcc pe_nc
-        inc trkph,x
-pe_nc:
-        inc otrk,x                   ; orig $182D: track position++ at sector
-        lda #$00                     ; end (points past the sector byte until
-        sta path,x                   ; the next fetch re-seeds from the entry)
-        rts
+        inc otrk,x                   ; orig $182D: $1726 track position++ at
+        lda #$00                     ; sector end. The track pointer was already
+        sta path,x                   ; advanced past the entry at fetch (trk2),
+        rts                          ; so path=0 just triggers the next fetch.
 
 peekend:
         ldy #$00
@@ -2616,6 +2587,7 @@ wjmp:     .dsb 1, 0                  ; orig $171F shared-scratch shadow (raw
                                      ; jump-back distance — last writer wins)
 evflags:  .dsb 1, 0
 patix:    .dsb 1, 0                  ; ev_note byte-index saved across reload_base
+trkg:     .dsb 1, 0                  ; track pattern-gid held across the fetch advance
 otrk:     .dsb 3, 0                  ; orig track byte-offset shadow (= $1726)
 wnote:    .dsb 3, 0                  ; orig arp-note shadow (= $1783)
 durrel:   .dsb 3, 0                  ; orig duration-reload shadow (= $173E)
