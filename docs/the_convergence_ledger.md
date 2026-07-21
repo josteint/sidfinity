@@ -91,7 +91,7 @@ practice, not code to factor).
 | off-table FREQ lookup · index past freq table · wave-relative note offset | C6 | recurring (FC + v5) |
 | ANTI-PATTERN: verbatim/opaque musical bytes · leapfrog · content-by-reference blob | C7 | methodology (recurring) |
 | de-fused per-entity pool exceeds byte-index capacity · "pool overflow" · separate copies per instrument | C8 | canonicalized |
-| runtime param unreadable by py65 (init hangs / IRQ-set / bad opcode) · measure from libsidplayfp writelog | C9 | logged |
+| runtime param unreadable by py65 (init hangs / IRQ-set / bad opcode) · measure from libsidplayfp writelog · a SECOND build path that defaults probed params → fix the CONSTRUCTOR, not the knob | C9 | logged |
 | chip-global $D415-$D418 automation during a song · master vol / filter varies · global_track vs MasterVolConfig/filter_programs · explicit-event vs parametric | C10 | logged |
 | engine reads a table via an 8-bit index register (`base,Y` w/ Y=#*stride) · orig "reads garbage"/looks broken · extractor must wrap `(#*stride)&0xFF` · suspect OUR extractor not the packer | C11 | logged |
 | off-table read sonifies a "positional" byte counter (sector position / stream offset) · per-event deltas derive from row kind + stated commands → live shadow, stated-command flags = §8 arrangement (DMC sectpos) | C11 | logged |
@@ -226,7 +226,11 @@ practice, not code to factor).
   exact prefix at a clean 1/N of the orig's length, no content divergence —
   right notes, wrong speed (distinct from C25's ~0.5% drift). A C18 phase
   schedule DIVIDES the rate, so period and multispeed factor read together.
-  When a param is measured in one build path, grep the OTHER constructors.
+  When a param is measured in one build path, grep the OTHER constructors —
+  and don't stop at the one knob: if a second constructor hand-rolls its
+  config (TELL: addresses only, no probes / no `extra_params`), make it RUN
+  the canonical build instead, keeping the hand-rolled form as a fallback.
+  A defaulted knob is silently wrong MUSIC, not a refusal.
 - FULL ENTRY: [`ledger/C9.md`](ledger/C9.md) — read it before applying.
 
 ### C10 — chip-global ($D415-$D418) automation that varies during the song
@@ -471,7 +475,16 @@ practice, not code to factor).
   wedge. DETECTION traps: accept a NEUTERED call ($2C) in the wrapper scan;
   identify a chip by its ENTRY VECTORS never an address RANGE (players sit
   <1 page apart, the wrapper can lie inside a player's page); a C18 phase
-  cycler can sit in FRONT of the calls → discover bases by RUNNING init.
+  cycler can sit in FRONT of the calls (or BE the play vector) and a player
+  can be reached by JMP not JSR → discover bases by RUNNING init (JSR-only
+  pass first, JMP-inclusive retry after). A SUB-PLAYER IS AN ORDINARY
+  PLAYER: build it through the canonical path with the base forced, never a
+  hand-rolled config (C9 4th occ) — first generalise the masked compare over
+  per-chip `$D4xx` operands, and any probe keyed on a per-chip engine
+  constant (the zp track pointer). PER-CHIP PARAMS ARE A CLASS (keep_regs +
+  `play_phases`/`noteinit_deferred`): a wrapper can run ONE chip per call →
+  COMPLEMENTARY schedules (`P_S`/`S_P`), each chip at half the timer rate;
+  accept an 'S' phase only on that structural evidence.
 - FULL ENTRY: [`ledger/C27.md`](ledger/C27.md) — read it before applying.
 
 ### C28 — multi-SID VERDICT: compare each chip's stream independently

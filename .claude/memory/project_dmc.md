@@ -5,8 +5,72 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-21T21:34:00.458Z
+  modified: 2026-07-21T22:23:33.657Z
 ---
+
+## ✅ ROUND 81 (2026-07-21): the multi-SID sub-player CONSTRUCTOR — f1 5221 → **5234 full / 167 partial / 0 error**
+`_config_at_base` (the per-chip constructor) hand-rolled a bare config, so
+EVERY knob the canonical build probes was defaulted. Round 80 patched the one
+defaulted knob it noticed (`cia_period`); this round cured the constructor.
+Commits 5cc0646f, 84428b81, 13d93fa7. Ledger: C9 4th occ (the structural
+cure), C27 (sub-player = ordinary player; per-chip param CLASS; two more
+detection traps), C19 (a 2nd mixed-granularity keep_regs carrier).
+- **Mc_Dieter 38931 SOLVED — it was `track_loop_target`, not the $FFFF/$81
+  shape.** V2's track loops to a STATED position; defaulted to loop-to-0, the
+  rebuild re-entered the intro patterns at the wrap. Those patterns state
+  instrument 8 where the steady ones state 9 — same notes, and instrument 9
+  is the noise_attack twin of 8 (identical ADSR `$08 $8A`), so the ONLY
+  audible difference is the cymbal burst. Hence the divergence read as "the
+  orig mirrors V1's $FFFF/$81 onto V2" (that IS the cymbal: `fxf & $80` →
+  `$D400/$D401=$FF, $D404=$81`, then RTS). **METHOD that cracked it:**
+  memwatch the orig's `$174E` (V2 ioff = inst*11) + `$177E` (fxf) vs the
+  rebuild's own labels — orig 58→63 and STAYS; rebuild 58→63→**58** at
+  exactly the divergence frame. A periodic 627-frame delta named the wrap.
+- **Sub-players now build through `_build_via_canon(base_override=)`** (the
+  C31 compilation mechanism), bare config kept as fallback. Two
+  generalisations were needed, both because chip 2 is chip 1 COPIED WITH
+  PER-CHIP RELOCATIONS: the masked compare must tolerate a `$D4xx` operand
+  moved to the chip's address; and the track-loop hook probe keyed on the zp
+  track pointer `$F8` — chip 2 has its own pair (`$F6` in Disco_Zak), so it
+  now keys on the hook SHAPE (`_loop_target_probe`, also run by the bare
+  fallback).
+- **Rayden 2SID: 8 FULL / 5 partial → 14 FULL / 0 partial** (3 subtunes
+  each). Dark_Knight, Disco_Zak_Remix, Mc_Dieter, Mopped_Tester,
+  TrubbleLaBubble flip.
+- **Detection 14 → 18 of 19.** The play vector need not be `JMP wrapper`
+  (Kordiaukis inlines a C18 cycler there); `play == 0` means the tune
+  installs its own IRQ (skip the static scan); `_observe_player_bases` now
+  retries accepting JMP targets after the JSR-only pass (Cow_Anus reaches
+  chip 2 by a tail JMP from init). Still undetected: Mothafucka (chip 2 only
+  via an SMC'd play-time JMP).
+- **Per-chip param CLASS** (`MULTISID_PER_CHIP_KEYS`): `play_phases` +
+  `noteinit_deferred` join `multisid_keep_regs` as ';'-separated chip-ordered
+  values. Cow_Anus runs ONE chip per call → complementary `P_S`/`S_P`, each
+  chip at half the 100 Hz rate; the old "chips must agree" assert read that
+  as a chip-2 wedge. An 'S' phase is accepted ONLY when the schedules are
+  complementary (a py65 shortfall leaves ALL chips S at the same index).
+- **LATENT BUG fixed:** `noteinit_deferred` was set by any pass through
+  base+$591, which a full play makes per voice — i.e. it meant "has a P
+  call". Right by luck for the 5 Rayden carriers; wrong for any P_R member.
+  Now needs the $591 entry on a call that did NOT run the play body.
+- **COMPARATOR ARTIFACT fixed** (r80's note): a passing multi-chip run
+  aggregated from chip 1, which for a chip-2-only subtune is EMPTY → it
+  reported `play_match=0 / state_match=False` for an exactly-correct member.
+  Now aggregates from the chip with the largest overlap, and an
+  empty-both-sides substream reports `state_match=True`. `is_full` unchanged
+  in every case (diagnostics only).
+- **REMAINING multi-SID residue (5):** Cow_Anus_Fucked — C19 per-STORE
+  keep_regs (chip 2's sidwrite freq-lo tail at base+$60D un-relocated among
+  3 relocated `$D400` stores, so all 3 voices' freq-lo land on chip 1;
+  needs role-tagged emitter sites); Kordiaukis_01; Mothafucka (undetected);
+  Nice_Dream (the documented single-chip note-duration drift);
+  **4_Ever_Young + Popel_Premiere are RSID** — siddump skips RSID, so their
+  orig capture is EMPTY and the verdict is unmeasurable on the current
+  capture path, not failing.
+- Gates: full f1 batch member-by-member vs the r80 baseline = **0 regressed
+  / 13 gained**; all 13 previously-FULL multi-SID members re-verified after
+  the per-chip param change; dmc_smoke 6/6; full regression green (8
+  families) ×2.
 
 ## ✅ ROUND 79 (2026-07-21): multi-SID DETECTION — 9 → 14 of the 19 corpus multi-SID members
 Follow-on to r78: the 6 Rayden 2SID siblings that `dmc_v4_config_2sid` refused
@@ -74,8 +138,9 @@ carriers were vblank (Nice_Dream, Bamse); it surfaced the moment r79 made the
   FULL), Disco_Zak_Remix 72335, Mc_Dieter 38931 (see next bullet),
   Mopped_Tester 17516, TrubbleLaBubble 0. All are content divergences, not
   plumbing.
-- **Mc_Dieter 38931 — IN PROGRESS, the observation (2026-07-21, not yet
-  diagnosed).** Capture the RIGHT way: `writelog_per_irq_capture` + filter
+- **Mc_Dieter 38931 — SOLVED in round 81 (loop target). Original observation
+  kept below because the READING was the instructive part: the shape was the
+  cymbal burst, and the real cause was upstream (which patterns replay).** Capture the RIGHT way: `writelog_per_irq_capture` + filter
   `w[1] < 0x20` for chip 0 (the flat `find_first_divergence` is wrong here,
   C28). Sub 0, chip-0 index 38931 = **irq 2305**. The orig emits a 3-write V2
   block — `freqlo=$FF, freqhi=$FF, ctrl=$81` — which EXACTLY mirrors the V1
@@ -92,14 +157,11 @@ carriers were vblank (Nice_Dream, Bamse); it surfaced the moment r79 made the
   then diff that path against the composer's emitter. Candidate readings to
   test: an off-table freq read yielding $FFFF (C6/C2), or a track/orderlist
   stop-state the rebuild decodes as a playable row. NB `$81` = noise+gate.
-- **COMPARATOR ARTIFACT worth fixing:** Mc_Dieter's subs 1/2 report match 0
-  because the trichotomy shift recovery FAILS at full songlength and falls
-  into the no-alignment early return; at 30 s the same subtunes report 38931.
-  A shift-recovery failure is currently indistinguishable from a real
-  position-0 divergence in the batch output.
-- **STILL UNDETECTED (5 of 19, none Rayden):** Kordiaukis_01, 4_Ever_Young,
-  Popel_Premiere_Intr0h, Cow_Anus_Fucked, Mothafucka — different wrapper
-  shapes, not yet characterised.
+- **COMPARATOR ARTIFACT worth fixing** — FIXED in round 81, and the
+  diagnosis here was WRONG: the shift recovery works fine; the multi-chip
+  aggregation reported chip 1, which a chip-2-only subtune leaves empty.
+- **STILL UNDETECTED (5 of 19, none Rayden):** superseded by round 81 —
+  4 of the 5 now detect; only Mothafucka remains.
 
 ## ✅ ROUND 78 (2026-07-21): the family-1 ERROR BUCKET — multi-SID × multi-subtune
 f1 was **5,221 full / 173 partial / 0 unsupported / 7 error**; all 7 errors
