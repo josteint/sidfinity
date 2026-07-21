@@ -360,6 +360,15 @@ practice, not code to factor).
 - RELATIVE (C33): the EXTRACT-layer version — a member FULL in regression can
   hide a silently-broken REGENERATION path (regression builds from a STORED
   .usf, not from regeneration); a byte-gate that REGENERATES surfaces it.
+- THIRD LAYER — the stored ARTIFACT is unreadable by the CURRENT grammar
+  (schema drift). A typed-field move orphaned 1,182/11,943 stored .usf (9.9%)
+  while regression stayed green — it builds from a ~116-member portfolio,
+  never from the corpus. NO TELL; found by accident. Breaks `verify_usf` +
+  every ML consumer. DETECTOR: `tools/usf_corpus_check.py` (~9 s) — run it
+  after ANY grammar/parser/writer/types change. CURE: map failures to families
+  FIRST, then per-family batch + mass-write (a wrongly-scoped mass-write can
+  regenerate 5,221 members and fix zero). Non-FULL members are skipped by
+  every mass-write, so their leftover .usf must be DELETED, not rebuilt.
 - FULL ENTRY: [`ledger/C20.md`](ledger/C20.md) — read it before applying.
 
 ### C21 — trichotomy-verdict alignment (rebuild emits its own init)

@@ -3,6 +3,7 @@ name: Ground truth is sidplayfp --writelog, not py65 or Python reimplementations
 description: CRITICAL — the definitive ground truth for audio fidelity is sidplayfp's instruction stream (--writelog). py65 and hubbard_emu.py are proxies that may diverge. Never treat a reimplementation as ground truth.
 type: feedback
 originSessionId: bd8c5590-7fdb-4eda-ac35-63db9d55f189
+modified: 2026-07-21T20:19:42.764Z
 ---
 The ONLY ground truth for SID audio is **sidplayfp's instruction stream** captured via `tools/siddump <file.sid> --writelog`. This taps libsidplayfp's per-cycle register write log and outputs every (cycle, register, value) tuple — the raw input to the SID chip that produces the audio.
 
@@ -36,3 +37,47 @@ siddump --writelog             ← taps the instruction stream
 4. Fix every discrepancy against the sidplayfp stream, not py65
 
 **Why:** sidplayfp IS the renderer. Matching its instruction stream = matching its audio. Matching py65 only matches a different emulator that nobody listens to.
+
+## The sharper failure mode: a proxy that is ACCURATE but NARROW (2026-07-21)
+
+Everything above is about the proxy being *wrong*. The worse case is a proxy
+that is exactly **right** about what it observes, and observes only part of
+the picture — because then the verdict is silently rescoped and nothing looks
+suspicious.
+
+Jay_Derrett's RSID members (Osmium / Thundercross / Trigger_Happy) verified
+their ORIGINAL via `capture_writes_via_py65`, which follows the IRQ vector at
+`$0314` for N frames. Plain siddump reports 0 writes for these tunes
+(RSID, `play=$0000`, engine installs its own IRQ), which is why py65 was used
+at all. But `siddump --force-rsid` runs the real RSID environment and does
+capture them — and shows what py65 could never see:
+
+| | ORIG writes | of which `$D418` | REBUILD |
+|---|---|---|---|
+| Trigger_Happy | 29,671 | 29,053 (97%) | 713 |
+| Thundercross | 37,893 | 37,194 (98%) | 701 |
+| Osmium | 708 | 3 | 708 |
+
+Those tunes run a `$D418` volume-register **digi in the main loop**, outside
+the IRQ. py65 is structurally blind to it. The two instruments never
+*disagreed* — filtering `$D418`, py65 and siddump match the music exactly
+(618/618, 705/705). py65 simply saw less, and the part it could not see was
+exactly the part the rebuild fails to reproduce. Two members had been passing
+for months on a view that excluded 97% of the writes the chip receives.
+
+**The rule this adds:** when choosing a capture instrument, ask not only "is
+it accurate?" but "**what can it not see?**" — and check that the rebuild is
+not failing precisely there. A verdict is only as wide as its instrument.
+
+**Corollary — asymmetric capture is a smell.** That check compared a py65
+capture of the ORIGINAL against a siddump capture of the REBUILD. Two
+different observation methods on the two sides is how the gap stayed
+invisible; capture both sides the same way and the difference cannot hide.
+(Fixed 2026-07-21: the RSID branch now uses `siddump --force-rsid` on both
+sides and the standard `compare_instruction_stream`. py65 no longer produces
+a verdict anywhere in the project; the two exposed members are recorded as
+`KNOWN_PARTIAL_JD` in `tools/regression.py` with the cause stated.)
+
+This is the same disease as the 2026-06-07 removal of the py65-snapshot
+verdict (which had false-passed 25 Hubbard subtunes) — that cleanup simply
+did not reach this corner. See [[feedback_no_snapshot_verdict]].

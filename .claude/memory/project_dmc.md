@@ -5,7 +5,44 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
+  modified: 2026-07-21T20:20:09.128Z
 ---
+
+## 📋 CORPUS REFRESH (2026-07-21, EPYC): f1 + v5 re-verified & re-written; the stored `.usf` corpus had silently rotted
+Not a round — a full re-verify + mass-write after the host move, prompted by
+finding that **1,182 of 11,943 stored `.usf` files (9.9%) no longer parsed**
+under the current grammar (the `speed_ctr_init` typed-field move, commit
+718ade06). Regression never saw it: it builds from a ~116-member portfolio,
+not from the corpus. Ledger **C20, third layer**; detector now exists as
+`tools/usf_corpus_check.py` (~9 s) — run after ANY grammar/parser/writer/types
+change.
+
+| batch | members | FULL | wall | CPU | parallelism |
+|---|---|---|---|---|---|
+| v4 family-1 | 5,401 | **5,221** (+173 partial, 7 error) | 10.8 min | 20.6 h | 114× |
+| f1 mass-write | 5,221 | 0 errors | 88 s | 1.5 h | 63× |
+| v5 (f3+f5) | 1,495 | **1,098** (+202 partial, 41 error) | 145 s | 4.5 h | 112× |
+| v5 mass-write | 1,098 | 0 errors | 2.8 s | 4 min | 85× |
+
+- **Coverage is UNCHANGED / slightly up.** f1 = 5,221 FULL, exactly the
+  recorded figure — the session's speed work (auto job sizing, threaded
+  FC/DMC verifies, songlengths + capture caches, the parser change, the
+  Check-A fast-reject) cost **zero** members. v5 went 1,088 → **1,098** (+10).
+  All 41 v5 errors and all 7 f1 errors were already failing before (the f1
+  seven are Rayden 2SID hitting the documented "multi-SID merge supports
+  single-subtune members only" limit; only their label moved).
+- **SCOPE THE FIX BEFORE RUNNING IT.** The f1 mass-write regenerated 5,221
+  members and fixed **zero** stale files — none of them were f1 members. The
+  1,182 were 1,098 v5 + 52 f2 + 27 f4 + 4 f1-non-FULL + 1 GT1. Map failures to
+  families first (`usf_corpus_check.py` does).
+- **Corpus now 84 unparseable** (was 1,182): 52 f2 (`dcmd`), 27 f4
+  (`speed_ctr_init`), 4 f1, 1 GT1. f2/f4 are in-progress families — their
+  batches were NOT run. The 4 f1 leftovers are non-FULL members, so no
+  mass-write will ever refresh them: those want DELETING, not rebuilding.
+- **Tooling trap found:** `dmc_v5_family_batch.py` writes
+  `tmp/dmc_v5_results.jsonl` but `dmc_v5_mass_write.py` defaults to
+  `tmp/dmc_v5_full_results.jsonl` — a legacy file whose rows have EMPTY
+  `code_hash`. Defaults would mass-write from stale data; pass `--results`.
 
 ## ✅ ROUND 77 (2026-07-21): STICKY TRANSPOSE orderlist EMISSION (D6 piece 3, option B) — the composer now matches how the ORIGINAL stores the orderlist
 The generated orderlist is a SINGLE physical track (no 2-pass unroll anywhere),
