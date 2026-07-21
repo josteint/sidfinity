@@ -144,10 +144,16 @@ param_value: signed_int      -> param_number
 // for the trichotomy. Both are optional; an empty `init { }` block
 // means "no overrides, use composer defaults."
 init_block: "init" "{" init_inner* "}"
-init_inner: init_voice | init_sid_block | init_slide_phase
+init_inner: init_voice | init_sid_block | init_slide_phase | init_speed_ctr | init_fade_frac
 // Global engine-state priming (trichotomy §4.5, scalar): initial phase
 // bit of the shared half-rate slide clock (dual-effect update parity).
 init_slide_phase: "slide_phase" ":" number
+// More §4.5 engine-state priming scalars (init doesn't clear them):
+//   speed_ctr_init — initial engine speed-counter (defers first note-load N
+//     frames); shared by Hubbard '85 / 5TT / DMC v5. fade_frac_init — DMC v5's
+//     $101C startup fade-fraction. File-level or per-subtune init; 0 = default.
+init_speed_ctr: "speed_ctr_init" ":" number
+init_fade_frac: "fade_frac_init" ":" number
 
 // Common voice-state fields: ctrl (SID ctrl byte at engine init),
 // dur_field (initial note-duration state — Hubbard's vibrato carry-path

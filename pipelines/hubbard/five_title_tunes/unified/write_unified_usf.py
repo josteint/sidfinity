@@ -74,11 +74,11 @@ def build_unified_usf() -> UsfFile:
     # incby2_*) are now per-instrument. Composer reads them from any
     # instrument's per-inst slot. Only emit genuinely-per-tune fields
     # here: linear_pw_or + speed_ctr_init.
+    # speed_ctr_init now rides the typed init block (file-level here).
     top_fields: dict = {
         'linear_pw_or': inputs.linear_pw_or,
-        'speed_ctr_init': inputs.speed_ctr_init,
     }
-    DEFAULTS = {'linear_pw_or': 0, 'speed_ctr_init': 0}
+    DEFAULTS = {'linear_pw_or': 0}
     top_fields = {k: v for k, v in top_fields.items()
                   if v != DEFAULTS.get(k)}
     params = Params(fields=top_fields)
@@ -87,6 +87,7 @@ def build_unified_usf() -> UsfFile:
     # state — the codegen's per-subtune-table path uses each sub's
     # init explicitly.
     init = _init_state_from_ovseed(inputs.per_subtune_ovseed[0], instr_count)
+    init.speed_ctr_init = inputs.speed_ctr_init
 
     # _convert_instrument reads tune-level fields via getattr from
     # config. `inputs` (the unified _Inputs) HAS arp_interval +
@@ -112,8 +113,12 @@ def build_unified_usf() -> UsfFile:
             inputs.per_subtune_ovseed[st_idx], instr_count)
         # Per-subtune mechanism — pulled from ec.subtune_overrides into
         # each sub's params block. None values are dropped (= absent).
+        # speed_ctr_init now rides the typed per-subtune init block.
         ov = ec.subtune_overrides.get(st_idx, {})
-        sub_fields = {k: v for k, v in ov.items() if v is not None}
+        if ov.get('speed_ctr_init') is not None:
+            ms.init.speed_ctr_init = ov['speed_ctr_init']
+        sub_fields = {k: v for k, v in ov.items()
+                      if v is not None and k != 'speed_ctr_init'}
         if sub_fields:
             ms.params = ParamsCls(fields=sub_fields)
         music_subtunes.append(ms)

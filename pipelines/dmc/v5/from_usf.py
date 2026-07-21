@@ -129,11 +129,9 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     flt = sid.filter if sid else None
 
     # $1013 speed-counter + $101C fade-frac startup phases (init clears
-    # neither).
-    spdctr = mvolfrac = 0
-    if sub.params and sub.params.fields:
-        spdctr = int(sub.params.fields.get('speed_ctr_init', 0))
-        mvolfrac = int(sub.params.fields.get('fade_frac_init', 0))
+    # neither) — typed init engine-state priming (§4.5).
+    spdctr = int(sub.init.speed_ctr_init or 0) if sub.init else 0
+    mvolfrac = int(sub.init.fade_frac_init or 0) if sub.init else 0
     # $100F,x per-voice leftover note the lead-in effects frame(s) idle on.
     notes = [0, 0, 0]
     if sub.init and sub.init.voices:

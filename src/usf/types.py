@@ -800,6 +800,16 @@ class InitState:
     # dual-effect voices update on (audible interleave phase). Scalar, not
     # per-voice (one clock shared by all sliding voices). 0 = default.
     slide_phase: int = 0
+    # Engine-state priming (trichotomy §4.5), same class as slide_phase:
+    # scalar init state the engine's init routine does NOT clear. Shared
+    # by Hubbard '85, 5-Title-Tunes, and DMC v5 (same concept, one field).
+    #   speed_ctr_init: the engine's initial speed-counter — a tick divider
+    #     that defers the first note-load by N frames. File-level init for
+    #     single engines; per-subtune init for compound ones (5TT / v5).
+    #   fade_frac_init: DMC v5's $101C startup fade-fraction accumulator.
+    # 0 = default (composer emits nothing). Formerly Params.fields keys.
+    speed_ctr_init: int = 0
+    fade_frac_init: int = 0
 
 
 @dataclass

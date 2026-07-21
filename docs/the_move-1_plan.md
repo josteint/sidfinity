@@ -28,14 +28,16 @@ the pre-decided record of what Move 1 must reconcile. Live content:
   where emission shouldn't change; write-stream-exact where code layout does).
 - **The open principle question** — is `pattern.encoding='bitpack'` a covert
   `*Kind` engine-id or a real small enum?
-- **Two open Move-1 debts (both work + verify FULL today — documented so a
-  Move-1 refactor doesn't silently break them):** (a) the residual
-  `Params.fields` init-phase keys (v5 `speed_ctr_init` / `fade_frac_init`,
-  borderline §7 — clean fix known: type them as init priming, as `cia_period` /
-  `slide_phase` already were); (b) the `glide_to` octave-10+ target, whose true
-  arrival byte is dynamic scratch RAM (a C11 hard boundary), so the parser lands
-  on a self-consistent stand-in — "fixing" it regressed 20/104 FULL, so it may
-  have no clean representation. Both detailed in the 06-18 / 07-06 snapshots.
+- **One open Move-1 debt (works + verifies FULL today — documented so a Move-1
+  refactor doesn't silently break it):** the `glide_to` octave-10+ target, whose
+  true arrival byte is dynamic scratch RAM (a C11 hard boundary), so the parser
+  lands on a self-consistent stand-in — "fixing" it regressed 20/104 FULL, so it
+  may have no clean representation. Detailed in the 07-06 snapshot.
+  - *(Former debt (a) — the `Params.fields` init-phase pair `speed_ctr_init` /
+    `fade_frac_init` — is ✅ PAID 2026-07-21: typed as `init.speed_ctr_init` /
+    `init.fade_frac_init` engine-state priming (§4.5, joining `slide_phase`),
+    cross-engine over Hubbard '85 + 5TT + DMC v5. Carrier refactor, byte-identical
+    over the 19-member golden + full regression green.)*
 - **Parked design** — the audio-equivalence verdict (former ledger C15); a
   Move-1-era-ONLY consideration, never proposed during per-engine work.
 
@@ -236,13 +238,16 @@ are behavior-named (good); the `*_init`/`*_phase`/`cia_period` keys are
 uncleared init-phase state (borderline §7 — affect the write stream, so not
 pure bookkeeping, but not musical content either). Flag for a future pass.
 
-**[UPDATE 2026-07-21]** Partly resolved since: `cia_period` → typed
-`Environment` block (§4.3) and `slide_phase` → `InitVoice.slide_phase` (§4.5) —
-the two init-phase keys that were the actual §7 concern. **Still open:** v5's
-`speed_ctr_init` / `fade_frac_init` (uncleared init-phase state, still
-`Params.fields` string keys in `pipelines/dmc/v5/from_usf.py`). The family-2
-keys (`cymbal_onset`/`vib_ramp`/…) stay params **by design** — behavior-named
-C19-wedge knobs, per the 07-06 pending-decision-2 note. Surfaced in the head.
+**[UPDATE 2026-07-21]** The init-phase-state escape hatch is now **CLOSED**.
+Resolved: `cia_period` → typed `Environment` block (§4.3); `slide_phase` →
+`InitState.slide_phase` (§4.5); and — the debt-1 pair — `speed_ctr_init` /
+`fade_frac_init` → `InitState.speed_ctr_init` / `.fade_frac_init` (§4.5, joining
+`slide_phase`; cross-engine over Hubbard '85 + 5TT + DMC v5; carrier refactor,
+byte-identical). The family-2 keys (`cymbal_onset`/`vib_ramp`/…) stay params
+**by design** — behavior-named C19-wedge knobs, per the 07-06 pending-decision-2
+note. (Other top-level params — `tie_preserves_slide`, `hubidx_wrap_at_patend`,
+`ns_offtab_decr_offset`, `digi_player` — are behavior/registry config, a
+separate non-init category, not part of this debt.)
 
 **Diff vs last review:** the only previously-recorded divergence was DMC
 `SweepEnvelope` vs FC `filter_programs`/`pulse_programs`. This review adds

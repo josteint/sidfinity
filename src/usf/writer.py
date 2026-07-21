@@ -183,6 +183,10 @@ def _write_init(state: InitState) -> list[str]:
     lines = ['init {']
     if getattr(state, 'slide_phase', 0):
         lines.append(f'  slide_phase: {state.slide_phase}')
+    if getattr(state, 'speed_ctr_init', 0):
+        lines.append(f'  speed_ctr_init: {state.speed_ctr_init}')
+    if getattr(state, 'fade_frac_init', 0):
+        lines.append(f'  fade_frac_init: {state.fade_frac_init}')
     if state.sid is not None:
         lines.extend(_write_init_sid(state.sid))
     if getattr(state, 'sid2', None) is not None:

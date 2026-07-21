@@ -191,12 +191,24 @@ class _T(Transformer):
     def init_slide_phase(self, items):
         return ('_init_slide_phase', int(items[0]))
 
+    def init_speed_ctr(self, items):
+        return ('_init_speed_ctr', int(items[0]))
+
+    def init_fade_frac(self, items):
+        return ('_init_fade_frac', int(items[0]))
+
     def init_block(self, items):
         voices = [it for it in items if isinstance(it, InitVoice)]
         slide_phase = 0
+        speed_ctr_init = 0
+        fade_frac_init = 0
         for it in items:
             if isinstance(it, tuple) and it and it[0] == '_init_slide_phase':
                 slide_phase = it[1]
+            elif isinstance(it, tuple) and it and it[0] == '_init_speed_ctr':
+                speed_ctr_init = it[1]
+            elif isinstance(it, tuple) and it and it[0] == '_init_fade_frac':
+                fade_frac_init = it[1]
         sids = {}
         for it in items:
             if isinstance(it, tuple) and it and it[0] == '_init_sid':
@@ -210,7 +222,9 @@ class _T(Transformer):
                 sids[chip] = sid
         return InitState(voices=voices, sid=sids.get(1),
                          sid2=sids.get(2), sid3=sids.get(3),
-                         slide_phase=slide_phase)
+                         slide_phase=slide_phase,
+                         speed_ctr_init=speed_ctr_init,
+                         fade_frac_init=fade_frac_init)
 
     # ----- init.sid -----
     def ifilt_lo(self, items):  return ('cutoff_lo', items[0])

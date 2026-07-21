@@ -452,14 +452,15 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
                                res_routing=m.lo_filtmode) if si == 0 else None))
         usf_subs.append(MusicSubtune(
             id=si + 1, tempo=st.speed, voices=voices,
-            # speed_ctr_init = the Hubbard/Title-Tunes init speed-counter key.
-            params=(Params(fields={'speed_ctr_init': m.lo_spdctr,
-                                   'fade_frac_init': m.lo_mvolfrac})
-                    if si == 0 else None),
             init=InitState(
                 sid=sid,
                 voices=([InitVoice(id=v + 1, note=m.lo_notes[v])
-                         for v in range(3)] if si == 0 else []))))
+                         for v in range(3)] if si == 0 else []),
+                # $1013 speed-counter + $101C fade-frac startup phases
+                # (init clears neither) — engine-state priming (§4.5),
+                # subtune-0 only. speed_ctr_init = the Hubbard/5TT key.
+                speed_ctr_init=(m.lo_spdctr if si == 0 else 0),
+                fade_frac_init=(m.lo_mvolfrac if si == 0 else 0))))
 
     instruments = [_instrument_to_usf(ins, m, reach=reach) for ins in m.instruments]
     # idle wave walk (cleared wave position 0 -> what a voice's effects

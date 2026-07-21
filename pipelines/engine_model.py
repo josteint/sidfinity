@@ -496,7 +496,6 @@ class SubtuneSpec:
     init_pwm_state: Optional[tuple] = None        # companion: (init_pwm_ctr, init_pwm_ctr_2)
     filter_cutoff_hi: Optional[int] = None        # companion's $D416 byte
     # Engine-mechanism overrides (5_Title_Tunes per-sub)
-    speed_ctr_init_override: Optional[int] = None
     odd_frame_slide_step_override: Optional[int] = None
     odd_frame_slide_late_gate_override: Optional[int] = None
     # Per-subtune voice-enable bitmask (bit 0=V1, 1=V2, 2=V3). None or 7
@@ -1183,7 +1182,6 @@ def _subtune_from_usf(ms, encoding: PatternEncodingMode, voice_count: int) -> Su
             (p['init_pwm_ctr'], p['init_pwm_ctr_2'])
             if 'init_pwm_ctr' in p else None),
         filter_cutoff_hi=p.get('filter_cutoff_hi'),
-        speed_ctr_init_override=p.get('speed_ctr_init'),
         odd_frame_slide_step_override=p.get('incby2_step'),
         odd_frame_slide_late_gate_override=p.get('incby2_late_gate'),
     )

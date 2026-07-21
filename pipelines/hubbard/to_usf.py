@@ -302,6 +302,9 @@ _PARAMS_SKIP_CONFIG = {
     'name', 'sid_path', 'extract', 'resetspd', 'extract_sfx',
     'subtunes', 'instr_base', 'instr_count', 'freq_table_base',
     'voice_starts', 'digi_subtunes', 'is_rsid',
+    # init-phase engine-state priming — now the typed init.speed_ctr_init
+    # scalar (trichotomy §4.5), not a params key.
+    'speed_ctr_init',
     # Phase 3b — these tune-level fields are now per-instrument
     # (vibrato.onset, arp.interval/period/phase_invert,
     # inc_by2_config.{step,onset,late_gate}). Composer reads them
@@ -615,9 +618,10 @@ def to_usf(config, extra_subtunes: list | None = None) -> UsfFile:
                          else 'down'),
                 slide_v=freq_bytes_normalised[239 + i],
             ))
-        init = InitState(voices=init_voices)
+        init = InitState(voices=init_voices,
+                         speed_ctr_init=config.speed_ctr_init)
     else:
-        init = InitState(voices=[])
+        init = InitState(voices=[], speed_ctr_init=config.speed_ctr_init)
 
     models = decode_all(config.sid_path, config.instr_base,
                         config.instr_count, config.arp_interval,

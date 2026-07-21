@@ -145,6 +145,8 @@ def build_unified_inputs() -> _Inputs:
         suppress_first_notestart=False,
         freeze_on_stop=False,
         speed_ctr_init=0,
+        master_vol_every_frame=0,
+        master_vol_every_note=0,
         first_frame_gate_off=False,
         stop_fill=None,
         sfx_framectr_ofs=253,

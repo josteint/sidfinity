@@ -2997,8 +2997,10 @@ def _inputs_from_usf(usf) -> _Inputs:
     # carry per-subtune deltas on each MusicSubtune.params + per-sub
     # init state. Only the keys below flip the mode; per-sub
     # `voice_start` alone is read independently.
+    # speed_ctr_init moved to the typed init block (read via s.init below);
+    # a per-subtune init block already flips the mode via `s.init is not None`.
     _PER_SUBTUNE_MECHANISM = {
-        'speed_ctr_init', 'incby2_step', 'incby2_late_gate', 'tick_divider',
+        'incby2_step', 'incby2_late_gate', 'tick_divider',
     }
     has_per_subtune = any(
         s.init is not None or
@@ -3014,13 +3016,14 @@ def _inputs_from_usf(usf) -> _Inputs:
         per_subtune_incby2_step = []
         per_subtune_incby2_late_gate = []
         per_subtune_ovseed = []
-        top_speed_ctr_init = get('speed_ctr_init', 0)
+        top_speed_ctr_init = usf.init.speed_ctr_init if usf.init else 0
         top_incby2_step = get('incby2_step', 2)
         top_incby2_late_gate = get('incby2_late_gate', None)
         for i, s in enumerate(music_subs):
             sp = s.params.fields if s.params is not None else {}
             per_subtune_speed_ctr_init.append(
-                sp.get('speed_ctr_init', top_speed_ctr_init))
+                s.init.speed_ctr_init if s.init is not None
+                else top_speed_ctr_init)
             per_subtune_incby2_step.append(
                 sp.get('incby2_step', top_incby2_step) & 0xFF)
             late_gate = sp.get('incby2_late_gate', top_incby2_late_gate)
@@ -3121,7 +3124,7 @@ def _inputs_from_usf(usf) -> _Inputs:
         freeze_on_stop=(
             usf.song_end is not None and usf.song_end.stop_marker == 'freeze'
         ),
-        speed_ctr_init=get('speed_ctr_init', 0),
+        speed_ctr_init=(usf.init.speed_ctr_init if usf.init else 0),
         first_frame_gate_off=(
             usf.init_behavior is not None
             and usf.init_behavior.silence_all_voices_on_frame_0
