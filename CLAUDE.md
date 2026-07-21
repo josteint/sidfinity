@@ -420,12 +420,32 @@ sid_db.query("SELECT path, exclusion_reason FROM sids WHERE excluded=1")
 
 ## Build environment
 
-**Current host (until ~Sept 2026): Lenovo X230, 8 cores** — size worker
-pools to 8 (`Pool(8)`), expect long wall times for corpus-wide batches, and
-note **pytest is not installed** here (use `tools/regression.py` as the
-gate; the `pytest pipelines/` smoke tests only run on the big box). From
-September the primary machine is again the 64-core EPYC, 512 GB RAM, dual
-3090 GPUs — update this paragraph when that happens.
+**Current host: the 64-core EPYC (128 threads), 512 GB RAM, dual 3090 GPUs.**
+(The Lenovo X230 8-core interlude ended 2026-07-21, when the repo was copied
+over.) **Never hardcode a worker count** — every parallel site calls
+`src.jobs.default_jobs()`, which reads the CPU count (affinity-aware, so it
+is still correct on a small host) and is capped by the work available.
+Override with `SIDFINITY_JOBS=N` for everything at once, or a per-tool var
+(`REGRESSION_JOBS=1` forces sequential for debugging).
+
+**pytest** runs here, but only via the vendored lib — `PYTHONPATH=tools/py_test_lib`
+(`env.sh` does NOT add it). `tools/regression.py` is still the gate; note
+`pytest pipelines/` currently has 16 stale-expectation failures that predate
+the move (they were unrunnable on the X230, so they rotted unnoticed).
+
+**Two prerequisites live OUTSIDE the repo and do NOT survive a folder copy** —
+both were missing after the 2026-07-21 move, and `~/.local/share` was then
+wiped again mid-session, so treat `~/.local` as untrustworthy on this host:
+
+- **C64 ROMs** at `~/.local/share/sidplayfp/{kernal,basic,chargen}`. Without
+  them siddump cannot execute RSID/BASIC tunes — the BASIC interpreter never
+  runs and every `Basic_Program` member verifies as
+  `unsupported:too_few_steps`. Durable copy kept in-repo (gitignored,
+  copyrighted): `cp tools/c64roms/* ~/.local/share/sidplayfp/`.
+- **`duckdb` CLI** at `~/.local/bin/duckdb` (v1.5.3) — all catalogue queries.
+
+Python packages belong in the in-repo `.pylocal/` for the same reason
+(`lark`, `py65`, `numpy`, `soundfile`).
 
 No sudo — everything from source in-tree.
 xa65 assembler at `tools/xa65/xa/xa`. CUDA at `/usr/bin/nvcc`. Python packages

@@ -61,3 +61,11 @@ pipelines/hubbard/*/build/
 
 # Machine-local files (branch-backup bundles, local bin) — never commit
 local/
+
+# C64 KERNAL/BASIC/CHARGEN ROM images. Copyrighted Commodore binaries — never
+# commit. siddump needs them to execute RSID + C64-BASIC tunes (without them
+# the BASIC interpreter never runs and every Basic_Program member verifies as
+# `unsupported:too_few_steps`). Kept here as the durable copy because
+# ~/.local/share/sidplayfp is not stable on this host; install with:
+#   mkdir -p ~/.local/share/sidplayfp && cp tools/c64roms/* ~/.local/share/sidplayfp/
+tools/c64roms/
