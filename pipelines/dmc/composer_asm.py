@@ -2641,13 +2641,25 @@ def _split_chip_usf(usf: UsfFile, ci: int) -> UsfFile:
     ivs = [dataclasses.replace(iv, id=iv.id - ci * 3)
            for iv in usf.init.voices if ci * 3 < iv.id <= ci * 3 + 3]
     file_sid = [usf.init.sid, usf.init.sid2, usf.init.sid3][ci]
-    # per-voice params (`..._v<N>`) renumber back to this chip's 1-3; the
-    # rest are player-wide and carry through (the inverse of merge_2sid_usf)
-    from pipelines.dmc.v4.extract.to_usf import _VOICE_KEY
+    # per-voice params (`..._v<N>`) renumber back to this chip's 1-3;
+    # per-chip params take this chip's ';'-separated part; the rest are
+    # player-wide and carry through (the inverse of merge_2sid_usf)
+    from pipelines.dmc.v4.extract.to_usf import (_VOICE_KEY,
+                                                 MULTISID_PER_CHIP_KEYS)
     pf = {}
     for k, v in usf.params.fields.items():
         mv = _VOICE_KEY.match(k)
-        if not mv:
+        if k in MULTISID_PER_CHIP_KEYS:
+            # merge_2sid_usf always emits one part PER CHIP, so a single-part
+            # value is a .usf written before the key became per-chip — read it
+            # with the old player-wide meaning rather than silently dropping
+            # the schedule for every chip but the first.
+            parts = str(v).split(';')
+            part = parts[0] if len(parts) == 1 else (
+                parts[ci] if ci < len(parts) else '')
+            if part:
+                pf[k] = part
+        elif not mv:
             pf[k] = v
         elif ci * 3 < int(mv.group(2)) <= ci * 3 + 3:
             pf[f'{mv.group(1)}{int(mv.group(2)) - ci * 3}'] = v

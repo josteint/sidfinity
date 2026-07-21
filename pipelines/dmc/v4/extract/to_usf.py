@@ -718,6 +718,16 @@ MULTISID_FILTER_STRIDE = 100
 # renumbers with its voice when chips are merged into one multi-SID USF.
 _VOICE_KEY = re.compile(r'^(.*_v)(\d+)$')
 
+# Params that are PER-CHIP by construction in a multi-SID member — they
+# describe the WRAPPER's treatment of one chip's player, not the shared
+# player code, so they merge into one ';'-separated list in chip order and
+# split back per chip. (`play_phases`/`noteinit_deferred`: Surgeon's
+# Cow_Anus_Fucked runs ONE chip per call, so chip 1 observes `P_S` while
+# chip 2 observes `S_P` — a disagreement that is the correct answer, not the
+# non-first-chip wedge the player-wide assert is there to catch.)
+MULTISID_PER_CHIP_KEYS = ('multisid_keep_regs', 'play_phases',
+                          'noteinit_deferred')
+
 
 def merge_2sid_usf(models, sid2_model=None, sid3_model=None,
                    active=None) -> UsfFile:
@@ -754,22 +764,24 @@ def merge_2sid_usf(models, sid2_model=None, sid3_model=None,
         'multi-SID chips disagree on the freq table'
 
     # per-chip params, in three classes:
-    #  - `multisid_keep_regs` is per-chip by construction (which of THIS
-    #    chip's stores the relocation left pointing at chip 1, C19) and
-    #    merges into one ';'-separated list in chip order;
+    #  - MULTISID_PER_CHIP_KEYS are per-chip by construction (which of THIS
+    #    chip's stores the relocation left pointing at chip 1 (C19); how the
+    #    wrapper schedules THIS chip's player (C18)) and merge into one
+    #    ';'-separated list in chip order;
     #  - PER-VOICE keys (`..._v<N>`, e.g. the otrk phase scalars) renumber
     #    with their voice, exactly like the voice blocks;
     #  - everything else is a player-wide knob that must AGREE across the
     #    chips — they are copies of one player, so a disagreement means a
     #    wedge on a non-first chip, which this merge would otherwise drop on
     #    the floor (it carries usfs[0]'s params).
-    keep_regs = [u.params.fields.get('multisid_keep_regs', '') for u in usfs]
+    per_chip = {k: [u.params.fields.get(k, '') for u in usfs]
+                for k in MULTISID_PER_CHIP_KEYS}
     per_voice = {}
     common = []
     for ci, u in enumerate(usfs):
         chip_common = {}
         for k, v in u.params.fields.items():
-            if k == 'multisid_keep_regs':
+            if k in MULTISID_PER_CHIP_KEYS:
                 continue
             mv = _VOICE_KEY.match(k)
             if mv:
@@ -781,8 +793,9 @@ def merge_2sid_usf(models, sid2_model=None, sid3_model=None,
         f'multi-SID chips disagree on player params: {common}'
     merged_params = dict(common[0])
     merged_params.update(per_voice)
-    if any(keep_regs):
-        merged_params['multisid_keep_regs'] = ';'.join(keep_regs)
+    for k, vals in per_chip.items():
+        if any(vals):
+            merged_params[k] = ';'.join(str(v) for v in vals)
 
     merged_instruments = []
     merged_filters = {}

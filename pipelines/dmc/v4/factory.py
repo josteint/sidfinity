@@ -1618,12 +1618,32 @@ def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
         if keep:
             cfg.extra_params['multisid_keep_regs'] = \
                 ','.join('%02X' % r for r in keep)
-        # C18: the wrapper may run the full play only every Nth call and
-        # dispatch the others to each chip's effects entry. Observed per
-        # chip; the composer's phase dispatcher then lives inside each
-        # player, so the chips cycle in lockstep as the original does.
-        ph, deferred = _observe_play_phases_chip(path, cfg.base)
-        if ph and '_' in ph and 'P' in ph.split('_') and 'S' not in ph:
+    # C18: the wrapper may run the full play only every Nth call and dispatch
+    # the others to each chip's effects entry. Observed per chip; the
+    # composer's phase dispatcher then lives inside each player, so the chips
+    # cycle in lockstep as the original does.
+    obs = [_observe_play_phases_chip(path, cfg.base) for cfg in cfgs]
+    # An 'S' (this chip's player is not entered at all this call) is normally
+    # REFUSED: in the single-chip observer an S usually means py65 failed to
+    # run an IRQ-armed effects call that the ground truth does run (C18's
+    # "a silent phase may hide a register refresh"). Here it can be the real
+    # shape — Surgeon's Cow_Anus_Fucked dispatches ONE chip per call
+    # (`INC ctr / AND #$01 / BEQ ; JMP chip2play ; JMP chip1play`), so each
+    # chip ticks at half the timer rate. Accept an S only on the structural
+    # evidence that this is what the wrapper does: the chips' schedules are
+    # COMPLEMENTARY — same period, and at every phase index exactly one chip
+    # runs. A py65 shortfall cannot fake that (the same shortfall hits every
+    # chip at the same index, leaving all of them S).
+    scheds = [ph for ph, _ in obs]
+    toks = [ph.split('_') if ph else [] for ph in scheds]
+    complementary = (
+        len(toks) > 1 and all(t for t in toks)
+        and len({len(t) for t in toks}) == 1
+        and all(sum(1 for t in toks if t[i] != 'S') == 1
+                for i in range(len(toks[0]))))
+    for cfg, (ph, deferred) in zip(cfgs, obs):
+        if (ph and '_' in ph and 'P' in ph.split('_')
+                and ('S' not in ph.split('_') or complementary)):
             cfg.extra_params['play_phases'] = ph
             if deferred:
                 cfg.extra_params['noteinit_deferred'] = '1'
@@ -1659,6 +1679,7 @@ def _observe_play_phases_chip(sid_path: str, base: int, subtune: int = 0,
             mem[s['load'] + i] = b
     mpu.memory = mem
     deferred = [False]
+    wavestep = [False]                     # per-call: base+$591 entered?
 
     def run(pc, acc):
         mpu.stPush(0x00)
@@ -1676,7 +1697,7 @@ def _observe_play_phases_chip(sid_path: str, base: int, subtune: int = 0,
                 fx.add(mpu.x & 0x03)
             elif mpu.pc == base + 0x591:   # wave-step entry (C18 variant)
                 fx.add(mpu.x & 0x03)
-                deferred[0] = True
+                wavestep[0] = True
             try:
                 mpu.step()
             except Exception:
@@ -1687,6 +1708,7 @@ def _observe_play_phases_chip(sid_path: str, base: int, subtune: int = 0,
         return (None, False)
     seq = []
     for _ in range(n_calls):
+        wavestep[0] = False
         r = run(s['play'], 0)
         if r is None:
             return (None, False)
@@ -1694,6 +1716,12 @@ def _observe_play_phases_chip(sid_path: str, base: int, subtune: int = 0,
         seq.append('P' if hp else
                    ('F' + ''.join(str(v + 1) for v in sorted(fx)) if fx
                     else 'S'))
+        # The 2-frame arm is a property of the F CALL's entry point, so only
+        # a wave-step entry on a call that did NOT run the play body means
+        # it. A full play passes through base+$591 for every voice anyway —
+        # keying on that alone set `deferred` for any member with a P call.
+        if wavestep[0] and not hp:
+            deferred[0] = True
     for p in range(1, n_calls // 2 + 1):
         if all(seq[i] == seq[i % p] for i in range(n_calls)):
             return ('_'.join(seq[:p]), deferred[0])
