@@ -83,3 +83,14 @@ Moved 2026-07-20:
   idea-mining (census taxonomy, taint method, deprecated math-tool
   inventory, spectral-WFA/register-automata references). Companion
   memory: `project_offtable_unified`.
+
+Moved 2026-07-21:
+
+- `stated_duration_plan.md` — the D6-piece-2 plan (FC `len=L` /
+  `(fc_id, init_len)` materialization + DMC `~intro` decode variants
+  folded into stated NoteRow values + one shared resolver
+  `src/usf/resolve.py`). Fully shipped 2026-07-20; live facts held in
+  `docs/refactor_1_remaining.md` D6, ledger C32 (canonicalized 2×), and
+  the `project_dmc` / `project_fc_fingerprint_and_standard` memories.
+  Kept for its probe tables (phantom-duplicate FC-pattern count; DMC
+  carry-channel breakdown).

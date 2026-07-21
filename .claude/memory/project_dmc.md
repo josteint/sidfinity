@@ -106,7 +106,7 @@ recovers each level separately per chip. Facts established:
 
 ## ✅ ROUND 74 (2026-07-20): STATED pattern rows (D6 piece 2) — ~intro variants dissolved [ledger C32 CANONICALIZED 2×]
 The C32 boundary note's "deferred deep half" executed as a cross-family
-project (docs/stated_duration_plan.md; FC side in
+project (deprecated/old_docs/stated_duration_plan.md; FC side in
 [[project_fc_fingerprint_and_standard]]):
 - **Stated (dur/instr/vol) rows:** folded voices emit NoteRows whose
   duration/instrument/`vol=` are present IFF the sector stream states

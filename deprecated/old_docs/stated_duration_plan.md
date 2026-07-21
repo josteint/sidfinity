@@ -1,3 +1,15 @@
+> **SUPERSEDED / ARCHIVED 2026-07-21.** This D6-piece-2 plan (FC's `len=L` +
+> `(fc_id, init_len)` materialization and DMC's `~intro` decode variants folded
+> into stated NoteRow values + one shared resolver) is fully SHIPPED — see its
+> own `## Outcome (2026-07-20)` section below. The live facts are held elsewhere:
+> `docs/refactor_1_remaining.md` D6 (both pieces, probe numbers, gates, recoveries,
+> the uready verdict), ledger **C32** (the stated-notation fold technique,
+> canonicalized 2×), and the per-round status in the `project_dmc` /
+> `project_fc_fingerprint_and_standard` memories. Nothing here is live that
+> isn't held there. Kept for its probe tables (the 18,147 phantom-duplicate
+> FC-pattern count; the DMC vol/instr/dur carry-channel breakdown) as the
+> evidentiary record behind the fold.
+
 # Stated-duration pattern rows — D6 piece 2 (2026-07-19)
 
 The deferred deep half of D6 (docs/refactor_1_remaining.md) / the C32
