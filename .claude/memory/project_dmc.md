@@ -7,6 +7,38 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ ROUND 77 (2026-07-21): STICKY TRANSPOSE orderlist EMISSION (D6 piece 3, option B) — the composer now matches how the ORIGINAL stores the orderlist
+The generated orderlist is a SINGLE physical track (no 2-pass unroll anywhere),
+with the transpose as a **sticky `$FD` command at the marks** — not baked into
+every entry — a `$FF` 16-bit **BYTE-offset** loop, and the player THREADS the
+transpose across the loop wrap at runtime. This is exactly how the original DMC
+engine stores it (verified: Cross-Tune is single-pass, transpose commands at
+sparse marks, and its "first-4-bars-an-octave-up" intro is the natural
+runtime-threading of a transpose command whose entries-before-it inherit the
+init value on pass 1 and the carried value on repeats).
+- **Why B not the conditional de-unroll (option A):** the user's question "how
+  do the 254 handle it themselves?" — the orig is single-pass + sticky
+  transpose, so OUR 2-pass was purely a baking artifact. B = the faithful fix
+  (orderlist-level twin of the sticky slot/vol change). It de-unrolls ALL
+  voices (incl. the ~1.7% non-loop-stable-transpose carriers, reproduced for
+  free by runtime threading) AND drops the transpose byte on non-mark entries.
+- **The "carried duration across a wrap" edge = 0 corpus-wide** (full-corpus
+  check, 8857 members); the only steady≠intro cause is TRANSPOSE (254 voices),
+  which sticky-transpose handles natively.
+- **Track format** (variable-width): `$FD,(T+64)` transpose command at marks +
+  2-byte `[gid, otrk]` pattern entries; `$FE` stop; `$FF, lo, hi` byte-offset
+  loop. gid ≤ $FC (pool asserted ≤ 253; corpus max = 69). Player `trkrd` walks
+  the stream threading `transp,x`; `pat_end` drops the fixed `+3` (the walker
+  advances the track ptr at fetch); new `trkg` temp. **otrk ($1726 sonified
+  counter) stays the DERIVED per-entry value, decoupled from the byte layout**
+  — sonified members unaffected.
+- GATES: **full family-1 batch 5221/173/7 = EXACT baseline (member-by-member 0
+  regr / 0 gain across 5401)**; regression green (8 families); dmc_smoke 6/6;
+  test members FULL incl. BOTH transpose-diff carriers (Cross-Tune,
+  Break_Free_Nation_BCD); **TRACKS −49%** (16911→8653 sample) on top of the
+  round-76 pool −22%. Commit 9cbe6801. Corpus mass-written in the compact form
+  (option B is the endpoint of the orderlist de-unroll; nothing left unrolled).
+
 ## ✅ ROUND 76 (2026-07-20): STICKY slot/vol pattern EMISSION (D6 piece 3) — the SID gets the compaction too
 The generated SID no longer spells out an instrument slot + vol override on
 EVERY note row; they ride the sticky player registers `curinst,x` / `volovr,x`
