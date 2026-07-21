@@ -1,6 +1,45 @@
 # Refactor 1 — what's deferred and why
 
-## Status (2026-06-03)
+## STATUS (head, 2026-07-21)
+
+**The revisit trigger below is MET** — declared so at the 2026-06-18 review (4
+families uready: Hubbard, Companion, FC Tel, FC standard) and further satisfied
+since: DMC (the focus family) is migrated into the thousands of FULL members,
+the FC "standard" player is a whole shipped family, and basic_program is
+shipped. Per-family coverage counts live in each `project_<engine>` memory and a
+fresh family batch — **never frozen here**; the numbers in the dated review
+snapshots below are as-of-their-date and superseded by that source.
+
+**Move 1 is UNBLOCKED but stays DEFERRED — by user decision, no automatic
+trigger** (CLAUDE.md Project goal: the composer unification waits until the
+grind is done or demonstrably saturated; the user decides). This document is now
+the pre-decided record of what Move 1 must reconcile. Live content:
+
+- **D1–D5** — the still-open unify-vs-keep divergence decisions (D6 ✅ RESOLVED).
+- **D.1 → D.2 → D.3** — the Move-1 sub-move sketch (unified note codec →
+  per-voice state → unified skeleton), each under an exact gate (MD5-identity
+  where emission shouldn't change; write-stream-exact where code layout does).
+- **The open principle question** — is `pattern.encoding='bitpack'` a covert
+  `*Kind` engine-id or a real small enum?
+- **Parked design** — the audio-equivalence verdict (former ledger C15); a
+  Move-1-era-ONLY consideration, never proposed during per-engine work.
+
+**Structural state (verified 2026-07-21):** `emit_asm` is still a 5-way
+engine-flavored dispatch (4 simple-shape branches + bitpack), and the fan-out
+has GROWN exactly as the 06-18 review predicted — +3 standalone composers beside
+it (`build_dmc_sid`, `build_v5_sid`, FC `composer_asm`). The §8 cover-story gap
+the original Status describes is unchanged; closing it is Move 1.
+
+**Move 2 (digi fold) is partially landed and its plan below is superseded** —
+the non-digi case no longer routes through the bitpack path, but the digi
+orchestration is intentionally kept separate (see that section).
+
+Everything below this head is the dated historical record, kept for the
+reasoning it captures.
+
+---
+
+## Origin — Phase B (2026-06-03)
 
 Phase B of Refactor 1 landed: every routine emitter in the composer
 is `FxNames`-parameterised; the `_needs_hubbard85_path` discriminator
@@ -22,7 +61,7 @@ With one engine family per branch, the §8 cover-story risk is open:
 the discriminator is feature-named but pragmatically routes uniformly
 per engine family.
 
-## Why we're not refactoring further now
+## Why we deferred (2026-06-03 rationale — trigger since met, see head)
 
 Going further (one player skeleton subsuming the family flavors)
 requires designing against the diversity of engine shapes the
@@ -38,7 +77,7 @@ them first either vindicates the current feature dimensions
 new dimensions the dispatch needs. Either outcome informs the
 unified-skeleton design honestly.
 
-## When to revisit
+## When to revisit (trigger since met — see head)
 
 Pick this back up when at least two of:
 
@@ -215,42 +254,19 @@ divergence list Move 1 must reconcile (extends the DMC-only decisions 1-4 above)
   (linear) — unify the depth axis, or keep as shape variants?
 - **D5 — Arpeggio:** per-inst `arp.offsets` (Hubbard) vs global `arp_programs`
   library (FC) — unify?
-- **D6 — Orderlist transpose semantics — ✅ RESOLVED 2026-07-19 (same day):**
-  unified on STATED everywhere. FC migrated: transpose + voiceinc stated
-  marks (both sticky; `^0` reset distinguishable from absent), the wrap
-  pickup `+T` now DERIVED from the marks, trailing wrap commands serialized
-  as the stated terminator's `+T` (they set the carried value — a trailing
-  reset flipped 61 members until represented; C20-diagnosed). Composer
-  unchanged (consumes parser-derived effectives). Gates: FC batch 2528 FULL
-  = exact baseline; regression green. `+c` now has ONE semantics across
-  DMC + FC. **PIECE 2 ✅ RESOLVED 2026-07-20 — stated-duration pattern
-  rows:** `len=L`, FC's (fc_id, init_len) pattern materialization
-  (probe: 18,147 phantom duplicate patterns = +41% pool, 97% of
-  members) and DMC's `~intro` variants (10,343 slots, ~100% vol/instr
-  carry) all dissolved into stated NoteRow values (present iff the
-  stream states the command; absent = inherit, over wraps and pattern
-  boundaries; init.voice_state seeds) + ONE shared resolution
-  interpreter `src/usf/resolve.py` consumed by both composers and
-  Layer-3. Gates: FC golden 2527/2528 byte-identical (the 1 diff =
-  the predicted deep-chain member, re-verified FULL) + DMC family-1
-  golden 5394/5394; recoveries Man_of_Noise + Love_Boat_Tune
-  partial→FULL. Ledger C32 canonicalized (2×). D6 is now FULLY closed
-  — orderlist AND pattern-row sticky state are stated everywhere.
-  **Uready-review verdict (2026-07-20, focused):** the stated form
-  landed as ONE representation with ZERO new cross-family divergence —
-  `src/usf/resolve.py` is a single shared interpreter with two composer
-  consumers + Layer-3 (Move-1-style factoring done up front, the C21
-  lesson applied); NoteRow stated duration/instr semantics, Pattern
-  `length=` omission, and `stated_marks` are reused same-form across FC
-  + DMC; `InitVoice.dur_field` gained a second consumer (resolver seed
-  beside Hubbard's duration-counter init — same §4.5 concept; the
-  grammar comment is still Hubbard-phrased, one-line doc fix
-  candidate). Single-consumer-by-nature (not forks): FC
-  `stated_vmarks`/`stated_trail` (voiceinc doesn't exist in DMC), DMC
-  `~i` (fallback-only) / `!k` / `*_cmd` flags (sectpos arrangement) /
-  per-subtune instr seed / stated `vol=`. Two corpus-unhit latents on
-  file: the C32 mid-list-repeat boundary note + project_dmc's 2SID
-  seed-merge gap.
+- **D6 — Orderlist + pattern-row sticky state — ✅ RESOLVED (2026-07-19/20).**
+  Unified on STATED notation everywhere: a value (transpose, voiceinc,
+  duration, instr, vol) is emitted only where the source stream states the
+  command; absent = inherit — across wraps, pattern boundaries, and orderlist
+  play order — seeded from `init.voice_state`. FC's `len=L` / `(fc_id,init_len)`
+  materialization and DMC's `~intro` decode variants all dissolved into it,
+  served by ONE shared resolution interpreter `src/usf/resolve.py` (both
+  composers + Layer-3 — Move-1-style factoring done up front). Technique = ledger
+  **C32** (canonicalized 2×); the plan is deprecated
+  (deprecated/old_docs/stated_duration_plan.md) and per-round gates/counts live
+  in project_dmc / project_fc. Uready verdict: landed as ONE representation with
+  zero new cross-family divergence. Two corpus-unhit latents on file: the C32
+  mid-list-repeat boundary note + project_dmc's 2SID seed-merge gap.
 
 **Vindicated this review:** `freq_overrun` flipped single-consumer → REUSED (FC
 standard + DMC v5) — a dimension that looked FC-specific is now shared; recorded
@@ -312,34 +328,25 @@ no static extract↔USF roundtrip checker for DMC (behavioral-only validation).
 
 ---
 
-## Move 2 (digi fold) — landable any time
+## Move 2 (digi fold) — SUPERSEDED (partially landed; digi kept separate)
 
-The one cleanup that doesn't depend on corpus richness: retire
-`_emit_bitpack_bytes`, `_emit_combined_sid_bp`, `_emit_sid_bp` by
-folding digi orchestration into the unified pipeline.
+**Outcome (verified 2026-07-21).** Half of this landed and the other half was
+deliberately dropped:
 
-**Plan (one session):**
+- The **non-digi** case no longer routes through the bitpack path — it goes
+  through `emit_sid_from_usf`'s unified asm-then-PSID-wrap pipeline (the dedup
+  this section wanted).
+- The three digi functions (`_emit_bitpack_bytes`, `_emit_combined_sid_bp`,
+  `_emit_sid_bp`) are **intentionally retained**, not retired.
+  `_emit_bitpack_bytes` is now the digi-only entry; its docstring records why
+  digi stays separate — its orchestration is structurally different (iterative
+  auto-pack of music against the digi dispatcher base, inline-load PSID
+  encoding, sample-blob assembly), so folding it into the unified pipeline was
+  judged not worth the coupling.
 
-1. Add `load_addr=LOAD` parameter to `emit_asm`. Thread to the
-   bitpack chain (which already supports it).
-2. Write `_emit_digi_psid(model, usf, usf_dir, digi_subs)` — lifted
-   from `_emit_combined_sid_bp`, but calling `emit_asm(model, usf,
-   load_addr=music_load)` instead of `_emit_sid_bp` for music asm
-   during iterative auto-pack against the digi dispatcher base.
-3. `emit_sid_from_usf` calls `_emit_digi_psid` when digi subtunes
-   are present; non-digi path unchanged.
-4. Delete `_emit_bitpack_bytes`, `_emit_combined_sid_bp`,
-   `_emit_sid_bp` once callers are gone.
-5. Verify Chimera 4/4 + full regression byte-exact. Commit.
-
-**Decision points (when starting):**
-- Where does `_emit_digi_psid` live — `composer.py` (already 5700+
-  lines) or a sibling module?
-- Inline header build, or factor `_digi_psid_header`?
-
-**Payoff:** ~100 lines of orchestration duplication retired; the
-composer's only structural exception (digi orchestration) folds into
-the unified pipeline.
+So the original "retire all three by folding digi in" plan is **withdrawn**.
+The composer keeps one deliberate structural exception for digi; Chimera 4/4 +
+full regression stay byte-exact through the current split.
 
 ---
 
@@ -471,11 +478,14 @@ artifact.
 
 - **Current state is honest in framing, not yet in structure.**
   `_needs_hubbard85_path` is dissolved; `emit_asm` is one entry. But
-  the 5-way dispatch is engine-flavored.
-- **Closing the remaining gap requires corpus richness.** Migrate
-  DMC / GT2 / large-engine families first; the unified skeleton's
-  shape depends on what those add.
-- **Move 2 (digi fold) is independent of the above** and can land
-  any time as a clean cleanup.
+  the 5-way dispatch is still engine-flavored (+3 standalone composers
+  beside it) — see the head.
+- **The corpus-richness precondition is now satisfied.** DMC / FC
+  standard / basic_program are migrated; the cross-family divergences
+  the unified skeleton must reconcile are enumerated (D1–D5; D6 done).
+  Move 1 stays deferred by user decision, not by lack of evidence.
+- **Move 2 (digi fold) is partially landed and withdrawn.** The
+  non-digi merge happened; digi orchestration is intentionally kept
+  separate.
 - **Move 1 sub-moves are sketched but deferred.** D.1 (unified note
   codec) is the natural starting point when this picks back up.
