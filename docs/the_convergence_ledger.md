@@ -463,7 +463,10 @@ practice, not code to factor).
   always playing its own song 0) — observe both under py65 (C18), represent
   by which VOICES the subtune carries (no new field). TRAP: the merge kept
   only chip 1's params, silently dropping per-voice otrk scalars + any chip-2
-  wedge.
+  wedge. DETECTION traps: accept a NEUTERED call ($2C) in the wrapper scan;
+  identify a chip by its ENTRY VECTORS never an address RANGE (players sit
+  <1 page apart, the wrapper can lie inside a player's page); a C18 phase
+  cycler can sit in FRONT of the calls → discover bases by RUNNING init.
 - FULL ENTRY: [`ledger/C27.md`](ledger/C27.md) — read it before applying.
 
 ### C28 — multi-SID VERDICT: compare each chip's stream independently

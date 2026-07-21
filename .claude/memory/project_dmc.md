@@ -5,8 +5,54 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-21T21:05:18.397Z
+  modified: 2026-07-21T21:21:02.150Z
 ---
+
+## ✅ ROUND 79 (2026-07-21): multi-SID DETECTION — 9 → 14 of the 19 corpus multi-SID members
+Follow-on to r78: the 6 Rayden 2SID siblings that `dmc_v4_config_2sid` refused
+(so they ran as single-player and verified at ~0). Three detection bugs, all
+cured by OBSERVING instead of parsing (C18) — commits 1b7c1e9b, ffd6af68.
+- **C19 save-moment trap.** The wrapper scan required every call to be `$20`
+  (JSR), but the wrapper neuters a chip per subtune by patching `$20`↔`$2C`,
+  so a member SAVED under a chip-only subtune ships that call as BIT
+  (Dark_Knight `20 03 E0 2C 03 EE`). A neutered call still NAMES its player —
+  accept both opcodes.
+- **Region-overlap in `multisid_active_chips`.** It watched
+  `base..base+$1000` per player, but Rayden's players sit LESS than a page
+  apart (5 of 9 detected: `$1000`+`$1C00`..`$1E00`) and Dark_Knight's wrapper
+  (`$FC00`) sits inside its chip-2 page (`$EE00`+$1000) — so ranges overlapped
+  and swallowed the wrapper, reporting every chip active in every subtune (which
+  then merged silent chips' voices in). Cure: watch each player's own ENTRY
+  VECTORS (base, base+3 / base+$50). Cross-checked vs the writelog per chip per
+  subtune. **This alone flipped Blue_Max + Leprechaun_Boot_V1 to FULL.**
+- **C18 phase wrapper in FRONT of the per-chip calls** (the other 5): an SMC
+  counter at the play vector (`A9 00 / D0 0A / EE B1 0F` at `$0FB0`) runs the
+  full play for both chips on one call and only each chip's WAVE-STEP entry
+  (`base+$591`) on the next. Two additions: `_observe_player_bases` (py65,
+  collect JSR targets that look like a 2-entry JT — page-aligned, JMP at +0
+  and +3; only runs when the static scan already failed ⇒ can't change a
+  detected member) and `_observe_play_phases_chip` (the shared observer watches
+  `base+$1F9` and reads `$591` as 'S', and its pc-trace fallback can't
+  disentangle two players in one trace; a `$591` F entry is past the note-init
+  check so it also sets `noteinit_deferred`, the C23 2-frame note-start).
+  Schedules observed: 3× `P_F123`, 1× `P_F123_F123_F123`, 1× plain `P`
+  (Mc_Dieter's `INC` is neutered to `BIT` — it never cycles).
+  The composer's phase dispatcher already lives INSIDE each player, so both
+  chips cycle in lockstep with no dispatcher change.
+- **Result: multi-SID FULL 2 → 4** (Bamse_Bert, Blue_Max, Leprechaun_Boot_V1,
+  Zipped_out — all 3 subtunes each). All 5 phase members went garbage → deep
+  partial: Mythig 6→211288, Physician_Remake 3→105284, Leprechaun_Boot_V2
+  6→68864, DSR-FLT_Cracktroh 6→64076, Mc_Dieter 3→29904. Dark_Knight sub 1
+  FULL, subs 0/2 at 104628.
+- **NEXT BLOCKER (independent of detection): the F phase UNDER-EMITS.** The
+  rebuild's stream is ~HALF the orig's on the phase members (Mythig 425125 vs
+  850011 writes) — the per-chip prefix matches deep then runs out. Investigate
+  what `base+$591` actually writes per call vs the composer's F routine. NB
+  the flat `find_first_divergence` is the WRONG instrument on these (multi-SID
+  verdict is per-chip, C28) — it reports position 0 on a cross-chip adjacency.
+- **STILL UNDETECTED (5 of 19, none Rayden):** Kordiaukis_01, 4_Ever_Young,
+  Popel_Premiere_Intr0h, Cow_Anus_Fucked, Mothafucka — different wrapper
+  shapes, not yet characterised.
 
 ## ✅ ROUND 78 (2026-07-21): the family-1 ERROR BUCKET — multi-SID × multi-subtune
 f1 was **5,221 full / 173 partial / 0 unsupported / 7 error**; all 7 errors
@@ -36,13 +82,7 @@ were `AssertionError: multi-SID merge supports single-subtune members only`
   per-member CONTENT divergences, not multi-SID plumbing: Blue_Max +
   Leprechaun_Boot_V1 fail only their chip-2-only subtune; Disco_Zak (72335),
   Mopped_Tester (17516), TrubbleLaBubble (0) fail sub 0 too.
-- **NOT DONE — the 6 undetected Rayden siblings** (DSR-FLT_Cracktroh,
-  Dark_Knight, Leprechaun_Boot_V2, Mc_Dieter, Mythig, Physician_Remake).
-  Identical chip/subtune structure but `dmc_v4_config_2sid` rejects them: 5
-  have an SMC-counter play wrapper (`A9 00 D0 0A EE B1 0F ...` at $0FB0 — a
-  C18 phase wrapper stacked on the 2SID dispatch) and Dark_Knight's is saved
-  with one call already neutered (`20 03 E0 2C 03 EE` — the C19 save-moment
-  trap). They currently run as single-player and verify ~0. Worth a round.
+- **THE 6 UNDETECTED SIBLINGS — done in the same session (below).**
 - Gates: usf_corpus_check 84 = the documented pre-existing set; dmc_smoke 6/6;
   full regression green (0 regr, 8 families). Commits 4c4dbca1, 4b0f77bb.
 
