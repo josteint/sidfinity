@@ -28,10 +28,14 @@ the pre-decided record of what Move 1 must reconcile. Live content:
   where emission shouldn't change; write-stream-exact where code layout does).
 - **The open principle question** — is `pattern.encoding='bitpack'` a covert
   `*Kind` engine-id or a real small enum?
-- **Two open escape-hatch debts (must not silently persist)** — the residual
+- **Two open Move-1 debts (both work + verify FULL today — documented so a
+  Move-1 refactor doesn't silently break them):** (a) the residual
   `Params.fields` init-phase keys (v5 `speed_ctr_init` / `fade_frac_init`,
-  borderline §7) and the `glide_to` off-table-target parse quirk; both detailed
-  in the 06-18 / 07-06 review snapshots below.
+  borderline §7 — clean fix known: type them as init priming, as `cia_period` /
+  `slide_phase` already were); (b) the `glide_to` octave-10+ target, whose true
+  arrival byte is dynamic scratch RAM (a C11 hard boundary), so the parser lands
+  on a self-consistent stand-in — "fixing" it regressed 20/104 FULL, so it may
+  have no clean representation. Both detailed in the 06-18 / 07-06 snapshots.
 - **Parked design** — the audio-equivalence verdict (former ledger C15); a
   Move-1-era-ONLY consideration, never proposed during per-engine work.
 
