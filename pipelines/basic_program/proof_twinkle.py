@@ -19,6 +19,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, ROOT); sys.path.insert(0, os.path.join(ROOT, 'src'))
 
 import subprocess, re
+from collections import OrderedDict
 from pipelines.hubbard.verify_cycle import (writelog_capture,
                                             compare_instruction_stream, SIDDUMP)
 from src.composer_runtime.xa65 import assemble
@@ -32,11 +33,48 @@ LOAD = 0x1000
 NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
 # ---------------------------------------------------------------- lift ----
+# Capture cache. The lift SEARCHES over interpretation flags (force_split /
+# min_trim / multi_template / detect_modulation / ...), and `build_model`
+# re-captures at the top of every attempt — but the capture is a function of
+# (file, duration) ONLY, so all ~8 attempts re-ran a byte-identical siddump.
+# Cascading_BASIC: 7 calls, 1 distinct, 18.9s of a 37s round-trip wasted.
+#
+# Safe because siddump is deterministic (same file + duration -> identical
+# output, verified by repeated md5). Two things the key must get right:
+#   - keyed on (path, duration, mtime_ns, size), NOT path alone: this is also
+#     called on REBUILT sids written to a reused temp path, where the same name
+#     holds different content each attempt. Name-only would serve a stale
+#     capture and silently corrupt the verdict.
+#   - a FAILED/empty capture is never cached (a transient siddump death under
+#     parallel load must not become a sticky "this tune is silent").
+_CAPTURE_CACHE = OrderedDict()
+_CAPTURE_CACHE_MAX = 4          # only 1-2 distinct keys are live per round-trip
+
+
+def _capture_cache_key(sid_path, duration):
+    """(path, duration, mtime, size) — None if the file can't be stat'd."""
+    try:
+        st = os.stat(sid_path)
+    except OSError:
+        return None
+    return (os.path.abspath(sid_path), float(duration),
+            st.st_mtime_ns, st.st_size)
+
+
 def capture_real(sid_path, duration):
     """Capture writelog with REAL frame indices (every siddump frame is a
     line; writelog_capture drops empty frames, losing hold-duration). Returns
     list-of-frames where index = real frame number, each = [(cyc,reg,val),...].
+
+    Cached on (path, duration, mtime, size) — see the note above.
     """
+    key = _capture_cache_key(sid_path, duration)
+    if key is not None and key in _CAPTURE_CACHE:
+        _CAPTURE_CACHE.move_to_end(key)
+        # Hand back a private copy: the frame lists are mutable, and a caller
+        # mutating one would poison every later hit.
+        return [list(fr) for fr in _CAPTURE_CACHE[key]]
+
     # Retry on failure/empty (parallel-load siddump death would silently read
     # as an empty capture and corrupt the lift — see writelog_capture).
     for _try in range(3):
@@ -61,6 +99,14 @@ def capture_real(sid_path, duration):
                 except ValueError:
                     pass
         frames.append(writes)
+
+    # Cache only a SUCCESSFUL capture (see the note above).
+    if key is not None and frames:
+        _CAPTURE_CACHE[key] = frames
+        _CAPTURE_CACHE.move_to_end(key)
+        while len(_CAPTURE_CACHE) > _CAPTURE_CACHE_MAX:
+            _CAPTURE_CACHE.popitem(last=False)
+        return [list(fr) for fr in frames]
     return frames
 
 def flatten(frames):

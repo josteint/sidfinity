@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import os
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from src.jobs import default_jobs
 from pipelines.hubbard.verify_cycle import (
     writelog_capture, compare_instruction_stream,
 )
@@ -45,16 +47,25 @@ def verify_dmc(cfg: DMCV4Config, hvsc_root: str | None = None) -> dict:
         from seed_disassembly import parse_psid
         from pipelines.hubbard.verify_cycle import writelog_per_irq_capture
         n = parse_psid(orig)['songs']
-        for sub in range(n):
+        _capture = writelog_per_irq_capture if cia else writelog_capture
+
+        # Subtunes are independent, and within one subtune the orig and
+        # rebuild captures are independent siddump runs over different files.
+        # Both were serialized. THREADS, not a Pool: the work is subprocess-
+        # bound, and this is called from inside a regression Pool worker where
+        # a nested Pool is illegal (daemonic) — see src/jobs.py.
+        def _one(sub: int):
             dur = (durs[sub] if durs and sub < len(durs) else 110) * 1.1
+            with ThreadPoolExecutor(max_workers=2) as ex2:
+                fa = ex2.submit(_capture, orig, subtune=sub, duration=dur)
+                fb = ex2.submit(_capture, tmp, subtune=sub, duration=dur)
+                a, b = fa.result(), fb.result()
             if cia:
                 # CIA multispeed: the original is driven by a CIA timer at
                 # 2-6x. Capture BOTH per play() invocation (the rebuild
                 # programs the same latch, so both run at the same rate)
                 # and flat-compare the play streams over their overlap +
                 # a one-frame length tolerance (Trap C / CIA bucketing).
-                a = writelog_per_irq_capture(orig, subtune=sub, duration=dur)
-                b = writelog_per_irq_capture(tmp, subtune=sub, duration=dur)
                 r = compare_instruction_stream(a, b)
                 la, lb = r['len_all_a'], r['len_all_b']
                 # match_all == min(len) already proves the shorter stream
@@ -64,21 +75,26 @@ def verify_dmc(cfg: DMCV4Config, hvsc_root: str | None = None) -> dict:
                 # the tolerance is relative (0.5%, min 128 writes).
                 full = (r['match_all'] == min(la, lb)
                         and abs(la - lb) <= max(128, max(la, lb) // 200))
-                out['subtunes'][sub] = {
+                return sub, {
                     'is_full': full, 'match': r['match_all'],
                     'overlap': min(la, lb), 'len_a': la, 'len_b': lb,
-                }
-                out['ok'] &= full
+                }, full
             else:
-                a = writelog_capture(orig, subtune=sub, duration=dur)
-                b = writelog_capture(tmp, subtune=sub, duration=dur)
                 r = compare_instruction_stream(a, b, mode='trichotomy')
-                out['subtunes'][sub] = {
+                return sub, {
                     'is_full': r['is_full'], 'state_match': r['state_match'],
                     'play_match': r['play_match'], 'overlap': r['play_overlap'],
                     'first_play_diff': r.get('first_play_diff'),
-                }
-                out['ok'] &= r['is_full']
+                }, r['is_full']
+
+        if n > 1:
+            with ThreadPoolExecutor(max_workers=default_jobs(cap=n)) as ex:
+                rows = list(ex.map(_one, range(n)))
+        else:
+            rows = [_one(s) for s in range(n)]
+        for sub, entry, full in rows:          # re-assembled in subtune order
+            out['subtunes'][sub] = entry
+            out['ok'] &= bool(full)
     finally:
         os.unlink(tmp)
     return out

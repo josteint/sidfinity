@@ -33,8 +33,10 @@ from __future__ import annotations
 import hashlib
 import os
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from src.jobs import default_jobs
 from pipelines.hubbard.verify_cycle import (
     writelog_capture, compare_instruction_stream,
 )
@@ -56,8 +58,15 @@ def _capture_pair(orig_path: str, rebuilt_bytes: bytes,
         f.write(rebuilt_bytes)
         tmp_path = f.name
     try:
-        a = writelog_capture(orig_path, subtune=subtune, duration=duration)
-        b = writelog_capture(tmp_path, subtune=subtune, duration=duration)
+        # The two captures are independent siddump subprocesses over different
+        # files — run them concurrently. Each is ~songlength/60 of wall time,
+        # so serializing them doubled the critical path of every subtune.
+        with ThreadPoolExecutor(max_workers=2) as ex:
+            fa = ex.submit(writelog_capture, orig_path,
+                           subtune=subtune, duration=duration)
+            fb = ex.submit(writelog_capture, tmp_path,
+                           subtune=subtune, duration=duration)
+            a, b = fa.result(), fb.result()
         # Init-trichotomy verdict: the composer emits its OWN init (universal
         # reset + typed priming), so the init write SEQUENCE need not match —
         # only the end-of-init STATE (Check A) + the play stream (Check B).
@@ -118,12 +127,26 @@ def verify_canary(cfg: FCConfig, build_fn, root: str | None = None,
                         per_sub_durations[i] = int(m) * 60 + float(s)
                     break
 
-    per_sub = {}
-    for s in subtunes:
+    # Subtunes are independent: _capture_pair is a pure function of
+    # (path, bytes, subtune, duration) writing its own unique temp file, and
+    # writelog_capture just shells out to siddump. So capture them
+    # concurrently. THREADS, not a Pool: the work is subprocess-bound (the GIL
+    # is released across siddump), and this is often called from inside a
+    # regression Pool worker, where a nested Pool would be illegal (daemonic
+    # processes cannot have children — see src/jobs.py).
+    def _one(s: int) -> tuple[int, dict]:
         sub_dur = (per_sub_durations.get(s, 2.0) * 1.1 + 1.0
                    if duration is None else duration)
-        per_sub[s] = _capture_pair(sid_path, rebuilt, s, sub_dur)
-        per_sub[s]['duration_used'] = sub_dur
+        r = _capture_pair(sid_path, rebuilt, s, sub_dur)
+        r['duration_used'] = sub_dur
+        return s, r
+
+    if len(subtunes) > 1:
+        with ThreadPoolExecutor(
+                max_workers=default_jobs(cap=len(subtunes))) as ex:
+            per_sub = dict(ex.map(_one, subtunes))
+    else:
+        per_sub = dict(_one(s) for s in subtunes)
 
     all_full = all(v['is_full'] for v in per_sub.values())
     return {

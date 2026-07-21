@@ -1068,6 +1068,49 @@ def _init_state(pre):
     return st
 
 
+# Fast-reject probe for Check A. The lift SEARCHES over interpretation
+# variants and most losers diverge AT INIT — yet the full check emulates the
+# whole song (2.1s on a 120s tune) before noticing. Capture a short window
+# first and reject those immediately.
+#
+# Exact, not heuristic: Check A compares the end-of-init chip STATE, and
+#   - rb_pre is literally reb_flat[:reb_init_len] — the same writes in any
+#     capture long enough to contain the init;
+#   - oa_pre is orig_flat[:i], where i is located from rb_mus's first 8 writes
+#     — also identical in a short capture.
+# So the short window yields the SAME verdict as the full one. It returns the
+# same 'init_state_diff' status the full path would, which matters because the
+# caller's cascade BRANCHES on that status.
+#
+# Conservative by construction: every inconclusive outcome returns False and
+# falls through to the full check, so a guess that would have passed can never
+# be rejected here.
+_PROBE_MIN_DUR = 20.0      # only worth probing when the full capture is costly
+_PROBE_DUR = 5.0
+
+
+def _init_state_differs_fast(orig_wl, reb_sid, reb_init_len, probe_dur=_PROBE_DUR):
+    """True only when the end-of-init chip state PROVABLY differs."""
+    from pipelines.hubbard.verify_cycle import writelog_capture
+    reb_flat = _flatw(writelog_capture(reb_sid, 0, probe_dur))
+    if len(reb_flat) < reb_init_len + 8:
+        return False           # too little music captured to align -> unknown
+    sp = _split_aligned(_flatw(orig_wl), reb_flat, reb_init_len)
+    if sp is None:
+        # NOT inconclusive — provably the same answer the full capture gives.
+        # _split_aligned's inputs are identical in both windows: orig_flat is
+        # the full original (passed in, not re-captured), rb_pre is
+        # reb_flat[:reb_init_len], and the search probe is rb_mus[:8] — both
+        # deterministic prefixes of the rebuild's stream. Same inputs, same
+        # result. (Guarded by the >= reb_init_len + 8 length check above, which
+        # guarantees the probe is the full 8 writes wide, exactly as in the
+        # full run.) This is the dominant loser: the rebuild's music opening
+        # never occurs in the original at all.
+        return True
+    oa_pre, _oa, rb_pre, _rb = sp
+    return _init_state(oa_pre) != _init_state(rb_pre)
+
+
 def _compare_music(orig_wl, reb_sid, dur, loops, reb_dur=None, reb_init_len=0):
     """Trichotomy verdict for typed-init rebuilds (the FC universal_reset
     precedent): Check A — the end-of-init chip STATE matches (the init write
@@ -1177,6 +1220,11 @@ def _attempt_model(m, sid, dur, orig_wl, title='bp', gap_exact=False, nf=False):
             with open(sp, 'wb') as fo:
                 fo.write(sid_bytes)
             if m2.get('init_typed'):
+                # Cheap Check-A pre-reject (long tunes only) — see above.
+                if (reb_dur >= _PROBE_MIN_DUR
+                        and _init_state_differs_fast(orig_wl, sp,
+                                                     len(m2['init']))):
+                    return ('init_state_diff', 0, 0, 0, None, None)
                 r, extended_full, state_ok = _compare_music(
                     orig_wl, sp, dur, m.get('loop_to') is not None, reb_dur=reb_dur,
                     reb_init_len=len(m2['init']))
