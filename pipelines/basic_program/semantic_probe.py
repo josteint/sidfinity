@@ -11,6 +11,7 @@ from concurrent.futures import ProcessPoolExecutor
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT); sys.path.insert(0, os.path.join(ROOT, 'src'))
 from pipelines.basic_program import semantic_lift as S
+from src.jobs import default_jobs
 from pipelines.basic_program.proof_twinkle import capture_real
 from pipelines.basic_program.proof_multivoice import verdict_basic
 from pipelines.hubbard.verify_cycle import writelog_capture, compare_instruction_stream
@@ -61,7 +62,7 @@ def main():
     work = allwork[::stride]
     print(f"SEMANTIC probe: {len(work)}/{len(allwork)} tunes (stride {stride})", flush=True)
     results = []
-    with ProcessPoolExecutor(max_workers=8) as ex:
+    with ProcessPoolExecutor(max_workers=default_jobs(cap=len(work))) as ex:
         for i, res in enumerate(ex.map(probe_one, work)):
             results.append(res)
             if (i + 1) % 20 == 0: print(f"  {i+1}/{len(work)}", flush=True)

@@ -20,6 +20,7 @@ from pipelines.basic_program.proof_multivoice import (
     lift_mv, build_psid, verdict_basic, CTRL)
 from pipelines.basic_program.proof_twinkle import capture_real
 from pipelines.hubbard.verify_cycle import writelog_capture, compare_instruction_stream
+from src.jobs import default_jobs
 
 REGROLE = {0x00: 'V1freq', 0x01: 'V1freq', 0x04: 'V1ctl', 0x05: 'V1ad', 0x06: 'V1sr',
            0x07: 'V2freq', 0x08: 'V2freq', 0x0b: 'V2ctl', 0x0c: 'V2ad', 0x0d: 'V2sr',
@@ -90,7 +91,7 @@ def main():
     work = allwork[::stride]
     print(f"probing {len(work)}/{len(allwork)} tunes (stride {stride})", flush=True)
     results = []
-    with ProcessPoolExecutor(max_workers=8) as ex:
+    with ProcessPoolExecutor(max_workers=default_jobs(cap=len(work))) as ex:
         for i, res in enumerate(ex.map(probe_one, work)):
             results.append(res)
             if (i + 1) % 20 == 0: print(f"  {i+1}/{len(work)}", flush=True)

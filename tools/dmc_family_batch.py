@@ -33,6 +33,7 @@ OUT = os.path.join(ROOT, 'tmp', 'dmc_wide_results.jsonl')
 # current one, so a code change auto-invalidates the stale verdicts it could
 # have affected (see src/code_fingerprint.py). Parallel-session safe.
 from src.code_fingerprint import code_fingerprint  # noqa: E402
+from src.jobs import default_jobs  # noqa: E402
 CODE_HASH = code_fingerprint('dmc_v4')
 
 _db = None
@@ -296,7 +297,8 @@ def main():
 
     import collections
     stats = collections.Counter()
-    with open(OUT, 'a') as f, Pool(8, initializer=_worker_init) as pool:
+    with open(OUT, 'a') as f, Pool(default_jobs(cap=len(todo)),
+                                   initializer=_worker_init) as pool:
         for i, rec in enumerate(pool.imap_unordered(run_member, todo,
                                                     chunksize=1)):
             rec['code_hash'] = CODE_HASH

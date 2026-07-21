@@ -41,6 +41,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
                 os.path.join(ROOT, 'tools'), os.path.join(ROOT, 'src'), ROOT]
 
+from src.jobs import default_jobs  # noqa: E402
+
 BASELINE_SID_DIR = os.path.join(ROOT, 'tmp', 'golden_baseline_sids')
 
 # USF-text markers that flag a member as exercising a carrier feature this plan
@@ -202,7 +204,7 @@ def main():
     ap.add_argument('--members', default='family1')
     ap.add_argument('--out', default=os.path.join(ROOT, 'tmp', 'golden_baseline.json'))
     ap.add_argument('--baseline', default=os.path.join(ROOT, 'tmp', 'golden_baseline.json'))
-    ap.add_argument('--jobs', type=int, default=8)
+    ap.add_argument('--jobs', type=int, default=default_jobs())
     args = ap.parse_args()
     members = _member_list(args.members)
     print(f'{len(members)} members, jobs={args.jobs}')

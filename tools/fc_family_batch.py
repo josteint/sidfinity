@@ -27,6 +27,7 @@ OUT = os.path.join(ROOT, 'tmp', 'fc_std_wide_results.jsonl')
 
 # Resume-cache invalidation on code change (see src/code_fingerprint.py).
 from src.code_fingerprint import code_fingerprint  # noqa: E402
+from src.jobs import default_jobs  # noqa: E402
 CODE_HASH = code_fingerprint('fc_standard')
 
 
@@ -88,7 +89,7 @@ if __name__ == '__main__':
     print(f'{len(sids)} FC SIDs, {len(done)} done, {len(todo)} to run',
           flush=True)
     counts = {}
-    with Pool(8) as pool, open(OUT, 'a') as out:    # 8-core host
+    with Pool(default_jobs(cap=len(todo))) as pool, open(OUT, 'a') as out:
         for i, rec in enumerate(pool.imap_unordered(run, todo), 1):
             rec['code_hash'] = CODE_HASH
             out.write(json.dumps(rec) + '\n')

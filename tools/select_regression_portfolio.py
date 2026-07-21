@@ -40,6 +40,8 @@ from pathlib import Path
 ROOT = str(Path(__file__).resolve().parents[1])
 sys.path.insert(0, ROOT)
 
+from src.jobs import default_jobs  # noqa: E402
+
 # Members that caught a real FC-family bug during rollout — preferred
 # on ties.
 FC_WITNESSES = {
@@ -396,7 +398,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--engine', default='fc_standard', choices=sorted(ENGINES),
                     help='which engine family to derive the portfolio for')
-    ap.add_argument('--jobs', type=int, default=8)
+    ap.add_argument('--jobs', type=int, default=default_jobs())
     args = ap.parse_args()
     os.chdir(ROOT)
     eng = ENGINES[args.engine]

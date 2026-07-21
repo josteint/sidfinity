@@ -39,6 +39,7 @@ from pipelines.hubbard.verify_cycle import (                 # noqa: E402
 # songlengths lives at src/songlengths.py; resolved via the ROOT/src
 # entry pushed onto sys.path above (no package prefix in the import).
 from songlengths import load_database, get_durations        # noqa: E402
+from src.jobs import default_jobs                           # noqa: E402
 
 _DB = os.path.join(ROOT, 'hvsc84', 'DOCUMENTS', 'Songlengths.md5')
 _CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -269,6 +270,13 @@ def verify_all(engine_jobs, passes: float = 1.5,
             plan[config.name].append((st, ok_key, rb_key, kind, n_chips))
 
     if need_music or need_music_irq or need_digi:
+        # jobs=None -> all available CPUs, capped at the captures we actually
+        # have. Callers already inside a Pool worker MUST pass jobs=1 (daemonic
+        # workers cannot spawn children) — see src/jobs.py.
+        if jobs is None:
+            jobs = default_jobs('VERIFY_JOBS',
+                                cap=len(need_music) + len(need_music_irq)
+                                    + len(need_digi))
         with Pool(jobs) as pool:
             if need_music:
                 items = [(k, *v) for k, v in need_music.items()]

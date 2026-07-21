@@ -15,6 +15,9 @@ import json, os, re, subprocess, sys
 from concurrent.futures import ProcessPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+from src.jobs import default_jobs  # noqa: E402
+
 SIDDUMP = os.path.join(ROOT, "tools", "siddump")
 OUT = os.path.join(ROOT, "tmp", "basic_program_research", "survey.jsonl")
 CAP = 30.0          # seconds cap for the survey (triage, not the verdict)
@@ -78,7 +81,8 @@ def main():
     print(f"surveying {len(work)} tunes (cap {CAP}s, x2 for determinism)", flush=True)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     done = 0
-    with open(OUT, "w") as fo, ProcessPoolExecutor(max_workers=8) as ex:
+    with open(OUT, "w") as fo, \
+            ProcessPoolExecutor(max_workers=default_jobs(cap=len(work))) as ex:
         for res in ex.map(survey_one, work):
             fo.write(json.dumps(res) + "\n"); fo.flush()
             done += 1

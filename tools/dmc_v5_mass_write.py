@@ -20,6 +20,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
                 os.path.join(ROOT, 'tools'), os.path.join(ROOT, 'src'), ROOT]
 
+from src.jobs import default_jobs  # noqa: E402
+
 RESULTS = os.path.join(ROOT, 'tmp', 'dmc_v5_full_results.jsonl')
 
 
@@ -66,7 +68,7 @@ def main():
               flush=True)
     ok = err = 0
     errs = []
-    with Pool(8) as pool:
+    with Pool(default_jobs(cap=len(full))) as pool:
         for i, (rel, good, msg) in enumerate(
                 pool.imap_unordered(write_member, full, chunksize=8)):
             if good:

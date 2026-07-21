@@ -63,6 +63,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
                 os.path.join(ROOT, 'tools'), os.path.join(ROOT, 'src'), ROOT]
 
+from src.jobs import default_jobs  # noqa: E402
+
 # 16-bit operand targets that are LEGITIMATE per-song packer patches (never a
 # wedge): canon's data operands point below $1000 ($09xx-$0Exx song tables), and
 # the four code-addressed fixed tables. A REPOINT is only flagged when the canon
@@ -227,7 +229,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--members', default='family1',
                     help="'family1' (default) or a JSON path list")
-    ap.add_argument('--jobs', type=int, default=8)
+    ap.add_argument('--jobs', type=int, default=default_jobs())
     ap.add_argument('--limit', type=int, default=0, help='diff only first N')
     ap.add_argument('--new-only', action='store_true',
                     help='hide clusters already handled by a probe')

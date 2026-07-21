@@ -24,6 +24,7 @@ from pipelines.basic_program import usf_roundtrip as RT
 from pipelines.basic_program.proof_multivoice import verdict_basic
 from pipelines.hubbard.verify_cycle import writelog_capture, compare_instruction_stream
 from src.usf import write_file, parse_file
+from src.jobs import default_jobs
 from src.code_fingerprint import code_fingerprint
 
 # Resume-cache invalidation on code change (see src/code_fingerprint.py).
@@ -85,7 +86,8 @@ def main():
     print(f"family batch: {len(work)} members, {len(done)} cached, {len(todo)} to do"
           f"{' [WRITE]' if a.write else ''}", flush=True)
     results = list(done.values())
-    with open(OUT, 'a') as fo, ProcessPoolExecutor(max_workers=8) as ex:
+    with open(OUT, 'a') as fo, \
+            ProcessPoolExecutor(max_workers=default_jobs(cap=len(todo))) as ex:
         for i, res in enumerate(ex.map(process, todo)):
             res['code_hash'] = CODE_HASH
             fo.write(json.dumps(res) + "\n"); fo.flush(); results.append(res)

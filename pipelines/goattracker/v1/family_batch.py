@@ -36,6 +36,7 @@ OUT = os.path.join(ROOT, 'tmp', 'gt_v1_results.jsonl')
 
 # Resume-cache invalidation on code change (see src/code_fingerprint.py).
 from src.code_fingerprint import code_fingerprint  # noqa: E402
+from src.jobs import default_jobs  # noqa: E402
 CODE_HASH = code_fingerprint('goattracker_v1')
 
 
@@ -129,7 +130,7 @@ def main():
           flush=True)
 
     stats = collections.Counter()
-    with open(OUT, 'a') as f, Pool(8) as pool:
+    with open(OUT, 'a') as f, Pool(default_jobs(cap=len(todo))) as pool:
         for i, rec in enumerate(pool.imap_unordered(run_member, todo,
                                                     chunksize=1)):
             rec['code_hash'] = CODE_HASH

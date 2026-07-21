@@ -31,6 +31,9 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+from src.jobs import default_jobs  # noqa: E402
+
 DEFAULT_LIST = os.path.join(ROOT, 'tmp', 'dmc_f1_partials.jsonl')
 
 
@@ -127,7 +130,8 @@ def main() -> int:
     flipped = 0
     while idx < len(queue) and target is None:
         window = queue[idx:idx + args.window]
-        with ThreadPoolExecutor(max_workers=min(8, len(window))) as ex:
+        with ThreadPoolExecutor(
+                max_workers=default_jobs(cap=len(window))) as ex:
             results = {p: (s, loc) for p, s, loc in ex.map(_confirm, window)}
         for p in window:                       # strict path order within window
             s, loc = results[p]
