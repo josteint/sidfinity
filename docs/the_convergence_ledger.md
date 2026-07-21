@@ -118,6 +118,7 @@ practice, not code to factor).
 | LOSSY ENUM over independently-toggleable flag bits · USF enum assumed two editor flags mutually exclusive (gate hold $10 / never-release $08) · engine gives one priority so the co-set bit is MECHANICALLY DEAD · but the raw flags byte is OBSERVABLE via a state-as-data read (off-table fxf) → reconstruction misses the dead bit · carry the masked flag as an elidable boolean CO-FIELD, keep the enum = the EFFECTIVE articulation | C30 | logged |
 | COMPILATION · one file packs N INDEPENDENT players + a per-subtune SMC dispatch wrapper (subtune→(base,song)) · header overstates songs, sub0 FULL others silent/garbage · ≥2 jump-table bases · unified-merge (renumber+dedup instruments) · heterogeneous engines (dmc_sfx) · distinct from C27 parallel chips | C31 | logged |
 | engine STICKY STATE materialized into effective variants · orderlist state over the loop wrap (fitted pad/period/rcmd) · pattern-row sticky duration/instr/vol (FC (fc_id,init_len) variants · len=L pickup · DMC ~intro decode variants) · fold to STATED notation (value present iff the stream states the command; absent = inherit) + ONE shared resolution interpreter (src/usf/resolve.py) · re-derivation assert, fallback wholesale | C32 | canonicalized (2×) |
+| close a `Params.fields` ESCAPE-HATCH key → typed field · untyped behavior-named scalar in the generic params bag (init-phase state / mechanism scalar), borderline §7 · NOT opaque-bytes (C7) / NOT a wedge knob (C19) · it's a byte-identity CARRIER REFACTOR not a schema addition (value already in USF) · census ALL consumers (often cross-engine SHARED + dead readers) · clone an existing typed field of the same trichotomy category · type by MUSICAL category NOT a composer grouping · gate regenerates + MD5-compares every consumer family (surfaces broken extract paths behind a FULL verdict) | C33 | methodology |
 
 ---
 
@@ -356,6 +357,9 @@ practice, not code to factor).
   stale row). Before believing ANY regression: fresh single-member
   current-code build. Never mass-write with code that didn't produce the
   verdict (code_hash gating). Coverage source of truth = a fresh batch.
+- RELATIVE (C33): the EXTRACT-layer version — a member FULL in regression can
+  hide a silently-broken REGENERATION path (regression builds from a STORED
+  .usf, not from regeneration); a byte-gate that REGENERATES surfaces it.
 - FULL ENTRY: [`ledger/C20.md`](ledger/C20.md) — read it before applying.
 
 ### C21 — trichotomy-verdict alignment (rebuild emits its own init)
@@ -513,3 +517,24 @@ practice, not code to factor).
   Distinct from C27 (parallel chips every frame; here exactly ONE player
   runs per subtune). Analogues: FC Adrenalin, 5-Title-Tunes.
 - FULL ENTRY: [`ledger/C31.md`](ledger/C31.md) — read it before applying.
+
+### C33 — closing a `Params.fields` escape-hatch key → a typed field
+- PRESENTS: a leak scan flags a `params.fields['<key>']` that affects the
+  write stream but isn't quite musical CONTENT (init-phase engine state, a
+  mechanism scalar). Instinct: "add a schema field" or "type it for the one
+  engine." It is NOT opaque bytes (C7), NOT a wedge knob (C19).
+- CANONICAL: it's a byte-identity CARRIER REFACTOR, not a schema addition
+  (the value already lives in the USF → no representation gap, the schema-
+  addition alarm doesn't apply). Recipe: (1) census ALL consumers first — the
+  key is often cross-engine SHARED (scope surprise) + has DEAD readers to
+  delete; (2) home it by cloning an existing typed field of the same
+  trichotomy category (§4.5 priming → an InitState scalar beside slide_phase;
+  a shared init_block rule serves file-level + per-subtune at once); (3) type
+  by MUSICAL/SEMANTIC category, NEVER a composer-internal grouping (bundling
+  by a composer's dispatch set re-leaks composer structure into the schema,
+  §8); (4) gate = regenerate the USF (TEXT changes by design) + rebuild,
+  require the .sid MD5-identical across EVERY consumer family. TRAP: a
+  FULL-in-regression member can hide a BROKEN extract path (regression builds
+  from a STORED .usf, not from regeneration) — regenerating to gate surfaces
+  it (the C20 relative at the extract layer).
+- FULL ENTRY: [`ledger/C33.md`](ledger/C33.md) — read it before applying.
