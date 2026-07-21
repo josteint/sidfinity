@@ -34,8 +34,15 @@ class UsfParseError(Exception):
 
 
 def _load_parser() -> Lark:
+    # propagate_positions=False: it attaches line/column metadata to every tree
+    # node, which costs ~30% of parse time, and nothing here reads it — the
+    # transformer below never touches `.meta`/`.line`/`.column`, and parse
+    # ERRORS carry their own position from the LarkError exception, so
+    # UsfParseError messages are unaffected. Parsing is on every build path
+    # (the composer re-reads the .usf it just wrote), so this is broad.
     with open(_GRAMMAR_PATH) as f:
-        return Lark(f.read(), start='start', parser='lalr', propagate_positions=True)
+        return Lark(f.read(), start='start', parser='lalr',
+                    propagate_positions=False)
 
 
 _PARSER = None
