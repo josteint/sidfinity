@@ -200,7 +200,8 @@ unify-vs-keep decisions for Move 1:
    the clean unify requires giving v4's composer a pulse **phase-walker** (the
    shape of v5's `pulse_run`) and retiring the bound-oscillator runtime — i.e.
    this is the **Move-1 D.2 runtime convergence** (per-voice state + runtime),
-   touching the 4,786-member v4 FULL family, verify-gated. Recommend landing
+   touching the entire v4 FULL family (thousands of members), verify-gated.
+   Recommend landing
    it AS the Move-1 effort (DMC isn't uready yet; nothing consumes the forked
    USF files until tokenization, which is downstream), not as a one-off now.
 
@@ -334,8 +335,11 @@ Pending decisions added for the human (also in ledger C7 note):
    (behavior naming was the one real defect); steps-derivability checked and
    unavailable; the "lift to musical form" direction recorded as a §8 trap in
    ledger C7. Taurus_02 re-verified FULL 86118/86118 under the new names.
-2. **`Params.fields` escape surface** — ✅ **RESOLVED 2026-07-09** (`docs/
-   dmc_composer_to_extract_plan.md` Phase A). `offtable_redirect='0'` described
+2. **`Params.fields` escape surface** — ✅ **RESOLVED 2026-07-09**
+   (`deprecated/old_docs/dmc_composer_to_extract_plan.md` Phase A;
+   this resolved the memory-geometry pair, distinct from the init-phase
+   keys closed in the escape-hatch UPDATE above).
+   `offtable_redirect='0'` described
    orig memory geometry (the one thing config fields must never describe) and
    `sectpos_shadow` was probe-result transport; both DELETED from the USF and
    replaced by a per-read `live(...)`/`at(...)` behavioral flag on `offtable_freq`
@@ -407,7 +411,10 @@ feature-parametric skeleton.** The lifts done in Phase B (every chunk
 `FxNames`-parameterized) are the foundation; what's needed next is
 designing the unified runtime structure.
 
-Sub-moves that would compose Move 1, smallest first:
+Sub-moves that would compose Move 1, smallest first. **(NB — the `D.N`
+sub-moves are a DIFFERENT axis from the `DN` decisions above: `D1–D5` =
+representation forks to reconcile; `D.1–D.3` = the code-restructuring
+sequence. The dot is the only distinguisher.)**
 
 **D.1 — Unified note codec.** `pattern.encoding` is already a USF
 feature; build a `read_next_note(voice_idx, pattern_state, names)`
