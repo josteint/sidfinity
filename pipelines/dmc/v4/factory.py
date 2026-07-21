@@ -1512,7 +1512,14 @@ def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
             bases.append(t - 0x50)              # direct 2entry play handler
         a += 3
     if len(bases) != n_chips:
-        return None
+        # The wrapper is not a plain run of calls — a C18 PHASE CYCLER can sit
+        # in front of them (Rayden: an SMC counter at the play vector runs the
+        # full play for both chips on one call and only each chip's per-voice
+        # effects entry on the next). Shapes vary, so discover the players by
+        # RUNNING the wrapper instead of parsing it (C18).
+        bases = _observe_player_bases(path, n_chips)
+        if bases is None:
+            return None
     base0 = os.path.splitext(os.path.basename(sid_path))[0]
     cfgs = [_config_at_base(sid_path, hvsc_root, b, f'{base0}_chip{i + 1}')
             for i, b in enumerate(bases)]
@@ -1522,7 +1529,138 @@ def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
         if keep:
             cfg.extra_params['multisid_keep_regs'] = \
                 ','.join('%02X' % r for r in keep)
+        # C18: the wrapper may run the full play only every Nth call and
+        # dispatch the others to each chip's effects entry. Observed per
+        # chip; the composer's phase dispatcher then lives inside each
+        # player, so the chips cycle in lockstep as the original does.
+        ph, deferred = _observe_play_phases_chip(path, cfg.base)
+        if ph and '_' in ph and 'P' in ph.split('_') and 'S' not in ph:
+            cfg.extra_params['play_phases'] = ph
+            if deferred:
+                cfg.extra_params['noteinit_deferred'] = '1'
     return cfgs
+
+
+def _observe_play_phases_chip(sid_path: str, base: int, subtune: int = 0,
+                              n_calls: int = 12, max_steps: int = 200_000):
+    """C18 phase schedule for ONE chip of a multi-SID member.
+
+    The shared `_observe_play_phases` classifies by the canon frame entry
+    (base+$1F9) and glide tail (base+$41C); Rayden's 2SID wrapper dispatches
+    its effects calls to the WAVE-STEP entry (base+$591) instead, which that
+    observer reads as 'S' (silent) and which its pc-trace fallback cannot
+    disentangle for a multi-SID member (two players in one trace). Watching
+    base+$591 here keeps the shared single-chip path byte-identical.
+
+    A wave-step F entry sits PAST the note-init check, so a note fetched on a
+    P call only ARMS on the F call and note-inits on the NEXT P — the C23
+    2-frame note-start. Returns (schedule, noteinit_deferred).
+    """
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
+                                    '..', '..', '..', 'tools', 'py65_lib'))
+    from py65.devices.mpu6502 import MPU
+    from py65.memory import ObservableMemory
+    from seed_disassembly import parse_psid
+    s = parse_psid(sid_path)
+    mpu = MPU()
+    mem = ObservableMemory()
+    for i, b in enumerate(s['payload']):
+        if s['load'] + i < 0x10000:
+            mem[s['load'] + i] = b
+    mpu.memory = mem
+    deferred = [False]
+
+    def run(pc, acc):
+        mpu.stPush(0x00)
+        mpu.stPush(0x00)                   # RTS sentinel -> PC = $0001
+        mpu.pc = pc
+        mpu.a = acc
+        hit_play = False
+        fx = set()
+        for _ in range(max_steps):
+            if mpu.pc == 0x0001:
+                return hit_play, fx
+            if mpu.pc == base + 0x85:
+                hit_play = True
+            elif mpu.pc == base + 0x1F9:
+                fx.add(mpu.x & 0x03)
+            elif mpu.pc == base + 0x591:   # wave-step entry (C18 variant)
+                fx.add(mpu.x & 0x03)
+                deferred[0] = True
+            try:
+                mpu.step()
+            except Exception:
+                return None
+        return None
+
+    if run(s['init'], subtune) is None:
+        return (None, False)
+    seq = []
+    for _ in range(n_calls):
+        r = run(s['play'], 0)
+        if r is None:
+            return (None, False)
+        hp, fx = r
+        seq.append('P' if hp else
+                   ('F' + ''.join(str(v + 1) for v in sorted(fx)) if fx
+                    else 'S'))
+    for p in range(1, n_calls // 2 + 1):
+        if all(seq[i] == seq[i % p] for i in range(n_calls)):
+            return ('_'.join(seq[:p]), deferred[0])
+    return (None, False)
+
+
+def _observe_player_bases(sid_path: str, n_chips: int,
+                          max_steps: int = 400000):
+    """Discover the per-chip player bases by RUNNING the dispatch wrapper.
+
+    The static scan in `dmc_v4_config_2sid` reads a wrapper that is a plain
+    run of `JSR <player play>`; when a C18 phase cycler sits in front of the
+    per-chip calls the scan sees an `LDA #imm` and gives up. Rather than
+    teach it each wrapper shape (C18: observe, never parse), run the member's
+    init under py65 and collect the JSR targets that look like a DMC player's
+    2-entry JUMP TABLE: page-aligned (players are relocated to a page
+    boundary — true of all known carriers) with `JMP` at both +0 and +3.
+    First-seen order is the wrapper's call order = chip order.
+
+    Returns the base list, or None if it doesn't find exactly `n_chips`.
+    """
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
+                                    '..', '..', '..', 'tools', 'py65_lib'))
+    from py65.devices.mpu6502 import MPU
+    from py65.memory import ObservableMemory
+    from seed_disassembly import parse_psid
+    s = parse_psid(sid_path)
+    img = bytearray(0x10000)
+    for i, b in enumerate(s['payload']):
+        if s['load'] + i < 0x10000:
+            img[s['load'] + i] = b
+    mpu = MPU()
+    mem = ObservableMemory()
+    for i, b in enumerate(s['payload']):
+        if s['load'] + i < 0x10000:
+            mem[s['load'] + i] = b
+    mpu.memory = mem
+    mpu.stPush(0x00)
+    mpu.stPush(0x00)                       # RTS sentinel -> PC = $0001
+    mpu.pc = s['init']
+    mpu.a = 0
+    found = []
+    for _ in range(max_steps):
+        if mpu.pc == 0x0001:
+            break
+        if mem[mpu.pc] == 0x20:            # JSR abs
+            t = mem[mpu.pc + 1] | (mem[mpu.pc + 2] << 8)
+            if not (t & 0xFF) and img[t] == 0x4C and img[t + 3] == 0x4C \
+                    and t not in found:
+                found.append(t)
+        try:
+            mpu.step()
+        except Exception:
+            return None
+    return found if len(found) == n_chips else None
 
 
 def multisid_active_chips(sid_path: str, bases, n_subtunes: int,
