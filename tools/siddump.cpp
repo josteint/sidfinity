@@ -113,8 +113,8 @@ int main(int argc, char* argv[])
             "  --pcm          Output raw 16-bit signed PCM to stdout\n"
             "  --force-rsid   Process RSID files (normally skipped)\n"
             "  --roms-dir DIR Dir with C64 kernal/basic/chargen ROM files (needed to\n"
-            "                 actually run RSID + C64-BASIC tunes; default\n"
-            "                 $HOME/.local/share/sidplayfp)\n"
+            "                 actually run RSID + C64-BASIC tunes; defaults to\n"
+            "                 $SIDFINITY_ROMS_DIR, else $HOME/.local/share/sidplayfp)\n"
             "  --pc-trace FILE START END  Dump CPU PC trace to FILE for frames START..END\n"
             "  --memwatch HEX[,HEX...]    Per-frame snapshot of RAM at these addresses (post-play)\n"
             "                             (e.g. --memwatch 90C5,90C8,90CB,9116). Output lines:\n"
@@ -273,9 +273,18 @@ int main(int argc, char* argv[])
     static uint8_t basicRom[8192];
     static uint8_t chargenRom[4096];
     {
+        // Resolution order: --roms-dir, then $SIDFINITY_ROMS_DIR, then the
+        // sidplayfp CLI data dir. The env var lets the repo keep its own ROMs
+        // (tools/c64roms, exported by src/env.sh) instead of depending on
+        // ~/.local/share, which is not stable on every host — when it
+        // vanishes, RSID/C64-BASIC tunes silently emit nothing and every
+        // Basic_Program member reports `unsupported:too_few_steps`.
         std::string dir;
+        const char* env_dir = getenv("SIDFINITY_ROMS_DIR");
         if (roms_dir) {
             dir = roms_dir;
+        } else if (env_dir && *env_dir) {
+            dir = env_dir;
         } else {
             const char* home = getenv("HOME");
             dir = std::string(home ? home : ".") + "/.local/share/sidplayfp";

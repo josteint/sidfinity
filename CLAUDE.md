@@ -433,19 +433,24 @@ Override with `SIDFINITY_JOBS=N` for everything at once, or a per-tool var
 `pytest pipelines/` currently has 16 stale-expectation failures that predate
 the move (they were unrunnable on the X230, so they rotted unnoticed).
 
-**Two prerequisites live OUTSIDE the repo and do NOT survive a folder copy** —
-both were missing after the 2026-07-21 move, and `~/.local/share` was then
-wiped again mid-session, so treat `~/.local` as untrustworthy on this host:
+**Treat `~/.local` as untrustworthy on this host** — `~/.local/share` was
+wiped twice on 2026-07-21 (19:41, 21:31). Anything the pipeline needs lives
+in the repo:
 
-- **C64 ROMs** at `~/.local/share/sidplayfp/{kernal,basic,chargen}`. Without
-  them siddump cannot execute RSID/BASIC tunes — the BASIC interpreter never
-  runs and every `Basic_Program` member verifies as
-  `unsupported:too_few_steps`. Durable copy kept in-repo (gitignored,
-  copyrighted): `cp tools/c64roms/* ~/.local/share/sidplayfp/`.
-- **`duckdb` CLI** at `~/.local/bin/duckdb` (v1.5.3) — all catalogue queries.
+- **C64 ROMs**: `tools/c64roms/{kernal,basic,chargen}` (gitignored —
+  copyrighted Commodore binaries). `env.sh` exports `SIDFINITY_ROMS_DIR`, and
+  siddump resolves `--roms-dir` → `$SIDFINITY_ROMS_DIR` →
+  `~/.local/share/sidplayfp`, so the repo copy is used and nothing outside
+  the tree is load-bearing. Without ROMs siddump cannot execute RSID/BASIC
+  tunes: the BASIC interpreter never runs and every `Basic_Program` member
+  reports `unsupported:too_few_steps` — a silent wrong verdict, not a crash.
+- **Python packages**: the in-repo `.pylocal/` (`lark`, `py65`, `numpy`,
+  `soundfile`).
 
-Python packages belong in the in-repo `.pylocal/` for the same reason
-(`lark`, `py65`, `numpy`, `soundfile`).
+**The one remaining external prerequisite** is the **`duckdb` CLI** at
+`~/.local/bin/duckdb` (v1.5.3) — all catalogue queries. It survived both
+wipes (only `share/` was hit), but it is not in the repo: re-install it if
+catalogue queries start failing.
 
 No sudo — everything from source in-tree.
 xa65 assembler at `tools/xa65/xa/xa`. CUDA at `/usr/bin/nvcc`. Python packages
