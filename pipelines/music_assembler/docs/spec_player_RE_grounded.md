@@ -31,7 +31,40 @@ provenance:
 >   **all 5,618** located members — i.e. one dominant build, not the
 >   `+$91/+$B5/+$70/+$191` spread README.md reports from the research sweep.
 >
-> Implementation: `pipelines/music_assembler/locate.py`.
+> **The SEQUENCE OPCODE MAP in this file and in `spec_player_jc64dis.md` has
+> the two command ranges BACKWARDS.** Read off the player's own dispatch
+> ($C0D2 `CMP #$A0` / `BCC $C0EC`), confirmed by decoding 5,455 members:
+>
+> | byte | docs say | **actually** |
+> |---|---|---|
+> | `$80..$9F` | HOLD | **PRESET**, id = byte & `$1F` (32 presets — `$C0EC` does `ASL A`×3 = id*8) |
+> | `$A0..$FF` | `$A0..$AF` PRESET (low nibble), rest HOLD | **HOLD**, duration = byte & `$1F` |
+>
+> A PRESET byte carries NO duration: the player immediately re-reads the next
+> byte and dispatches it as a note or a rest/hold ($C0F2). Worked example from
+> this file's own seq 1 dump — `80 00 01 00 01 82 3C 01` is *preset 0 / note 0
+> dur 1 / note 0 dur 1 / preset 2 / note $3C dur 1*, which only parses under
+> the corrected map.
+>
+> The note's flags byte is **bit-flagged, not a 3-bit opcode**: bits 0-4 =
+> duration, **bit 5 = SLIDE** (+2 bytes), **bit 7 = FILTER** (+2 bytes), bit 6
+> = legato (no extra bytes). Filter wins when both are set ($C12C `BMI`
+> precedes the bit-5 test). Verified: seq 2's `83 1A 87 63 08` = preset 3 /
+> note $1A dur 7 with filter params `(63, 08)`.
+>
+> **The `$FD` orderlist sentinel is `$FD nn` = loop to ENTRY nn**, not a bare
+> "restart from command", and it is a PLAYER VARIANT: 260 members replace the
+> second `INY` of the orderlist step (base+$1A1) with a `JSR` to a stub that
+> tests `CMP #$FD` and does `ASL A` (×2 for the 2-byte entries) into the
+> orderlist position. Decode it only when that stub is present.
+>
+> Independent sanity check on the transpose semantics (high nibble, added to
+> the note index): across all clean members the maximum note index after
+> transpose is **95**, exactly the last entry of the 96-entry freq table.
+>
+> Implementation: `pipelines/music_assembler/locate.py` +
+> `pipelines/music_assembler/extract/decode.py`; scale checks
+> `tools/masm_census.py`, `tools/masm_decode_check.py`.
 
 This is the crux deliverable: the packed runtime layout and the per-frame
 `$D400-$D418` write model, derived by **disassembling a real HVSC member**
