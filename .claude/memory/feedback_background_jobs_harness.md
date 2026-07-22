@@ -5,6 +5,7 @@ metadata:
   node_type: memory
   type: feedback
   originSessionId: 61079d2b-5be1-445b-9baa-b2959d4e0ea3
+  modified: 2026-07-22T21:31:36.490Z
 ---
 
 Long-running jobs (the ~1hr DMC/FC family batches, mass-writes, etc.) MUST be
@@ -26,3 +27,24 @@ the fix's mtime before trusting it.
 **How to apply:** for any job > a few seconds that must survive the turn, call
 Bash with `run_in_background: true`; then wait on the harness task
 notification, not a hand-rolled `nohup`+`kill -0` loop.
+
+## NEVER pipe a backgrounded command through `tail`/`head` (2026-07-22)
+
+A backgrounded `cmd | tail -40` writes **nothing** to its output file until the
+process EXITS — `tail` buffers the whole stream by construction. So the
+progress file stays empty for the entire run, which reads as "stalled", and the
+natural next move is to re-run it in the foreground.
+
+**Why:** burned a cycle in the round-88 session — backgrounded
+`dmc_next_partial.py 2>&1 | tail -40`, read the empty output file, concluded
+nothing was happening, and ran the SAME command in the foreground. Both did
+full builds+verifies concurrently, both writing the same queue file
+(`tmp/dmc_f1_partials.jsonl`). It survived intact, but that was luck: two
+processes rewriting one state file is a corruption hazard, not just wasted CPU.
+
+**The rule:** let a backgrounded job STREAM to its output file (no pipe), and
+trim when you READ it (`tail -n 20 <output-file>`). Then a mid-run check
+actually shows progress, so there is never a reason to launch a second copy.
+Corollary — the tell that you are about to make this mistake is reaching for a
+foreground re-run of something already backgrounded: check the task list first,
+and prefer waiting for the notification.
