@@ -14,11 +14,12 @@ orderlists + sequence streams; `tools/masm_census.py` / `tools/masm_decode_check
 are the scale checks. **5,618 / 6,351 (88.5%) locate; of those 5,455 (97.1%)
 decode cleanly** (1.28M notes, 290k preset selects, 57k filter cmds, 18k
 slides), and the 8-byte PRESET table is decoded for all of them (46,660
-presets) and the ARPEGGIO table (31,369 arps / 140k steps). The packed format
-is now fully decoded: orderlists, sequences, presets, arpeggios. Next: fold
-these into a model -> USF -> composer, at which point
-`compare_instruction_stream` becomes the judge. Nothing is write-stream
-verified yet — no rebuild exists, so every number here is structural.
+presets) and the ARPEGGIO table (31,369 arps / 140k steps). **A composer
+exists and the grounded member OPM/Sid_Slam verifies FULL** (85,574 writes
+exact over songlength*1.1, state_match=True). On a 60-member spread **15 (25%)
+are FULL with no per-member work**, so the engine is general, not fitted.
+Next: ledger C6 off-table freq (the dominant residue), then USF — the pipeline
+is currently SID -> model -> SID and MUST become SID -> USF -> SID.
 
 ## Census result (tools/masm_census.py, 2026-07-22)
 
@@ -80,6 +81,43 @@ A `LDA`-only ($B9) scan misses +6 entirely — it is reached by `SBC`/`ADC`
 ($F9/$79) — which nearly produced a wrong "the docs are wrong, +6 is unused"
 claim. The docs ARE wrong here, but differently: the Fx+arpeggio byte is +7,
 not +6, and +6 is the vibrato depth.
+
+## The composer — `composer_asm.py`, `verify.py` (2026-07-22)
+
+Extract -> model -> composed 6502 -> write stream vs HVSC
+(`compare_instruction_stream` in TRICHOTOMY mode: we emit our own init, so a
+flat compare diverges at write 0 — ledger C21). Nothing is copied from the
+image; sequences are RE-EMITTED from decoded events and all addresses are
+assembler-resolved.
+
+**INIT PRIMING is load-bearing** (trichotomy 4.5): the player's init clears
+ONLY the 16-byte work block (base+$81..$90) and loads each track's first
+orderlist entry — every OTHER per-voice byte keeps its file-image leftover,
+audible from frame 1. `noteflg` (base+$141) carries bit6 "note already
+initialised", so a voice whose first event is a REST (which never writes
+noteflg) SKIPS its note-init. Decisive check: the leftover pwlo/pwhi and nfrq
+ARE the original's frame-1 writes for V1/V2. `MasmModel.prime` carries these.
+
+**Three tables are ENGINE CONSTANTS** (byte-identical across 58 members, so
+mechanism, not content): voice bases $00/$07/$0E, vibrato direction
+$00,$01,$01,$00, filter routing $F1/$F3/$F7 (= the manual's "the triggering
+track and all lower tracks").
+
+**Two bugs that cost the most time**, both fixed by reading the original's
+$C177 rather than reasoning: `rattle` must init to **$FF** not 0 (it is EOR'd
+with $FF per frame, so 0 inverts the rattling-slide phase), and `vibfr` must
+be cleared at note start. Plus a self-inflicted one: PSID inline-load encoding
+takes header load=0 WITH the inline prefix — passing both load=$1000 and the
+prefix shifts the image two bytes and the player never runs (zero writes).
+
+**DOMINANT RESIDUE = ledger C6** (off-table freq lookup). The first-divergence
+census over 60 members is overwhelmingly freq-lo (33 of 40 partials);
+localising one (Iron_Cat/Vibrations) shows the orig writing freq $D415 — an
+OPERAND byte, not a frequency: the arpeggio note offset is masked to 7 bits
+(0..127) and runs past the 96-entry freq table, so the original plays the
+bytes that follow it. Same 102 members `masm_decode_check` flags as
+`note_past_freq_table`. Cure is C6's canonical one (per-(instrument, offset,
+note) records), NOT a contiguous window copy.
 
 ## The arpeggio table — `extract/arps.py`
 
