@@ -297,6 +297,15 @@ practice, not code to factor).
   redirect, sparse vars need seeding, shared scratch is shadowable by
   mirroring all writers. Full entry has the hard boundaries (dynamic work-RAM,
   off-table glide targets — do NOT re-attempt the glide-target fixes).
+- ⚠ A RECORDED REJECTION OF A REDIRECT ROW EXPIRES. "Our var doesn't track
+  theirs" was measured against ONE composer on ONE date (often on ONE family);
+  the composer is re-implemented continuously. RE-MEASURE before accepting it
+  as a boundary: `siddump ORIG --memwatch-on-write <diverging reg> <orig addr>`
+  vs the same on the REBUILD with OUR label (`return_labels=True`), compared
+  event-by-event. TRAP: the player is usually RELOCATED — offset every watched
+  address by the member's `base`, or you are watching garbage (TELL: watched
+  bytes that contradict the write stream). $1720 fclaim, rejected 2026-06-29,
+  landed 2026-07-23 at 0 regressed / 11 gained.
 - FULL ENTRY: [`ledger/C11.md`](ledger/C11.md) — read it before applying.
 
 ### C12 — accumulated per-step rounding drift in a delta-encoded round-trip
