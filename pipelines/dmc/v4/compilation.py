@@ -352,11 +352,15 @@ def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
 # field binds nothing here — inheriting its limit refused members our engine
 # can play (core tenet: the orig's format is a historical artifact).
 #
-# The composer's OWN binding index is fx_pulse's `lda cinst,x / asl asl asl /
-# adc pwphase,x / tay`, an 8-bit index into isteps/irawsp at stride 8: id*8 +
-# pwphase <= 255 with canon pwphase 0-5 => ids 0..31, i.e. 32 instruments.
+# The composer's OWN binding index is fx_pulse's pulse-step lookup into
+# isteps/irawsp, an 8-bit index. It has two regimes (composer_asm `wide_pulse`,
+# gated so members that fit the first emit byte-identical code):
+#   <= 32  `lda cinst,x / asl asl asl / adc pwphase,x` — id*8 + pwphase <= 255
+#          with canon pwphase 0-5.
+#   <= 42  a compact stride-6 pool with a per-instrument base byte
+#          (`lda istepbase,y`) — 41*6 + 5 = 251.
 # Audit that chain (and any other id-scaled table) before raising this again.
-_MAX_INSTR = 32
+_MAX_INSTR = 42
 
 
 def _inst_key(inst, drop=()):

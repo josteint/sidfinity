@@ -928,6 +928,34 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     iwchase = [len(i.waveform) & 0xFF if getattr(i, 'wave_start_on_marker', False)
                else 0 for i in insts]
     _any_chase = any(iwchase)
+    # PULSE-STEP INDEX WIDTH (ledger C8 — widen the composer's own index).
+    # fx_pulse reaches an instrument's step records with `id*8 + pwphase`, an
+    # 8-bit index, so the stride-8 layout caps the pool at 32 instruments — a
+    # merged compilation can carry more (Lane_Crazy: 39, its high ids wrapping
+    # onto player 0's records and diverging on V1 PW lo at write 24). Above the
+    # cap, pack the records at their true width (6) and give each instrument a
+    # base BYTE, which keeps the index 8-bit (and costs one cycle LESS than the
+    # three shifts). GATED on the count so every member that fits stride 8
+    # emits byte-identical code.
+    wide_pulse = len(insts) > 32
+    istride = 6 if wide_pulse else 8
+    istepbase = [k * istride for k in range(len(insts))]
+    assert not wide_pulse or istepbase[-1] + 5 < 256, \
+        f'{len(insts)} instruments overflow the pulse-step base byte'
+    pulse_index = (
+        '        ldy cinst,x\n'
+        '        lda istepbase,y              ; compact stride-6 pool (>32\n'
+        '        clc                          ; instruments — the id*8 shift\n'
+        '        adc pwphase,x                ; would overflow the 8-bit index)\n'
+        '        tay\n'
+        if wide_pulse else
+        '        lda cinst,x\n'
+        '        asl\n'
+        '        asl\n'
+        '        asl\n'
+        '        clc\n'
+        '        adc pwphase,x\n'
+        '        tay\n')
     isteps = []
     ipwbase = []
     irawsp = []
@@ -938,7 +966,7 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
         assert all((s & 0x0F) == base for s in ss), \
             f'inst {i.id}: pulse steps do not share a base nibble'
         ipwbase.append(base)
-        isteps += [s & 0xF0 for s in ss] + [0, 0]       # stride 8
+        isteps += ([s & 0xF0 for s in ss] + [0, 0])[:istride]
         # raw instr+3..5 speed bytes (hi nibble = even-phase step, lo nibble =
         # odd-phase step >> 4 — exact inverse of the extract's nibs decode),
         # duplicated per parity so fx_pulse reuses the isteps index. Feeds the
@@ -946,7 +974,7 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
         raw3 = [(ss[2 * k] & 0xF0) | ((ss[2 * k + 1] & 0xF0) >> 4)
                 for k in range(3)]
         irawsp += [raw3[0], raw3[0], raw3[1], raw3[1],
-                   raw3[2], raw3[2], 0, 0]              # stride 8
+                   raw3[2], raw3[2], 0, 0][:istride]
     # dual_freq_generator pulse-step extension (factory._dual_freq_gen_probe):
     # the wedge
     # forces pwphase to P0/P0+1 every dual frame (+<=2 flip INCs), so
@@ -958,6 +986,14 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     dhs = str(usf.params.fields.get('dual_generator_steps', '') or '')
     dh_param = str(usf.params.fields.get('dual_freq_generator', '') or '')
     if dhs and dh_param:
+        if wide_pulse:
+            # The wedge's off-the-end reads are positions in the STRIDE-8
+            # layout; under the compact layout they would land inside a later
+            # instrument's real records. No member carries both today (the
+            # wedge is a single-player probe, the compact layout a merged
+            # compilation) — refuse rather than emit a plausible wrong table.
+            raise ValueError('dual_freq_generator + >32 instruments: the '
+                             'pulse-step extension has no compact-layout form')
         p0 = (0x19 + int(dh_param.split(',')[1])) & 0xFF
         pos_by_id = {i.id: k for k, i in enumerate(insts)}
         ext = {}
@@ -1705,6 +1741,8 @@ fx_dual_up:
         data.append(f'{name}:\n' + _byt(arr))
     data.append('isteps:\n' + _byt(isteps))
     data.append('irawsp:\n' + _byt(irawsp))
+    if wide_pulse:
+        data.append('istepbase:\n' + _byt(istepbase))
     if _any_chase:
         data.append('iwchase:\n' + _byt(iwchase))
     if pw_hi_const:
@@ -2318,14 +2356,7 @@ fx_g2:
         lda #$FE                     ; default: release after 3 gate frames
         sta gatemask,x
 fx_pulse:
-        lda cinst,x
-        asl
-        asl
-        asl
-        clc
-        adc pwphase,x
-        tay
-        lda irawsp,y                 ; raw speed byte -> wjmp (orig $135A
+{pulse_index}        lda irawsp,y                 ; raw speed byte -> wjmp (orig $135A
         sta wjmp                     ; STA $171F, before the nibble select)
         lda isteps,y                 ; per-phase step nibble
         clc
