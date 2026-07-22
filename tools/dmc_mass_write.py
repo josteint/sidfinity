@@ -85,16 +85,16 @@ def write_member(item) -> tuple:
                 rel, detect_compilation(rel, hvsc_root=hvsc), out_dir,
                 hvsc_root=hvsc)
         elif build_path == 'hetero_masm':
-            # A DMC + Music Assembler compilation verifies FULL (each packed
-            # engine is built through its own USF behind a generated
-            # dispatcher), but the file has no SINGLE .usf: unlike the
-            # dmc_sfx case, the MA sub-players are complete music engines,
-            # and UsfFile has no representation for a second one. Storing
-            # anything here would store an artifact that does not rebuild the
-            # member — exactly C20's fifth layer. Refuse explicitly rather
-            # than fall through to the single-player writer.
-            return (rel, False, 'heterogeneous DMC+Music_Assembler member: '
-                                'verified FULL but not storable as one .usf')
+            # DMC + Music Assembler (ledger C31/C35): one UsfFile carrying
+            # every packed player — merged instrument pool, per-subtune
+            # freq_table / default_filter / params / init, and `origin_engine`
+            # naming which composer builds each subtune.
+            from pipelines.music_assembler.heterogeneous import (
+                heterogeneous_to_usf)
+            from src.usf.writer import write_file
+            usf_path = os.path.join(
+                out_dir, os.path.basename(rel).replace('.sid', '.usf'))
+            write_file(heterogeneous_to_usf(rel, hvsc_root=hvsc), usf_path)
         else:
             usf_path = write_dmc_usf(_prime(dmc_v4_config(rel, hvsc_root=hvsc)),
                                      out_dir, hvsc_root=hvsc)
@@ -105,7 +105,11 @@ def write_member(item) -> tuple:
             # the very inconsistency above — refuse instead.
             return (rel, False, f'hold_gateoff={hold_gateoff} did not reach '
                                 f'the stored .usf ({build_path} path)')
-        sid = build_dmc_sid(usf)
+        if build_path == 'hetero_masm':
+            from pipelines.music_assembler.heterogeneous import build_from_usf
+            sid = build_from_usf(usf)
+        else:
+            sid = build_dmc_sid(usf)
         base = os.path.splitext(os.path.join(hvsc, rel))[0]
         open(base + '.sidfinity.sid', 'wb').write(sid)
         return (rel, True, '')
@@ -114,10 +118,20 @@ def write_member(item) -> tuple:
 
 
 def _rebuild_from_usf(rel: str, usf_path: str) -> bytes:
-    """corpus_sync.audit_rebuild builder: stored .usf -> .sid bytes."""
+    """corpus_sync.audit_rebuild builder: stored .usf -> .sid bytes.
+
+    Dispatches on `origin_engine` — a file whose subtunes name more than one
+    engine needs the heterogeneous builder (ledger C35). This is the DISPATCH
+    layer, the only place permitted to read that field."""
     from src.usf.parser import parse_file
     from pipelines.dmc.composer_asm import build_dmc_sid
-    return build_dmc_sid(parse_file(usf_path))
+    from src.usf.types import MusicSubtune
+    usf = parse_file(usf_path)
+    if any(getattr(s, 'origin_engine', None) for s in usf.subtunes
+           if isinstance(s, MusicSubtune)):
+        from pipelines.music_assembler.heterogeneous import build_from_usf
+        return build_from_usf(usf)
+    return build_dmc_sid(usf)
 
 
 def _audit(written, n: int) -> int:

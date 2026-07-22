@@ -682,6 +682,14 @@ def _write_subtune(s) -> list[str]:
             # Indent the per-subtune init block under the subtune.
             for line in _write_init(s.init):
                 lines.append('  ' + line)
+        # Per-subtune overrides of normally file-level content (a compilation
+        # whose packed players tune differently / carry their own idle sweep).
+        if getattr(s, 'freq_table', None):
+            for line in _write_freq_table(s.freq_table):
+                lines.append('  ' + line)
+        if getattr(s, 'default_filter', None) is not None:
+            lines.append('  ' + _write_swenv('default_filter',
+                                             s.default_filter))
         for v in s.voices:
             lines.extend(_write_voice(v))
         # one global block per chip; chip 1 is always the bare form
@@ -770,6 +778,15 @@ def _write_dmc_sfx(e: SfxEngine) -> list[str]:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+def _write_swenv(kw: str, env) -> str:
+    parts = [f'start={_hex(env.start, 4)}']
+    if env.loop is not None:
+        parts.append(f'repeat={env.loop}')
+    for rate, frames in env.phases:
+        parts.append(f'seg ({rate}, {_hex(frames, 4)})')
+    return f'{kw} {{ ' + ' '.join(parts) + ' }'
+
 
 def _write_freq_table(bytes_: list[int]) -> list[str]:
     lines = ['freq_table {  ; per-tune tuning table (96-entry musical region + tail)']
@@ -906,13 +923,8 @@ def write(usf: UsfFile) -> str:
                       ('default_pulse', getattr(usf, 'default_pulse', None))):
         if _env is None:
             continue
-        parts = [f'start={_hex(_env.start, 4)}']
-        if _env.loop is not None:
-            parts.append(f'repeat={_env.loop}')
-        for rate, frames in _env.phases:
-            parts.append(f'seg ({rate}, {_hex(frames, 4)})')
         lines.append('')
-        lines.append(f'{_kw} {{ ' + ' '.join(parts) + ' }')
+        lines.append(_write_swenv(_kw, _env))
     if usf.arp_programs:
         lines.append('')
         lines.extend(_write_arp_programs(usf.arp_programs))

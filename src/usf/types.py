@@ -284,6 +284,18 @@ class MusicSubtune:
     # DISTINCT values appear — a file whose subtunes all agree needs one
     # composer and the tag would say nothing. See src/usf/validate.py.
     origin_engine: Optional[str] = None
+    # PER-SUBTUNE overrides of two normally file-level fields. Both are
+    # file-level only because, until compilations, one file meant one engine:
+    # a file whose subtunes were authored with DIFFERENT tunings, or whose
+    # packed players each carry their own idle filter state, is ordinary
+    # per-subtune CONTENT. (Freespace_2075: its DMC and Music Assembler
+    # players tune differently, and its two MA players disagree with each
+    # other on the idle cutoff sweep.) None = use the file-level value.
+    #
+    # Unlike `origin_engine` these are NOT Move-1 scaffolds — they stay
+    # meaningful under one unified composer.
+    freq_table: Optional[list[int]] = None
+    default_filter: Optional['SweepEnvelope'] = None
     kind: str = 'music'
 
 

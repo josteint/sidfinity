@@ -527,7 +527,12 @@ dmcsfx_body: "song" ":" INT
 // subtune names one and >=2 distinct values appear. Defined to disappear at
 // Move 1, when one engine-blind composer makes the condition false for every
 // file. Never valid inside an instrument or effect (principle §7).
-music_body: "tempo" ":" INT tempo_chip* origin_engine_field? is_sfx_field? params_block? init_block? voice_block+ global_block*
+music_body: "tempo" ":" INT tempo_chip* origin_engine_field? is_sfx_field? params_block? init_block? sub_override* voice_block+ global_block*
+// Per-subtune overrides of normally file-level content (a compilation whose
+// packed players tune differently / carry their own idle filter sweep).
+// Grouped into one repeated rule, like `top_block`, to keep the LALR table
+// small — a longer chain of optionals blows up table construction.
+sub_override: freq_table_block | default_filter_block
 tempo_chip: "tempo" INT ":" INT
 origin_engine_field: "origin_engine" ":" CNAME
 is_sfx_field: "is_sfx" ":" bool

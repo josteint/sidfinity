@@ -13,8 +13,10 @@ STATUS (2026-07-22, round 2): **THROUGH USF, wide batch 3,915 / 6,351 FULL
 SID -> USF -> SID. Regression portfolio (16 members) + the Freespace_2075
 cross-family canary are wired as tier 1 in `tools/regression.py`; the family
 batch is `tools/masm_family_batch.py` (tier 2, code_hash-gated).
-NOT yet done: corpus mass-write/sync (deliberate — 33% residue is too high to
-store), and `detect_compilation` still does not classify MA sub-players.
+Freespace_2075 (the DMC+MA heterogeneous member) is now DETECTED, counted FULL
+by the DMC batch, and STORABLE as one `.usf` (ledger C35 `origin_engine`).
+NOT yet done: the MA family's own corpus mass-write/sync (deliberate — 33%
+residue is too high to store).
 
 ## Round 2 (2026-07-22) — USF round trip + ledger C6
 
@@ -170,13 +172,43 @@ the 3-subtune-shaped dispatcher are gone — memory comes from a snapshot at the
 landing, and the dispatcher is generated for N subtunes. The DMC family batch
 routes these via `build_path='hetero_masm'` and reports the member **full**.
 
-**STILL OPEN — it is not corpus-storable.** There is no single `.usf` for a
-DMC+MA file: unlike the `dmc_sfx` case (a tiny SFX sequencer that fits in
-`UsfFile.dmc_sfx`), MA sub-players are COMPLETE music engines and `UsfFile` has
-no representation for a second one. `dmc_mass_write` therefore REFUSES the
-`hetero_masm` path explicitly rather than falling through to the single-player
-writer (which would store an artifact that cannot rebuild the member — C20's
-fifth layer). Deciding that representation is the remaining work.
+**CLOSED — it is now storable as ONE `.usf`** (31,245 bytes) and rebuilds
+FULL on all three subtunes from that single stored artifact. The pieces:
+
+- `origin_engine` per subtune (ledger C35) names which COMPOSER builds it.
+  Read only by `build_from_usf`'s dispatch, never by an emitter.
+- per-subtune `freq_table` + `default_filter` — the two normally file-level
+  fields the packed players disagree on (DMC and MA tune differently; the two
+  MA players carry different idle cutoff sweeps). NOT scaffolds: they stay
+  meaningful under one unified composer.
+- one merged instrument pool (9 + 13 + 13 = 35); `build_from_usf` projects a
+  single-engine VIEW per subtune, so each composer sees exactly the file it
+  would have seen alone.
+
+THREE TRAPS, all silent, all cost real time:
+
+1. **Grouping by ENGINE instead of by PLAYER.** Two subtunes can name the same
+   FAMILY yet be different players; merging Freespace's two MA players into
+   one view built one tune from the other's data. One composer instance PER
+   SUBTUNE is correct by construction (a shared player just gets composed
+   twice — image size, never correctness).
+2. **Deriving the instrument slice from ROW REFERENCES — ledger C31's merge
+   trap, which I walked straight into.** DMC's instrument i1 is referenced by
+   no row of its only dispatched song, but init clears the note-init cache to
+   0 so an idle voice runs RECORD 0's pulse/wave mechanism. Dropping it
+   diverges at write 28. Blocks must TILE the id space (split at each
+   subtune's lowest referenced id, first block starting at 1), never equal the
+   referenced set.
+3. **File-level init ownership.** The first player keeps the merged file's
+   params/init slot; a later player's file-level params/init are parked on its
+   subtune and lifted back at projection. Getting it backwards overwrote DMC's
+   per-voice note/gate_mask priming with the subtune's thinner init and
+   diverged at write 26 — with `state_match` still True, so it looked like a
+   content bug rather than a plumbing one.
+
+`dmc_mass_write` stores it (build_path `hetero_masm`), and both C20 audits
+cover it: the fifth-layer invariant `build(stored .usf) == stored .sid` holds,
+and `_rebuild_from_usf` dispatches on `origin_engine`.
 
 ## Freespace_2075: the original bring-up — ALL 3 SUBTUNES FULL
 

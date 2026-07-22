@@ -715,6 +715,9 @@ class _T(Transformer):
     def tempo_chip(self, items):
         return ('_tempo_chip', int(items[0]), int(items[1]))
 
+    def sub_override(self, items):
+        return ('_sub_override', items[0])
+
     def origin_engine_field(self, items):
         return ('_origin_engine', str(items[0]))
 
@@ -745,6 +748,14 @@ class _T(Transformer):
             params = rest.pop(0)
         if rest and isinstance(rest[0], InitState):
             init = rest.pop(0)
+        sub_freq, sub_dfilt = None, None
+        while rest and isinstance(rest[0], tuple) \
+                and rest[0][0] == '_sub_override':
+            ov = rest.pop(0)[1]
+            if isinstance(ov, tuple) and ov and ov[0] == 'freq_table':
+                sub_freq = ov[1]
+            elif isinstance(ov, tuple) and ov and ov[0] == 'default_filter':
+                sub_dfilt = ov[1]
         globals_ = {}
         while rest and isinstance(rest[-1], tuple) \
                 and rest[-1][0] == '_global':
@@ -781,6 +792,7 @@ class _T(Transformer):
         return ('music', {'tempo': tempo, 'voices': voices,
                           'params': params, 'init': init,
                           'is_sfx': is_sfx, 'origin_engine': origin_engine,
+                          'freq_table': sub_freq, 'default_filter': sub_dfilt,
                           'global_track': globals_.get(1, []),
                           'tempo2': tempos.get(2), 'tempo3': tempos.get(3),
                           'global_track2': globals_.get(2, []),
@@ -878,6 +890,8 @@ class _T(Transformer):
                 init=body_data.get('init'),
                 is_sfx=body_data.get('is_sfx', False),
                 origin_engine=body_data.get('origin_engine'),
+                freq_table=body_data.get('freq_table'),
+                default_filter=body_data.get('default_filter'),
                 global_track=body_data.get('global_track', []),
                 tempo2=body_data.get('tempo2'),
                 tempo3=body_data.get('tempo3'),
