@@ -1079,13 +1079,19 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # given note reads it (sector-position, a settled track pointer). Recover
     # those with an event-driven capture (the value read AT the access). Gated so
     # members whose off-table reads are all init-constant skip the extra siddump.
-    # Canon geometry only: the capture memwatches the CANON state addresses
-    # ($1783/$1012/$1015/$172F/$1732), which on a non-canon member are unrelated
-    # bytes — it would fabricate constant bogus keys that can poison correct
-    # records. Non-canon members keep the post-init static values (their
+    # Canon geometry only: the capture memwatches the member's (relocated) state
+    # addresses derived from cfg; on a non-canon member the canon offsets are
+    # unrelated bytes — it would fabricate constant bogus keys that can poison
+    # correct records. Non-canon members keep the post-init static values (their
     # window bytes are static code/data; a varying one stays honest residue).
+    # COMPILATION (ledger C31): a packed player's event-driven capture must run
+    # the file subtune(s) that SELECT it (song_subtunes.values()), else it reads
+    # the START player's off-table results and overwrites correct records
+    # (Rogue_Ninja player-1 idx 97 = $B7 clobbered by player-0's $1708 = $D6).
     if varying and canon_geom:
-        _correct_offtable_eventdriven(m, path)
+        _ss = getattr(cfg, 'song_subtunes', None)
+        _fsubs = sorted(set(_ss.values())) if _ss else None
+        _correct_offtable_eventdriven(m, path, cfg=cfg, file_subtunes=_fsubs)
     # sectpos shadow gating: an off-table freq read landing on $1729-$172B
     # (per-voice sector position — INC per consumed sector byte, reset at the
     # $7F end check) cannot be served statically (the value cycles) nor by the
@@ -1496,7 +1502,32 @@ def _verify_window(sid_path: str) -> float:
     return min((max(durs) if durs else 130) * 1.1, 300.0)
 
 
-def _offtable_eventdriven(sid_path: str, duration: float) -> dict:
+def _eventdriven_addrs(cfg) -> tuple:
+    """The five 3-voice state-address tuples (Y, CN, INS, BLO, BHI) the
+    event-driven capture watches, RELOCATED for `cfg`'s member layout. CN/INS
+    are base-relative (canon $1012/$1015 = base+$12/+$15; a located
+    `cfg.curnote_addr` overrides the base fallback); Y/BLO/BHI are
+    freq-table-relative state-block bytes (canon $1783/$172F/$1732 = freq_hi +
+    $DC/$88/$8B — invariant under whole-image relocation, per
+    `_canon_state_geometry`). A canon member (base $1000, freq_hi $16A7)
+    reproduces the hardcoded canon addresses exactly -> byte-identical. cfg=None
+    -> canon (kept for callers without a config)."""
+    if cfg is None:
+        return ((0x1783, 0x1784, 0x1785), (0x1012, 0x1013, 0x1014),
+                (0x1015, 0x1016, 0x1017), (0x172F, 0x1730, 0x1731),
+                (0x1732, 0x1733, 0x1734))
+    cn = cfg.curnote_addr if getattr(cfg, 'curnote_addr', None) is not None \
+        else cfg.base + 0x12
+    fh = cfg.freq_hi_addr
+    return (tuple((fh + 0xDC + x) & 0xFFFF for x in range(3)),   # Y
+            tuple((cn + x) & 0xFFFF for x in range(3)),          # CN
+            tuple((cn + 3 + x) & 0xFFFF for x in range(3)),      # INS
+            tuple((fh + 0x88 + x) & 0xFFFF for x in range(3)),   # BLO
+            tuple((fh + 0x8B + x) & 0xFFFF for x in range(3)))   # BHI
+
+
+def _offtable_eventdriven(sid_path: str, duration: float, cfg=None,
+                          subtune: int | None = None) -> dict:
     """EVENT-DRIVEN off-table capture: record the value each off-table freq read
     produces AT THE ACCESS, keyed by `(inst, off, note)`. Recovers reads on a
     byte that varies GLOBALLY but is STABLE when this note reads it (the
@@ -1507,21 +1538,24 @@ def _offtable_eventdriven(sid_path: str, duration: float) -> dict:
     three voices' `(y, curnote, inst, base_lo, base_hi)` at every `$D416` write
     (once per play() — CIA-safe, per-play() not per-frame). Returns
     `{(inst, off, note): (lo, hi)}` for keys whose value is the SAME across every
-    occurrence; keys that vary are omitted (they stay honest residue)."""
+    occurrence; keys that vary are omitted (they stay honest residue).
+
+    RELOCATION/COMPILATION-AWARE (ledger C31): the watched addresses are derived
+    from `cfg` (see `_eventdriven_addrs`) and the capture runs `subtune` — a
+    packed player's per-player extract MUST run the file subtune that SELECTS it,
+    else the capture reads the START player's off-table results (its own state
+    block sits at the file-image leftover) and overwrites correct records."""
     import subprocess
     import re
     from collections import defaultdict
     sd = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..',
                       'tools', 'siddump')
-    Y = (0x1783, 0x1784, 0x1785)      # offset-note = curnote + wave_offset
-    CN = (0x1012, 0x1013, 0x1014)     # current note
-    INS = (0x1015, 0x1016, 0x1017)    # current instrument
-    BLO = (0x172F, 0x1730, 0x1731)    # freq base lo (freqlo read result)
-    BHI = (0x1732, 0x1733, 0x1734)    # freq base hi (freqhi read result)
+    Y, CN, INS, BLO, BHI = _eventdriven_addrs(cfg)
     addrs = Y + CN + INS + BLO + BHI
+    st = [] if subtune is None else ['--subtune', str(subtune + 1)]
     try:
         out = subprocess.run(
-            [sd, sid_path, '--duration', str(int(duration)),
+            [sd, sid_path, '--duration', str(int(duration)), *st,
              '--memwatch-on-write', 'D416',
              ','.join(f'{a:04X}' for a in addrs)],
             capture_output=True, text=True, timeout=int(duration) + 120).stdout
@@ -1579,17 +1613,34 @@ def _redirect_mapped_idx() -> set:
             for k in range(n)}
 
 
-def _correct_offtable_eventdriven(m: DmcModel, sid_path: str) -> None:
+def _correct_offtable_eventdriven(m: DmcModel, sid_path: str, cfg=None,
+                                  file_subtunes=None) -> None:
     """Override off-table records with the event-driven read-moment value where
     it is STABLE per `(inst, off, note)`, EXCEPT positions the composer serves
     from a live redirect var (those are live-tracked + seeded from the leftover,
     so the static value must stay the file image — see `_redirect_mapped_idx`).
     Canon-geometry members only (the caller gates on `_canon_state_geometry`;
-    the capture memwatches canon state addresses).
+    the capture memwatches the member's (relocated) state addresses).
     On the remaining (window-served) positions this is regression-safe: a FULL
     member's reads already match, so the read-moment value equals the record → no
-    change; only currently-wrong reads move. A key that VARIES is not in `ev`."""
-    ev = _offtable_eventdriven(sid_path, _verify_window(sid_path))
+    change; only currently-wrong reads move. A key that VARIES is not in `ev`.
+
+    COMPILATION-AWARE (ledger C31): `file_subtunes` are the PSID subtunes that
+    select THIS packed player (one per song it plays); the capture runs each and
+    keeps a key only where every run that saw it agrees. None -> the start song
+    (single-player: the player IS the start song)."""
+    dur = _verify_window(sid_path)
+    subs = list(file_subtunes) if file_subtunes else [None]
+    ev, conflict = {}, set()
+    for su in subs:
+        cap = _offtable_eventdriven(sid_path, dur, cfg=cfg, subtune=su)
+        for k, v in cap.items():
+            if k in ev and ev[k] != v:
+                conflict.add(k)
+            else:
+                ev[k] = v
+    for k in conflict:
+        ev.pop(k, None)
     if not ev:
         return
     mapped = _redirect_mapped_idx()
