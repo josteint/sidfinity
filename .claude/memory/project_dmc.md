@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-22T20:11:08.083Z
+  modified: 2026-07-22T20:14:49.316Z
 ---
 
 ## ✅ ROUND 86 (2026-07-22): the merged-pool cap was the ORIG's, not ours. f1 **5240 full / 161 partial / 0 error**, corpus SYNCED
@@ -38,7 +38,9 @@ Next f1 partial by path = `Heavy_Metal_Deluxe_beta`, the documented
 - **CLOSEOUT (fresh `tmp/dmc_f1_r86.jsonl`, full 5401-member batch): 5240 full
   / 161 partial / 0 error — 0 regressed / 2 gained vs r85** (Freespace_2075 +
   Heavy_Metal_Deluxe_beta). Build paths: 5367 single / 17 compilation / 16
-  multisid / 1 hetero_masm.
+  multisid / 1 hetero_masm. Corpus SYNCED: 5240 written, 0 errors, **0
+  orphans**, audit **13/13** stored artifacts re-verify across all four build
+  paths. Post-sync usf_corpus_check 11903/11903.
 - **RESIDUE in this class:** Lane_Crazy needs 39 instruments — past the real
   8-bit bound, so the next tier is PER-SONG instrument WINDOWS (only one
   packed player runs per subtune, each using ≤11), see
