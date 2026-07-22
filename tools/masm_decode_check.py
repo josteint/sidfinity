@@ -36,6 +36,8 @@ def probe(rel: str) -> dict:
     from seed_disassembly import parse_psid
     from pipelines.music_assembler.locate import locate
     from pipelines.music_assembler.extract.decode import walk
+    from pipelines.music_assembler.extract.presets import (preset_table,
+                                                           presets)
     row = {'path': rel}
     try:
         s = parse_psid(os.path.join(ROOT, 'hvsc84', rel))
@@ -53,6 +55,12 @@ def probe(rel: str) -> dict:
         r = walk(mem, lay)
     except Exception as e:
         return dict(row, status='decode_error', reason=repr(e)[:70])
+    # presets: only those the sequences actually select
+    used = sorted({e.value for _, ev in r['sequences'].values()
+                   for e in ev if e.kind == 'preset'})
+    pt = preset_table(mem)
+    pres = presets(mem, pt[0], max(used) + 1) if (pt and used) else []
+    pres = [q for q in pres if q.id in set(used)]
     n_ev = sum(len(ev) for _, ev in r['sequences'].values())
     kinds = collections.Counter(e.kind for _, ev in r['sequences'].values()
                                 for e in ev)
@@ -73,7 +81,16 @@ def probe(rel: str) -> dict:
                     maxnote = max(maxnote, ev.value + e.transpose)
     if maxnote >= FREQ_TABLE_NOTES:
         bad.append('note_past_freq_table:%d' % maxnote)
+    if pt is None:
+        bad.append('preset_table_not_located')
+    elif pres and not (lo <= pt[0] < hi):
+        bad.append('preset_table_out_of_image')
     return dict(row, status='ok' if not bad else 'suspect', issues=bad,
+                n_presets=len(pres), preset_base=pt[0] if pt else 0,
+                vib=sum(1 for q in pres if q.vib_on),
+                pslide=sum(1 for q in pres if q.pulse_slide_on),
+                arp=sum(1 for q in pres if q.arp_index),
+                waves=sorted({q.waveform for q in pres}),
                 events=n_ev, maxnote=maxnote,
                 n_seq=len(r['sequences']),
                 entries=[len(t.entries) for t in r['tracks']],
@@ -121,6 +138,15 @@ def main() -> int:
         print('  %-9s %9d' % ('legato', sum(r['legato'] for r in ok)))
         print('  max note index after transpose: %d (freq table = %d)'
               % (max(r['maxnote'] for r in ok), FREQ_TABLE_NOTES))
+        print('\npresets over the same members:')
+        print('  %-22s %9d' % ('presets used', sum(r['n_presets'] for r in ok)))
+        print('  %-22s %9d' % ('with vibrato ($10)', sum(r['vib'] for r in ok)))
+        print('  %-22s %9d' % ('with pulse slide ($40)',
+                               sum(r['pslide'] for r in ok)))
+        print('  %-22s %9d' % ('with arpeggio', sum(r['arp'] for r in ok)))
+        wv = collections.Counter(w for r in ok for w in r['waves'])
+        print('  distinct waveform bytes, most common:',
+              ['$%02X:%d' % (w, n) for w, n in wv.most_common(8)])
     if a.json:
         with open(a.json, 'w') as f:
             for r in rows:

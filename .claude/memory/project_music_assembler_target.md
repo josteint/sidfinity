@@ -13,9 +13,10 @@ STATUS (2026-07-22): **STARTED — anchor + census + sequence decode are in.**
 orderlists + sequence streams; `tools/masm_census.py` / `tools/masm_decode_check.py`
 are the scale checks. **5,618 / 6,351 (88.5%) locate; of those 5,455 (97.1%)
 decode cleanly** (1.28M notes, 290k preset selects, 57k filter cmds, 18k
-slides). Next: the PRESET table (8 bytes/preset) + arpeggio table -> a model,
-then USF + composer. Nothing is write-stream-verified yet — no rebuild exists,
-so every number here is structural, not a verdict.
+slides), and the 8-byte PRESET table is decoded for all of them (46,660
+presets). Next: the arpeggio table, then a model -> USF -> composer. Nothing
+is write-stream-verified yet — no rebuild exists, so every number here is
+structural, not a verdict.
 
 ## Census result (tools/masm_census.py, 2026-07-22)
 
@@ -44,11 +45,36 @@ triaged. `tmp/masm_census.jsonl` holds the per-member rows.
 | decode error | 52 |
 | notes / rests / holds / presets | 1,284,997 / 115,961 / 37,237 / 289,945 |
 | slide / filter / legato events | 18,230 / 57,304 / 15,896 |
+| presets decoded (median 8/member, max 32) | 46,660 |
+| presets with vibrato / pulse-slide / arpeggio | 22,829 / 22,715 / 35,833 |
 
 The 102 "suspect" members overrun the 96-entry freq table by 1-12 notes after
 transpose — the classic OFF-TABLE READ pattern (ledger C6/C2), to be handled
 the way DMC's `offtable_freq` is, NOT a decode bug. The 52 errors are mostly
 sequence pointers resolving to $0000.
+
+## The preset (instrument) table — every field grounded by its READ SITE
+
+`extract/presets.py`. 8 bytes/preset; base located from the player's own
+operand (anchored on `LDA p+0,Y / STA zp / LDA p+1,Y / LDY voicebase,X /
+STA $D406,Y`). Verified against the docs' own byte dump for Sid_Slam p0 —
+`0E 08 09 08 84 0F 60 31`, byte-identical.
+
+| +n | read at | meaning |
+|---|---|---|
+| +0 / +1 | $C235 / $C23A | AD -> $D405, SR -> $D406 |
+| +2 | $C252 | waveform/ctrl -> $D404 (note-init frame writes the PREVIOUS ctrl gate-cleared = the hard restart) |
+| +3 | $C258 | pulse width init (seeds BOTH pulse work slots) |
+| +4 | $C324 | pulse slide step, per frame, gated on +7 bit $40 |
+| +5 | $C277 (`LSR A`x3 = delay), $C310 (`AND #$0F` = rate) | vibrato delay + rate |
+| +6 | $C2ED / $C300 | vibrato DEPTH (+/- per half-cycle) |
+| +7 | $C288 | Fx flags (bit $10 vibrato, $20, $40 pulse slide) + arpeggio index in the low nibble |
+
+METHOD NOTE: scan for a field's read site across ALL `abs,Y` addressing forms.
+A `LDA`-only ($B9) scan misses +6 entirely — it is reached by `SBC`/`ADC`
+($F9/$79) — which nearly produced a wrong "the docs are wrong, +6 is unused"
+claim. The docs ARE wrong here, but differently: the Fx+arpeggio byte is +7,
+not +6, and +6 is the vibrato depth.
 
 ## Corrections to the research docs (verified at scale, not assumed)
 
@@ -64,9 +90,13 @@ Both are annotated at the head of
   claim `$A0..$AF` preset with a low NIBBLE. A preset byte carries no duration.
   The note flags byte is bit-flagged: bits 0-4 duration, bit 5 SLIDE (+2
   bytes), bit 7 FILTER (+2 bytes), bit 6 legato — not the docs' 3-bit opcode.
-  Independent check on the transpose semantics: the max note index after
-  transpose across all clean members is **95**, exactly the 96-entry freq
-  table's last slot.
+  TWO independent corpus confirmations: the max note index after transpose
+  across all clean members is **95**, exactly the 96-entry freq table's last
+  slot; and the max preset id in use is **32**, exactly the cap implied by
+  `byte & $1F` — the docs' `$A0..$AF` low-nibble reading caps at 16, so the
+  corpus itself rules it out. The 46,660 decoded presets' waveform bytes are
+  also dominated by genuine SID control values ($09 hard-reset, $41 pulse+gate,
+  $11 tri, $21 saw, $81 noise), which a mislocated table would not produce.
 - **`$FD nn` = loop the orderlist to ENTRY nn**, and it is a PLAYER VARIANT
   (260 members): the second `INY` of the orderlist step at base+$1A1 becomes a
   `JSR` to a stub testing `CMP #$FD`. Detected positively (ledger C13);
