@@ -630,6 +630,25 @@ practice, not code to factor).
   ≥2-page-aligned-base pre-gate = zero-regression. TRAP: observation alone
   cannot separate this from a MULTI-SID member whose wrapper gates chips per
   subtune (Rayden) — discriminate on the PSID chip count.
+- RELOCATING WRAPPER: the packed player may not be IN THE IMAGE AT ALL — the
+  wrapper COPIES it into RAM per subtune, so an image scan can never find it
+  (C26 applied to DETECTION). Admit via a 2nd pre-gate "≥1 in-image base AND
+  the init vector does NOT lead into any of them" (2.7 s over 5401 members, 0
+  FULLs change path); DROP the load-address floor on every RAM read (a player
+  can be copied BELOW load); snapshot AT THE LANDING, not post-init (running
+  init to completion overwrites the very leftovers read as PRIMING); and give
+  EVERY layer that memory view — the PROBE TABLE included (C9 5th occ one
+  layer further out: probing a base the image lacks reads zeros ⇒ every wedge
+  silently DEFAULTED). Per-player facts the merge collapses to the START
+  player are a recurring family: `d417_shadow` (→ per-subtune
+  `init.sid.filter.res_routing`, no schema addition) and any memory RE-READ
+  inside extract (the filter-def post-init window decoded all-zero).
+- IDENTIFYING an unfamiliar packed player: build the opcode skeleton from
+  REACHABLE CODE ONLY. A window spanning the player's SMC/scratch bytes is
+  member-specific and reports "1 carrier in HVSC" for a player that actually
+  has thousands (Freespace_2075's sub-players scanned as unique, then matched
+  6,349 Music_Assembler members). Cross-check a candidate skeleton's carriers
+  against the `engine` column before concluding anything about rarity.
 - MERGE TRAPS, both invisible until a voice idles a WHOLE song (a track that
   is a bare `$FE` stop): merged slot 0 must stay RECORD 0 (init clears the
   note-init cache to 0, so idle voices run record 0's pulse/wave mechanism —

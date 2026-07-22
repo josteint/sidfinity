@@ -5,8 +5,52 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-22T08:09:05.521Z
+  modified: 2026-07-22T11:08:53.260Z
 ---
+
+## ✅ ROUND 85 (2026-07-22): the RELOCATING dispatch wrapper. f1 partial 164 → 163
+Working the next f1 partial by path (`Freespace_2075`) surfaced a compilation
+shape C31 detection is structurally blind to: **the wrapper COPIES a player
+into RAM per subtune**, so it is not in the file image at all. Commit
+4985aa13; ledger C31 (4-part refinement) + a new recognition-card bullet.
+**Pour_le_merite is now 4/4 FULL** (0 regressed anywhere).
+- 5 f1 partials carry the shape. Found by running init(A=sub) under py65 and
+  diffing canonical jump tables in post-init RAM vs the image
+  (`tmp/reloc_census.py`): Pour_le_merite, Super_Seven, Black_It,
+  Mothafucka_2SID (2SID, so the C27 path owns it), Freespace_2075.
+- Detection widening is essentially FREE and provably regression-safe: the
+  whole sweep over 5401 f1 members costs **2.7 s**, detects 21 (was 14), loses
+  NONE, and all 7 newly-detected members were ALREADY partial — no FULL member
+  changes build path. (4 of the 7 are non-relocating compilations the old
+  "≥2 in-image bases" gate had also been missing: Zap_Zone, Protox-1,
+  Heavy_Metal_Deluxe_beta, Lane_Crazy.)
+- Four defects, each independent — detail in ledger C31: the pre-gate; the
+  load-address FLOOR (a player can be copied BELOW load — bit the landing
+  test, `_jt_layout`, and the instrument-base assert); snapshot AT THE LANDING
+  not post-init (init overwrites the very leftovers read as priming); and
+  **the probe table had to inherit the memory view** — C9's 5th occ recurring
+  one layer further out than r83b closed it.
+- Two more per-player facts the MERGE collapsed to the start player:
+  `d417_shadow` (→ per-subtune `init.sid.filter.res_routing`, no schema
+  addition) and the filter-def post-init re-read (ran with the default
+  subtune ⇒ all-zero window ⇒ every filter def decoded EMPTY).
+- **Gates:** full regression green (8 families, 0 regressed); 14 compilation +
+  16 multi-SID = 0 regressed / 0 gained; the 7 newly-detected = 0 regressed /
+  1 gained; dmc_smoke 6/6; usf_corpus_check unchanged at 80.
+- **RESIDUE in this class** (all fall back safely): Super_Seven needs
+  per-subtune `extra_params` (its players disagree on `rest_effects`;
+  `MusicSubtune.params` exists but the DMC composer doesn't read it);
+  Black_It packs a 3rd player layout (init +$40 / play +$95).
+- ⚠ **Freespace_2075 is NOT a DMC-only member.** Its two relocated
+  sub-players are **Music_Assembler** (6,349 of 6,438 opcode-skeleton carriers
+  are MA; its init `$D418=$1F / $D417=$F0` is the MA signature the trichotomy
+  doc records). Sub 0 (DMC v4 at $1000) is FULL; subs 1-2 need a
+  HETEROGENEOUS C31 with an MA sub-player — i.e. the Music_Assembler family
+  migration. See [[project_music_assembler_target]].
+- METHOD WARNING recorded in the ledger card: my first identification scan
+  reported "1 carrier in 72,506 files" because the skeleton window spanned the
+  player's SMC/SCRATCH bytes. Build skeletons from REACHABLE CODE only, and
+  cross-check carriers against the `engine` column.
 
 ## ✅ ROUND 83 (2026-07-22): Defuzion_3 — the COMPILATION path's three defects. f1 partial 165 → 164
 Next f1 partial by path (`MUSICIANS/B/Bayliss_Richard/Defuzion_3.sid`): sub 0
