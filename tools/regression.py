@@ -324,10 +324,10 @@ def _w_masm_hetero(_unused: str, group: str | None) -> dict:
     import tempfile
     from pipelines.music_assembler.heterogeneous import build, FREESPACE
     from pipelines.music_assembler.verify import verify
-    rel, copies = FREESPACE
+    rel = FREESPACE
     out = os.path.join(tempfile.mkdtemp(), 'fs.sid')
     with open(out, 'wb') as f:
-        f.write(build(rel, copies))
+        f.write(build(rel))            # spec detected + observed, not hardcoded
     ok = sum(1 for s in (0, 1, 2) if verify(rel, out, subtune=s).get('is_full'))
     status = '%d/3' % ok
     if ok < 3:

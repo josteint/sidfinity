@@ -84,6 +84,17 @@ def write_member(item) -> tuple:
             usf_path = write_dmc_compilation_usf(
                 rel, detect_compilation(rel, hvsc_root=hvsc), out_dir,
                 hvsc_root=hvsc)
+        elif build_path == 'hetero_masm':
+            # A DMC + Music Assembler compilation verifies FULL (each packed
+            # engine is built through its own USF behind a generated
+            # dispatcher), but the file has no SINGLE .usf: unlike the
+            # dmc_sfx case, the MA sub-players are complete music engines,
+            # and UsfFile has no representation for a second one. Storing
+            # anything here would store an artifact that does not rebuild the
+            # member — exactly C20's fifth layer. Refuse explicitly rather
+            # than fall through to the single-player writer.
+            return (rel, False, 'heterogeneous DMC+Music_Assembler member: '
+                                'verified FULL but not storable as one .usf')
         else:
             usf_path = write_dmc_usf(_prime(dmc_v4_config(rel, hvsc_root=hvsc)),
                                      out_dir, hvsc_root=hvsc)

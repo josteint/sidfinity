@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: fc3f0dc2-7e5f-4a76-bce6-958991c22a69
-  modified: 2026-07-22T14:29:10.849Z
+  modified: 2026-07-22T15:29:07.054Z
 ---
 
 STATUS (2026-07-22, round 2): **THROUGH USF, wide batch 3,915 / 6,351 FULL
@@ -138,7 +138,47 @@ A `LDA`-only ($B9) scan misses +6 entirely — it is reached by `SBC`/`ADC`
 claim. The docs ARE wrong here, but differently: the Fx+arpeggio byte is +7,
 not +6, and +6 is the vibrato depth.
 
-## Freespace_2075: DMC + MA heterogeneous member — ALL 3 SUBTUNES FULL
+## Freespace_2075 — now DETECTED, CLASSIFIED and counted FULL by the DMC batch
+
+**2026-07-22 (round 3).** Previously the audio was proven but the member was
+outside the pipeline: `detect_compilation` returned **None** for it (the memory's
+earlier "detection half is done" was wrong/stale), so the DMC batch reported
+`error: track at $836F never settles` — it fell through to the single-player
+path and tried to read an MA player as DMC.
+
+Two things blocked detection, both in the landing test of `_observe_dispatch`:
+
+1. the predicate only accepted a **DMC three-JMP head**; MA's base is
+   `78 20 48 47 A9 18 ...` (SEI / JSR / IRQ install). The reloc-invariant MA
+   anchor is init's fixed prefix at **base+$48**.
+2. more subtly, the wrapper enters MA **at base+$48 (its init), never at the
+   page-aligned base**, so the `not (pc & 0xFF)` alignment test could never
+   fire. The alignment has to be applied to the DERIVED base. MA also carries
+   no song number in A there (the accumulator holds copy-loop leftovers,
+   $40/$47) — each packed MA player is one tune, so song = 0.
+
+Implemented as a **second observation pass** (`_observe_dispatch_2pass`): the
+DMC-only pass runs first and wins whenever it resolves, so broadening is
+zero-regression by construction — only members currently detecting as NOTHING
+can change. Censused over 300 random DMC members + Freespace: exactly **1**
+member changes. The spec now carries `kinds` (`['dmc','masm','masm']`) recorded
+AT THE LANDING, where the engine is actually known, rather than re-derived
+later from an image that does not even contain a relocated player.
+
+`heterogeneous.py` is now **spec-driven**: the hand-specified `copies` dict and
+the 3-subtune-shaped dispatcher are gone — memory comes from a snapshot at the
+landing, and the dispatcher is generated for N subtunes. The DMC family batch
+routes these via `build_path='hetero_masm'` and reports the member **full**.
+
+**STILL OPEN — it is not corpus-storable.** There is no single `.usf` for a
+DMC+MA file: unlike the `dmc_sfx` case (a tiny SFX sequencer that fits in
+`UsfFile.dmc_sfx`), MA sub-players are COMPLETE music engines and `UsfFile` has
+no representation for a second one. `dmc_mass_write` therefore REFUSES the
+`hetero_masm` path explicitly rather than falling through to the single-player
+writer (which would store an artifact that cannot rebuild the member — C20's
+fifth layer). Deciding that representation is the remaining work.
+
+## Freespace_2075: the original bring-up — ALL 3 SUBTUNES FULL
 
 `heterogeneous.py`. A scan of all 163 DMC f1 partials found **exactly one**
 member carrying an MA player: `Bayliss_Richard/Freespace_2075` (sub 0 = DMC v4

@@ -94,6 +94,9 @@ def run_member(rel: str) -> dict:
         # overflow — an unmergeable compilation), fall back to the single-player
         # path so a working member never regresses on detection.
         comp = None if cfgs2 is not None else detect_compilation(rel, hvsc_root=hvsc)
+        # A heterogeneous compilation packs engines of DIFFERENT families, so
+        # it cannot be merged into one DMC model (ledger C31).
+        hetero = bool(comp and 'masm' in (comp.get('kinds') or []))
         cfg = None
         if cfgs2 is None and comp is None:
             try:
@@ -124,7 +127,17 @@ def run_member(rel: str) -> dict:
                 origs[sub] = (cap(orig, subtune=sub, duration=dur), dur, cia)
 
             def build_and_verify(hold_gateoff=None):
-                if cfgs2 is not None:
+                # HETEROGENEOUS (DMC + Music Assembler sub-players, ledger
+                # C31): the packed engines are different, so there is no ONE
+                # merged DMC model to compose. Build each sub-player through
+                # its own USF behind a generated dispatcher.
+                hetero_bytes = None
+                usf = None
+                if hetero:
+                    from pipelines.music_assembler.heterogeneous import (
+                        build as build_hetero)
+                    hetero_bytes = build_hetero(rel, comp, hvsc_root=hvsc)
+                elif cfgs2 is not None:
                     usf = parse_file(
                         write_dmc_2sid_usf(cfgs2, td, hvsc_root=hvsc))
                 elif comp is not None:
@@ -132,10 +145,12 @@ def run_member(rel: str) -> dict:
                         write_dmc_compilation_usf(rel, comp, td, hvsc_root=hvsc))
                 else:
                     usf = parse_file(write_dmc_usf(cfg, td, hvsc_root=hvsc))
-                if hold_gateoff:
+                if hold_gateoff and usf is not None:
                     usf.params.fields['hold_gateoff'] = hold_gateoff
                 tmp_sid = os.path.join(td, 'r.sid')
-                open(tmp_sid, 'wb').write(build_dmc_sid(usf))
+                open(tmp_sid, 'wb').write(
+                    hetero_bytes if hetero_bytes is not None
+                    else build_dmc_sid(usf))
                 subs = {}; ok = True; first_diff = None; flat_div = None
                 for sub in range(n):
                     a, dur, cia = origs[sub]
@@ -248,6 +263,7 @@ def run_member(rel: str) -> dict:
             # compilation fallback below, which is triggered by a VERIFY-time
             # exception no writer can observe.
             build_path = ('multisid' if cfgs2 is not None
+                          else 'hetero_masm' if hetero
                           else 'compilation' if comp is not None else 'single')
             return {'path': rel, 'status': 'full' if ok else 'partial',
                     'subs': subs, 'first_diff': first_diff,

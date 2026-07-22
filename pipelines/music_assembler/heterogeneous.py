@@ -55,86 +55,148 @@ from pipelines.music_assembler.from_usf import usf_to_model     # noqa: E402
 LOAD = 0x1000
 DMC_ORIGIN = 0x1100
 
-_DISPATCH = """
-* = $1000
-        jmp dinit
-        jmp dplay
-dinit   cmp #$01
-        beq i1
-        cmp #$02
-        beq i2
-        lda #$00
-        sta which
-        jmp ${dmc:04X}
-i1      lda #$01
-        sta which
-        lda #$00
-        jmp ${ma1:04X}
-i2      lda #$02
-        sta which
-        lda #$00
-        jmp ${ma2:04X}
-dplay   lda which
-        beq p0
-        cmp #$01
-        beq p1
-        jmp ${ma2play:04X}
-p0      jmp ${dmcplay:04X}
-p1      jmp ${ma1play:04X}
-which   .byt 0
-"""
+def _dispatch_asm(entries) -> str:
+    """The per-subtune dispatcher, generated for N subtunes.
+
+    `entries[k] = (init_addr, play_addr, song)` for PSID subtune k. init
+    records which subtune was selected and jumps to that player's init with
+    the song in A (Music Assembler ignores A — each packed MA player is one
+    tune); play re-reads the record and jumps to the matching play.
+    """
+    out = ['* = $%04X' % LOAD, '        jmp dinit', '        jmp dplay',
+           'dinit']
+    for k in range(len(entries)):
+        if k < len(entries) - 1:
+            out += ['        cmp #$%02X' % k, '        beq i%d' % k]
+    out.append('        jmp i%d' % (len(entries) - 1))
+    for k, (ini, _play, song) in enumerate(entries):
+        out += ['i%d      lda #$%02X' % (k, k),
+                '        sta which',
+                '        lda #$%02X' % song,
+                '        jmp $%04X' % ini]
+    out.append('dplay   lda which')
+    for k in range(len(entries)):
+        if k < len(entries) - 1:
+            out += ['        cmp #$%02X' % k, '        beq p%d' % k]
+    out.append('        jmp p%d' % (len(entries) - 1))
+    for k, (_ini, play, _song) in enumerate(entries):
+        out.append('p%d      jmp $%04X' % (k, play))
+    out += ['which   .byt 0']
+    return '\n'.join(out) + '\n'
 
 
-def build(rel: str, copies: dict, hvsc_root: str = 'hvsc84') -> bytes:
-    """Compose the member. `copies` maps subtune -> (src, dst, length), the
-    relocation its wrapper performs (observe it, never assume it)."""
+def _landing_memory(s, img, sub: int, base: int, masm: bool,
+                    max_steps: int = 400000):
+    """RAM as it stands when subtune `sub`'s init reaches player `base`.
+
+    A relocating wrapper copies its player into RAM, so the player is not in
+    the file image and must be read from the post-copy memory. Snapshot AT THE
+    LANDING, not after init completes — running init to the end overwrites the
+    very work-file leftovers that are read as priming (ledger C31/C26).
+    """
+    import sys as _sys
+    _sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
+    from py65.devices.mpu6502 import MPU
+    from py65.memory import ObservableMemory
+    load = s['load']
+    hi = min(0x10000, load + len(s['payload']))
+    mem = ObservableMemory()
+    for a in range(load, hi):
+        mem[a] = img[a]
+    mpu = MPU()
+    mpu.memory = mem
+    mpu.pc, mpu.a = s['init'], sub
+    target = base + (0x48 if masm else 0)
+    for _ in range(max_steps):
+        if mpu.pc == target:
+            return bytearray(mem[a] for a in range(0x10000))
+        try:
+            mpu.step()
+        except Exception:
+            break
+    return None
+
+
+def build(rel: str, spec: dict | None = None,
+          hvsc_root: str = 'hvsc84') -> bytes:
+    """Compose the member from its compilation SPEC.
+
+    `spec` is what `detect_compilation` returns — bases, the per-subtune
+    (player, song) map, which subtune materialises each relocated base, and
+    each base's engine `kinds`. All of it is OBSERVED by running the member's
+    own wrapper, so nothing here is hand-specified per member; pass None to
+    detect it. Each sub-player is extracted from the RAM as it stands when the
+    wrapper arrives at it, and every engine is built through its own USF.
+    """
+    from pipelines.dmc.v4.compilation import detect_compilation
+    if spec is None:
+        spec = detect_compilation(rel, hvsc_root=hvsc_root)
+    if spec is None or 'masm' not in (spec.get('kinds') or []):
+        raise ValueError('not a DMC+Music Assembler heterogeneous member')
+
     s = parse_psid(os.path.join(hvsc_root, rel))
     img = bytearray(0x10000)
     for i, b in enumerate(s['payload']):
         if s['load'] + i < 0x10000:
             img[s['load'] + i] = b
 
+    bases, kinds = spec['bases'], spec['kinds']
+    reloc = spec.get('reloc') or {}
     td = tempfile.mkdtemp()
-    usf = parse_file(write_dmc_usf(dmc_v4_config(rel, hvsc_root=hvsc_root),
-                                   td, hvsc_root=hvsc_root))
-    dmc_blob = assemble(_sanitize_asm(compose_dmc_asm(usf, origin=DMC_ORIGIN)))
-    o = (DMC_ORIGIN + len(dmc_blob) + 1) & ~1
 
-    ma = {}
-    for sub in sorted(copies):
-        src, dst, n = copies[sub]
-        mem = bytearray(img)
-        mem[dst:dst + n] = mem[src:src + n]
-        m = extract_mem(mem, hdr=s, lo=dst, hi=dst + n)
-        # THROUGH THE USF, like the DMC half above: write each sub-player's
-        # .usf and recover the model from the PARSED file. Building straight
-        # from the extracted model would leave this member's MA halves the one
-        # place in the pipeline that never exercises the USF round trip — the
-        # exact blind spot that let GoatTracker V1's .usf go unreadable.
-        mp = os.path.join(td, 'ma%d.usf' % sub)
-        write_file(model_to_usf(m), mp)
-        blob = assemble(compose_asm(usf_to_model(parse_file(mp)),
-                                    origin=o, prefix='m%d_' % sub))
-        ma[sub] = (o, blob)
+    # Where each sub-player's engine lands in OUR image. The DMC engine keeps
+    # the first slot; the rest follow it, each aligned to the next even byte.
+    placed, o = {}, DMC_ORIGIN
+    usf0 = None
+    for pi, base in enumerate(bases):
+        if kinds[pi] == 'dmc':
+            u = parse_file(write_dmc_usf(
+                dmc_v4_config(rel, hvsc_root=hvsc_root, base_override=base,
+                              post_init_sub=reloc.get(base)),
+                td, hvsc_root=hvsc_root))
+            usf0 = usf0 or u
+            blob = assemble(_sanitize_asm(compose_dmc_asm(u, origin=o)))
+        else:
+            # Bound the table search to THIS player's block: with more than one
+            # MA player in the same 64K an unbounded search returns the first
+            # player's tables for every one of them, and those addresses are
+            # not materialised for the others (every preset field reads zero).
+            nxt = min([b for b in bases if b > base] or [base + 0x1000])
+            mem = _landing_memory(s, img, reloc.get(base, 0), base, masm=True)
+            if mem is None:
+                raise ValueError('could not reach MA player at $%04X' % base)
+            m = extract_mem(mem, hdr=s, lo=base, hi=min(nxt, base + 0x1000))
+            # THROUGH THE USF, like the DMC half: write each sub-player's .usf
+            # and recover the model from the PARSED file. Building straight
+            # from the extracted model would leave these the one place in the
+            # pipeline that never exercises the USF round trip.
+            mp = os.path.join(td, 'ma%d.usf' % pi)
+            write_file(model_to_usf(m), mp)
+            blob = assemble(compose_asm(usf_to_model(parse_file(mp)),
+                                        origin=o, prefix='p%d_' % pi))
+        placed[pi] = (o, blob)
         o = (o + len(blob) + 1) & ~1
 
-    disp = assemble(_DISPATCH.format(
-        dmc=DMC_ORIGIN, dmcplay=DMC_ORIGIN + 3,
-        ma1=ma[1][0], ma1play=ma[1][0] + 3,
-        ma2=ma[2][0], ma2play=ma[2][0] + 3))
+    entries = [(placed[pi][0], placed[pi][0] + 3, song)
+               for pi, song in spec['map']]
+    disp = assemble(_dispatch_asm(entries))
 
-    blobs = [(LOAD, disp), (DMC_ORIGIN, dmc_blob)] + list(ma.values())
+    blobs = [(LOAD, disp)] + [placed[pi] for pi in sorted(placed)]
     end = max(a + len(b) for a, b in blobs)
     image = bytearray(end - LOAD)
     for a, b in blobs:
         image[a - LOAD:a - LOAD + len(b)] = b
+    meta = usf0.psid if usf0 is not None else None
     hdr = build_header(load=0, init=LOAD, play=LOAD + 3,
                        songs=s.get('songs', 1),
                        start_song=s.get('start', 1), speed=0,
-                       title=usf.psid.title, author=usf.psid.author,
-                       released=usf.psid.released)
+                       title=meta.title if meta else '',
+                       author=meta.author if meta else '',
+                       released=meta.released if meta else '')
     return hdr + LOAD.to_bytes(2, 'little') + bytes(image)
 
 
-FREESPACE = ('MUSICIANS/B/Bayliss_Richard/Freespace_2075.sid',
-             {1: (0x2000, 0x4700, 0x800), 2: (0x2800, 0x3700, 0x700)})
+# The one known carrier in DMC family-1. Kept as the regression canary's
+# subject; the relocation it performs is now OBSERVED from the spec, not
+# hand-specified here.
+FREESPACE = 'MUSICIANS/B/Bayliss_Richard/Freespace_2075.sid'

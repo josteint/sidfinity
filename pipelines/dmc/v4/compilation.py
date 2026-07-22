@@ -124,7 +124,7 @@ def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
             if song_tab is None:
                 song_tab = vals
     if base_tab is None:
-        return _observe_dispatch(sid_path, hvsc_root)
+        return _observe_dispatch_2pass(sid_path, hvsc_root)
     if song_tab is None:
         # single-player-per-subtune dispatch with no song remap: every subtune
         # is song 0 of its selected player.
@@ -140,12 +140,12 @@ def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
     try:
         mp = [(base_idx[base_tab[x] << 8], song_tab[x]) for x in range(songs)]
     except (KeyError, IndexError):
-        return _observe_dispatch(sid_path, hvsc_root)
+        return _observe_dispatch_2pass(sid_path, hvsc_root)
     # Only a genuine compilation: the dispatch must actually select >=2
     # DISTINCT players. A single-player-with-wrapper (all subtunes -> one base)
     # is handled by the ordinary single-player path — never route it here.
     if len({pidx for pidx, _ in mp}) < 2:
-        return _observe_dispatch(sid_path, hvsc_root)
+        return _observe_dispatch_2pass(sid_path, hvsc_root)
     return {'bases': ordered_bases, 'map': mp}
 
 
@@ -158,8 +158,43 @@ def _is_player_base_ram(mem, a: int) -> bool:
             and mem[a] == 0x4C and mem[a + 3] == 0x4C and mem[a + 6] == 0x4C)
 
 
+# Music Assembler's cold-start entry. Its base carries NO three-JMP head
+# (`78 20 .. .. A9 18 ...` = SEI / JSR / IRQ install), so the DMC signature
+# above can never see it; the reloc-invariant anchor is init's fixed prefix
+# at base+$48 — `LDA #$1F / STA $D418 / LDA #$F0 / STA $D417`, measured at
+# that offset on all 5,618 members that locate (see pipelines/music_assembler
+# /locate.py).
+_MASM_INIT_PREFIX = bytes((0xA9, 0x1F, 0x8D, 0x18, 0xD4,
+                           0xA9, 0xF0, 0x8D, 0x17, 0xD4))
+_MASM_INIT_OFS = 0x48
+
+
+def _is_masm_base_ram(mem, a: int) -> bool:
+    """Is `a` a Music Assembler player base, as observed in RAM?"""
+    if not (0 < a and a + _MASM_INIT_OFS + len(_MASM_INIT_PREFIX) < 0x10000):
+        return False
+    return all(mem[a + _MASM_INIT_OFS + i] == b
+               for i, b in enumerate(_MASM_INIT_PREFIX))
+
+
+def _observe_dispatch_2pass(sid_path: str, hvsc_root: str = 'hvsc84'):
+    """Observe with DMC landings only, then RETRY admitting Music Assembler
+    landings if that found nothing.
+
+    A LATER PASS, exactly like the JSR-only/JMP-inclusive retry this module
+    already does (ledger C31): a member that resolves on the first pass keeps
+    its existing spec byte-for-byte, so broadening the landing predicate is
+    zero-regression by construction. Only members that currently detect as
+    NOTHING can change — which is what a heterogeneous DMC+MA compilation
+    (Freespace_2075) does today, since its two MA sub-players carry no
+    three-JMP head and the observation loop never accepts a landing on them.
+    """
+    return (_observe_dispatch(sid_path, hvsc_root)
+            or _observe_dispatch(sid_path, hvsc_root, allow_masm=True))
+
+
 def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
-                      max_steps: int = 400000):
+                      max_steps: int = 400000, allow_masm: bool = False):
     """Discover the per-subtune (player, song) map by RUNNING the wrapper.
 
     The static decode above reads the wrapper's `LDA abs,X` tables assuming
@@ -245,7 +280,7 @@ def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
         if any(b <= entry < b + 0x900 for b in in_image):
             return None
 
-    obs, reloc = [], {}
+    obs, reloc, kinds = [], {}, {}
     for sub in range(songs):
         mem = ObservableMemory()
         for a in range(load, hi):
@@ -255,12 +290,27 @@ def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
         mpu.pc, mpu.a = s['init'], sub
         landed = None
         for _ in range(max_steps):
+            pc = mpu.pc
             # The wrapper's own entry can itself be page-aligned, so never
             # accept the address we started from as the landing.
-            if mpu.pc != s['init'] and not (mpu.pc & 0xFF) \
-                    and _is_player_base_ram(mem, mpu.pc):
-                landed = (mpu.pc, mpu.a)
-                break
+            if pc != s['init']:
+                if not (pc & 0xFF) and _is_player_base_ram(mem, pc):
+                    landed = (pc, mpu.a)
+                    kinds[pc] = 'dmc'
+                    break
+                # Music Assembler is entered at its INIT (base+$48), never at
+                # the page-aligned base — the DMC convention of "execution
+                # arrives at the jump table" simply does not hold for it, so
+                # the alignment test has to be applied to the derived base.
+                # It also carries no song number in A (the accumulator here is
+                # leftover from the wrapper's copy loop): each packed MA
+                # player is one tune, so the song is always 0.
+                if allow_masm:
+                    b = pc - _MASM_INIT_OFS
+                    if b > 0 and not (b & 0xFF) and _is_masm_base_ram(mem, b):
+                        landed = (b, 0)
+                        kinds[b] = 'masm'
+                        break
             try:
                 mpu.step()
             except Exception:
@@ -282,7 +332,11 @@ def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
     idx = {b: i for i, b in enumerate(ordered_bases)}
     return {'bases': ordered_bases,
             'map': [(idx[b], song) for b, song in obs],
-            'reloc': reloc}
+            'reloc': reloc,
+            # Which ENGINE each base is, recorded where it is actually known
+            # (at the landing) rather than re-derived later from an image that
+            # may not even contain a relocated player. 'dmc' | 'masm'.
+            'kinds': [kinds.get(b, 'dmc') for b in ordered_bases]}
 
 
 # ---------------------------------------------------------------------------
