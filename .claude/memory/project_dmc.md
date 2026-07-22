@@ -5,8 +5,57 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-22T06:52:36.630Z
+  modified: 2026-07-22T07:21:27.529Z
 ---
+
+## ✅ ROUND 83 (2026-07-22): Defuzion_3 — the COMPILATION path's three defects. f1 partial 165 → 164
+Next f1 partial by path (`MUSICIANS/B/Bayliss_Richard/Defuzion_3.sid`): sub 0
+FULL, subs 1-3 diverging at write ~1. A 3-player C31 compilation that
+detection MISSED, so all 4 subtunes decoded from player $5000. Now **4/4
+exact**. Commit a30ff73f. Ledger C31 (3 refinements, incl. closing its own
+documented "per-player idle priming is global-only" residue).
+- **Detection — OBSERVE, don't parse (C18/C27 method).** The static wrapper
+  decode assumes X == subtune and a base-HI-only table. Defuzion's wrapper
+  does `ASL A; TAX` (X = subtune*2) and patches full lo/hi VECTOR PAIRS, so
+  every candidate table decoded to interleaved garbage ($5000, $0000, $6000).
+  That was the parser's SECOND needed widening (Canyon's re-assembled base was
+  the first) — so `_observe_dispatch` now runs init(A=subtune) under py65 and
+  takes the LANDING as the player and A as its song. Later pass + a
+  ≥2-page-aligned-base pre-gate ⇒ single-player members never emulate.
+  Detection widens by exactly this one member.
+- **TRAP it introduced:** all 14 Rayden 2SID members false-positived — their
+  wrapper gates chips per subtune, so different subtunes land on different
+  players, which reads exactly like a compilation. Harmless in the build path
+  (2SID is checked first) but latent; cured with the PSID chip-count guard.
+- **RECORD 0 had lost merged SLOT 0.** Init clears the note-init cache to 0, so
+  an idling voice runs record 0's pulse/wave mechanism (why the single-player
+  extract force-includes record 0 as slot 0). `merge_models` rebuilt the pool
+  from ROW-referenced instruments only ⇒ idle voices ran whichever instrument
+  sorted first — in EVERY compilation, invisible until a voice idles a whole
+  song. Defuzion sub 3's V3 track is a bare `$FE` stop: rebuild wrote PW lo
+  $00 where the orig writes $40. Seeding the pool with record 0 fixes it;
+  dedup keeps pool sizes unchanged. NB **13 of the 18 compilations' players
+  DISAGREE on record 0** (incl. 6 currently-FULL), so raising on disagreement
+  was not available — slot 0 carries the START player's record.
+- **Idle priming is PER-SUBTUNE** (Defuzion's three players prime curnote
+  0/0/48). Rides `subtune { init { voice N { note/gate_mask/dur_reload } } }`;
+  NO schema addition (InitVoice already carries these at both levels — the
+  same split the schema documents for `speed_ctr_init`). Composer table
+  widening GATED on a subtune stating something different.
+- **Gates:** 600/600 stored non-compilation FULL members rebuild
+  BYTE-IDENTICAL from their stored `.usf` (the composer change is a proven
+  no-op outside compilations); all 18 compilations + 17 multi-SID re-verified
+  = **0 regressed / 1 gained**; full regression green (8 families); dmc_smoke
+  6/6; usf_corpus_check unchanged at 80 (f2/f4/GT1, 0 f1).
+- **C20 occurrence:** `Nice_Dream_2SID`'s r83 row is a STALE FULL — it
+  verifies partial at play_match=63536 on PRE-change code too, identical
+  numbers before and after the fix (its documented single-chip note-duration
+  drift). Do not read it as a regression.
+- **Not yet re-batched:** the counts above are the r83 batch minus this one
+  member. The remaining 8 partial compilations (Heavy_Metal / Lane_Crazy /
+  Para_Lander_DX / Rogue_Ninja / Zap_Zone / Chwat / Goldrake / Protox-1 /
+  Wiz_Max) were re-verified and are unchanged — the documented filter-overrun
+  / instrument-overflow / locate residue.
 
 ## ✅ ROUND 82 (2026-07-22): multi-SID residue + THE MASS-WRITE PALIMPSEST — f1 **5236 full / 165 partial / 0 error**, corpus mass-written
 Follow-on to r81. Final batch 5401 members: **0 regressed / 15 gained** vs the

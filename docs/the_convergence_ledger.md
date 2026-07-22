@@ -575,6 +575,21 @@ practice, not code to factor).
   composer. Players need not be the same engine (heterogeneous: dmc_sfx).
   Distinct from C27 (parallel chips every frame; here exactly ONE player
   runs per subtune). Analogues: FC Adrenalin, 5-Title-Tunes.
+- DON'T keep teaching the static wrapper parser new shapes (scaled index
+  `ASL A;TAX`, lo/hi vector PAIRS) — OBSERVE (C18/C27): run init(A=subtune)
+  under py65; the LANDING is the player, A is its song. Later pass + a
+  ≥2-page-aligned-base pre-gate = zero-regression. TRAP: observation alone
+  cannot separate this from a MULTI-SID member whose wrapper gates chips per
+  subtune (Rayden) — discriminate on the PSID chip count.
+- MERGE TRAPS, both invisible until a voice idles a WHOLE song (a track that
+  is a bare `$FE` stop): merged slot 0 must stay RECORD 0 (init clears the
+  note-init cache to 0, so idle voices run record 0's pulse/wave mechanism —
+  the merge rebuilt the pool from ROW-referenced instruments and lost it); and
+  idle PRIMING is PER-SUBTUNE, each packed player having its own work-file
+  leftovers → ride `subtune{init{voice N{note/gate_mask/dur_reload}}}` (NO
+  schema addition — same file-level-vs-per-subtune split as `speed_ctr_init`),
+  with the composer's table widening GATED so existing members stay
+  byte-identical.
 - FULL ENTRY: [`ledger/C31.md`](ledger/C31.md) — read it before applying.
 
 ### C33 — closing a `Params.fields` escape-hatch key → a typed field
