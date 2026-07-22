@@ -621,12 +621,15 @@ def model_to_usf(m: DmcModel) -> UsfFile:
                 else:
                     for k, val in repl.items():
                         setattr(iv, k, val)
+        # per-subtune shadow when the member has one (a compilation: each
+        # subtune runs its own player's leftover), else the model-level value
+        shadow = (song.d417_shadow if song.d417_shadow is not None
+                  else m.d417_shadow)
         sub_init = InitState(
             voices=seed_voices,
             sid=InitSid(
                 master_vol=song.master_vol,
-                filter=InitFilter(res_routing=m.d417_shadow)
-                if m.d417_shadow else None))
+                filter=InitFilter(res_routing=shadow) if shadow else None))
         subtunes.append(MusicSubtune(id=song.id, tempo=song.speed,
                                      voices=voices, init=sub_init))
 

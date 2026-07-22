@@ -96,6 +96,14 @@ class DMCV4Config:
     # high RAM. The extract must read its tables from post-init RAM
     # (py65 init run), not the file image. Extract-only (never USF).
     data_post_init: bool = False
+    # RELOCATED compilation player (ledger C31 + C26): the per-subtune dispatch
+    # wrapper COPIES this player into RAM at init, so it does not exist at
+    # `base` in the file image at all — it only appears once a subtune that
+    # SELECTS it has run. This is the 0-based subtune whose init materialises
+    # it; every layer that reads memory for this player (locate, probes,
+    # extract) reads that post-init RAM instead of the file image.
+    # None = the ordinary in-image player. Extract-only (never USF).
+    post_init_sub: int = None
     # Hand-crafted init WRAPPER that HARD-FORCES the played tune record
     # (factory-probed `LDA #imm` prefix, ledger C19). Sans_intro: init $0FFE =
     # `A9 01` falling through to base $1000 (JMP $101D = tune-select), so every

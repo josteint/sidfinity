@@ -149,8 +149,17 @@ def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
     return {'bases': ordered_bases, 'map': mp}
 
 
+def _is_player_base_ram(mem, a: int) -> bool:
+    """`_is_player_base` without the load-address floor — for a base observed
+    in RAM. A RELOCATING wrapper can copy a player BELOW the load address
+    (Pour_le_merite loads at $8000 and copies its second player down to
+    $1000), where the file-image floor is exactly the wrong test."""
+    return (0 < a and a + 6 < 0x10000
+            and mem[a] == 0x4C and mem[a + 3] == 0x4C and mem[a + 6] == 0x4C)
+
+
 def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
-                      max_steps: int = 4000):
+                      max_steps: int = 400000):
     """Discover the per-subtune (player, song) map by RUNNING the wrapper.
 
     The static decode above reads the wrapper's `LDA abs,X` tables assuming
@@ -170,8 +179,23 @@ def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
     per subtune because the dispatch is SMC.
 
     Runs only as a LATER pass (the static decode wins whenever it resolves),
-    and is pre-gated on the image carrying >=2 page-aligned player bases, so
-    an ordinary single-player member never pays for the emulation.
+    pre-gated so an ordinary single-player member never pays for the
+    emulation. Two gates, either of which admits a member:
+
+      (a) the file image already carries >=2 page-aligned player bases — the
+          co-packed compilation (Defuzion_3, Canyon);
+      (b) it carries >=1, and the PSID init vector does NOT lead into any of
+          them — a WRAPPER runs before any player. That is the RELOCATING
+          compilation: the wrapper COPIES a player into RAM per subtune, so
+          the second player is not in the file image at ALL and gate (a) can
+          never see it (Super_Seven $2000->$3800, Pour_le_merite $9409->$1000,
+          Black_It, Freespace_2075). An ordinary member's init vector is the
+          player's own jump table, so it fails (b) immediately.
+
+    A base the file image does not carry is recorded in the returned spec's
+    `reloc` map as {base: subtune}, naming the subtune whose init materialises
+    it — every later memory read for that player must use that subtune's
+    post-init RAM instead of the image (ledger C31 + C26).
     """
     import sys
     sys.path.insert(0, os.path.join(os.path.dirname(__file__),
@@ -206,14 +230,22 @@ def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
         if load + i < 0x10000:
             img[load + i] = b
 
-    # Pre-gate: a compilation needs >=2 packed players. Cheap page-aligned
-    # scan of the file image; bail before touching py65 when it can't be one.
+    # Pre-gate (see the docstring): >=2 packed players, or >=1 plus an init
+    # vector that runs a wrapper first. Cheap page-aligned scan of the file
+    # image; bail before touching py65 when the member can't be either.
     hi = min(0x10000, load + len(s['payload']))
-    if sum(1 for a in range((load + 0xFF) & ~0xFF, hi, 0x100)
-           if _is_player_base(img, load, a)) < 2:
+    in_image = [a for a in range((load + 0xFF) & ~0xFF, hi, 0x100)
+                if _is_player_base(img, load, a)]
+    if not in_image:
         return None
+    if len(in_image) < 2:
+        # 0x900 covers the canonical player extent ($1000-$18E8): an init
+        # vector inside one of them is the player's own entry, not a wrapper.
+        entry = _follow_jmps(img, s['init'])
+        if any(b <= entry < b + 0x900 for b in in_image):
+            return None
 
-    obs = []
+    obs, reloc = [], {}
     for sub in range(songs):
         mem = ObservableMemory()
         for a in range(load, hi):
@@ -226,7 +258,7 @@ def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
             # The wrapper's own entry can itself be page-aligned, so never
             # accept the address we started from as the landing.
             if mpu.pc != s['init'] and not (mpu.pc & 0xFF) \
-                    and _is_player_base(mem, load, mpu.pc):
+                    and _is_player_base_ram(mem, mpu.pc):
                 landed = (mpu.pc, mpu.a)
                 break
             try:
@@ -236,6 +268,10 @@ def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
         if landed is None:
             return None
         obs.append(landed)
+        # A base absent from the file image was COPIED there by this subtune's
+        # init; remember which subtune materialises it.
+        if not _is_player_base(img, load, landed[0]):
+            reloc.setdefault(landed[0], sub)
 
     ordered_bases = []
     for b, _ in obs:
@@ -245,7 +281,8 @@ def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
         return None
     idx = {b: i for i, b in enumerate(ordered_bases)}
     return {'bases': ordered_bases,
-            'map': [(idx[b], song) for b, song in obs]}
+            'map': [(idx[b], song) for b, song in obs],
+            'reloc': reloc}
 
 
 # ---------------------------------------------------------------------------
@@ -438,6 +475,8 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
         song.idle_notes = tuple(models[pidx].idle_notes)
         song.idle_masks = tuple(models[pidx].idle_masks)
         song.durrel_init = tuple(models[pidx].durrel_init)
+        # ...and on its own player's $D417 routing leftover (§4.2 priming).
+        song.d417_shadow = models[pidx].d417_shadow
         rm = remap[pidx]
         for v in song.voices:
             for rows in v.patterns:
@@ -460,8 +499,11 @@ def extract_compilation(sid_path: str, spec: dict,
     """Extract every referenced player and merge into one unified DmcModel."""
     from pipelines.dmc.v4.factory import dmc_v4_config
     from seed_disassembly import parse_psid
+    reloc = spec.get('reloc') or {}
     models = [em.extract(dmc_v4_config(sid_path, hvsc_root=hvsc_root,
-                                       base_override=base), hvsc_root=hvsc_root)
+                                       base_override=base,
+                                       post_init_sub=reloc.get(base)),
+                         hvsc_root=hvsc_root)
               for base in spec['bases']]
     s = parse_psid(os.path.join(hvsc_root, sid_path))
     b0 = models[0]
@@ -498,8 +540,10 @@ def extract_heterogeneous(sid_path: str, spec: dict, hvsc_root: str = 'hvsc84'):
     if need > len(sfx_engine.songs):
         sfx_engine = extract_sfx_engine(mem, sfx_base, need)
 
+    reloc = spec.get('reloc') or {}
     dmc_models = [em.extract(dmc_v4_config(sid_path, hvsc_root=hvsc_root,
-                                           base_override=bases[i]),
+                                           base_override=bases[i],
+                                           post_init_sub=reloc.get(bases[i])),
                              hvsc_root=hvsc_root) for i in dmc_idx]
     dmc_map, subtune_kinds, dmc_ctr = [], [], 0
     for pidx, song in mp:

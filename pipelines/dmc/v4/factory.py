@@ -194,7 +194,15 @@ def _family2_ref():
     return _F2_REF
 
 
-def _load(sid_path: str):
+def _load(sid_path: str, post_init_sub: 'int | None' = None):
+    """Load the member's file image into a 64K map.
+
+    `post_init_sub` (0-based) returns the RAM left by running THAT subtune's
+    init under py65 instead of the raw file image — for a RELOCATING
+    compilation player (ledger C31 + C26), which the wrapper copies into place
+    at init and which therefore is not in the file image at all. Falls back to
+    the file image when py65 can't complete the init (C9 territory); the
+    caller's locate then fails cleanly rather than reading a half-built map."""
     import sys
     sys.path.insert(0, os.path.join(os.path.dirname(__file__),
                                     '..', '..', '..', 'tools'))
@@ -207,6 +215,12 @@ def _load(sid_path: str):
     for i, b in enumerate(s['payload']):
         if s['load'] + i < 0x10000:
             mem[s['load'] + i] = b
+    if post_init_sub is not None:
+        from pipelines.dmc.v4.extract.engine_model import _postinit_window
+        post = _postinit_window(s, 0, 0x10000, sub=post_init_sub,
+                                stop_at_player=True)
+        if post is not None:
+            mem = bytearray(post)
     return mem, s
 
 
@@ -922,7 +936,7 @@ def _cymbal_burst_byte(path: str):
     return m.group(1)[0] if m else None
 
 
-def _hr_patch_probe(path: str, base: int):
+def _hr_patch_probe(path: str, base: int, post_init_sub: 'int | None' = None):
     """Hard-restart-patch variant probe (The_Syndrom / Tragic_Error /
     Gaston, 24 members): note-init has `JMP base+$262` at base+$257 (skips
     the PW step-base load + phase/direction reset) and the base+$25A wedge
@@ -931,7 +945,7 @@ def _hr_patch_probe(path: str, base: int):
     SMC: $99 = STA -> TEST written, $B9 = LDA -> TEST skipped; toggled per
     note-init by the instrument's $04 flag). Returns the initial toggle
     (1 iff the file-image opcode is $99) or None when not this variant."""
-    mem, _ = _load(path)
+    mem, _ = _load(path, post_init_sub)
     b = base
     wedge = bytes((0x8D, (b + 0x40) & 0xFF, (b + 0x40) >> 8, 0xA9, 0x99))
     if (mem[b + 0x257] == 0x4C
@@ -946,7 +960,8 @@ def _hr_patch_probe(path: str, base: int):
 _HOLD_BRANCH = re.compile(rb'\x29\x10\xF0\x0E\xBD..\xC9\x01\xD0\x13\xA9\xFE\x20(..)')
 
 
-def _hold_gateoff_probe(path: str, base: 'int | None' = None):
+def _hold_gateoff_probe(path: str, base: 'int | None' = None,
+                        post_init_sub: 'int | None' = None):
     """Holding gate-off variant probe (STATIC, opcode-shape — layout-blind).
     A widespread editor build (Surgeon / Imaic / Rio / Taxim / Phobos /
     Behdad_Arman, 660+ carriers) patches ONE byte in sub_17EC: $17EF BC->60,
@@ -967,7 +982,7 @@ def _hold_gateoff_probe(path: str, base: 'int | None' = None):
     silently answers for player 1 on behalf of every chip. Falls back to the
     first image-wide match when the window holds none, so a member whose
     player sits outside the assumed span keeps its previous answer."""
-    mem, _ = _load(path)
+    mem, _ = _load(path, post_init_sub)
     cands = list(_HOLD_BRANCH.finditer(bytes(mem)))
     if base is not None:
         own = [c for c in cands if base <= c.start() < base + 0x900]
@@ -988,21 +1003,22 @@ _HR_PRIME = re.compile(rb'[\x99\xB9]\x04\xD4\xA9(.)\x99\x05\xD4\x99\x06\xD4\x60'
                        re.DOTALL)
 
 
-def _hr_preset_probe(path: str):
+def _hr_preset_probe(path: str, post_init_sub: 'int | None' = None):
     """Hard-restart AD/SR immediate probe (STATIC opcode probe, C19 5th
     occurrence — Stryyker/Proportional_Text_Writer): the member patches ONE
     byte, sub_17FB's `LDA #$0F` immediate ($17FF), so the hard-restart prime
     writes AD=SR=that value on every note-fetch frame. Anchor on the
     routine's opcode shape (layout-blind); return the immediate when it
     differs from the canon $0F, else None (build unchanged)."""
-    mem, _ = _load(path)
+    mem, _ = _load(path, post_init_sub)
     m = _HR_PRIME.search(bytes(mem))
     if m is None or m.group(1)[0] == 0x0F:
         return None
     return m.group(1)[0]
 
 
-def _hr_prep_skip_probe(path: str, base: int):
+def _hr_prep_skip_probe(path: str, base: int,
+                        post_init_sub: 'int | None' = None):
     """Hard-restart prep-CALL skip probe (STATIC opcode probe, C19 —
     SilverFox/Seaside_99). The note-load primes the hard restart with
     `LDA #$08 / JSR sub_17FB / LDA #$FF` at base+$1D9..base+$1DF (sub_17FB =
@@ -1014,7 +1030,7 @@ def _hr_prep_skip_probe(path: str, base: int):
     operand = base+$7FB, LDA #$FF) so a non-canon layout fails open; return
     'skip' iff the opcode byte is $2C, else None (canon $20 / not this
     shape -> build unchanged)."""
-    mem, _ = _load(path)
+    mem, _ = _load(path, post_init_sub)
     b = base
     if (mem[b + 0x1D9] == 0xA9 and mem[b + 0x1DA] == 0x08
             and mem[b + 0x1DC] | (mem[b + 0x1DD] << 8) == b + 0x7FB
@@ -1028,7 +1044,8 @@ _PW_HI_WRITE = re.compile(rb'\xBD(..)\x99\x02\xD4\xBD(..)\x99\x03\xD4',
                           re.DOTALL)
 
 
-def _pw_hi_const_probe(path: str, base: int):
+def _pw_hi_const_probe(path: str, base: int,
+                       post_init_sub: 'int | None' = None):
     """PW-hi source patch probe (STATIC opcode probe, C19 — Olsen/Lame, the
     only family-1 carrier): the sidwrite tail is canonically
     `LDA $1750,x / STA $D402,y / LDA $1753,x / STA $D403,y`; the wedge
@@ -1040,7 +1057,7 @@ def _pw_hi_const_probe(path: str, base: int):
     if the hi operand differs from canon, capture the POST-INIT runtime
     bytes at operand..+2 (init rewrites them; file image is the fallback)
     and return them as 'a,b,c'. Canon operand -> None (build unchanged)."""
-    mem, s = _load(path)
+    mem, s = _load(path, post_init_sub)
     m = _PW_HI_WRITE.search(bytes(mem))
     if not m:
         return None
@@ -1053,7 +1070,8 @@ def _pw_hi_const_probe(path: str, base: int):
     return ','.join(str(src[ophi + i]) for i in range(3))
 
 
-def _pw_dir_persist_probe(path: str, base: int):
+def _pw_dir_persist_probe(path: str, base: int,
+                          post_init_sub: 'int | None' = None):
     """PW-direction reset redirect (STATIC opcode probe, C19). The note-init
     pulse reset canonically ends `LDA #$00 / STA $1762,x (phase) / STA $1765,x
     (direction=up)`; the wedge re-points the second STA at an unused state
@@ -1063,7 +1081,7 @@ def _pw_dir_persist_probe(path: str, base: int):
     rides on base). Positive minority signature: return 1 iff exactly one
     site matches and its second operand != base+$765; canon or ambiguous ->
     None (build unchanged). Carrier: Artlace/End_of_1992_intro."""
-    mem, _ = _load(path)
+    mem, _ = _load(path, post_init_sub)
     a = base + 0x762
     # re.escape the operand bytes: a relocated address low byte can be a regex
     # metacharacter (e.g. '[' = $5B) that breaks compile / matches loosely.
@@ -1078,7 +1096,8 @@ def _pw_dir_persist_probe(path: str, base: int):
     return 1 if op != base + 0x765 else None
 
 
-def _switch_toggle_mask_probe(path: str, base: int, gatemask_addr: int):
+def _switch_toggle_mask_probe(path: str, base: int, gatemask_addr: int,
+                              post_init_sub: 'int | None' = None):
     """SWITCH ($7D tie/legato) gate-mask toggle immediate (STATIC opcode probe,
     C19). The switch handler at base+$183 canonically toggles ONLY the gate bit:
     `LDA gatemask,x / EOR #$01 / STA gatemask,x` (base+$189..$18E), so a SWITCH
@@ -1098,7 +1117,7 @@ def _switch_toggle_mask_probe(path: str, base: int, gatemask_addr: int):
     5502 canon $01 -> 0 FULL exposure."""
     if gatemask_addr is None:
         return None
-    mem, _ = _load(path)
+    mem, _ = _load(path, post_init_sub)
     gm = bytes([gatemask_addr & 0xFF, (gatemask_addr >> 8) & 0xFF])
     b = base
     if (mem[b + 0x189] == 0xBD and bytes(mem[b + 0x18A:b + 0x18C]) == gm
@@ -1110,7 +1129,8 @@ def _switch_toggle_mask_probe(path: str, base: int, gatemask_addr: int):
     return None
 
 
-def _forced_subtune_probe(path: str, base: int):
+def _forced_subtune_probe(path: str, base: int,
+                          post_init_sub: 'int | None' = None):
     """Hand-crafted init WRAPPER `LDA #imm` that HARD-FORCES the played tune
     record, overriding the PSID subtune arg (STATIC opcode probe, C19).
 
@@ -1128,7 +1148,7 @@ def _forced_subtune_probe(path: str, base: int):
     LDA#-leading wrappers whose immediate is not a subtune index. Census over
     5833 f1 members: exactly 2 carriers, both imm=1 and both previously partial
     — Sans_intro (fall-through form) + Devilock/Sub_Effect (JMP-to-base form)."""
-    mem, s = _load(path)
+    mem, s = _load(path, post_init_sub)
     init = s['init']
     if init == base or not (0 <= init and init + 4 <= 0xFFFF):
         return None
@@ -1145,7 +1165,8 @@ def _forced_subtune_probe(path: str, base: int):
     return mem[init + 1] if reaches else None
 
 
-def _pw_bound_shift_probe(path: str, base: int):
+def _pw_bound_shift_probe(path: str, base: int,
+                          post_init_sub: 'int | None' = None):
     """PWM bound-A extraction shift (STATIC opcode probe, C19). The note-init
     derives the pulse-width sweep bounds from instrument byte+2: canonically
     `PLA / LSR LSR LSR LSR / STA $1756,x` => bound A = byte+2 >> 4 (its hi
@@ -1161,7 +1182,7 @@ def _pw_bound_shift_probe(path: str, base: int):
     window between PLA and the first STA, counting LSR-A ($4A); $17 is the known
     2-byte filler, any other opcode bails to canon. Return the shift when != 4,
     else None (extract unchanged). Sole family-1 carrier: Aomeba/20_Years_of_NOP."""
-    mem, _ = _load(path)
+    mem, _ = _load(path, post_init_sub)
     a1 = base + 0x756
     # re.escape the operand bytes: a relocated address low byte can be a regex
     # metacharacter (e.g. '[' = $5B) that breaks compile / matches loosely.
@@ -1207,7 +1228,8 @@ _FMOD_WRAPPER = re.compile(
     rb'\x4C(..)', re.DOTALL)
 
 
-def _filter_mod_probe(path: str, op_filtdef: int):
+def _filter_mod_probe(path: str, op_filtdef: int,
+                      post_init_sub: 'int | None' = None):
     """Detect the filter-def modulation wrapper and lift its LFO as musical
     content: return 'prog|start|init_phase|stop_phase|d:f,d:f,...' (the
     contour value at position 0, the two taps' start phases, and the
@@ -1217,7 +1239,7 @@ def _filter_mod_probe(path: str, op_filtdef: int):
     SMC automaton targets exactly the reader's two LDA operands and that the
     stores hit filterdef + 16n + 1 / + 3 (the init/stop cutoff bytes of one
     definition)."""
-    mem, s = _load(path)
+    mem, s = _load(path, post_init_sub)
     m = _FMOD_WRAPPER.search(bytes(mem))
     if m is None:
         return None
@@ -1275,7 +1297,8 @@ _DUAL_HACK_SITE = re.compile(rb'\xBC\x0D.\xA6\x2F\x69\x18\x7D\x35.\x8D(..)',
                              re.DOTALL)
 
 
-def _dual_freq_gen_probe(path: str, base: int, freq_lo: int):
+def _dual_freq_gen_probe(path: str, base: int, freq_lo: int,
+                         post_init_sub: 'int | None' = None):
     """Dual-effect ($40) freq-generator wedge (STATIC opcode probe, C19 4th
     occurrence — Taurus/Taurus_02, the only family-1 carrier): the odd-parity
     dual path's `LDA $172F,x` opcode is patched BD->A6 (`LDX $2F`). Under the
@@ -1290,7 +1313,7 @@ def _dual_freq_gen_probe(path: str, base: int, freq_lo: int):
     ROM (environment constants, hardcoded composer-side). Returns
     'step,ph_add,base_hi,pw_lo,pw_hi,ctrl,seed_lo,seed_hi,slot' or None
     (no wedge -> build unchanged)."""
-    mem, s = _load(path)
+    mem, s = _load(path, post_init_sub)
     m = _DUAL_HACK_SITE.search(bytes(mem))
     if not m:
         return None
@@ -1313,12 +1336,13 @@ def _dual_freq_gen_probe(path: str, base: int, freq_lo: int):
     return ','.join(str(v) for v in vals)
 
 
-def _d418_play_wrapper(path: str, base: int):
+def _d418_play_wrapper(path: str, base: int,
+                       post_init_sub: 'int | None' = None):
     """$D418 play-vector wrapper probe: the PSID play address points at
     `LDA #imm / STA $D418 / JMP base+3` (PVCF / Zyron / Signor) — a constant
     master-vol|filter-mode write on every play() call before the canon play
     body. Returns imm, or None when the play vector isn't this shape."""
-    mem, s = _load(path)
+    mem, s = _load(path, post_init_sub)
     p = s['play']
     if (mem[p] == 0xA9 and bytes(mem[p + 2:p + 5]) == b'\x8d\x18\xd4'
             and mem[p + 5] == 0x4C
@@ -1327,7 +1351,8 @@ def _d418_play_wrapper(path: str, base: int):
     return None
 
 
-def _d418_filter_tail_probe(path: str, base: int):
+def _d418_filter_tail_probe(path: str, base: int,
+                            post_init_sub: 'int | None' = None):
     """Per-frame $D418 re-assert wedge (Groove class, ledger C19 -> C10
     master-vol-every-frame form): the PLAY-BODY global filter routine
     (`STA $D416 / LDA route / ORA res / STA $D417`, run every frame) has its
@@ -1346,7 +1371,7 @@ def _d418_filter_tail_probe(path: str, base: int):
     stray `STA $D417 .. STA $D418` pairs in unrelated / init routines (which
     do not start with `STA $D416 / LDA abs / ORA abs`, e.g. Qbhead_01's $1CA8
     `STA $D416 / LDA #imm`)."""
-    mem, s = _load(path)
+    mem, s = _load(path, post_init_sub)
     lo, hi = s['load'], min(s['load'] + len(s['payload']), 0x10000)
     for a in range(lo, hi - 12):
         # play-body filter routine: STA $D416 / LDA abs / ORA abs / <op at +9>
@@ -1367,7 +1392,8 @@ def _d418_filter_tail_probe(path: str, base: int):
     return None
 
 
-def _play_unit_repeat_probe(path: str, base: int):
+def _play_unit_repeat_probe(path: str, base: int,
+                            post_init_sub: 'int | None' = None):
     """Detect the DMC play-body 'double-speed unit' hack. The play body runs
     four units per frame — voice 0, voice 1, voice 2, then the global filter
     tail — and a hand-patch can redirect a per-voice JSR to a stub that calls
@@ -1383,7 +1409,7 @@ def _play_unit_repeat_probe(path: str, base: int):
     count the `JSR <voice>` inside the stub. Terminators: RTS (clean) or, on
     the LAST voice only, JMP <filter-tail> (sets the filter unit to 2). Any
     other stub shape returns None (unrecognised -> build unchanged)."""
-    mem, s = _load(path)
+    mem, s = _load(path, post_init_sub)
     p = s['play']
     if mem[p] != 0x4C:
         return None
@@ -1995,17 +2021,22 @@ def _multisid_keep_regs(mem, base: int, chip_addr: int) -> tuple:
 # (two keys), the hard_restart precedence block, and forced_subtune (a cfg
 # attribute, not a param). Insertion order is irrelevant — the USF writer sorts
 # param keys and the composer reads them by name.
+# Every probe is handed `c.post_init_sub` so it reads the SAME memory view the
+# rest of the build used. A RELOCATED compilation player (ledger C31) is absent
+# from the file image at `c.base` — probing the image there reads zeros, so
+# every wedge would come back defaulted: C9's "a second build path never
+# measured the parameter", one layer further out than round 83b closed it.
 _WEDGE_PROBES = [
-    ('master_vol_every_play',           lambda p, c: _d418_play_wrapper(p, c.base)),
-    ('master_vol_reassert_filter_tail', lambda p, c: _d418_filter_tail_probe(p, c.base)),
-    ('hold_gateoff',                    lambda p, c: _hold_gateoff_probe(p, c.base)),
-    ('play_unit_repeat',                lambda p, c: _play_unit_repeat_probe(p, c.base)),
-    ('pulsewidth_hi_const',             lambda p, c: _pw_hi_const_probe(p, c.base)),
-    ('dual_freq_generator',             lambda p, c: _dual_freq_gen_probe(p, c.base, c.freq_lo_addr)),
-    ('filter_mod',                      lambda p, c: _filter_mod_probe(p, c.op_filtdef)),
-    ('pw_bound_shift',                  lambda p, c: _pw_bound_shift_probe(p, c.base)),
-    ('pulsewidth_dir_persist',          lambda p, c: _pw_dir_persist_probe(p, c.base)),
-    ('switch_toggle_mask',              lambda p, c: _switch_toggle_mask_probe(p, c.base, c.gatemask_addr)),
+    ('master_vol_every_play',           lambda p, c: _d418_play_wrapper(p, c.base, c.post_init_sub)),
+    ('master_vol_reassert_filter_tail', lambda p, c: _d418_filter_tail_probe(p, c.base, c.post_init_sub)),
+    ('hold_gateoff',                    lambda p, c: _hold_gateoff_probe(p, c.base, c.post_init_sub)),
+    ('play_unit_repeat',                lambda p, c: _play_unit_repeat_probe(p, c.base, c.post_init_sub)),
+    ('pulsewidth_hi_const',             lambda p, c: _pw_hi_const_probe(p, c.base, c.post_init_sub)),
+    ('dual_freq_generator',             lambda p, c: _dual_freq_gen_probe(p, c.base, c.freq_lo_addr, c.post_init_sub)),
+    ('filter_mod',                      lambda p, c: _filter_mod_probe(p, c.op_filtdef, c.post_init_sub)),
+    ('pw_bound_shift',                  lambda p, c: _pw_bound_shift_probe(p, c.base, c.post_init_sub)),
+    ('pulsewidth_dir_persist',          lambda p, c: _pw_dir_persist_probe(p, c.base, c.post_init_sub)),
+    ('switch_toggle_mask',              lambda p, c: _switch_toggle_mask_probe(p, c.base, c.gatemask_addr, c.post_init_sub)),
 ]
 
 
@@ -2031,7 +2062,8 @@ def _apply_wedge_probes(path: str, cfg) -> None:
 
 
 def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
-                  base_override: 'int | None' = None) -> DMCV4Config:
+                  base_override: 'int | None' = None,
+                  post_init_sub: 'int | None' = None) -> DMCV4Config:
     """Primary canonical-layout build; on a moved-layout rejection, fall back
     to the layout-independent dataflow extractor (pipelines.dmc.v4.dataflow).
 
@@ -2039,6 +2071,12 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
     dataflow fallback) — used to extract one player of a COMPILATION member
     (ledger C31), where several independent players share the file behind a
     per-subtune dispatch wrapper and auto-detection can't pick the right one.
+
+    `post_init_sub` names the 0-based subtune whose init MATERIALISES that
+    player: a relocating compilation wrapper COPIES its players into RAM, so
+    the one at `base_override` is not in the file image at all. Every memory
+    read of this build — locate, every probe, and the extract — then uses that
+    subtune's post-init RAM instead of the image (ledger C31 + C26).
 
     hold_gateoff: the STATIC opcode probe (_hold_gateoff_probe) detects the
     1-byte sub_17EC patch ($17EF BC->60 = mask_only) directly — it reads the
@@ -2053,10 +2091,12 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
         # independently of the code — most compilations, ledger C31).
         try:
             cfg = _build_via_canon(sid_path, hvsc_root,
-                                   base_override=base_override)
+                                   base_override=base_override,
+                                   post_init_sub=post_init_sub)
         except DMCV4Unsupported:
             cfg = _build_via_dataflow(sid_path, hvsc_root,
-                                      base_override=base_override)
+                                      base_override=base_override,
+                                      post_init_sub=post_init_sub)
             if cfg is None:
                 raise
     else:
@@ -2068,6 +2108,8 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
             cfg = _build_via_dataflow(sid_path, hvsc_root)
             if cfg is None:
                 raise
+    # Recorded BEFORE the probes run: they read the memory view it names.
+    cfg.post_init_sub = post_init_sub
     path = os.path.join(hvsc_root, sid_path)
     # --- non-uniform wedge stanzas (special guard / two keys / attribute) ---
     # cymbal noise-burst timbre: only when patched off the canon $FF.
@@ -2075,7 +2117,7 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
     if cb is not None and cb != 0xFF:
         cfg.extra_params['cymbal_burst'] = cb
     # hard-restart SMC-toggle wedge sets TWO keys.
-    hr = _hr_patch_probe(path, cfg.base)
+    hr = _hr_patch_probe(path, cfg.base, post_init_sub)
     if hr is not None:
         cfg.extra_params['hardrestart_smc_variant'] = 1
         cfg.extra_params['hardrestart_test_init'] = hr
@@ -2083,23 +2125,24 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
     # prep-CALL skip wedge (JSR $17FB -> BIT) takes precedence over the
     # preset-immediate wedge (different sites, don't co-occur).
     if 'hard_restart' not in cfg.extra_params:
-        hrs = _hr_prep_skip_probe(path, cfg.base)
+        hrs = _hr_prep_skip_probe(path, cfg.base, post_init_sub)
         if hrs is not None:
             cfg.extra_params['hard_restart'] = hrs
         else:
-            hrv = _hr_preset_probe(path)
+            hrv = _hr_preset_probe(path, post_init_sub)
             if hrv is not None:
                 cfg.extra_params['hard_restart'] = str(hrv)
     _apply_wedge_probes(path, cfg)
     # forced_subtune is a cfg ATTRIBUTE, not a param; 0 == the default walk.
-    fs = _forced_subtune_probe(path, cfg.base)
+    fs = _forced_subtune_probe(path, cfg.base, post_init_sub)
     if fs:
         cfg.forced_subtune = fs
     return cfg
 
 
 def _build_via_dataflow(sid_path: str, hvsc_root: str,
-                        base_override: 'int | None' = None):
+                        base_override: 'int | None' = None,
+                        post_init_sub: 'int | None' = None):
     """Build a config by locating every table via opcode-skeleton signatures
     (handles re-assembled players whose routines + operand sites moved). Returns
     None if the base or any table can't be located; the verify gate is the net.
@@ -2111,7 +2154,7 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str,
     signature-based dataflow locate reads each table's ACTUAL operand regardless
     of relocation, so it handles them."""
     from pipelines.dmc.v4 import dataflow
-    mem, s = _load(os.path.join(hvsc_root, sid_path))
+    mem, s = _load(os.path.join(hvsc_root, sid_path), post_init_sub)
     load = s['load']
     if base_override is not None:
         # A co-packed compilation player can carry dead-code JMPs into a sibling
@@ -2337,8 +2380,9 @@ def _dataflow_knob_probes(mem, load: int) -> dict:
 
 def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84',
                      base_override: 'int | None' = None,
-                     chip_addr: int = 0) -> DMCV4Config:
-    mem, s = _load(os.path.join(hvsc_root, sid_path))
+                     chip_addr: int = 0,
+                     post_init_sub: 'int | None' = None) -> DMCV4Config:
+    mem, s = _load(os.path.join(hvsc_root, sid_path), post_init_sub)
 
     # ---- base detection. The canonical jump table is `JMP base+$1D /
     # JMP base+$85` (init / play handlers). Normally play = base+3, but a
@@ -2353,8 +2397,14 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84',
     # 2ENTRY: `JMP base+$807 / JMP base+$50` (2-entry table, restructured
     # init — ~621 members; the play body is byte-identical to canon, only
     # the init/dispatch/all-off regions differ, and we emit our own init).
+    # A player the wrapper RELOCATED into RAM can sit BELOW the load address
+    # (Pour_le_merite loads at $8000 and copies its second player down to
+    # $1000), so the load floor — a sanity guard for players read out of the
+    # file image — must not apply to one read out of post-init RAM.
+    _floor = 0 if post_init_sub is not None else s['load']
+
     def _jt_layout(b):
-        if not (0 < b and s['load'] <= b and b + 0x8E7 < 0x10000
+        if not (0 < b and _floor <= b and b + 0x8E7 < 0x10000
                 and mem[b] == 0x4C and mem[b + 3] == 0x4C):
             return None
         e0 = mem[b + 1] | (mem[b + 2] << 8)

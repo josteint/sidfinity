@@ -135,6 +135,14 @@ class DmcSong:
     idle_notes: tuple | None = None
     idle_masks: tuple | None = None
     durrel_init: tuple | None = None
+    # Per-subtune $D417 routing shadow (trichotomy §4.2 SID-chip priming —
+    # `init.sid.filter.res_routing`, already per-subtune in the schema). Same
+    # rule as the voice_state priming above: None = the model-level value
+    # serves every subtune. It is the SAME uncleared-leftover fact, so a
+    # COMPILATION makes it per-subtune too — the merge used to keep only the
+    # START player's shadow, which handed Pour_le_merite's sub 0 the other
+    # player's $01 where its own player primes $02.
+    d417_shadow: int | None = None
 
 
 @dataclass
@@ -246,13 +254,37 @@ def _rd16(mem, addr):
     return mem[addr] | (mem[addr + 1] << 8)
 
 
-def _postinit_window(s, lo: int, n: int):
+def _is_player_head(mem, a: int) -> bool:
+    """Page-aligned three-`JMP abs` head — the relocation-invariant DMC player
+    base signature (mirrors compilation._is_player_base_ram)."""
+    return (0 < a and a + 6 < 0x10000 and not (a & 0xFF)
+            and mem[a] == 0x4C and mem[a + 3] == 0x4C and mem[a + 6] == 0x4C)
+
+
+def _postinit_window(s, lo: int, n: int, sub: 'int | None' = None,
+                     stop_at_player: bool = False):
     """Bytes [lo, lo+n) AFTER running the member's init under py65 (subtune =
-    start song). Some inits REWRITE static data the extract reads from the
-    file image (e.g. the 'Ed' members' init stamps res/mode + initial cutoff
-    over every filter def record) — the engine then reads the rewritten bytes,
-    so the file-image capture is wrong. Returns None when py65 can't complete
-    the init (C9 territory; caller keeps the file image)."""
+    start song, or `sub` when given). Some inits REWRITE static data the
+    extract reads from the file image (e.g. the 'Ed' members' init stamps
+    res/mode + initial cutoff over every filter def record) — the engine then
+    reads the rewritten bytes, so the file-image capture is wrong. Returns
+    None when py65 can't complete the init (C9 territory; caller keeps the
+    file image).
+
+    `sub` (0-based) selects WHICH subtune's init runs. A RELOCATING
+    compilation wrapper (ledger C31 + C26) copies a different player into RAM
+    per subtune, so the player at a given base only exists after the init of a
+    subtune that selects it — the caller passes that subtune.
+
+    `stop_at_player` stops the run the moment control reaches a player base
+    (page-aligned three-JMP head) instead of running init to completion — the
+    RELOCATED player's image AS LOADED, post-copy but before the player's own
+    init has touched it. That is the exact analogue of the file image an
+    ordinary in-image member is extracted from, and it matters: the leftover
+    state the extract reads as PRIMING (the $D417 routing shadow, idle notes /
+    gate masks) is precisely what a player's init overwrites, so running to
+    completion silently substitutes post-init values for the leftovers
+    (Pour_le_merite sub 0 then wrote $D417=$01 for the orig's $02)."""
     try:
         from py65.devices.mpu6502 import MPU
         mpu = MPU()
@@ -263,9 +295,11 @@ def _postinit_window(s, lo: int, n: int):
         mpu.stPush(0x00)
         mpu.stPush(0x00)             # RTS sentinel -> PC = $0001
         mpu.pc = s['init']
-        mpu.a = (s.get('start', 1) or 1) - 1
+        start_pc = mpu.pc
+        mpu.a = (s.get('start', 1) or 1) - 1 if sub is None else sub
         for _ in range(1_000_000):
-            if mpu.pc == 0x0001:
+            if (mpu.pc == 0x0001 if not stop_at_player else
+                    (mpu.pc != start_pc and _is_player_head(mpu.memory, mpu.pc))):
                 return [mpu.memory[(lo + k) & 0xFFFF] for k in range(n)]
             mpu.step()
     except Exception:
@@ -799,8 +833,15 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # file image has nothing at the table addresses. (Priming reads —
     # d417 shadow, idle notes/masks — likewise come out post-init, which
     # is exactly the state the play loop starts from.)
-    if getattr(cfg, 'data_post_init', False):
-        post = _postinit_window(s, 0, 0x10000)
+    # RELOCATED compilation player (ledger C31 + C26): the dispatch wrapper
+    # COPIES this player into RAM during init, so it is absent from the file
+    # image at `cfg.base` entirely. Extract from the RAM left by the init of a
+    # subtune that selects it (`post_init_sub`) — that is the memory the
+    # engine itself reads.
+    post_sub = getattr(cfg, 'post_init_sub', None)
+    if getattr(cfg, 'data_post_init', False) or post_sub is not None:
+        post = _postinit_window(s, 0, 0x10000, sub=post_sub,
+                                stop_at_player=post_sub is not None)
         assert post is not None, \
             'init-unpacker member: py65 could not complete init'
         mem = bytearray(post)
@@ -818,8 +859,12 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # LOADED IMAGE as a sanity floor (the factory validates the player
     # identity separately; the verify gates a mislocation). Members with a
     # data prefix below the player put the table there (Mothafucka_2SID:
-    # load $0900, instruments at $0A00 — a genuine record array).
-    assert s['load'] <= instr_base < 0x10000, \
+    # load $0900, instruments at $0A00 — a genuine record array). A RELOCATED
+    # compilation player is exempt from the floor: the wrapper can copy it
+    # BELOW the load address (Pour_le_merite $9409 -> $1000), so its tables
+    # legitimately sit there — the floor guards image reads, not RAM reads.
+    _floor = 0 if post_sub is not None else s['load']
+    assert _floor <= instr_base < 0x10000, \
         f'non-standard instrument base ${instr_base:04X}'
 
     n_wave = wavefreq - wavectrl
@@ -959,7 +1004,14 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # members stamp res/mode + initial cutoff over every def) — decode what
     # the engine reads, not the file image; py65-fail keeps the file image.
     if any(m.instruments[i].filter_on for i in m.instruments):
-        post = _postinit_window(s, filtdef, 272)
+        # Same memory view as the rest of this player's extraction: for a
+        # RELOCATED compilation player that means ITS subtune's run, stopped at
+        # the landing. Re-reading with the default (start-song, run-to-RTS)
+        # would run a subtune whose wrapper never copies this player into
+        # place, so the window comes back all zeros and every filter def
+        # decodes empty (Pour_le_merite sub 0 lost its whole filter window).
+        post = _postinit_window(s, filtdef, 272, sub=post_sub,
+                                stop_at_player=post_sub is not None)
         fmem = mem
         if post is not None and list(mem[filtdef:filtdef + 272]) != post:
             fmem = bytearray(mem)
