@@ -29,14 +29,37 @@ RESULTS = os.path.join(ROOT, 'tmp', 'dmc_wide_results.jsonl')
 def write_member(item) -> tuple:
     rel, hold_gateoff = item if isinstance(item, (list, tuple)) else (item, None)
     try:
-        from pipelines.dmc.v4.factory import dmc_v4_config
-        from pipelines.dmc.v4.extract.to_usf import write_dmc_usf
+        from pipelines.dmc.v4.factory import dmc_v4_config, dmc_v4_config_2sid
+        from pipelines.dmc.v4.extract.to_usf import (write_dmc_usf,
+                                                     write_dmc_2sid_usf,
+                                                     write_dmc_compilation_usf)
+        from pipelines.dmc.v4.compilation import detect_compilation
         from pipelines.dmc.composer_asm import build_dmc_sid
         from src.usf.parser import parse_file
         hvsc = os.path.join(ROOT, 'hvsc84')
-        cfg = dmc_v4_config(rel, hvsc_root=hvsc)
         out_dir = os.path.dirname(os.path.join(hvsc, rel))
-        usf_path = write_dmc_usf(cfg, out_dir, hvsc_root=hvsc)
+        # SAME build dispatch the batch verified with (multi-SID -> compilation
+        # -> single player). Writing every member through the single-player
+        # constructor would store an artifact that is NOT what earned the FULL
+        # verdict — the C20 palimpsest, in the one tool whose whole job is to
+        # avoid it. (It did exactly that for the multi-SID members until
+        # 2026-07-21: Dark_Knight_2SID.usf on disk was a 3-voice single-chip
+        # extraction of a 6-voice tune.)
+        cfgs2 = dmc_v4_config_2sid(rel, hvsc_root=hvsc)
+        comp = (None if cfgs2 is not None
+                else detect_compilation(rel, hvsc_root=hvsc))
+        if cfgs2 is not None:
+            usf_path = write_dmc_2sid_usf(cfgs2, out_dir, hvsc_root=hvsc)
+        elif comp is not None:
+            try:
+                usf_path = write_dmc_compilation_usf(rel, comp, out_dir,
+                                                     hvsc_root=hvsc)
+            except Exception:      # unmergeable -> the batch's same fallback
+                usf_path = write_dmc_usf(dmc_v4_config(rel, hvsc_root=hvsc),
+                                         out_dir, hvsc_root=hvsc)
+        else:
+            usf_path = write_dmc_usf(dmc_v4_config(rel, hvsc_root=hvsc),
+                                     out_dir, hvsc_root=hvsc)
         usf = parse_file(usf_path)
         # the batch's write-stream retry may have chosen mask_only (a member
         # whose original never clears AD+SR) — apply it so the written SID
