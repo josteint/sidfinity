@@ -1,0 +1,358 @@
+{
+ "engine": "music_assembler",
+ "portfolio": [
+  "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+  "MUSICIANS/A/Alex/Mayhem.sid",
+  "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+  "MUSICIANS/B/Bjoernerud_Sebastian/Psykolog_end.sid",
+  "MUSICIANS/D/Dr_Rox/Selma.sid",
+  "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+  "MUSICIANS/G/Greatrix/Samba.sid",
+  "MUSICIANS/M/Merman/Best_Days.sid",
+  "MUSICIANS/M/Merman/Grassman.sid",
+  "MUSICIANS/M/Merman/He_Thought_of_Cars.sid",
+  "MUSICIANS/M/Merman/We_Are_Together.sid",
+  "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+  "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+  "MUSICIANS/R/Rayden/Intr0_Shorty.sid",
+  "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid",
+  "MUSICIANS/T/Top_Secret/Intromezzo.sid"
+ ],
+ "dimensions": {
+  "fx:arp_abs": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/B/Bjoernerud_Sebastian/Psykolog_end.sid",
+   "MUSICIANS/D/Dr_Rox/Selma.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/M/Merman/Best_Days.sid",
+   "MUSICIANS/M/Merman/Grassman.sid",
+   "MUSICIANS/M/Merman/He_Thought_of_Cars.sid",
+   "MUSICIANS/M/Merman/We_Are_Together.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid"
+  ],
+  "fx:arp_filter": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid"
+  ],
+  "fx:arp_loop": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/A/Alex/Mayhem.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/B/Bjoernerud_Sebastian/Psykolog_end.sid",
+   "MUSICIANS/D/Dr_Rox/Selma.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid"
+  ],
+  "fx:arp_rel": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/A/Alex/Mayhem.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/B/Bjoernerud_Sebastian/Psykolog_end.sid",
+   "MUSICIANS/D/Dr_Rox/Selma.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/M/Merman/Grassman.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid"
+  ],
+  "fx:arp_stop": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/B/Bjoernerud_Sebastian/Psykolog_end.sid",
+   "MUSICIANS/D/Dr_Rox/Selma.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/M/Merman/Best_Days.sid",
+   "MUSICIANS/M/Merman/Grassman.sid",
+   "MUSICIANS/M/Merman/He_Thought_of_Cars.sid",
+   "MUSICIANS/M/Merman/We_Are_Together.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid"
+  ],
+  "fx:pulse_bidir": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/A/Alex/Mayhem.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/D/Dr_Rox/Selma.sid",
+   "MUSICIANS/M/Merman/Grassman.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid"
+  ],
+  "fx:pulse_linear": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/A/Alex/Mayhem.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/B/Bjoernerud_Sebastian/Psykolog_end.sid",
+   "MUSICIANS/D/Dr_Rox/Selma.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Rayden/Intr0_Shorty.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid"
+  ],
+  "fx:vib_delay": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/A/Alex/Mayhem.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/B/Bjoernerud_Sebastian/Psykolog_end.sid",
+   "MUSICIANS/D/Dr_Rox/Selma.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/M/Merman/Grassman.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid"
+  ],
+  "fx:vibrato": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/A/Alex/Mayhem.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/B/Bjoernerud_Sebastian/Psykolog_end.sid",
+   "MUSICIANS/D/Dr_Rox/Selma.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/M/Merman/Grassman.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid",
+   "MUSICIANS/T/Top_Secret/Intromezzo.sid"
+  ],
+  "init:filter_arm": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/A/Alex/Mayhem.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/B/Bjoernerud_Sebastian/Psykolog_end.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+   "MUSICIANS/R/Rayden/Intr0_Shorty.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid",
+   "MUSICIANS/T/Top_Secret/Intromezzo.sid"
+  ],
+  "init:filter_sweep": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/B/Bjoernerud_Sebastian/Psykolog_end.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid",
+   "MUSICIANS/T/Top_Secret/Intromezzo.sid"
+  ],
+  "init:note_active": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/A/Alex/Mayhem.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/B/Bjoernerud_Sebastian/Psykolog_end.sid",
+   "MUSICIANS/D/Dr_Rox/Selma.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/G/Greatrix/Samba.sid",
+   "MUSICIANS/M/Merman/Best_Days.sid",
+   "MUSICIANS/M/Merman/Grassman.sid",
+   "MUSICIANS/M/Merman/He_Thought_of_Cars.sid",
+   "MUSICIANS/M/Merman/We_Are_Together.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+   "MUSICIANS/R/Rayden/Intr0_Shorty.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid",
+   "MUSICIANS/T/Top_Secret/Intromezzo.sid"
+  ],
+  "init:pulse_width": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/A/Alex/Mayhem.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/B/Bjoernerud_Sebastian/Psykolog_end.sid",
+   "MUSICIANS/D/Dr_Rox/Selma.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+   "MUSICIANS/R/Rayden/Intr0_Shorty.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid"
+  ],
+  "init:sliding": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid"
+  ],
+  "offtable:any": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid"
+  ],
+  "offtable:arp": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid"
+  ],
+  "offtable:note": [
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid"
+  ],
+  "pat:filter_off": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid"
+  ],
+  "pat:filter_sweep": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/A/Alex/Mayhem.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Rayden/Intr0_Shorty.sid",
+   "MUSICIANS/T/Top_Secret/Intromezzo.sid"
+  ],
+  "pat:hold": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/A/Alex/Mayhem.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/D/Dr_Rox/Selma.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/M/Merman/Best_Days.sid",
+   "MUSICIANS/M/Merman/Grassman.sid",
+   "MUSICIANS/M/Merman/He_Thought_of_Cars.sid",
+   "MUSICIANS/M/Merman/We_Are_Together.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+   "MUSICIANS/T/Top_Secret/Intromezzo.sid"
+  ],
+  "pat:legato": [
+   "MUSICIANS/D/Dr_Rox/Selma.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+   "MUSICIANS/R/Rayden/Intr0_Shorty.sid"
+  ],
+  "pat:preset_rest": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/A/Alex/Mayhem.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/D/Dr_Rox/Selma.sid",
+   "MUSICIANS/G/Greatrix/Samba.sid",
+   "MUSICIANS/M/Merman/Best_Days.sid",
+   "MUSICIANS/M/Merman/Grassman.sid",
+   "MUSICIANS/M/Merman/He_Thought_of_Cars.sid",
+   "MUSICIANS/M/Merman/We_Are_Together.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid"
+  ],
+  "pat:rest": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/A/Alex/Mayhem.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/B/Bjoernerud_Sebastian/Psykolog_end.sid",
+   "MUSICIANS/D/Dr_Rox/Selma.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/G/Greatrix/Samba.sid",
+   "MUSICIANS/M/Merman/Best_Days.sid",
+   "MUSICIANS/M/Merman/Grassman.sid",
+   "MUSICIANS/M/Merman/He_Thought_of_Cars.sid",
+   "MUSICIANS/M/Merman/We_Are_Together.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid",
+   "MUSICIANS/T/Top_Secret/Intromezzo.sid"
+  ],
+  "pat:slide": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+   "MUSICIANS/R/Rayden/Intr0_Shorty.sid",
+   "MUSICIANS/T/Top_Secret/Intromezzo.sid"
+  ],
+  "speed:1": [
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/G/Greatrix/Samba.sid"
+  ],
+  "speed:2": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid"
+  ],
+  "speed:3": [
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid"
+  ],
+  "speed:4": [
+   "MUSICIANS/M/Merman/Best_Days.sid",
+   "MUSICIANS/M/Merman/He_Thought_of_Cars.sid"
+  ],
+  "speed:5": [
+   "MUSICIANS/M/Merman/We_Are_Together.sid",
+   "MUSICIANS/T/Top_Secret/Intromezzo.sid"
+  ],
+  "speed:6": [
+   "MUSICIANS/M/Merman/Grassman.sid",
+   "MUSICIANS/R/Rayden/Intr0_Shorty.sid"
+  ],
+  "speed:7": [
+   "MUSICIANS/B/Bjoernerud_Sebastian/Psykolog_end.sid",
+   "MUSICIANS/D/Dr_Rox/Selma.sid"
+  ],
+  "speed:8": [
+   "MUSICIANS/A/Alex/Mayhem.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid"
+  ],
+  "struct:inst_growth": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/D/Dr_Rox/Selma.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid"
+  ],
+  "track:loop": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/A/Alex/Mayhem.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/B/Bjoernerud_Sebastian/Psykolog_end.sid",
+   "MUSICIANS/D/Dr_Rox/Selma.sid",
+   "MUSICIANS/G/Greatrix/Samba.sid",
+   "MUSICIANS/M/Merman/Best_Days.sid",
+   "MUSICIANS/M/Merman/Grassman.sid",
+   "MUSICIANS/M/Merman/He_Thought_of_Cars.sid",
+   "MUSICIANS/M/Merman/We_Are_Together.sid",
+   "MUSICIANS/R/Rayden/Intr0_Shorty.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid"
+  ],
+  "track:loop_target": [
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid"
+  ],
+  "track:repeat": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/A/Alex/Mayhem.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/D/Dr_Rox/Selma.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/G/Greatrix/Samba.sid",
+   "MUSICIANS/M/Merman/Best_Days.sid",
+   "MUSICIANS/M/Merman/Grassman.sid",
+   "MUSICIANS/M/Merman/He_Thought_of_Cars.sid",
+   "MUSICIANS/M/Merman/We_Are_Together.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid",
+   "MUSICIANS/T/Top_Secret/Intromezzo.sid"
+  ],
+  "track:stop": [
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+   "MUSICIANS/T/Top_Secret/Intromezzo.sid"
+  ],
+  "track:transpose": [
+   "GAMES/A-F/Attack_of_the_Mutant_Ninja_Blueberries.sid",
+   "MUSICIANS/A/Alex/Mayhem.sid",
+   "MUSICIANS/B/Bakker_Nantco/Drunken_Man.sid",
+   "MUSICIANS/F/Feekzoid/Up-Tempo.sid",
+   "MUSICIANS/G/Greatrix/Samba.sid",
+   "MUSICIANS/M/Merman/Grassman.sid",
+   "MUSICIANS/P/Phoenix_Fatum/Phoenix_Collection_tune_3.sid",
+   "MUSICIANS/R/Rage/Seal_of_Focalor_dreams_tune_1.sid",
+   "MUSICIANS/R/Rayden/Intr0_Shorty.sid",
+   "MUSICIANS/R/Roebuck_Kristopher/Pachebels_Canon.sid"
+  ]
+ },
+ "corpus_full": 3915
+}

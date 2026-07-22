@@ -290,6 +290,54 @@ def _w_fc_portfolio(sid: str) -> dict:
             'ok': sub_ok, 'partial': 0, 'fail': sub_fail, 'total': len(subs)}
 
 
+def _w_masm(sid: str, group: str | None) -> dict:
+    """Music Assembler — the FULL round trip, SID -> USF -> SID, so a green
+    portfolio member proves its stored USF really specifies the music."""
+    import tempfile
+    from pipelines.music_assembler.extract.model import extract
+    from pipelines.music_assembler.extract.to_usf import model_to_usf
+    from pipelines.music_assembler.from_usf import build_masm_sid
+    from pipelines.music_assembler.verify import verify
+    from src.usf.parser import parse_file
+    from src.usf.writer import write_file
+    td = tempfile.mkdtemp()
+    up = os.path.join(td, 'a.usf')
+    write_file(model_to_usf(extract(sid)), up)
+    out = os.path.join(td, 'a.sid')
+    with open(out, 'wb') as f:
+        f.write(build_masm_sid(parse_file(up)))
+    r = verify(sid, out)
+    ok = 1 if r.get('is_full') else 0
+    return {'family': 'Music_Assembler',
+            'group': group or 'Music_Assembler portfolio '
+                              '(feature-cover of the verified family):',
+            'line': '  %-24s %s' % (sid.split('/')[-1][:24],
+                                    'FULL' if ok else 'REGRESSED'),
+            'ok': ok, 'partial': 0, 'fail': 1 - ok, 'total': 1}
+
+
+def _w_masm_hetero(_unused: str, group: str | None) -> dict:
+    """Freespace_2075 — the DMC + Music Assembler heterogeneous member
+    (ledger C31). Its subtunes 1-2 are MA players, so MA composer changes can
+    break it, but it is DMC-CLASSIFIED and therefore invisible to the MA
+    family batch. Cross-family canary; corpus ownership stays with DMC f1."""
+    import tempfile
+    from pipelines.music_assembler.heterogeneous import build, FREESPACE
+    from pipelines.music_assembler.verify import verify
+    rel, copies = FREESPACE
+    out = os.path.join(tempfile.mkdtemp(), 'fs.sid')
+    with open(out, 'wb') as f:
+        f.write(build(rel, copies))
+    ok = sum(1 for s in (0, 1, 2) if verify(rel, out, subtune=s).get('is_full'))
+    status = '%d/3' % ok
+    if ok < 3:
+        status += ' (%d REGRESSED)' % (3 - ok)
+    return {'family': 'Music_Assembler',
+            'group': group or '',
+            'line': '  %-24s %s' % ('Freespace_2075 (DMC+MA)', status),
+            'ok': ok, 'partial': 0, 'fail': 3 - ok, 'total': 3}
+
+
 def _w_dmc(label: str, kind: str, ref: str, group: str | None) -> dict:
     """DMC — kind 'zaks' (module attr ref) or 'cfg' (sid for dmc_v4_config)."""
     from pipelines.dmc.verify import verify_dmc
@@ -334,6 +382,7 @@ _WORKERS = {
     'hubbard': _w_hubbard, 'companion': _w_companion, 'c64me': _w_c64me,
     'jd': _w_jd, 'fc_canary': _w_fc_canary, 'fc_portfolio': _w_fc_portfolio,
     'dmc': _w_dmc, 'basic': _w_basic,
+    'masm': _w_masm, 'masm_hetero': _w_masm_hetero,
 }
 
 
@@ -396,6 +445,15 @@ def _build_tasks() -> list:
         grp = 'Basic_Program portfolio (round-trip feature-cover):'
         for m in json.load(open(bpf))['portfolio']:
             add('basic', m['sid'], m['dur'], grp)
+    mpf = os.path.join(os.path.dirname(__file__),
+                       'masm_regression_portfolio.json')
+    if os.path.exists(mpf):
+        for sid in json.load(open(mpf))['portfolio']:
+            add('masm', sid, None)
+    # Cross-family: MA composer changes can break this DMC-owned member, and
+    # the MA family batch cannot see it (it is DMC-classified).
+    add('masm_hetero', '', 'DMC + Music_Assembler heterogeneous member '
+                           '(ledger C31), MA-side canary:')
     return tasks
 
 
@@ -409,6 +467,8 @@ _FAMILY_ORDER = [
            'Adrenalin[0] + Jarre_2/standard):'),
     ('DMC', 'DMC family (canary: Geometrical_Zaks/v4):'),
     ('Basic_Program', 'Basic_Program family (RSID-BASIC round-trip portfolio):'),
+    ('Music_Assembler',
+     'Music Assembler family (SID -> USF -> SID round-trip portfolio):'),
 ]
 
 
@@ -460,6 +520,7 @@ def main():
     fc_ok, _, fc_fail, _ = agg['FC']
     dmc_ok, _, dmc_fail, _ = agg['DMC']
     bp_ok, _, bp_fail, _ = agg['Basic_Program']
+    ma_ok, _, ma_fail, _ = agg['Music_Assembler']
 
     print(f'Hubbard:    {h_ok} ok  +  {h_part} known-partial  +  '
           f'{h_reg} regressed  (of {h_total})')
@@ -470,8 +531,10 @@ def main():
     print(f'FC:         {fc_ok} ok  +  {fc_fail} regressed')
     print(f'DMC:        {dmc_ok} ok  +  {dmc_fail} regressed')
     print(f'Basic_Program: {bp_ok} ok  +  {bp_fail} regressed')
+    print(f'Music_Assembler: {ma_ok} ok  +  {ma_fail} regressed')
 
-    if h_reg or c_fail or cme_fail or jd_fail or fc_fail or dmc_fail or bp_fail:
+    if (h_reg or c_fail or cme_fail or jd_fail or fc_fail or dmc_fail
+            or bp_fail or ma_fail):
         sys.exit(1)
 
 

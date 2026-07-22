@@ -36,6 +36,7 @@ DEPS: dict[str, list[str]] = {
     'fc_standard':    ['pipelines/future_composer'] + _SHARED,
     'goattracker_v1': ['pipelines/goattracker/v1'] + _SHARED,
     'basic_program':  ['pipelines/basic_program'] + _SHARED,
+    'music_assembler': ['pipelines/music_assembler'] + _SHARED,
 }
 
 

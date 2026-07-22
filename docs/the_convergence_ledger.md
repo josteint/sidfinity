@@ -118,6 +118,7 @@ practice, not code to factor).
 | LOSSY ENUM over independently-toggleable flag bits · USF enum assumed two editor flags mutually exclusive (gate hold $10 / never-release $08) · engine gives one priority so the co-set bit is MECHANICALLY DEAD · but the raw flags byte is OBSERVABLE via a state-as-data read (off-table fxf) → reconstruction misses the dead bit · carry the masked flag as an elidable boolean CO-FIELD, keep the enum = the EFFECTIVE articulation | C30 | logged |
 | COMPILATION · one file packs N INDEPENDENT players + a per-subtune SMC dispatch wrapper (subtune→(base,song)) · header overstates songs, sub0 FULL others silent/garbage · ≥2 jump-table bases · unified-merge (renumber+dedup instruments) · heterogeneous engines (dmc_sfx) · distinct from C27 parallel chips | C31 | logged |
 | engine STICKY STATE materialized into effective variants · orderlist state over the loop wrap (fitted pad/period/rcmd) · pattern-row sticky duration/instr/vol (FC (fc_id,init_len) variants · len=L pickup · DMC ~intro decode variants) · fold to STATED notation (value present iff the stream states the command; absent = inherit) + ONE shared resolution interpreter (src/usf/resolve.py) · re-derivation assert, fallback wholesale | C32 | canonicalized (2×) |
+| packed-stream byte whose meaning depends on the DECODER'S POSITION · a command handler consumes the following bytes itself with its OWN coarser rules (skipping the top-level dispatch AND the terminator test) · INVISIBLE to the write-stream verdict (re-emission round-trips through the same handler) — corrupts USF CONTENT only · find it by READING the handler | C34 | logged |
 | close a `Params.fields` ESCAPE-HATCH key → typed field · untyped behavior-named scalar in the generic params bag (init-phase state / mechanism scalar), borderline §7 · NOT opaque-bytes (C7) / NOT a wedge knob (C19) · it's a byte-identity CARRIER REFACTOR not a schema addition (value already in USF) · census ALL consumers (often cross-engine SHARED + dead readers) · clone an existing typed field of the same trichotomy category · type by MUSICAL category NOT a composer grouping · gate regenerates + MD5-compares every consumer family (surfaces broken extract paths behind a FULL verdict) | C33 | methodology |
 
 ---
@@ -659,6 +660,24 @@ practice, not code to factor).
   with the composer's table widening GATED so existing members stay
   byte-identical.
 - FULL ENTRY: [`ledger/C31.md`](ledger/C31.md) — read it before applying.
+
+### C34 — a packed-stream byte whose meaning depends on the DECODER'S POSITION
+- PRESENTS: you decode an engine's command stream from its per-byte dispatch
+  map, but a COMMAND HANDLER consumes the following byte ITSELF and dispatches
+  it by its own coarser rules — skipping both the top-level sub-splits and the
+  end-of-pattern test. The same byte means different things at different
+  positions (MA: after a preset select, `$A0+` is a REST not a HOLD, and `$FF`
+  is a rest not a terminator).
+- ⚠ THE WRITE-STREAM VERDICT IS BLIND TO IT: re-emitting the mis-decoded event
+  yields a byte the player reinterprets identically, so the member verifies
+  FULL forever while the USF carries wrong musical content (a `tie` where the
+  music rests). Find it by READING the handler, not by waiting for a failure.
+- CANONICAL: give the decoder the position state the player has (a "previous
+  command consumed me" flag + per-handler dispatch transcribed from the
+  handler's real branches). Behaviour-preserving, so it is safe to land alone.
+- TELL: a handler that does `INY / LDA (ptr),Y` before returning to the loop,
+  whose compare chain is SHORTER than the top-level map's.
+- FULL ENTRY: [`ledger/C34.md`](ledger/C34.md) — read it before applying.
 
 ### C33 — closing a `Params.fields` escape-hatch key → a typed field
 - PRESENTS: a leak scan flags a `params.fields['<key>']` that affects the

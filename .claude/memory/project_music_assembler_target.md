@@ -5,21 +5,77 @@ metadata:
   node_type: memory
   type: project
   originSessionId: fc3f0dc2-7e5f-4a76-bce6-958991c22a69
-  modified: 2026-07-22T11:09:14.607Z
+  modified: 2026-07-22T14:29:10.849Z
 ---
 
-STATUS (2026-07-22): **STARTED — anchor + census + sequence decode are in.**
-`locate.py` finds the player and its tables; `extract/decode.py` decodes
-orderlists + sequence streams; `tools/masm_census.py` / `tools/masm_decode_check.py`
-are the scale checks. **5,618 / 6,351 (88.5%) locate; of those 5,455 (97.1%)
-decode cleanly** (1.28M notes, 290k preset selects, 57k filter cmds, 18k
-slides), and the 8-byte PRESET table is decoded for all of them (46,660
-presets) and the ARPEGGIO table (31,369 arps / 140k steps). **A composer
-exists and the grounded member OPM/Sid_Slam verifies FULL** (85,574 writes
-exact over songlength*1.1, state_match=True). On a 60-member spread **15 (25%)
-are FULL with no per-member work**, so the engine is general, not fitted.
-Next: ledger C6 off-table freq (the dominant residue), then USF — the pipeline
-is currently SID -> model -> SID and MUST become SID -> USF -> SID.
+STATUS (2026-07-22, round 2): **THROUGH USF, wide batch 3,915 / 6,351 FULL
+(61.6%; 71.2% of the 5,502 members with a locatable player).** The pipeline is
+SID -> USF -> SID. Regression portfolio (16 members) + the Freespace_2075
+cross-family canary are wired as tier 1 in `tools/regression.py`; the family
+batch is `tools/masm_family_batch.py` (tier 2, code_hash-gated).
+NOT yet done: corpus mass-write/sync (deliberate — 33% residue is too high to
+store), and `detect_compilation` still does not classify MA sub-players.
+
+## Round 2 (2026-07-22) — USF round trip + ledger C6
+
+Three landed changes, each with its own commit:
+
+1. **C34 (new ledger entry) — post-preset dispatch.** The byte after a preset
+   select is consumed by the preset handler itself (`$C0EC: INY / LDA ($FA),Y
+   / CMP #$60 / BCS <rest handler>`), which skips the `$A0` hold sub-split AND
+   the end-of-pattern test. So `$A0..$FF` there is a REST and `$FF` there is a
+   rest of duration `$1F`, not a terminator. 6% of members. **The write-stream
+   verdict is structurally blind to this** — re-emitting the mis-decoded byte
+   round-trips through the same handler — so it was only findable by reading
+   the handler. It corrupted USF CONTENT only (a `tie` where the music rests).
+
+2. **SID -> USF -> SID.** No per-engine block; the mapping is in
+   `extract/to_usf.py`'s header (presets -> instruments, arpeggios -> the
+   instrument's WAVE PROGRAM, sequences -> note rows with C14 fx_flags,
+   orderlists -> Orderlist's own transposes/repeats). 10 new schema fields,
+   all on the musical axis. Also fixed: the composer honoured no orderlist
+   loop TARGET, so the `$FD nn` variant (260 members) silently wrapped to
+   entry 0 — it needs no USF flag, since we emit our own advance.
+
+3. **Ledger C6 off-table freq — the round's big lever, sample 12/60 -> 41/60.**
+   See the C6 entry for the three transferable lessons (freqhi sits BELOW
+   freqlo so hi reads land in PLAYER CODE; the reach walk must carry running
+   instrument AND running note across sequence boundaries; off-table reach
+   predicts the verdict almost exactly — 43/48 partials had it, 11/12 FULLs
+   did not).
+
+**METHOD WORTH REUSING — the knock-out sweep** (now recorded in ledger C7).
+Rather than mint a typed init field per work-file leftover, zero each of the
+24 and diff the emitted WRITE STREAM over a member sample: 10 never moved it.
+Then EXPLAIN the dead set from the engine — init leaves `durctr` at 0, so every
+voice FETCHES on frame 0 and that fetch overwrites gmask/curnote/presetx/arppos
+before any read; what survives is exactly a voice idling mid-note. That
+explanation is what makes the drop safe rather than sample-lucky. 10 fields
+not added.
+
+### Residue (from the authoritative batch, not a sample)
+
+1,587 partials, by first diverging register:
+
+| | | |
+|---:|---:|---|
+| 370 | 23.3% | length_only (state + prefix match, lengths differ) |
+| 323 | 20.4% | global `$D416` — filter cutoff |
+| 181 | 11.4% | global `$D418` — master volume, which the composer writes only at init |
+| 223 | 14.1% | `freq_lo` (V1 82 / V2 65 / V3 76) |
+| 79 | 5.0% | no first diff recorded |
+| ~140 | 8.8% | per-voice `ctrl` |
+| 102 | 6.4% | per-voice `sr` |
+
+849 unsupported: **742 no player located** (the predicted version tail —
+V1.1/V1.4 Triad, VoiceTracker, DoubleTracker/Ten Tracker), 55 arpeggio and 50
+sequence non-termination, 2 track-pointer.
+
+NEXT LEVERS, in dependency order (`feedback_residue_triage_order`): the two
+chip-global buckets are half the residue and neither is modelled at all —
+`$D418` is not written after init (likely a C10 per-song master-volume
+automation or a player variant), and `$D416` is the filter sweep. Then
+`length_only`, which is a rate/song-end class, not a content class.
 
 ## Census result (tools/masm_census.py, 2026-07-22)
 

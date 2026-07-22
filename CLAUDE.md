@@ -66,10 +66,14 @@ live in each family's `project_<engine>` memory + MEMORY.md, not here):
   built, wide batch run. NOT yet wired into regression.py.
 - **basic_program** (`pipelines/basic_program/`) — RSID-BASIC trace-lift →
   USF round-trip.
+- **Music Assembler** (`pipelines/music_assembler/`) — 3rd-largest family
+  (6,351 SIDs); SID → USF → SID, wide batch 61.6% FULL. Tier-1 portfolio +
+  the Freespace_2075 DMC+MA heterogeneous canary. See
+  [[project_music_assembler_target]].
 
 `tools/regression.py` is the verdict across the migrated families
-(Hubbard + companion + C64ME + Jay_Derrett + FC + DMC + basic_program;
-tier-1 portfolios for FC/DMC/basic). It prints the current ok /
+(Hubbard + companion + C64ME + Jay_Derrett + FC + DMC + basic_program +
+Music_Assembler; tier-1 portfolios for FC/DMC/basic/MA). It prints the current ok /
 known-partial / regressed counts and enumerates the pre-existing partial
 subtunes — treat it as the source of truth, not this file.
 
@@ -97,6 +101,9 @@ pipelines/
 ├── dmc/                ← ACTIVE. THE FOCUS ENGINE: v4/ + v5/ (factory,
 │                          dataflow extract, composer_asm, compilation)
 ├── goattracker/        ← ACTIVE. v1/ extract + composer
+├── music_assembler/    ← ACTIVE. 3rd-largest family: locate + packed-format
+│                          decode + composer_asm + to_usf/from_usf +
+│                          heterogeneous (the DMC+MA member)
 ├── basic_program/      ← ACTIVE. RSID-BASIC trace-lift (semantic_lift,
 │                          usf_roundtrip)
 ├── <family>/docs/      ← ~50 research-doc dirs (soundmonitor, jch_*, …)
@@ -150,7 +157,7 @@ HVSC original at `hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.{usf, sidfinity.sid}`.
   - `pipelines/<engine>/` only → that engine's verify only (e.g., `verify_featuredriven(CFG)` for FC, `verify_all([(cfg, sid)])` for Hubbard). Other families are physically untouched and can't regress.
   - `src/composer_runtime/`, `src/usf/types.py`, `pipelines/hubbard/verify_cycle.py`, or any shared plumbing → full `tools/regression.py` (one diff hits all engines).
   - Before commit → full `tools/regression.py` regardless of what was touched.
-- **Regression portfolio — the standard family-closeout step.** When a feature-driven family's wide batch is mass-written (the family reaches its FULL coverage), derive its regression portfolio and wire it as **tier 1** in `tools/regression.py`; the full family batch (`tools/<engine>_family_batch.py`) is the **tier 2** milestone verdict. The portfolio is the EXACT minimum set of FULL members covering every feature dimension the corpus exercises ≥2× (factory knobs + instrument effects + pattern/track structure) — so one cheap regression run guards the whole feature space, not just one canary. Tool: `tools/select_regression_portfolio.py --engine <name>` (engine-parametric registry; `exact_multicover` is engine-blind — adding a family = a registry entry + a `<engine>_features` function). **Re-derive whenever a new fix lands a big new clump of FULLs** — the portfolio is only as current as its last derivation (it is NOT auto-triggered). Wired today: `fc_standard` (11 members) + `dmc_v4` (5 members, covering relocation / loop-target / dual-phase / per-tune-tuning / multi-subtune) + `basic_program` (tools/basic_program_regression_portfolio.json).
+- **Regression portfolio — the standard family-closeout step.** When a feature-driven family's wide batch is mass-written (the family reaches its FULL coverage), derive its regression portfolio and wire it as **tier 1** in `tools/regression.py`; the full family batch (`tools/<engine>_family_batch.py`) is the **tier 2** milestone verdict. The portfolio is the EXACT minimum set of FULL members covering every feature dimension the corpus exercises ≥2× (factory knobs + instrument effects + pattern/track structure) — so one cheap regression run guards the whole feature space, not just one canary. Tool: `tools/select_regression_portfolio.py --engine <name>` (engine-parametric registry; `exact_multicover` is engine-blind — adding a family = a registry entry + a `<engine>_features` function). **Re-derive whenever a new fix lands a big new clump of FULLs** — the portfolio is only as current as its last derivation (it is NOT auto-triggered). Wired today: `fc_standard` (11 members) + `dmc_v4` (5 members, covering relocation / loop-target / dual-phase / per-tune-tuning / multi-subtune) + `basic_program` (tools/basic_program_regression_portfolio.json) + `music_assembler` (16 members + the Freespace_2075 DMC+MA cross-family canary). NOTE the portfolio is only half the wiring: `regression.py`'s per-family summary AND its **exit-code check** are a hardcoded family list, so a new family must be added to both or its failures print without failing the gate.
 - **Wide-family iteration — DON'T full-batch every experiment.** A full family batch (`tools/<engine>_family_batch.py` over ~1.5k members) is ~1 hr; running it to test each composer/extract fix is the slow trap. Instead: **iterate on a fixed STRATIFIED SUBSET** (~100-150 members, stratified across the current first-divergence buckets — V1sr / V1flo / FCLO / pulse / ... — PLUS a slice of currently-FULL members for regression coverage), ~5 min (~12× faster). It tells you the fix's direction + obvious regressions before committing. Run the **full batch ONLY at round closeout** (the authoritative count + the mass-write, which must build every FULL member), or when a fix touches a hot path with broad regression risk. NB code-Jaccard clustering does NOT help pick the subset — within a family the player is ~identical; pass/fail varies by DATA (which orderlist loops to a transpose, which filter table is tiny). Stratify by first-diff bucket / feature-cover (the `select_regression_portfolio.py` basis), not code similarity. The closeout can also be INCREMENTAL: re-verify only partials + unsupported (where gains come from) + a FULL-regression sample, and reason about the fix's regression scope (e.g. a loop-target fix can't regress a FULL — a FULL never hit that path).
 - **Carrier refactors are gated by BYTE-IDENTITY, not re-verification.** A
   carrier refactor moves WHERE information lives (params→typed field,

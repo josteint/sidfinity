@@ -284,6 +284,131 @@ def dmc_features(sid: str) -> tuple[str, set] | None:
     return (sid, f)
 
 
+MASM_WITNESSES = {
+    # The C6 off-table freq read — the family's dominant residue class, and
+    # both of its read sites (the arp path masks to 7 bits, the note path
+    # does not, so they overrun differently).
+    'offtable:arp', 'offtable:note',
+    # The orderlist targeted-loop target ($FD nn); the composer wrapped to
+    # entry 0 regardless until 2026-07-22.
+    'track:loop_target',
+    # Idle-mid-note priming: a voice whose first event is a rest/hold plays
+    # the work-file leftovers instead of a note-init.
+    'init:note_active', 'init:sliding',
+    # The post-preset dispatch position (ledger C34).
+    'pat:preset_rest',
+}
+
+
+def masm_features(sid: str) -> tuple[str, set] | None:
+    """Music Assembler feature set for one FULL member.
+
+    Same 20s-alarm discipline as the FC/DMC extractors."""
+    import signal
+
+    def _bail(_sig, _frm):
+        raise TimeoutError
+
+    signal.signal(signal.SIGALRM, _bail)
+    signal.alarm(20)
+    from pipelines.music_assembler.extract.model import extract
+    from pipelines.music_assembler.extract.to_usf import offtable_reach
+    try:
+        m = extract(sid)
+    except Exception:
+        return None
+    finally:
+        signal.alarm(0)
+    f: set[str] = set()
+    f.add('speed:%d' % min(m.speed, 8))
+    if len(m.presets) > 12:
+        f.add('struct:inst_growth')
+
+    # --- off-table freq reads (ledger C6), split by read site ---
+    reach = offtable_reach(m)
+    if reach:
+        f.add('offtable:any')
+        arp_of = {p.id: m.arps.get(p.arp_index) for p in m.presets}
+        for pid, idxs in reach.items():
+            if arp_of.get(pid) is not None:
+                f.add('offtable:arp')
+        seq_tr = {}
+        for t in m.tracks:
+            for e in t.entries:
+                seq_tr.setdefault(e.seq, set()).add(e.transpose)
+        for sn, ev in m.sequences.items():
+            for e in ev:
+                if e.kind == 'note' and any(
+                        (tr + e.value) & 0xFF >= 96
+                        for tr in seq_tr.get(sn, {0})):
+                    f.add('offtable:note')
+
+    # --- instrument effect dimensions ---
+    for p in m.presets:
+        if p.fx & 0x40:
+            f.add('fx:pulse_linear')
+        elif p.fx & 0x20:
+            f.add('fx:pulse_bidir')
+        if p.fx & 0x10 and p.vib_depth:
+            f.add('fx:vibrato')
+            if p.vib_delay:
+                f.add('fx:vib_delay')
+        a = m.arps.get(p.arp_index)
+        if a is not None:
+            f.add('fx:arp_loop' if a.loops else 'fx:arp_stop')
+            for st in a.steps:
+                f.add('fx:arp_abs' if st.absolute else 'fx:arp_rel')
+                if st.filter_lp:
+                    f.add('fx:arp_filter')
+
+    # --- init priming (trichotomy §4.5) ---
+    def _pv(key, i):
+        v = m.prime.get(key)
+        return v[i] if isinstance(v, list) else 0
+    for i in range(3):
+        flg = _pv('noteflg', i)
+        if flg & 0x40:
+            f.add('init:note_active')
+        if flg & 0x20:
+            f.add('init:sliding')
+        if _pv('pwlo', i) or _pv('pwhi', i):
+            f.add('init:pulse_width')
+    if m.prime.get('fdur') or m.prime.get('fvel'):
+        f.add('init:filter_sweep')
+    if m.prime.get('fcutr') or m.prime.get('fdurr'):
+        f.add('init:filter_arm')
+
+    # --- track / pattern structure ---
+    for t in m.tracks:
+        if not t.loops:
+            f.add('track:stop')
+        else:
+            f.add('track:loop_target' if t.loop_to else 'track:loop')
+        if any(e.transpose for e in t.entries):
+            f.add('track:transpose')
+        if any(e.repeat for e in t.entries):
+            f.add('track:repeat')
+    for ev in m.sequences.values():
+        prev = None
+        for e in ev:
+            if e.kind == 'note':
+                if e.legato:
+                    f.add('pat:legato')
+                if e.slide:
+                    f.add('pat:slide')
+                if e.filt:
+                    f.add('pat:filter_sweep' if e.filt[1] else 'pat:filter_off')
+            elif e.kind == 'hold':
+                f.add('pat:hold')
+            elif e.kind == 'rest':
+                f.add('pat:rest')
+                # the ledger-C34 position: a rest the PRESET handler decoded
+                if prev is not None and prev.kind == 'preset':
+                    f.add('pat:preset_rest')
+            prev = e
+    return (sid, f)
+
+
 # Engine registry: each family declares where its wide-batch results
 # live, where the portfolio goes, the feature extractor, the bug
 # witnesses, and the per-record SID key in the jsonl. Adding a family =
@@ -303,6 +428,14 @@ ENGINES = {
         'features': dmc_features,
         'witnesses': DMC_WITNESSES,
         'sid_key': 'path',
+    },
+    'music_assembler': {
+        'results': os.path.join(ROOT, 'tmp', 'masm_wide_results.jsonl'),
+        'out': os.path.join(ROOT, 'tools',
+                            'masm_regression_portfolio.json'),
+        'features': masm_features,
+        'witnesses': MASM_WITNESSES,
+        'sid_key': 'sid',
     },
 }
 
