@@ -80,6 +80,22 @@ def _confirm(path: str) -> tuple[str, str, str]:
     return path, 'error', out.strip().splitlines()[-1] if out.strip() else ''
 
 
+def _preflight() -> None:
+    """Refuse to run on a broken environment.
+
+    Without `source src/env.sh` the .pylocal path is missing and EVERY member
+    fails `dmc_build_one` with ModuleNotFoundError. Those were recorded as
+    per-member 'error' rows and saved — rewriting the whole 149-member hint
+    queue to 'error' in one pass and destroying it (2026-07-23). An environment
+    failure is not evidence about any member."""
+    try:
+        import lark  # noqa: F401
+    except ModuleNotFoundError as e:
+        raise SystemExit(
+            f'environment not set up ({e}) — run `source src/env.sh` first '
+            '(it puts .pylocal + src on PYTHONPATH).')
+
+
 def _seed_batch() -> str | None:
     """The NEWEST f1 batch results file to seed the queue from.
 
@@ -135,6 +151,7 @@ def main() -> int:
                     help='partials to re-confirm in parallel per pass')
     args = ap.parse_args()
 
+    _preflight()
     rows = _load(args.list)
     by_path = {r['path']: r for r in rows}
     queue = [r['path'] for r in sorted(rows, key=lambda r: r['path'])
@@ -151,6 +168,15 @@ def main() -> int:
         with ThreadPoolExecutor(
                 max_workers=default_jobs(cap=len(window))) as ex:
             results = {p: (s, loc) for p, s, loc in ex.map(_confirm, window)}
+        if all(results[p][0] == 'error' for p in window):
+            # Systemic failure (broken env, missing tool, corrupt seed), not N
+            # independent per-member build errors. Saving would overwrite real
+            # 'partial' hints with 'error' and destroy the queue.
+            for p in window:
+                print(f'  ERROR building {p}: {results[p][1]}')
+            raise SystemExit(
+                f'every member in the window ({len(window)}) failed to build — '
+                'treating as a systemic failure; queue NOT modified.')
         for p in window:                       # strict path order within window
             s, loc = results[p]
             by_path[p]['status'] = s
