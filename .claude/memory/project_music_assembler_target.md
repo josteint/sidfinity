@@ -82,6 +82,32 @@ A `LDA`-only ($B9) scan misses +6 entirely — it is reached by `SBC`/`ADC`
 claim. The docs ARE wrong here, but differently: the Fx+arpeggio byte is +7,
 not +6, and +6 is the vibrato depth.
 
+## Freespace_2075: DMC + MA heterogeneous member — ALL 3 SUBTUNES FULL
+
+`heterogeneous.py`. A scan of all 163 DMC f1 partials found **exactly one**
+member carrying an MA player: `Bayliss_Richard/Freespace_2075` (sub 0 = DMC v4
+at $1000; subs 1-2 = MA players the round-85 RELOCATING wrapper copies
+$2000->$4700 and $2800->$3700). The rebuild composes all three engines behind
+a dispatcher at the PSID vectors — the dmc_sfx shape from ledger C31.
+
+**Verified FULL on all three subtunes**: 225,157 / 127,969 / 35,179 writes
+exact, state_match=True on each.
+
+Two reusable pieces came out of it:
+- `compose_asm(m, origin=, prefix=)` relocates an MA engine and prefixes every
+  label, so SEVERAL MA engines can share one image.
+- **`preset_table()`/`arp_tables()` searched the WHOLE 64K.** With >1 MA player
+  present they returned the FIRST player's table for every player — an address
+  not materialised for the others, so every preset field read back ZERO (right
+  note frequencies, but SR/AD/ctrl/PW all $00). Both now take the `lo`/`hi`
+  block bounds `locate()` already had. This is the bug that made sub 2 diverge
+  at write 3.
+
+NOT YET WIRED: `detect_compilation` does not classify MA sub-players and the
+member does not round-trip through USF (built straight from the models), so
+the DMC family batch still reports it partial. The AUDIO is proven; the
+pipeline integration is not done.
+
 ## The composer — `composer_asm.py`, `verify.py` (2026-07-22)
 
 Extract -> model -> composed 6502 -> write stream vs HVSC

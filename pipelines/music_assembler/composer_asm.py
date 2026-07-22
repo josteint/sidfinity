@@ -543,12 +543,48 @@ anote0  ldy #$1f
 """
 
 
-def compose_asm(m) -> str:
-    """Full engine + data for `m` as xa65 source."""
+def compose_asm(m, origin: int = LOAD, prefix: str = '') -> str:
+    """Full engine + data for `m` as xa65 source.
+
+    `origin` relocates the whole engine; `prefix` disambiguates every label so
+    SEVERAL MA engines can be assembled into one image (a DMC C31 compilation
+    packs more than one)."""
     body = ENGINE.replace('SPEED', '$%02X' % m.speed)
+    body = body.replace('* = $1000', '* = $%04X' % origin)
     for k in ('fcutr', 'fdurr', 'fdur', 'fcut', 'fvel'):
         body = body.replace('PRIME_' + k, '$%02X' % m.prime.get(k, 0))
-    return body + chr(10) + _data(m)
+    src = body + chr(10) + _data(m)
+    if prefix:
+        src = _relabel(src, prefix)
+    return src
+
+
+_LABELS = ('init', 'play', 'padv', 'dnext', 'dadv', 'vnext', 'rel', 'fetch',
+           'fok', 'frest', 'fcmd', 'fpre', 'fnote', 'ffilt', 'ffon', 'fnend',
+           'fend', 'frst', 'fsave', 'fnw', 'voice', 'iv', 'it', 'nf',
+           'effects', 'noflt', 'novib', 'vadd', 'vtail', 'pulse', 'pvib',
+           'psub', 'ptail', 'out', 'plain', 'dosl', 'doarp', 'aabs', 'askip',
+           'asave', 'astop', 'anote0', 'fcut0', 'fvel0', 'fdur0', 'fcutr0',
+           'fdurr0', 'seqlo', 'seqhi', 'seq_none', 'trklo', 'trkhi', 'preset',
+           'arplo', 'arphi', 'arp_none', 'freqlo', 'freqhi', 'vbase', 'vibdir',
+           'froute', 'speedctr', 'filtowner', 'readpos', 'ctrlw', 'orderpos',
+           'durctr', 'seqnum', 'transrep', 'repctr', 'curnote', 'nfrqlo',
+           'nfrqhi', 'sfrqlo', 'sfrqhi', 'noteflg', 'arppos', 'sl1', 'sl2',
+           'vibdly', 'vibfr', 'vibph', 'pwfr', 'pwdir', 'pwlo', 'pwhi',
+           'presetx', 'gmask', 'rattle')
+
+
+def _relabel(src: str, prefix: str) -> str:
+    import re
+    # longest-first so `seq_none` is not eaten by `seq_`, `arp_none` by `arp_`
+    names = sorted(set(_LABELS), key=len, reverse=True)
+    pat = re.compile(r'\b(' + '|'.join(names) + r'|seq_\d+|arp_\d+|trk_\d)\b')
+    return pat.sub(lambda mm: prefix + mm.group(1), src)
+
+
+def build_blob(m, origin: int, prefix: str) -> bytes:
+    """Assemble one MA engine at `origin` for embedding alongside others."""
+    return assemble(compose_asm(m, origin=origin, prefix=prefix))
 
 
 def build_sid(m, title: str = '', author: str = '',

@@ -48,6 +48,11 @@ into RAM per subtune**, so it is not in the file image at all. Commit
   per-subtune `extra_params` (its players disagree on `rest_effects`;
   `MusicSubtune.params` exists but the DMC composer doesn't read it);
   Black_It packs a 3rd player layout (init +$40 / play +$95).
+- ✅ **Freespace_2075 now rebuilds FULL on all 3 subtunes** (225,157 /
+  127,969 / 35,179 writes exact) via `pipelines/music_assembler/heterogeneous.py`
+  — DMC v4 for sub 0 + the two Music_Assembler players behind a dispatcher.
+  NOT yet wired into the DMC pipeline (detection doesn't classify MA
+  sub-players; no USF round-trip), so the f1 batch still counts it partial.
 - ⚠ **Freespace_2075 is NOT a DMC-only member.** Its two relocated
   sub-players are **Music_Assembler** (6,349 of 6,438 opcode-skeleton carriers
   are MA; its init `$D418=$1F / $D417=$F0` is the MA signature the trichotomy
