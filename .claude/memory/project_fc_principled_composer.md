@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: 34baf59d-942f-49ab-b1d7-123e07963888
-  modified: 2026-07-22T08:27:00.084Z
+  modified: 2026-07-22T08:40:37.673Z
 ---
 
 ## ⚠️ 2026-07-22 — ORIG-FREE ≠ USF-COMPLETE (measured; OPEN, needs a decision)
@@ -19,14 +19,23 @@ field `composer_asm.py` reads — 72 of them):
 - 9 are layout addresses → feed the data-base float; write-stream-neutral.
 - `subtune_layout` varies (2 values) but is EXTRACT-only: flipping it and
   rebuilding from the same stored `.usf` is byte-identical (verified 3×).
-- **3 vary per member AND change the emitted bytes (verified by flipping each
-  and rebuilding from the same stored `.usf`):**
-  - `std_arp3_init` — 20 distinct values, e.g. `(0,12,24)` (an octave arp) vs
-    `(0,0,1)`. Baked initial 3-byte offset table at orig $1E86-$1E88. This one
-    is arguably musical CONTENT, not mechanism.
-  - `std_glide_hi_reg` — 2 values ($01 normal / $55 the hacked mirror-register
-    operand at orig $1B3F, ~20 members).
-  - `std_vibrato_stale_tail` — 2 values (orig $2046 variant $EB vs $DC).
+- **3 vary per member and are LOAD-BEARING** — measured by forcing a wrong
+  value and verifying against the ORIGINAL (full corpus census of all 10053
+  FULL members for the carrier counts):
+  - `std_vibrato_stale_tail` (orig $2046, variant $EB/$DC) — **121 carriers,
+    load-bearing on 30/30 sampled.** The big one.
+  - `std_glide_hi_reg` (orig $1B3F operand, $01 vs $55) — **80 carriers,
+    load-bearing on 24** (the other 56 never reach the glide-up path).
+  - `std_arp3_init` (orig $1E86-$1E88 seed) — 47 distinct values that LOOK
+    musical (`(0,3,7)` minor, `(0,4,7)` major, `(0,12,24)` octaves) but slots
+    1-2 are runtime scratch, overwritten by every vibrato-skipped instrument:
+    **inert on 70/70.** Only slot 0 is read, and it is 0 everywhere except
+    ONE member — `Emotional_Mozes/Intro_Music_I` ($E0), which breaks when
+    forced to 0. **So: 1 carrier.**
+  - ⚠ FIRST PASS GOT THIS WRONG by diffing emitted BYTES instead of the write
+    stream: all 3 "changed bytes", so all 3 were called musical content. An
+    init seed changes the `lda #$xx` immediate without changing the stream.
+    Recorded as ledger C7's byte-identity-is-a-one-way-gate note.
 
 None appear in the `.usf` — a standard member's `params {}` block is EMPTY.
 They are C19-class player WEDGES, which the CORE TENET explicitly sanctions as

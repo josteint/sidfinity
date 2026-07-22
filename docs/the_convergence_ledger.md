@@ -198,6 +198,18 @@ practice, not code to factor).
   (b) document+minimize, (c) exclude), C justified (bytes ARE the natural
   musical form: tuning tables, digi PCM). Consult the full entry before adding
   ANY content-by-reference / bytes-typed USF field.
+- A3 — the PARAM-SHAPED leapfrog: a probe lifts an orig byte into a CONFIG
+  FIELD and the composer emits from it — orig→output, never through the USF,
+  just not shaped like a blob. TELL: a value that varies per MEMBER within one
+  engine family and reaches the composer as a constructor argument (a family
+  CONSTANT is mechanism and correctly lives in the engine). Live instance:
+  fc_standard's std_vibrato_stale_tail / std_glide_hi_reg / std_arp3_init.
+- ⚠ BYTE-IDENTITY IS A ONE-WAY GATE: `same bytes ⇒ same verdict` is valid;
+  `diff bytes ⇒ different behaviour` is NOT. To decide whether a knob MATTERS,
+  force a wrong value and verify against the ORIGINAL — diffing your own two
+  rebuilds answers a different question (an init seed changes the `lda #$xx`
+  immediate while the write stream is identical). Test real CARRIERS and report
+  the carrier count, never one example.
 - FULL ENTRY: [`ledger/C7.md`](ledger/C7.md) — read it before applying.
 
 ### C8 — de-fused per-entity program pool overflows the engine's byte index
