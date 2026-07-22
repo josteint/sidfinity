@@ -30,11 +30,34 @@ SEQUENCE FORMAT (the corrected map):
             the range is 32 presets, NOT the 16 the docs claim for $Ax).
             Carries NO duration of its own: the player immediately re-reads
             the next byte and dispatches it as a note (< $60) or a
-            rest/hold (>= $60).
+            REST (>= $60) -- see POST-PRESET DISPATCH below.
   $A0..$FF  HOLD; duration = AA & $1F. No follow byte.
   $FF       ...is therefore also "HOLD $1F" by range, but the END-OF-PATTERN
             test at $C188 is applied to the byte reached AFTER the current
             event completes, so $FF is only a terminator in that position.
+
+POST-PRESET DISPATCH — the byte after a preset is NOT re-dispatched through
+the top of the loop. Read off the original ($C0EC preset handler, Sid_Slam):
+
+    $C0EC: ASL A / ASL A / ASL A / STA presetx,X
+    $C0F2: INY / LDA ($FA),Y
+    $C0F5: CMP #$60
+    $C0F7: BCS $C0B6            ; -> the REST handler, verbatim
+    $C0F9: ...                  ; else fall through to NOTE
+
+and $C0B6 is the rest handler (`AND #$1F / STA durctr,X / LDA #$FE /
+STA gmask,X / JSR release`). Two consequences the plain per-byte map misses:
+
+  * `$A0..$FF` after a preset is a **REST**, not a HOLD -- the $A0 sub-split
+    lives only in the $C0D2 command-class handler, which this path skips. It
+    releases the gate. (77 occurrences across a 400-member sample, 6% of
+    members.)
+  * `$FF` after a preset is a rest of duration $1F, NOT end-of-pattern -- the
+    $C188 terminator test is only reached after a COMPLETED event.
+
+So the decoder carries a one-byte position state. Decoding these as holds
+would mint a `tie` where the music has a rest: inaudible in a rebuild that
+re-emits the same bytes, but wrong musical content in the USF.
 
 ORDERLIST (per track, 2 bytes per entry, from init $C05F and the advance path
 at $C193):
@@ -169,19 +192,27 @@ def sequence(mem, addr: int, max_bytes: int = 4096) -> list:
     Stops at the end-of-pattern `$FF` in TERMINATOR position (i.e. where the
     player's $C188 check runs: after a completed event).
     """
-    out, i = [], 0
+    out, i, after_preset = [], 0, False
     while i < max_bytes:
         aa = mem[(addr + i) & 0xFFFF]
-        if aa == END_OF_PATTERN:
+        if aa == END_OF_PATTERN and not after_preset:
             return out
         i += 1
-        if PRESET_LO <= aa <= PRESET_HI:
+        if after_preset:
+            # $C0F5: CMP #$60 / BCS <rest handler>. No $A0 sub-split and no
+            # end-of-pattern test on this byte.
+            after_preset = False
+            if aa >= REST_LO:
+                out.append(Event('rest', duration=aa & 0x1F))
+                continue
+        elif PRESET_LO <= aa <= PRESET_HI:
             out.append(Event('preset', value=aa & 0x1F))
+            after_preset = True
             continue                      # no duration; next byte dispatches
-        if aa >= HOLD_LO:
+        elif aa >= HOLD_LO:
             out.append(Event('hold', duration=aa & 0x1F))
             continue
-        if REST_LO <= aa <= REST_HI:
+        elif REST_LO <= aa <= REST_HI:
             out.append(Event('rest', duration=aa & 0x1F))
             continue
         # NOTE: always carries a flags/duration byte
