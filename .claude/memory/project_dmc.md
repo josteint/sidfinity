@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-22T06:29:06.877Z
+  modified: 2026-07-22T06:30:44.880Z
 ---
 
 ## ✅ ROUND 82 (2026-07-22): multi-SID residue + THE MASS-WRITE PALIMPSEST — f1 **5236 full / 165 partial / 0 error**, corpus mass-written
@@ -58,11 +58,17 @@ Commits d7eb79dd, d9e23bf0, 65a9b4b3, a9bce98e.
 - **REMAINING multi-SID residue (4):** Kordiaukis_01 (chip-2 content),
   Nice_Dream (single-chip drift), Mothafucka (needs C26 for a sub-player),
   4_Ever_Young + Popel_Premiere (RSID rate) — the last two outside f1.
-- **`usf_corpus_check` = 84 unparseable, unchanged** (52 f2 `dcmd`, 27 f4
-  `speed_ctr_init`, 4 f1 `slide_phase`, 1 GT1). The 4 f1 are
-  Big_GLORZ / Heniek / Yo_Raps / Radio_Napalm — all PARTIAL, so no
-  mass-write can ever refresh them; they want DELETING (not yet done —
-  awaiting the user's go-ahead).
+- **`usf_corpus_check` 84 → 80 unparseable.** The 4 f1 `slide_phase`
+  leftovers (Big_GLORZ / Heniek / Yo_Raps / Radio_Napalm — all PARTIAL, so
+  no mass-write could ever refresh them) were DELETED per C20's rule. The
+  remaining 80 are the two in-progress families' own residue (52 f2 `dcmd`,
+  27 f4 `speed_ctr_init`, 1 GT1), refreshed by their own batches.
+- **OPEN — a wider palimpsest set nobody has scoped:** 56 of the 165 f1
+  non-FULL members still have a stored `.usf` (and 2 a stored
+  `.sidfinity.sid`) from an earlier code state that judged them FULL. They
+  PARSE, so `usf_corpus_check` cannot see them, and no mass-write will ever
+  refresh them (mass-writes only write FULLs). Same class as the 4 above,
+  just readable. Decide: delete, or keep as a record.
 - Gates: full regression green (8 families) ×3; dmc_smoke 6/6; every
   previously-FULL multi-SID member re-verified at each step.
 
