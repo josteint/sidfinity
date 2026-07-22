@@ -78,19 +78,31 @@ def extract(sid_path: str, hvsc_root: str = 'hvsc84') -> MasmModel:
     for i, b in enumerate(s['payload']):
         if s['load'] + i < 0x10000:
             mem[s['load'] + i] = b
-    lay = locate(mem)
+    return extract_mem(mem, hdr=s)
+
+
+def extract_mem(mem, hdr: dict | None = None, lo: int = 0,
+                hi: int = 0x10000) -> MasmModel:
+    """Extract a Music Assembler player already materialised in `mem`.
+
+    Used directly when the player does not live at its run address in the file
+    image — a DMC C31 RELOCATING wrapper copies MA players into RAM per
+    subtune, so the caller runs the wrapper first and hands the resulting
+    memory here (`lo`/`hi` bound the search to that player's block)."""
+    s = hdr or {}
+    lay = locate(mem, lo, hi)
     if lay is None:
         raise ValueError('no Music Assembler player located')
     w = _decode.walk(mem, lay)
 
     used = sorted({e.value for _, ev in w['sequences'].values()
                    for e in ev if e.kind == 'preset'})
-    pt = _presets.preset_table(mem)
+    pt = _presets.preset_table(mem, lo, hi)
     if pt is None:
         raise ValueError('preset table not located')
     pres = _presets.presets(mem, pt[0], (max(used) + 1) if used else 0)
 
-    at = _arps.arp_tables(mem)
+    at = _arps.arp_tables(mem, lo, hi)
     arp_map = {}
     for idx in sorted({p.arp_index for p in pres if p.arp_index}):
         if at is None:

@@ -79,10 +79,16 @@ class Preset:
         return bool(self.fx & 0x40)
 
 
-def preset_table(mem) -> 'tuple[int, int] | None':
+def preset_table(mem, lo: int = 0, hi: int = 0x10000):
     """(preset_table_base, voice_base_array) located from the player's own
-    operands, or None when the anchor isn't present."""
-    m = _PRESET_SITE.search(bytes(mem))
+    operands, or None when the anchor isn't present.
+
+    `lo`/`hi` bound the search to ONE player's code block. That matters
+    whenever more than one MA player is present in the same 64K — a DMC C31
+    compilation packs several, and an unbounded search returns the FIRST
+    player's table for every one of them (its address is not materialised for
+    the others, so every preset field reads back as zero)."""
+    m = _PRESET_SITE.search(bytes(mem[lo:hi]))
     if not m:
         return None
     p0 = m.group(1)[0] | (m.group(1)[1] << 8)

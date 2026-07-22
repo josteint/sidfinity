@@ -71,9 +71,11 @@ class Arp:
     loops: bool                # ended on $FF (loop to 0) rather than $FE stop
 
 
-def arp_tables(mem) -> 'tuple[int, int] | None':
-    """(lo_table, hi_table) for the 16 arpeggio pointers, or None."""
-    m = _ARP_SITE.search(bytes(mem))
+def arp_tables(mem, lo: int = 0, hi: int = 0x10000):
+    """(lo_table, hi_table) for the 16 arpeggio pointers, or None.
+
+    `lo`/`hi` bound the search to one player's block — see preset_table()."""
+    m = _ARP_SITE.search(bytes(mem[lo:hi]))
     if not m:
         return None
     lo = m.group(1)[0] | (m.group(1)[1] << 8)
