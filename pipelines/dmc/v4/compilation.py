@@ -124,7 +124,7 @@ def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
             if song_tab is None:
                 song_tab = vals
     if base_tab is None:
-        return None
+        return _observe_dispatch(sid_path, hvsc_root)
     if song_tab is None:
         # single-player-per-subtune dispatch with no song remap: every subtune
         # is song 0 of its selected player.
@@ -140,13 +140,112 @@ def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
     try:
         mp = [(base_idx[base_tab[x] << 8], song_tab[x]) for x in range(songs)]
     except (KeyError, IndexError):
-        return None
+        return _observe_dispatch(sid_path, hvsc_root)
     # Only a genuine compilation: the dispatch must actually select >=2
     # DISTINCT players. A single-player-with-wrapper (all subtunes -> one base)
     # is handled by the ordinary single-player path — never route it here.
     if len({pidx for pidx, _ in mp}) < 2:
-        return None
+        return _observe_dispatch(sid_path, hvsc_root)
     return {'bases': ordered_bases, 'map': mp}
+
+
+def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
+                      max_steps: int = 4000):
+    """Discover the per-subtune (player, song) map by RUNNING the wrapper.
+
+    The static decode above reads the wrapper's `LDA abs,X` tables assuming
+    X *is* the subtune number and that the base table holds page HI-bytes
+    only (the JMP lo-bytes being fixed at $00, since players are page
+    aligned). Wrapper shapes vary: Bayliss's Defuzion_3 SCALES the index
+    (`ASL A; TAX` -> X = subtune*2) and patches full lo/hi VECTOR PAIRS, so
+    every candidate table decodes to interleaved garbage ($5000, $0000,
+    $6000, ...) and the static pass gives up.
+
+    Per C18/C27 the cure is to OBSERVE rather than teach the parser one more
+    shape: run the member's own init with A = subtune under py65 and record
+    where it lands and what A it carries when it gets there. The landing is
+    the selected player base and A is the song number that player is
+    initialised with — exactly the (player, song) pair the spec needs,
+    whatever arithmetic the wrapper used to compute it. The image is reloaded
+    per subtune because the dispatch is SMC.
+
+    Runs only as a LATER pass (the static decode wins whenever it resolves),
+    and is pre-gated on the image carrying >=2 page-aligned player bases, so
+    an ordinary single-player member never pays for the emulation.
+    """
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
+                                    '..', '..', '..', 'tools', 'py65_lib'))
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
+                                    '..', '..', '..', 'tools'))
+    try:
+        from py65.devices.mpu6502 import MPU
+        from py65.memory import ObservableMemory
+        from seed_disassembly import parse_psid
+    except ImportError:
+        return None
+    try:
+        s = parse_psid(os.path.join(hvsc_root, sid_path))
+    except Exception:
+        return None
+
+    # Never speak for a MULTI-SID member (C27), whose wrapper also selects
+    # among several player bases — but in PARALLEL, one per chip every frame,
+    # not one per subtune. Observation alone cannot tell the two apart: a
+    # 2SID wrapper that gates its per-chip calls on the subtune (Rayden ships
+    # sub 0 = both chips, 1 = chip 1, 2 = chip 2) makes different subtunes
+    # LAND on different players, which reads exactly like a compilation. The
+    # PSID header's chip count is the authoritative discriminator.
+    from pipelines.dmc.v4.factory import _sid_header_multi
+    if _sid_header_multi(os.path.join(hvsc_root, sid_path))[0] > 1:
+        return None
+
+    load, songs = s['load'], s.get('songs', 1)
+    img = bytearray(0x10000)
+    for i, b in enumerate(s['payload']):
+        if load + i < 0x10000:
+            img[load + i] = b
+
+    # Pre-gate: a compilation needs >=2 packed players. Cheap page-aligned
+    # scan of the file image; bail before touching py65 when it can't be one.
+    hi = min(0x10000, load + len(s['payload']))
+    if sum(1 for a in range((load + 0xFF) & ~0xFF, hi, 0x100)
+           if _is_player_base(img, load, a)) < 2:
+        return None
+
+    obs = []
+    for sub in range(songs):
+        mem = ObservableMemory()
+        for a in range(load, hi):
+            mem[a] = img[a]
+        mpu = MPU()
+        mpu.memory = mem
+        mpu.pc, mpu.a = s['init'], sub
+        landed = None
+        for _ in range(max_steps):
+            # The wrapper's own entry can itself be page-aligned, so never
+            # accept the address we started from as the landing.
+            if mpu.pc != s['init'] and not (mpu.pc & 0xFF) \
+                    and _is_player_base(mem, load, mpu.pc):
+                landed = (mpu.pc, mpu.a)
+                break
+            try:
+                mpu.step()
+            except Exception:
+                break
+        if landed is None:
+            return None
+        obs.append(landed)
+
+    ordered_bases = []
+    for b, _ in obs:
+        if b not in ordered_bases:
+            ordered_bases.append(b)
+    if len(ordered_bases) < 2:
+        return None
+    idx = {b: i for i, b in enumerate(ordered_bases)}
+    return {'bases': ordered_bases,
+            'map': [(idx[b], song) for b, song in obs]}
 
 
 # ---------------------------------------------------------------------------
@@ -287,32 +386,43 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
     # union, so the two land as distinct ids in the same base bucket.
     pool = defaultdict(list)        # base key (no offtable) -> [new_iid, ...]
     remap = defaultdict(dict)       # player_idx -> {old_iid: new_iid}
-    for pidx in sorted(used):
-        m = models[pidx]
-        for old in sorted(used[pidx]):
-            inst = m.instruments.get(old)
-            if inst is None:
-                continue
-            ni = copy.deepcopy(inst)
-            if conflict and ni.filter_on and (pidx, ni.filter_def) in fd_remap:
-                ni.filter_def = fd_remap[(pidx, ni.filter_def)]
-            bk = _inst_key(ni, drop=('offtable_freq',))
-            placed = None
-            for nid in pool[bk]:
-                u = _merge_offtable(merged.instruments[nid].offtable_freq,
-                                    ni.offtable_freq)
-                if u is not None:
-                    merged.instruments[nid].offtable_freq = u
-                    placed = nid
-                    break
-            if placed is not None:
-                remap[pidx][old] = placed
-                continue
-            new = len(merged.instruments)
-            pool[bk].append(new)
-            remap[pidx][old] = new
-            ni.id = new
-            merged.instruments[new] = ni
+    # RECORD 0 FIRST. The engine's note-init cache is init-cleared to 0, so a
+    # voice idling before its first note runs instrument record 0's pulse/wave
+    # mechanism (RE_NOTES "idle-note voice_state priming") — which is why the
+    # single-player extract force-includes record 0 as USF slot 0. The merge
+    # rebuilds the pool from ROW-referenced instruments only, so record 0 lost
+    # that slot and every idling voice ran whichever instrument happened to
+    # sort first (Defuzion_3 sub 3: V3's track is a bare $FE stop, so it idles
+    # the whole song and wrote PW lo $00 where the orig writes $40). Seeding
+    # the pool with the start player's record 0 restores the invariant; the
+    # dedup collapses it into an identical row-referenced instrument, so a
+    # member whose record 0 is already played keeps its exact pool size.
+    placements = [(base_pidx, 0)] + [(pidx, old) for pidx in sorted(used)
+                                     for old in sorted(used[pidx])]
+    for pidx, old in placements:
+        inst = models[pidx].instruments.get(old)
+        if inst is None:
+            continue
+        ni = copy.deepcopy(inst)
+        if conflict and ni.filter_on and (pidx, ni.filter_def) in fd_remap:
+            ni.filter_def = fd_remap[(pidx, ni.filter_def)]
+        bk = _inst_key(ni, drop=('offtable_freq',))
+        placed = None
+        for nid in pool[bk]:
+            u = _merge_offtable(merged.instruments[nid].offtable_freq,
+                                ni.offtable_freq)
+            if u is not None:
+                merged.instruments[nid].offtable_freq = u
+                placed = nid
+                break
+        if placed is not None:
+            remap[pidx][old] = placed
+            continue
+        new = len(merged.instruments)
+        pool[bk].append(new)
+        remap[pidx][old] = new
+        ni.id = new
+        merged.instruments[new] = ni
     if len(merged.instruments) > _MAX_INSTR:
         raise ValueError(
             f'merged compilation needs {len(merged.instruments)} instruments '
@@ -323,6 +433,11 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
     for si, (pidx, sidx) in enumerate(subtune_map):
         song = copy.deepcopy(models[pidx].songs[sidx])
         song.id = si + 1
+        # each subtune idles on ITS OWN player's work-file leftovers, not the
+        # start player's (Defuzion_3's three players prime curnote 0/0/48)
+        song.idle_notes = tuple(models[pidx].idle_notes)
+        song.idle_masks = tuple(models[pidx].idle_masks)
+        song.durrel_init = tuple(models[pidx].durrel_init)
         rm = remap[pidx]
         for v in song.voices:
             for rows in v.patterns:

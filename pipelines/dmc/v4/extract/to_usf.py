@@ -519,6 +519,17 @@ def model_to_usf(m: DmcModel) -> UsfFile:
         (off + note) & 0xFF in _SECTPOS_IDX
         for ins in m.instruments.values()
         for off, note, *_ in ins.offtable_freq)
+    # duration-reload leftover priming ($173E-$1740): emitted ONLY when an
+    # off-table freq read actually lands on the durreload rows (see the
+    # file-level block below for the full rationale). Computed here because the
+    # per-subtune priming below is gated on the same condition.
+    _DURREL_WIN = {151, 152, 153, 247, 248, 249}
+    reads_durrel = any(((off + note) & 0xFF) in _DURREL_WIN
+                       for inst in m.instruments.values()
+                       for off, note, _lo, _hi in
+                       (getattr(inst, 'offtable_freq', []) or []))
+    durrel = (m.durrel_init if reads_durrel and any(m.durrel_init)
+              else (0, 0, 0))
     subtunes = []
     for song in m.songs:
         voices = []
@@ -590,6 +601,26 @@ def model_to_usf(m: DmcModel) -> UsfFile:
                                            if any(v.transposes) else []),
                                loop_to=v.loop_to, stop=v.stop)
             voices.append(VoiceBlock(id=vi + 1, orderlist=ol, patterns=pats))
+        # per-subtune idle priming (compilations only — one packed player per
+        # subtune, each with its own uncleared work-file leftovers). Merged
+        # into the SAME InitVoice as the resolver seed above, since the
+        # composer looks these up by voice id.
+        if song.idle_notes is not None:
+            s_dur = (song.durrel_init if reads_durrel and any(song.durrel_init)
+                     else (0, 0, 0))
+            by_id = {iv.id: iv for iv in seed_voices}
+            for vi in range(3):
+                if not (song.idle_notes[vi] or song.idle_masks[vi] or s_dur[vi]):
+                    continue
+                iv = by_id.get(vi + 1)
+                repl = dict(note=song.idle_notes[vi] or None,
+                            gate_mask=song.idle_masks[vi] or None,
+                            dur_reload=s_dur[vi] or None)
+                if iv is None:
+                    seed_voices.append(InitVoice(id=vi + 1, **repl))
+                else:
+                    for k, val in repl.items():
+                        setattr(iv, k, val)
         sub_init = InitState(
             voices=seed_voices,
             sid=InitSid(
@@ -599,20 +630,10 @@ def model_to_usf(m: DmcModel) -> UsfFile:
         subtunes.append(MusicSubtune(id=song.id, tempo=song.speed,
                                      voices=voices, init=sub_init))
 
-    # duration-reload leftover priming ($173E-$1740): emitted ONLY when an
-    # off-table freq read actually lands on the durreload rows (flo idx
-    # 247-249 / fhi idx 151-153) — the composer's live `durrel` shadow then
-    # needs the pre-first-event value for voices that haven't fetched yet
-    # (stopped/never-inited voices keep it forever). Members that never read
-    # the window carry no leftover (ML-cleanliness) and their USF is
-    # unchanged.
-    _DURREL_WIN = {151, 152, 153, 247, 248, 249}
-    reads_durrel = any(((off + note) & 0xFF) in _DURREL_WIN
-                       for inst in m.instruments.values()
-                       for off, note, _lo, _hi in
-                       (getattr(inst, 'offtable_freq', []) or []))
-    durrel = (m.durrel_init if reads_durrel and any(m.durrel_init)
-              else (0, 0, 0))
+    # (the file-level `durrel` gate — flo idx 247-249 / fhi idx 151-153, so the
+    # composer's live `durrel` shadow gets the pre-first-event value for voices
+    # that haven't fetched yet — is computed above the subtune loop, which
+    # shares it for the per-subtune priming.)
 
     # filter_mod: the factory probe encodes the song-global cutoff LFO as
     # 'prog|start|init_phase|stop_phase|d:f,...' — decode into the typed

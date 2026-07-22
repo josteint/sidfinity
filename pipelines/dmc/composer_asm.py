@@ -1566,6 +1566,32 @@ fx_dual_up:
             iguard[v.id - 1] = v.guard
         if getattr(v, 'dur_reload', None) is not None:
             idurl[v.id - 1] = v.dur_reload
+    # PER-SUBTUNE idle priming (trichotomy §4.5 voice_state). The file-level
+    # block above serves the ordinary case — one engine, one set of uncleared
+    # work-file leftovers for the whole file. A COMPILATION packs several
+    # players and each subtune runs exactly one of them, so its idle priming is
+    # a per-subtune fact carried on `subtune { init { voice N { ... } } }`.
+    # WIDENING IS GATED: unless some subtune actually states priming that
+    # differs from the file-level block, the tables stay 3 bytes and the init
+    # keeps its `lda inote,x` form — so every existing member's image is
+    # byte-identical.
+    sub_prime = []
+    for sub in usf.subtunes:
+        row = [list(idle), list(imask), list(iguard), list(idurl)]
+        for v in ((sub.init.voices if sub.init else []) or []):
+            if not 1 <= v.id <= 3:
+                continue
+            for k, val in ((0, v.note), (1, v.gate_mask), (2, v.guard),
+                           (3, getattr(v, 'dur_reload', None))):
+                if val is not None:
+                    row[k][v.id - 1] = val
+        sub_prime.append(row)
+    per_sub_prime = any(r != [idle, imask, iguard, idurl] for r in sub_prime)
+    if per_sub_prime:
+        idle = [b for r in sub_prime for b in r[0]]
+        imask = [b for r in sub_prime for b in r[1]]
+        iguard = [b for r in sub_prime for b in r[2]]
+        idurl = [b for r in sub_prime for b in r[3]]
     if usf.freq_table:
         assert len(usf.freq_table) == 192, len(usf.freq_table)
         flo, fhi = usf.freq_table[:96], usf.freq_table[96:]
@@ -1804,6 +1830,21 @@ fx_dual_up:
     nf_hi_redirect = _gen_offtable_redirect(
         otmap, ORIG_FHI, 96, 'lda freqhi,y', 'nf_rd_his')
 
+    # per-subtune idle-priming addressing (see `per_sub_prime` above). When the
+    # tables are 3 bytes wide the voice index IS the table index and all three
+    # inserts are empty, so the emitted init is byte-for-byte what it was.
+    ps = 'y' if per_sub_prime else 'x'
+    prime_save = ('        pha                          ; keep subtune for the '
+                  'per-subtune priming\n' if per_sub_prime else '')
+    prime_setup = ('        pla                          ; subtune -> idle-priming'
+                   ' row (subtune * 3)\n'
+                   '        sta tmp\n'
+                   '        asl\n'
+                   '        clc\n'
+                   '        adc tmp\n'
+                   '        tay\n' if per_sub_prime else '')
+    prime_step = '        iny\n' if per_sub_prime else ''
+
     asm = f"""
 SLIDE_PHASE = ${slide_phase:02X}
 CIA_PERIOD = ${cia_period:04X}
@@ -1822,7 +1863,7 @@ ini_st:
         cpx #(state_end - state0)
         bne ini_st
         pla
-        asl
+{prime_save}        asl
         asl
         asl
         asl                          ; subtune * 16
@@ -1847,18 +1888,18 @@ ini_ptr:
         sta shadow17
 {d418_prime}        lda #SLIDE_PHASE             ; half-rate slide clock phase
         sta dualpar
-        ldx #$00
+{prime_setup}        ldx #$00
 ini_v:
         lda #$01
         sta vactive,x
         sta dur,x                    ; expires on the first tick
-        lda inote,x                  ; idle note-state priming
+        lda inote,{ps}                  ; idle note-state priming
         sta curnote,x
-        lda imask,x                  ; idle gate-mask priming
+        lda imask,{ps}                  ; idle gate-mask priming
         sta gatemask,x
-        lda iguard,x                 ; post-note-guard leftover priming
+        lda iguard,{ps}                 ; post-note-guard leftover priming
         sta guard,x
-        lda idurl,x                  ; duration-reload leftover priming
+        lda idurl,{ps}                  ; duration-reload leftover priming
         sta durrel,x                 ; (orig init never writes $173E)
         lda igla,x                   ; glide-start leftover priming (off-table
         sta gla,x                    ; read tracks orig from init; glsp=0 so
@@ -1868,7 +1909,7 @@ ini_v:
         sta curinst,x                ; leading inherited slot resolves to the
         sta volovr,x                 ; engine sticky (i1 = slot 0) / vol 0 —
                                      ; matches the resolver's StickyState seed
-        inx
+{prime_step}        inx
         cpx #$03
         bne ini_v
         ; ---- universal reset: silence-clear (ascending, as the family) ----

@@ -124,6 +124,17 @@ class DmcSong:
     speed: int
     master_vol: int
     voices: list = field(default_factory=list)   # 3 × DmcVoice
+    # Per-subtune idle priming (trichotomy §4.5 voice_state). None = the
+    # model-level value serves every subtune, which is the case for every
+    # single-player member (one player, one set of work-file leftovers). A
+    # COMPILATION packs N players, each with its OWN uncleared leftovers, and
+    # each subtune runs exactly one of them — so the priming becomes a
+    # per-subtune fact and rides `MusicSubtune.init.voices` instead of the
+    # file-level `init` block (same split the schema already documents for
+    # speed_ctr_init: file-level for single engines, per-subtune for compound).
+    idle_notes: tuple | None = None
+    idle_masks: tuple | None = None
+    durrel_init: tuple | None = None
 
 
 @dataclass
