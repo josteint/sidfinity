@@ -61,6 +61,7 @@
 - [Commit early](feedback_commit_early.md) — commit immediately after each verified improvement
 - [Repo tmp/ not /tmp](feedback_repo_tmp_dir.md) — ALL scratch artifacts go in the gitignored repo-local `tmp/`, never system /tmp (it gets wiped)
 - [Background jobs via harness](feedback_background_jobs_harness.md) — long batches MUST use Bash `run_in_background: true`, never `nohup&`, and NEVER pipe a backgrounded command through `tail` (its output file then stays empty until exit → reads as stalled → duplicate re-run). Sanity-check result mtime.
+- [Old-vs-new code compare = worktree](feedback_old_code_compare_worktree.md) — compare current vs pre-change behavior in a git WORKTREE, never `git stash` in the main tree; a stash/pop across a timed-out command stranded edits at old code. `git diff > patch` first if you must stash; split stash/run/pop into separate commands.
 - [No self-matching waiters](feedback_no_self_matching_waiters.md) — TRIPWIRE. NEVER `while pgrep -f 'PATTERN'; do sleep N; done` (pattern matches the waiter's OWN argv → infinite loop). Wait for `<task-notification>`; identify your procs vs a parallel session's before any kill.
 - [No co-author in commits](feedback_no_coauthor.md) — never add `Co-Authored-By`
 - [Do the actual work](feedback_do_the_work.md) — implement ALL optimizations, don't punt
