@@ -60,15 +60,42 @@ def _follow_jmps(mem, pc: int, hops: int = 8) -> int:
     return pc
 
 
+# A player's reachable code+data all sits within this window of its base; a
+# valid init/play vector jumps somewhere inside it. Used as the reloc-invariant
+# target-range validator that lets the head predicate drop to TWO JMPs (below)
+# without admitting arbitrary `4C .. .. 4C .. ..` byte pairs in data.
+_PLAYER_WIN = 0x1000
+
+
+def _is_player_head(mem, a: int) -> bool:
+    """The RELOCATION- and REASSEMBLY-invariant player-base signature (no load
+    floor): a page-aligned address whose init (+0) and play (+3) vectors are
+    both `JMP abs` into the player's own [base, base+$1000) window.
+
+    Was "three `JMP abs` at +0/+3/+6" — but a re-assembled DMC variant
+    (Bayliss's Quad_Core: init JMP base+$807 / play JMP base+$50) carries only
+    the TWO essential vectors, then data at +6, so the three-JMP form missed
+    all three of its packed players and the file fell through to the single-
+    player path (garbage for the subtunes not on the LOAD-address player). The
+    third JMP was the all-off/sfx entry, not load-bearing for identification.
+    Canonical DMC (+$1D/+$85), the family-2 layouts, and the dmc_sfx re-assembly
+    (+$1B2/+$F0) all still pass; the target-range check replaces the third JMP
+    as the false-positive guard."""
+    if a & 0xFF or not (0 < a and a + 6 < 0x10000):
+        return False
+    if mem[a] != 0x4C or mem[a + 3] != 0x4C:
+        return False
+    for off in (1, 4):
+        tgt = mem[a + off] | (mem[a + off + 1] << 8)
+        if not (a <= tgt < a + _PLAYER_WIN):
+            return False
+    return True
+
+
 def _is_player_base(mem, load: int, a: int) -> bool:
-    """A page-aligned address carrying a DMC-family jump table: three `JMP abs`
-    at +0/+3/+6. This is the RELOCATION- and REASSEMBLY-invariant player-base
-    signature — canonical DMC (init +$1D / play +$85), the 2-entry / family-2
-    layouts AND a re-assembled variant (Canyon's dmc_sfx player: init +$1B2 /
-    play +$F0) all share the three-JMP head, where the rigid canonical-offset
-    scan (`_canon_jt_bases`) misses the re-assembled ones."""
-    return (load <= a and a + 6 < 0x10000
-            and mem[a] == 0x4C and mem[a + 3] == 0x4C and mem[a + 6] == 0x4C)
+    """`_is_player_head` with the file-image load-address floor (a base named in
+    a static file-image table must sit at or above the load address)."""
+    return load <= a and _is_player_head(mem, a)
 
 
 def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
@@ -154,8 +181,7 @@ def _is_player_base_ram(mem, a: int) -> bool:
     in RAM. A RELOCATING wrapper can copy a player BELOW the load address
     (Pour_le_merite loads at $8000 and copies its second player down to
     $1000), where the file-image floor is exactly the wrong test."""
-    return (0 < a and a + 6 < 0x10000
-            and mem[a] == 0x4C and mem[a + 3] == 0x4C and mem[a + 6] == 0x4C)
+    return _is_player_head(mem, a)
 
 
 # Music Assembler's cold-start entry. Its base carries NO three-JMP head
@@ -363,6 +389,82 @@ def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
 _MAX_INSTR = 42
 
 
+def _fd_window(fd: dict) -> list:
+    """The composer's 16-byte-per-record filter-def window, dense in def# order
+    (`fdrec` in composer_asm): [res<<4|mode, init, repeat, stop, size*6, dur*6].
+    The filter step-walk indexes into this (fdstep = +4, fddur = +10), so an
+    overrunning def reads adjacent records' bytes from it (C2)."""
+    out = []
+    for d in range(max(fd) + 1 if fd else 0):
+        dc = fd.get(d) or {'res': 0, 'mode': 0, 'init': 0, 'repeat': 0,
+                           'stop': 0, 'steps': []}
+        steps = (list(dc.get('steps', [])) + [(0, 0)] * 6)[:6]
+        out += ([((dc['res'] << 4) | (dc['mode'] & 0x0F)) & 0xFF,
+                 dc['init'] & 0xFF, dc['repeat'] & 0xFF, dc['stop'] & 0xFF]
+                + [s & 0xFF for s, _ in steps] + [f & 0xFF for _, f in steps])
+    return (out + [0] * 272)[:272]
+
+
+def _walk_filter(fd: dict, deff: int, _cap: int = 400000):
+    """Simulate the composer's `fx_filter` step-walk for def `deff` exactly
+    (composer_asm.py:2481). Returns `(maxoff, overran, settled)`:
+      maxoff  — furthest `fdrec` byte offset read (fddur = fdrec+10+y),
+      overran — the step index advanced to >=6 with repeat>5, so the walk
+                leaves its own 16-byte record into adjacent ones (C2),
+      settled — the walk reached fstop (fcut==fstop) within `_cap` iterations.
+
+    A def OVERRUNS iff `overran` — which is NOT `repeat > 5`: a def whose
+    reached step has duration 0 stays pinned on that step (the
+    `inc fframe / cmp fdu` advance never fires) and never leaves its record no
+    matter how large `repeat` is (Quad_Core player 1 def 1: repeat=8, pinned on
+    step 0, settles in-record). A looping def (repeat<=5) wraps within steps
+    0..5 and never overruns even when it never settles."""
+    rec = _fd_window(fd)
+    s8 = lambda v: v - 256 if v >= 128 else v          # noqa: E731
+    fbase = (16 * deff) & 0xFF
+    fstep = 0
+    frep = rec[16 * deff + 2]
+    fcut = rec[16 * deff + 1]
+    fstop = rec[16 * deff + 3]
+    fframe = 0
+    maxoff = 16 * deff + 15
+    overran = False
+    for _ in range(_cap):
+        if fcut == fstop:
+            return maxoff, overran, True
+        y = (fbase + fstep) & 0xFF
+        maxoff = max(maxoff, 10 + y)                   # fddur read = fdrec+10+y
+        fsz = rec[4 + y]
+        fdu = rec[10 + y]
+        fcut = (fcut + s8(fsz)) & 0xFF
+        fframe = (fframe + 1) & 0xFF
+        if fframe == fdu:
+            fframe = 0
+            fstep += 1
+            if fstep == 6:
+                if frep > 5:
+                    overran = True
+                fstep = frep
+    return maxoff, overran, False
+
+
+def _def_overruns(fd: dict, deff: int) -> bool:
+    """Does def `deff`'s filter walk actually read OUTSIDE its own 16-byte
+    record? repeat<=5 always wraps in-record (fast path); otherwise the walk
+    decides — a large `repeat` pinned by a dur-0 step does NOT overrun."""
+    if (fd.get(deff) or {}).get('repeat', 0) <= 5:
+        return False
+    return _walk_filter(fd, deff)[1]
+
+
+def _overrun_reach(fd: dict, deff: int) -> int:
+    """The furthest `fdrec` byte offset def `deff`'s walk reads, or 272 (past
+    the window -> caller refuses the merge) if a genuine overrun never settles
+    and the reach can't be bounded."""
+    maxoff, overran, settled = _walk_filter(fd, deff)
+    return maxoff if (settled or not overran) else 272
+
+
 def _inst_key(inst, drop=()):
     """Content key for instrument dedup (everything but the id and `drop`)."""
     import dataclasses
@@ -391,6 +493,65 @@ def _merge_offtable(a, b):
         by_key[k] = (lo, hi)
     return sorted((off, note, lo, hi)
                   for (off, note), (lo, hi) in by_key.items())
+
+
+def _overrun_anchored_window(merged, models, used, played_fn, genuine, fd_remap):
+    """Strategy 3 — lay out a merged filter window that preserves a GENUINE
+    cross-record overrun's byte adjacency.
+
+    Exactly one player may hold genuinely-overrunning played defs (its window's
+    trailing records ARE the overrun content, C2). Ship that player's records
+    0..R VERBATIM at their native indices (R = the furthest record its played
+    overruns reach), then place every OTHER player's played defs — all of which
+    are compact-safe here (a second overrunning player would conflict for the
+    low indices) — in the free slots R+1..15 the overrun never touches. The
+    overrunning player's own played defs keep their native index.
+
+    Refuses (ValueError -> caller falls back to single-player) when two players
+    overrun, when R fills the walk space, or when the window exceeds 16 slots."""
+    overp = {pidx for pidx, _ in genuine}
+    if len(overp) != 1:
+        raise ValueError(
+            f'{len(overp)} players hold cross-record filter overruns — '
+            f'only a single overrunning player is anchorable')
+    op = next(iter(overp))
+    opfd = models[op].filter_defs
+    reach = max(_overrun_reach(opfd, d) for (p, d) in genuine)
+    R = reach // 16
+    if R >= 16:
+        raise ValueError(f'overrun reaches record {R} — fills the 16-slot walk')
+
+    merged.filter_defs = {}
+    for idx in range(R + 1):        # op window verbatim (played + filler records)
+        dc = opfd.get(idx)
+        if dc is None:
+            raise ValueError(f'overrun window record {idx} missing from player {op}')
+        merged.filter_defs[idx] = dict(dc)
+    for d in played_fn(op):
+        fd_remap[(op, d)] = d       # op's own played defs stay at native index
+
+    fdpool = {repr(sorted(merged.filter_defs[i].items())): i
+              for i in merged.filter_defs}     # reuse an identical anchored rec
+    nxt = R + 1
+    for pidx in sorted(used):
+        if pidx == op:
+            continue
+        for d in sorted(played_fn(pidx)):
+            dc = models[pidx].filter_defs.get(d)
+            if dc is None:
+                raise ValueError(
+                    f'player {pidx} references uncaptured filter def {d}')
+            if _def_overruns(models[pidx].filter_defs, d):
+                raise ValueError(
+                    f'player {pidx} def {d} also overruns — unanchorable')
+            fk = repr(sorted(dc.items()))
+            if fk not in fdpool:
+                if nxt > 15:
+                    raise ValueError('merged filter window > 16 slots')
+                fdpool[fk] = nxt
+                merged.filter_defs[nxt] = dict(dc)
+                nxt += 1
+            fd_remap[(pidx, d)] = fdpool[fk]
 
 
 def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
@@ -452,36 +613,40 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
     # the start player's window at the same index -> reuse it VERBATIM (the C2
     # 17-record overrun window is preserved; no instrument def-index remap).
     # Strategy 2 (COMPACT REMAP): on a conflict, dedup every PLAYED def across
-    # players into one compact window and remap instrument def-indices. SAFE
-    # only when NO played def OVERRUNS (repeat<=5, so the C2 step-index walk
-    # stays inside its own record and adjacency is irrelevant) and the distinct
-    # count fits the 4-bit def index (<=16). Otherwise unmergeable -> the caller
-    # falls back to the single-player path (no regression).
+    # players into one compact window and remap instrument def-indices. A def
+    # can be freely relocated iff its step-walk stays INSIDE its own 16-byte
+    # record (adjacency then irrelevant) — which is NOT the same as `repeat<=5`:
+    # a large `repeat` pinned by a dur-0 first step also stays in-record
+    # (`_def_overruns`, the exact `fx_filter` walk). Only a GENUINE cross-record
+    # overrun blocks the compact path; that goes to strategy 3. The distinct
+    # count must fit the composer's 8-bit `16*def#` step-walk index (<=16).
     conflict = any(merged.filter_defs.get(d) != models[pidx].filter_defs.get(d)
                    for pidx in used if pidx != base_pidx
                    for d in _played_fdefs(pidx))
     fd_remap = {}                   # (player_idx, old_def) -> new_def
     if conflict:
-        merged.filter_defs = {}
-        fdpool = {}                 # def-content key -> new def index
-        for pidx in sorted(used):
-            for d in sorted(_played_fdefs(pidx)):
-                dc = models[pidx].filter_defs.get(d)
-                if dc is None:
-                    raise ValueError(
-                        f'player {pidx} references uncaptured filter def {d}')
-                if dc.get('repeat', 0) > 5:
-                    raise ValueError(
-                        f'player {pidx} filter def {d} overruns (repeat>5) — '
-                        f'compact-window adjacency not preservable')
-                fk = repr(sorted(dc.items()))
-                if fk not in fdpool:
-                    fdpool[fk] = len(fdpool)
-                    merged.filter_defs[fdpool[fk]] = dict(dc)
-                fd_remap[(pidx, d)] = fdpool[fk]
-        if len(merged.filter_defs) > 16:
-            raise ValueError(
-                f'merged filter window {len(merged.filter_defs)} > 16 slots')
+        genuine = {(pidx, d) for pidx in used for d in _played_fdefs(pidx)
+                   if _def_overruns(models[pidx].filter_defs, d)}
+        if genuine:
+            _overrun_anchored_window(merged, models, used, _played_fdefs,
+                                     genuine, fd_remap)
+        else:
+            merged.filter_defs = {}
+            fdpool = {}             # def-content key -> new def index
+            for pidx in sorted(used):
+                for d in sorted(_played_fdefs(pidx)):
+                    dc = models[pidx].filter_defs.get(d)
+                    if dc is None:
+                        raise ValueError(
+                            f'player {pidx} references uncaptured filter def {d}')
+                    fk = repr(sorted(dc.items()))
+                    if fk not in fdpool:
+                        fdpool[fk] = len(fdpool)
+                        merged.filter_defs[fdpool[fk]] = dict(dc)
+                    fd_remap[(pidx, d)] = fdpool[fk]
+            if len(merged.filter_defs) > 16:
+                raise ValueError(
+                    f'merged filter window {len(merged.filter_defs)} > 16 slots')
 
     # ---- instruments: remap to one compact pool. Dedup identical instruments
     # (same drum kit shared across players) so many-player members stay under
