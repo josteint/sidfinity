@@ -3,7 +3,7 @@
 
 - [USF init.sid block](project_usf_init_sid_block.md) — CURRENT. USF carries SID-chip priming as typed `init.sid { master_vol, filter, voice N {...} }`; composer reads it directly; shape-detection deleted. Built on the init trichotomy (docs/the_trichotomy.md).
 - [Composer dissolution](project_composer_dissolution.md) — Phase 8 done; `composer_hubbard.py` DELETED. Hubbard '85 family lives entirely in `pipelines/composer.py` (feature-driven asm, 18 chunk emitters + typed args). `tools/regression.py` = verdict.
-- [FC principled composer](project_fc_principled_composer.md) — ✅ COMPLETE. §9 fully closed: the whole FC build is orig-free (model-USF buildable); both canaries (Cyb II 2/2 + Hawkeye 12/12) de-verbatim, PSID header synthesized. Verdict = `verify_featuredriven`.
+- [FC principled composer](project_fc_principled_composer.md) — §9 closed: the FC build is orig-free at build time; both canaries (Cyb II 2/2 + Hawkeye 12/12) de-verbatim, PSID header synthesized. Verdict = `verify_featuredriven`. **⚠️ OPEN (2026-07-22): orig-free ≠ USF-complete — 3 per-member wedge params (`std_arp3_init` / `std_glide_hi_reg` / `std_vibrato_stale_tail`) change emitted bytes but live in the Python cfg, not the `.usf` (DMC carries its equivalents in `params.fields`). Schema decision, unresolved.**
 - [FC fingerprint DB + standard player](project_fc_fingerprint_and_standard.md) — `tools/engine_fingerprint.py` reloc-invariant fingerprinting; 91% of HVSC FC is ONE vanilla "standard" player (distinct from the Tel composer). **✅ 2530/2672 FULL (94.7%), mass-written in stated-duration form (D6 piece 2).** Residue 140 partial. Per-round detail in topic file — READ IT first.
 
 ## Per-engine project memories

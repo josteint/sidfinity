@@ -5,7 +5,44 @@ metadata:
   node_type: memory
   type: project
   originSessionId: 34baf59d-942f-49ab-b1d7-123e07963888
+  modified: 2026-07-22T08:27:00.084Z
 ---
+
+## ⚠️ 2026-07-22 — ORIG-FREE ≠ USF-COMPLETE (measured; OPEN, needs a decision)
+
+The "§9 closed / orig-free" claim is about BUILD TIME: the composer no longer
+reads the original binary. It does NOT mean the `.usf` is the complete build
+specification. Audit of `fc_standard` (400 sampled FULL members, every `cfg.*`
+field `composer_asm.py` reads — 72 of them):
+
+- 31 fields are FAMILY CONSTANTS → engine mechanism, Principle-permitted.
+- 9 are layout addresses → feed the data-base float; write-stream-neutral.
+- `subtune_layout` varies (2 values) but is EXTRACT-only: flipping it and
+  rebuilding from the same stored `.usf` is byte-identical (verified 3×).
+- **3 vary per member AND change the emitted bytes (verified by flipping each
+  and rebuilding from the same stored `.usf`):**
+  - `std_arp3_init` — 20 distinct values, e.g. `(0,12,24)` (an octave arp) vs
+    `(0,0,1)`. Baked initial 3-byte offset table at orig $1E86-$1E88. This one
+    is arguably musical CONTENT, not mechanism.
+  - `std_glide_hi_reg` — 2 values ($01 normal / $55 the hacked mirror-register
+    operand at orig $1B3F, ~20 members).
+  - `std_vibrato_stale_tail` — 2 values (orig $2046 variant $EB vs $DC).
+
+None appear in the `.usf` — a standard member's `params {}` block is EMPTY.
+They are C19-class player WEDGES, which the CORE TENET explicitly sanctions as
+per-engine config ("config fields parametrise differences between engines'
+write-log streams"). **The asymmetry worth noting: DMC carries its wedge knobs
+IN the USF (`params.fields`) — which is why `hold_gateoff` had to reach the
+stored `.usf` — while FC keeps the equivalent knobs in Python only.**
+
+CONSEQUENCE for the C20-fifth-layer audit: `fc_mass_write._rebuild_from_usf`
+must hand the builder a freshly-derived cfg, so the FC audit verifies
+`stored .usf + cfg -> stored .sid`, NOT `stored .usf -> stored .sid`. It is a
+genuinely weaker invariant than DMC's, and by necessity — closing the gap
+means carrying these three in the USF. **Not done: that is a schema decision
+(§8 vs the sanctioned per-engine-config category), so it is the user's call,
+not a unilateral fix.** ML angle: a model generating a USF cannot express
+"this tune's 3-step arp is (0,12,24)".
 
 Bringing the FC composer (`pipelines/future_composer/composer_asm.py`) up
 to the USF principle: today its `build_via_asm_featuredriven` emits engine
