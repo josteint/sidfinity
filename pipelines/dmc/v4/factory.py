@@ -946,7 +946,7 @@ def _hr_patch_probe(path: str, base: int):
 _HOLD_BRANCH = re.compile(rb'\x29\x10\xF0\x0E\xBD..\xC9\x01\xD0\x13\xA9\xFE\x20(..)')
 
 
-def _hold_gateoff_probe(path: str):
+def _hold_gateoff_probe(path: str, base: 'int | None' = None):
     """Holding gate-off variant probe (STATIC, opcode-shape — layout-blind).
     A widespread editor build (Surgeon / Imaic / Rio / Taxim / Phobos /
     Behdad_Arman, 660+ carriers) patches ONE byte in sub_17EC: $17EF BC->60,
@@ -959,11 +959,22 @@ def _hold_gateoff_probe(path: str):
     NB: unlike a write-stream scan this cannot false-negative on
     late-gate-off members — it reads the patched instruction itself. The
     batch's frames_clear_adsr retry stays as the fallback for members this
-    shape probe misses."""
+    shape probe misses.
+
+    `base` scopes the search to that player's OWN code window. A multi-SID or
+    compilation image holds several players, each of which can carry the wedge
+    independently (C27's per-chip param class), and a whole-image first match
+    silently answers for player 1 on behalf of every chip. Falls back to the
+    first image-wide match when the window holds none, so a member whose
+    player sits outside the assumed span keeps its previous answer."""
     mem, _ = _load(path)
-    m = _HOLD_BRANCH.search(bytes(mem))
-    if not m:
+    cands = list(_HOLD_BRANCH.finditer(bytes(mem)))
+    if base is not None:
+        own = [c for c in cands if base <= c.start() < base + 0x900]
+        cands = own or cands
+    if not cands:
         return None
+    m = cands[0]
     t = m.group(1)[0] | (m.group(1)[1] << 8)
     if mem[t] == 0x9D and mem[t + 3] == 0x60:
         return 'mask_only'
@@ -1528,6 +1539,10 @@ def _config_at_base(sid_path: str, hvsc_root: str, base: int,
         cfg = _build_via_canon(sid_path, hvsc_root, base_override=base,
                                chip_addr=chip_addr)
         cfg.name = name
+        # `_build_via_canon` sits BELOW the caller that runs the C19 wedge
+        # probes, so a sub-player built straight off it had every wedge knob
+        # defaulted (see _apply_wedge_probes). Probe against THIS chip's base.
+        _apply_wedge_probes(os.path.join(hvsc_root, sid_path), cfg)
         return cfg
     except DMCV4Unsupported:
         pass
@@ -1538,7 +1553,7 @@ def _config_at_base(sid_path: str, hvsc_root: str, base: int,
     # loop target decides whether the song repeats its whole orderlist or the
     # tail from a stated position).
     mem = _load(os.path.join(hvsc_root, sid_path))[0]
-    return DMCV4Config(
+    cfg = DMCV4Config(
         sid_path=sid_path, name=name, base=base,
         op_instr=at(0x1227), op_wavectrl=at(0x159C), op_wavefreq=at(0x15B9),
         op_filtdef=at(0x1296), op_tunetab=at(0x180E),
@@ -1546,6 +1561,8 @@ def _config_at_base(sid_path: str, hvsc_root: str, base: int,
         freq_lo_addr=at(0x1647), freq_hi_addr=at(0x16A7),
         vibdepth_addr=at(0x1888), d417_shadow_addr=at(0x1018),
         track_loop_target=_loop_target_probe(mem, base))
+    _apply_wedge_probes(os.path.join(hvsc_root, sid_path), cfg)
+    return cfg
 
 
 def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
@@ -1981,7 +1998,7 @@ def _multisid_keep_regs(mem, base: int, chip_addr: int) -> tuple:
 _WEDGE_PROBES = [
     ('master_vol_every_play',           lambda p, c: _d418_play_wrapper(p, c.base)),
     ('master_vol_reassert_filter_tail', lambda p, c: _d418_filter_tail_probe(p, c.base)),
-    ('hold_gateoff',                    lambda p, c: _hold_gateoff_probe(p)),
+    ('hold_gateoff',                    lambda p, c: _hold_gateoff_probe(p, c.base)),
     ('play_unit_repeat',                lambda p, c: _play_unit_repeat_probe(p, c.base)),
     ('pulsewidth_hi_const',             lambda p, c: _pw_hi_const_probe(p, c.base)),
     ('dual_freq_generator',             lambda p, c: _dual_freq_gen_probe(p, c.base, c.freq_lo_addr)),
@@ -1990,6 +2007,27 @@ _WEDGE_PROBES = [
     ('pulsewidth_dir_persist',          lambda p, c: _pw_dir_persist_probe(p, c.base)),
     ('switch_toggle_mask',              lambda p, c: _switch_toggle_mask_probe(p, c.base, c.gatemask_addr)),
 ]
+
+
+def _apply_wedge_probes(path: str, cfg) -> None:
+    """Run the uniform C19 wedge probes and record what they find on `cfg`.
+
+    Called by BOTH constructors. `dmc_v4_config` is the obvious one; the other
+    is `_config_at_base`, the multi-SID sub-player constructor, which reaches
+    the canonical build through `_build_via_canon` — one layer BELOW this loop,
+    so it used to return a config with every wedge knob defaulted. That is
+    C9's "a second build path never measured the parameter" recurring at a
+    finer grain than round 81 caught: r81 made sub-players run the canonical
+    build, which fixed the table/layout probes, but the wedge probes live out
+    here in the caller. Nice_Dream_2SID carries the hold_gateoff wedge on BOTH
+    chips ($17EC and $37EC) and got neither, so its stored .usf specified a
+    build that verifies partial while the batch's write-stream retry quietly
+    supplied the missing param at verify time (ledger C20 / the Principle §8:
+    a rebuild must not need information absent from the USF)."""
+    for key, probe in _WEDGE_PROBES:
+        v = probe(path, cfg)
+        if v is not None:
+            cfg.extra_params[key] = v
 
 
 def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
@@ -2052,11 +2090,7 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
             hrv = _hr_preset_probe(path)
             if hrv is not None:
                 cfg.extra_params['hard_restart'] = str(hrv)
-    # --- uniform C19 wedge probes (probe(path, cfg) -> value | None) ---
-    for key, probe in _WEDGE_PROBES:
-        v = probe(path, cfg)
-        if v is not None:
-            cfg.extra_params[key] = v
+    _apply_wedge_probes(path, cfg)
     # forced_subtune is a cfg ATTRIBUTE, not a param; 0 == the default walk.
     fs = _forced_subtune_probe(path, cfg.base)
     if fs:

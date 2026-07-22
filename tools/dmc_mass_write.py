@@ -62,23 +62,38 @@ def write_member(item) -> tuple:
         # compilation fallback fires on a VERIFY-time exception that no
         # writer can observe. A row without `build_path` is pre-2026-07-22
         # and is refused by main() rather than guessed at.
+        # The batch's write-stream retry may have chosen mask_only (a member
+        # whose original never clears AD+SR). Push it onto the CONFIG so the
+        # writer emits it into the stored .usf natively. Injecting it into the
+        # parsed USF instead left the stored pair inconsistent: the .usf
+        # specified a build that verifies PARTIAL while the .sid beside it was
+        # built from a param living solely in the batch jsonl
+        # (Nice_Dream_2SID). That is the Principle §8 failure — a rebuild
+        # needing information absent from the USF — and it defeats every gate,
+        # since re-verifying the stored .sid PASSES while regenerating from
+        # the stored .usf does not.
+        def _prime(cfg):
+            if hold_gateoff:
+                cfg.extra_params['hold_gateoff'] = hold_gateoff
+            return cfg
         if build_path == 'multisid':
-            usf_path = write_dmc_2sid_usf(
-                dmc_v4_config_2sid(rel, hvsc_root=hvsc), out_dir,
-                hvsc_root=hvsc)
+            cfgs = dmc_v4_config_2sid(rel, hvsc_root=hvsc)
+            usf_path = write_dmc_2sid_usf([_prime(c) for c in cfgs], out_dir,
+                                          hvsc_root=hvsc)
         elif build_path == 'compilation':
             usf_path = write_dmc_compilation_usf(
                 rel, detect_compilation(rel, hvsc_root=hvsc), out_dir,
                 hvsc_root=hvsc)
         else:
-            usf_path = write_dmc_usf(dmc_v4_config(rel, hvsc_root=hvsc),
+            usf_path = write_dmc_usf(_prime(dmc_v4_config(rel, hvsc_root=hvsc)),
                                      out_dir, hvsc_root=hvsc)
         usf = parse_file(usf_path)
-        # the batch's write-stream retry may have chosen mask_only (a member
-        # whose original never clears AD+SR) — apply it so the written SID
-        # matches the verified verdict.
-        if hold_gateoff:
-            usf.params.fields['hold_gateoff'] = hold_gateoff
+        if hold_gateoff and usf.params.fields.get('hold_gateoff') != hold_gateoff:
+            # the writer dropped it (a build path whose params don't carry the
+            # config's extra_params). Storing the pair anyway would recreate
+            # the very inconsistency above — refuse instead.
+            return (rel, False, f'hold_gateoff={hold_gateoff} did not reach '
+                                f'the stored .usf ({build_path} path)')
         sid = build_dmc_sid(usf)
         base = os.path.splitext(os.path.join(hvsc, rel))[0]
         open(base + '.sidfinity.sid', 'wb').write(sid)
@@ -128,6 +143,24 @@ def _audit(written, n: int) -> int:
             bad += 1
             print(f'  AUDIT FAIL [{bp}] {rel} — the STORED artifact does not '
                   f'reproduce its verdict', flush=True)
+        # SELF-CONSISTENCY: the stored .usf must rebuild the stored .sid. The
+        # verify above cannot see a break here — it re-verifies the .sid, which
+        # passes while the .usf beside it specifies a DIFFERENT build. That is
+        # how Nice_Dream_2SID's pair came to disagree (a param supplied only at
+        # verify time), and it is the general detector for any build input that
+        # leaks outside the USF (the Principle §8 invariant, corpus-side).
+        try:
+            from src.usf.parser import parse_file
+            from pipelines.dmc.composer_asm import build_dmc_sid
+            if build_dmc_sid(parse_file(os.path.splitext(orig)[0] + '.usf')) \
+                    != open(reb, 'rb').read():
+                bad += 1
+                print(f'  AUDIT FAIL [{bp}] {rel} — the stored .usf does not '
+                      f'rebuild the stored .sid', flush=True)
+        except Exception as e:
+            bad += 1
+            print(f'  AUDIT FAIL [{bp}] {rel} — .usf rebuild raised '
+                  f'{type(e).__name__}: {e}'[:160], flush=True)
     print(f'AUDIT: {len(sample) - bad}/{len(sample)} stored artifacts '
           f're-verify', flush=True)
     return bad
