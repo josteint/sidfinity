@@ -47,7 +47,15 @@ def verify_dmc(cfg: DMCV4Config, hvsc_root: str | None = None) -> dict:
         from seed_disassembly import parse_psid
         from pipelines.hubbard.verify_cycle import writelog_per_irq_capture
         n = parse_psid(orig)['songs']
-        _capture = writelog_per_irq_capture if cia else writelog_capture
+        _cap = writelog_per_irq_capture if cia else writelog_capture
+        # An RSID original is SKIPPED by siddump unless forced, and a skipped
+        # capture is EMPTY — which reads as a partial with nothing to
+        # localize rather than as a failure to capture. Force it for the
+        # orig; the rebuild is always PSID, so the flag is a no-op there.
+        rsid = open(orig, 'rb').read(4) == b'RSID'
+
+        def _capture(path, **kw):
+            return _cap(path, force_rsid=rsid and path == orig, **kw)
 
         # Subtunes are independent, and within one subtune the orig and
         # rebuild captures are independent siddump runs over different files.

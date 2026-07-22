@@ -89,12 +89,15 @@ def verify(orig: str, reb: str, nch: int):
     durs = get_durations(orig, db)
     n = parse_psid(orig)['songs']
     speed = _cia_speed(orig)
+    # siddump SKIPS an RSID original unless forced, and a skipped capture is
+    # empty — a partial with nothing to localize. The rebuild is always PSID.
+    rsid = open(orig, 'rb').read(4) == b'RSID'
     allok = True
     for sub in range(n):
         cia = bool((speed >> min(sub, 31)) & 1)
         cap = writelog_per_irq_capture if cia else writelog_capture
         dur = max(5.0, min((durs[sub] if durs and sub < len(durs) else 110) * 1.1, 1500.0))
-        a = cap(orig, subtune=sub, duration=dur)
+        a = cap(orig, subtune=sub, duration=dur, force_rsid=rsid)
         b = cap(reb, subtune=sub, duration=dur)
         ctol = 176
         if cia:
