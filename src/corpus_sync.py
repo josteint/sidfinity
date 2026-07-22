@@ -28,11 +28,26 @@ closes once so every family gets it:
    because the file parses perfectly well. 56 such files had accumulated in
    DMC family 1.
 
-The complementary check — that the stored artifact actually reproduces its
-verdict — cannot live here because each family's verify signature differs;
-each mass-writer audits a stratified sample itself, re-verifying FROM DISK.
-That is the only check that exercises writer and verifier against each
-other.
+4. INCONSISTENT PAIR — the stored `.usf` does not REBUILD the stored `.sid`.
+   Writer and verifier can take the same build path and still disagree, when
+   the build consumes a parameter that is not IN the `.usf`: DMC's batch
+   write-stream retry set `hold_gateoff` on the PARSED object and the writer
+   re-injected it post-parse, so the verdict was right, the `.sid` was right,
+   and the `.usf` beside them specified a different build. Every other gate
+   passes — the batch is green, the code_hash matches, the file parses, it is
+   byte-identical to a fresh extract, and re-verifying the stored `.sid`
+   succeeds, because the `.sid` really is correct. The inconsistency lives
+   strictly BETWEEN the two stored files. `audit_rebuild` below is the
+   detector, and it is general: it catches ANY build input that leaks outside
+   the USF (the Principle §8 invariant, corpus-side).
+
+The remaining check — that the stored artifact reproduces its VERDICT — still
+cannot live here, because each family's verify signature differs; each
+mass-writer audits a stratified sample itself, re-verifying FROM DISK. That
+is the only check that exercises writer and verifier against each other.
+(`audit_rebuild` needs no verify signature — only the family's builder — so
+it belongs here, and `sample_by_build_path` lets a family feed both audits
+the same stratified sample.)
 """
 from __future__ import annotations
 
@@ -105,3 +120,52 @@ def remove_orphans(plan_: SyncPlan) -> int:
     for path in plan_.orphans:
         os.unlink(path)
     return len(plan_.orphans)
+
+
+def sample_by_build_path(written: list, n: int) -> list:
+    """Pick <=`n` of `written` (a list of `(rel, build_path)`), spread evenly
+    over the distinct build paths.
+
+    Stratifying by build path is what makes a small sample worth running: the
+    failure modes this module exists to catch are path-specific, so a sample
+    that happens to miss the one multi-SID member tells you nothing about the
+    layer that broke there. A family with one build path may pass any constant
+    (e.g. `''`) as the path.
+    """
+    by_path = {}
+    for rel, bp in written:
+        by_path.setdefault(bp, []).append(rel)
+    per = max(1, n // max(1, len(by_path)))
+    out = []
+    for bp, rels in sorted(by_path.items(), key=lambda kv: str(kv[0])):
+        step = max(1, len(rels) // per)
+        out += [(r, bp) for r in rels[::step][:per]]
+    return out
+
+
+def audit_rebuild(sample: list, hvsc_root: str, build) -> list:
+    """The stored `.usf` must REBUILD the stored `.sid`, byte for byte.
+
+    `build(rel, usf_path) -> bytes` is the family's builder, pointed at the
+    STORED `.usf` (not at a fresh extract — regenerating would test the
+    extractor, which is a different question). Returns a list of failure
+    descriptions; empty means the pair is self-consistent.
+
+    See item 4 in the module docstring for why nothing else detects this. Note
+    the direction of the check: it does NOT ask whether the artifacts are
+    *correct* — the caller's verify audit does that — only whether the two
+    stored files agree on what the rebuild IS. A member can pass this and be
+    wrong, but it cannot fail this and have a `.usf` worth publishing.
+    """
+    fails = []
+    for rel, bp in sample:
+        base = os.path.splitext(os.path.join(hvsc_root, rel))[0]
+        try:
+            if build(rel, base + '.usf') != open(base + '.sidfinity.sid',
+                                                 'rb').read():
+                fails.append(f'[{bp}] {rel} — the stored .usf does not '
+                             f'rebuild the stored .sid')
+        except Exception as e:
+            fails.append(f'[{bp}] {rel} — .usf rebuild raised '
+                         f'{type(e).__name__}: {e}'[:160])
+    return fails

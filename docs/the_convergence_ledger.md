@@ -408,9 +408,11 @@ practice, not code to factor).
   but a fresh build verifies partial with IDENTICAL numbers across unrelated
   code changes. Split the layers: verify the stored `.sid` → diff stored vs
   fresh `.usf` → rebuild FROM the stored `.usf` and compare bytes. DETECTOR
-  (wired): `dmc_mass_write --audit` asserts `build(parse(stored .usf)) ==
-  stored .sid` — the corpus-side Principle §8 invariant, general to any build
-  input that leaks outside the USF. CURE: push the value onto the CONFIG so the
+  (wired, ALL families): `corpus_sync.audit_rebuild` asserts
+  `build(rel, stored .usf) == stored .sid` — the corpus-side Principle §8
+  invariant, general to any build input that leaks outside the USF; it needs
+  only the family's BUILDER (no verify signature), which is why it lives in
+  corpus_sync unlike the verdict audit. CURE: push the value onto the CONFIG so the
   writer emits it natively (a parse→write round-trip is NOT available — the USF
   round-trip isn't byte-stable, 20/60), refuse the member if it still misses,
   and root-cause why it was absent (here C9's 5th occ).

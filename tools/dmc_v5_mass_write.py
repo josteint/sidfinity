@@ -44,6 +44,14 @@ def write_member(rel: str) -> tuple:
         return (rel, False, f'{type(e).__name__}: {e}'[:120])
 
 
+def _rebuild_from_usf(rel: str, usf_path: str) -> bytes:
+    """corpus_sync.audit_rebuild builder: stored .usf -> .sid bytes."""
+    from pipelines.dmc.v5.from_usf import usf_to_model
+    from pipelines.dmc.v5.composer_v5 import build_v5_sid
+    from src.usf.parser import parse_file
+    return build_v5_sid(usf_to_model(parse_file(usf_path)))
+
+
 def main():
     results = RESULTS
     if '--results' in sys.argv:
@@ -73,6 +81,24 @@ def main():
     print(f'DONE  ok={ok}  err={err}', flush=True)
     for rel, msg in errs[:20]:
         print(f'  ERR {rel}: {msg}')
+    # SELF-CONSISTENCY audit (corpus_sync item 4): the stored .usf must rebuild
+    # the stored .sid. Catches any build input that leaks outside the USF.
+    n_audit = 12
+    if '--audit' in sys.argv:
+        n_audit = int(sys.argv[sys.argv.index('--audit') + 1])
+    if n_audit and ok:
+        written = [(rel, '') for rel in full if rel not in {e[0] for e in errs}]
+        sample = corpus_sync.sample_by_build_path(written, n_audit)
+        print(f'AUDIT: rebuilding {len(sample)} members from their STORED .usf',
+              flush=True)
+        fails = corpus_sync.audit_rebuild(
+            sample, os.path.join(ROOT, 'hvsc84'), _rebuild_from_usf)
+        for f in fails:
+            print(f'  AUDIT FAIL {f}', flush=True)
+        print(f'AUDIT: {len(sample) - len(fails)}/{len(sample)} stored pairs '
+              f'self-consistent', flush=True)
+        if fails:
+            sys.exit(1)
     print('\nNow refresh the DB: python3 tools/build_sid_db.py', flush=True)
 
 

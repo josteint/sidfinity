@@ -102,6 +102,13 @@ def write_member(item) -> tuple:
         return (rel, False, f'{type(e).__name__}: {e}'[:120])
 
 
+def _rebuild_from_usf(rel: str, usf_path: str) -> bytes:
+    """corpus_sync.audit_rebuild builder: stored .usf -> .sid bytes."""
+    from src.usf.parser import parse_file
+    from pipelines.dmc.composer_asm import build_dmc_sid
+    return build_dmc_sid(parse_file(usf_path))
+
+
 def _audit(written, n: int) -> int:
     """Re-verify n written members FROM THE STORED ARTIFACTS.
 
@@ -115,17 +122,13 @@ def _audit(written, n: int) -> int:
     """
     sys.path.insert(0, os.path.join(ROOT, 'tools'))
     from dmc_build_one import verify
+    from src import corpus_sync
     import io
     import contextlib
-    by_path = {}
-    for rel, bp in written:
-        by_path.setdefault(bp, []).append(rel)
-    sample = []
-    for bp, rels in sorted(by_path.items()):
-        step = max(1, len(rels) // max(1, n // max(1, len(by_path))))
-        sample += [(r, bp) for r in rels[::step][:max(1, n // len(by_path))]]
+    sample = corpus_sync.sample_by_build_path(written, n)
     print(f'AUDIT: re-verifying {len(sample)} members from their STORED '
-          f'artifacts ({", ".join(sorted(by_path))})', flush=True)
+          f'artifacts ({", ".join(sorted({bp for _, bp in sample}))})',
+          flush=True)
     bad = 0
     for rel, bp in sample:
         orig = os.path.join(ROOT, 'hvsc84', rel)
@@ -143,26 +146,15 @@ def _audit(written, n: int) -> int:
             bad += 1
             print(f'  AUDIT FAIL [{bp}] {rel} — the STORED artifact does not '
                   f'reproduce its verdict', flush=True)
-        # SELF-CONSISTENCY: the stored .usf must rebuild the stored .sid. The
-        # verify above cannot see a break here — it re-verifies the .sid, which
-        # passes while the .usf beside it specifies a DIFFERENT build. That is
-        # how Nice_Dream_2SID's pair came to disagree (a param supplied only at
-        # verify time), and it is the general detector for any build input that
-        # leaks outside the USF (the Principle §8 invariant, corpus-side).
-        try:
-            from src.usf.parser import parse_file
-            from pipelines.dmc.composer_asm import build_dmc_sid
-            if build_dmc_sid(parse_file(os.path.splitext(orig)[0] + '.usf')) \
-                    != open(reb, 'rb').read():
-                bad += 1
-                print(f'  AUDIT FAIL [{bp}] {rel} — the stored .usf does not '
-                      f'rebuild the stored .sid', flush=True)
-        except Exception as e:
-            bad += 1
-            print(f'  AUDIT FAIL [{bp}] {rel} — .usf rebuild raised '
-                  f'{type(e).__name__}: {e}'[:160], flush=True)
     print(f'AUDIT: {len(sample) - bad}/{len(sample)} stored artifacts '
           f're-verify', flush=True)
+    # SELF-CONSISTENCY (corpus_sync item 4): the verify above cannot see a
+    # stored PAIR that disagrees — it re-verifies the .sid, which passes while
+    # the .usf beside it specifies a DIFFERENT build.
+    for f in corpus_sync.audit_rebuild(sample, os.path.join(ROOT, 'hvsc84'),
+                                       _rebuild_from_usf):
+        bad += 1
+        print(f'  AUDIT FAIL {f}', flush=True)
     return bad
 
 
