@@ -338,6 +338,48 @@ def _w_masm_hetero(_unused: str, group: str | None) -> dict:
             'ok': ok, 'partial': 0, 'fail': 3 - ok, 'total': 3}
 
 
+def _w_gtv1(sid: str, group: str | None) -> dict:
+    """GoatTracker V1 — build THROUGH a written+parsed .usf, never the
+    in-memory UsfFile. Building in-memory is what let V1's .usf go unreadable
+    (list-valued params, `loop: -1`, its whole row-command vocabulary) with no
+    check noticing, so the round trip is the thing worth guarding."""
+    import tempfile
+    from pipelines.goattracker.v1.extract.engine_model import parse_sid, extract
+    from pipelines.goattracker.v1.extract.to_usf import model_to_usf
+    from pipelines.goattracker.v1.composer import build_v1_sid
+    from pipelines.hubbard.verify_cycle import writelog_capture
+    from src.usf.parser import parse_file
+    from src.usf.writer import write_file
+    orig = os.path.join('hvsc84', sid)
+    td = tempfile.mkdtemp()
+    up = os.path.join(td, 'a.usf')
+    write_file(model_to_usf(extract(parse_sid(orig))), up)
+    out = os.path.join(td, 'a.sid')
+    with open(out, 'wb') as f:
+        f.write(build_v1_sid(parse_file(up)))
+    dur = 30.0
+    try:
+        from src import sid_db
+        r = sid_db.query('SELECT songlength_s FROM sids WHERE path=?', [sid])
+        if r and r[0][0]:
+            dur = max(8.0, float(r[0][0]) * 1.1)
+    except Exception:
+        pass
+
+    def flat(fr):
+        return [(w[1], w[2]) for f in fr[1:] for w in f]
+    a = flat(writelog_capture(orig, 0, duration=dur))
+    b = flat(writelog_capture(out, 0, duration=dur))
+    n = min(len(a), len(b))
+    first = next((i for i in range(n) if a[i] != b[i]), None)
+    ok = 1 if (first is None and len(a) == len(b)) else 0
+    return {'family': 'GoatTracker_V1',
+            'group': group or '',        # family header already says it
+            'line': '  %-24s %s' % (sid.split('/')[-1][:24],
+                                    'FULL' if ok else 'REGRESSED'),
+            'ok': ok, 'partial': 0, 'fail': 1 - ok, 'total': 1}
+
+
 def _w_dmc(label: str, kind: str, ref: str, group: str | None) -> dict:
     """DMC — kind 'zaks' (module attr ref) or 'cfg' (sid for dmc_v4_config)."""
     from pipelines.dmc.verify import verify_dmc
@@ -382,7 +424,7 @@ _WORKERS = {
     'hubbard': _w_hubbard, 'companion': _w_companion, 'c64me': _w_c64me,
     'jd': _w_jd, 'fc_canary': _w_fc_canary, 'fc_portfolio': _w_fc_portfolio,
     'dmc': _w_dmc, 'basic': _w_basic,
-    'masm': _w_masm, 'masm_hetero': _w_masm_hetero,
+    'masm': _w_masm, 'masm_hetero': _w_masm_hetero, 'gtv1': _w_gtv1,
 }
 
 
@@ -454,6 +496,13 @@ def _build_tasks() -> list:
     # the MA family batch cannot see it (it is DMC-classified).
     add('masm_hetero', '', 'DMC + Music_Assembler heterogeneous member '
                            '(ledger C31), MA-side canary:')
+    # GoatTracker V1: one FULL canary per player variant, built through a
+    # written+parsed .usf (the round trip, not the in-memory UsfFile).
+    for sid in ('MUSICIANS/N/Ne7/Manifold_28B.sid',          # player1 tracker
+                'MUSICIANS/N/Ne7/Startup.sid',
+                'DEMOS/G-L/Lazy_Jones.sid',                  # player2 gamemusic
+                'MUSICIANS/Z/Zynthaxx/Ob-la-di_Ob-la-da.sid'):
+        add('gtv1', sid, None)
     return tasks
 
 
@@ -469,6 +518,8 @@ _FAMILY_ORDER = [
     ('Basic_Program', 'Basic_Program family (RSID-BASIC round-trip portfolio):'),
     ('Music_Assembler',
      'Music Assembler family (SID -> USF -> SID round-trip portfolio):'),
+    ('GoatTracker_V1',
+     'GoatTracker V1 (SID -> USF -> SID canaries, one per player variant):'),
 ]
 
 
@@ -521,6 +572,7 @@ def main():
     dmc_ok, _, dmc_fail, _ = agg['DMC']
     bp_ok, _, bp_fail, _ = agg['Basic_Program']
     ma_ok, _, ma_fail, _ = agg['Music_Assembler']
+    gt_ok, _, gt_fail, _ = agg['GoatTracker_V1']
 
     print(f'Hubbard:    {h_ok} ok  +  {h_part} known-partial  +  '
           f'{h_reg} regressed  (of {h_total})')
@@ -532,9 +584,10 @@ def main():
     print(f'DMC:        {dmc_ok} ok  +  {dmc_fail} regressed')
     print(f'Basic_Program: {bp_ok} ok  +  {bp_fail} regressed')
     print(f'Music_Assembler: {ma_ok} ok  +  {ma_fail} regressed')
+    print(f'GoatTracker_V1: {gt_ok} ok  +  {gt_fail} regressed')
 
     if (h_reg or c_fail or cme_fail or jd_fail or fc_fail or dmc_fail
-            or bp_fail or ma_fail):
+            or bp_fail or ma_fail or gt_fail):
         sys.exit(1)
 
 

@@ -59,8 +59,18 @@ def run_member(item) -> dict:
             return {'path': rel, 'status': 'detect_fail',
                     'reason': f'{type(e).__name__}: {e}'[:120]}
         player = song.layout.player
+        # THROUGH THE USF, not the in-memory model: write the .usf and rebuild
+        # from the PARSED file, so the verdict is a verdict on the stored
+        # artifact. Building from the in-memory UsfFile (what this batch did
+        # until 2026-07-22) never exercises the parse side, which is how V1's
+        # .usf came to be unreadable without any batch noticing.
         try:
-            sid_bytes = build_v1_sid(model_to_usf(song))
+            from src.usf.parser import parse_file
+            from src.usf.writer import write_file
+            with tempfile.TemporaryDirectory() as utd:
+                up = os.path.join(utd, 'a.usf')
+                write_file(model_to_usf(song), up)
+                sid_bytes = build_v1_sid(parse_file(up))
         except Exception as e:
             return {'path': rel, 'status': 'build_fail', 'player': player,
                     'reason': f'{type(e).__name__}: {e}'[:120]}

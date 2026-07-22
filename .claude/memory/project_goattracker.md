@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c0742216-af17-42da-9a5c-fa8ae0d40172
-  modified: 2026-07-22T14:50:40.332Z
+  modified: 2026-07-22T15:05:21.789Z
 ---
 
 ## STATUS (head — newest wins; update THIS section, prepend new rounds here)
@@ -22,12 +22,34 @@ it wrote was unparseable and the family had no round trip at all:
     pending", because the V1 composer reads the in-memory model, so nothing
     ever exercised the parse side.
 
-Fixed in the grammar/parser/writer (ledger C14 for the row commands). V1's one
-stored `.usf` now parses and is round-trip stable (730 rows, params/loops/flags
-preserved). NOTE this means the earlier 164/1359 batch verdict never went
-through USF — when V1 work resumes, re-run the batch through the USF path
-before trusting it, and wire V1 into `regression.py` (still absent, which is
-why this stayed invisible).
+Fixed in the grammar/parser/writer (ledger C14 for the row commands, plus a
+recursive `param_list` — `idle_priming` is a list of 3 per-voice lists).
+
+**RE-RUN THROUGH THE USF PATH, SAME DAY: 164/1359 STANDS.** `family_batch.py`
+now writes each member's `.usf` and rebuilds from the PARSED file, so the
+verdict is a verdict on the stored artifact. Result is IDENTICAL to the
+in-memory baseline — 164 full / 1058 partial / 134 detect_fail / 3 build_fail,
+**0 status changes across all 1,359 members** (a 40-member byte-identity probe
+first showed 38/40 rebuilds byte-for-byte equal, the other 2 being extract-side
+`detect_fail`). So the round trip was purely a SERIALIZATION gap, not a
+modelling one: nothing about the music was being lost, the file just could not
+be read back.
+
+Two composer-side fixes were needed to get there, both worth remembering
+because they are the shape of "the composer only ever saw the in-memory
+object":
+  * `_fx_to_cmd` did bare `int()` on fx-flag values, but the PARSER
+    canonicalises several flags to hex (`glide_up=$0014`, `srr=$1C`,
+    `filter=$04`) while the extract writes decimal. Same value, two spellings;
+    only the extract's was ever fed in. Now `_fxint` accepts both.
+  * the writer's list formatter assumed a FLAT int list and died on
+    `idle_priming`'s nesting.
+
+V1 is now wired into `regression.py` (4 canaries, one pair per player variant,
+built THROUGH a written+parsed `.usf`) — the durable guard, since its absence
+is exactly why this stayed invisible. `idle_priming` remains an untyped
+`params` escape hatch and is a ledger-C33 typing candidate for a future round
+(it is per-voice §4.5 priming, the same class MA typed onto InitVoice).
 
 **2026-07-16:** V1 extract + composer BUILT (`pipelines/goattracker/v1/`);
 authoritative wide batch **164/1359 FULL** incl. the player1 `optimized`

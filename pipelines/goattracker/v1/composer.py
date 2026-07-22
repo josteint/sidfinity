@@ -219,38 +219,55 @@ def _encode_pattern(rows, player='tracker') -> bytes:
     return bytes(out)
 
 
+def _fxint(s: str) -> int:
+    """One fx_flag scalar, in EITHER of the two forms it legitimately takes.
+
+    The extract writes these flags in decimal, but the USF parser re-emits
+    several of them in the schema's canonical hex form (`glide_up=$0014`,
+    `srr=$1C`, `filter=$04`). Both denote the same value; a bare int() only
+    accepts the extract's form, which is why building from a PARSED .usf blew
+    up on every member carrying one — the family's composer had only ever been
+    handed the in-memory UsfFile."""
+    s = s.strip()
+    neg = s.startswith('-')
+    if neg:
+        s = s[1:]
+    v = int(s[1:], 16) if s.startswith('$') else int(s)
+    return -v if neg else v
+
+
 def _fx_to_cmd(flags, player='tracker'):
     for f in flags:
         if f == 'keyoff':
             continue
         if f.startswith('arp='):                       # cmd 0 (both players)
-            x, y, s = (int(t) for t in f[4:].split(','))
+            x, y, s = (_fxint(t) for t in f[4:].split(','))
             return 0, (s << 7) | ((x & 7) << 4) | (y & 0xF)
         if f.startswith('porta='):                     # cmd 3 (both)
-            return 3, int(f.split('=')[1])
+            return 3, _fxint(f.split('=')[1])
         if f.startswith('vibrato='):                   # cmd 4 (both)
-            a, w = (int(t) for t in f[8:].split(','))
+            a, w = (_fxint(t) for t in f[8:].split(','))
             return 4, ((a & 0xF) << 4) | (w & 0xF)
         if f.startswith('srr='):                       # cmd 6 (both: SR/SETSUSTAIN)
-            return 6, int(f.split('=')[1])
+            return 6, _fxint(f.split('=')[1])
         if f.startswith('tempo='):                     # cmd 7 (both)
-            return 7, int(f.split('=')[1])
+            return 7, _fxint(f.split('=')[1])
         if player == 'gamemusic':                      # player2 command set
             if f.startswith('glide_up='):              # cmd 1, signed porta (up)
-                return 1, int(f.split('=')[1]) & 0x7F
+                return 1, _fxint(f.split('=')[1]) & 0x7F
             if f.startswith('glide_down='):            # cmd 1, signed porta (down=bit7)
-                return 1, (int(f.split('=')[1]) & 0x7F) | 0x80
+                return 1, (_fxint(f.split('=')[1]) & 0x7F) | 0x80
             if f.startswith('fcutadd='):               # cmd 2, SETCUTOFFADD
-                return 2, int(f.split('=')[1])
+                return 2, _fxint(f.split('=')[1])
             if f.startswith('fctrl='):                 # cmd 5, SETFILTER ($D417)
-                return 5, int(f.split('=')[1])
+                return 5, _fxint(f.split('=')[1])
             continue
         if f.startswith('glide_up='):                  # player1: cmd 1 (porta up)
-            return 1, int(f.split('=')[1])
+            return 1, _fxint(f.split('=')[1])
         if f.startswith('glide_down='):                # player1: cmd 2 (porta down)
-            return 2, int(f.split('=')[1])
+            return 2, _fxint(f.split('=')[1])
         if f.startswith('filter='):                    # player1: cmd 5 (filter ptr)
-            return 5, int(f.split('=')[1])
+            return 5, _fxint(f.split('=')[1])
     return None, None
 
 

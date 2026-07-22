@@ -156,7 +156,16 @@ class _T(Transformer):
         return str(items[0])[1:-1]                     # strip quotes
 
     def param_list(self, items):
-        return [int(x) for x in items]
+        return list(items)
+
+    def param_elem_int(self, items):
+        return int(items[0])
+
+    def param_elem_list(self, items):
+        return items[0]
+
+    def param_list_value(self, items):
+        return items[0]
 
     def param_value(self, items):
         return items[0]

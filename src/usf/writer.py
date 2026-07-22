@@ -40,9 +40,15 @@ def _format_param_value(key: str, val) -> str:
     if isinstance(val, int):
         return _hex(val) if key in _HEX_FIELDS else str(val)
     if isinstance(val, (list, tuple)):
-        # Explicit, so the emitted form is guaranteed to match the grammar's
-        # `param_list` rather than depending on Python's repr of a sequence.
-        return '[' + ', '.join(str(int(v)) for v in val) + ']'
+        # Explicit + recursive, so the emitted form is guaranteed to match the
+        # grammar's `param_list` rather than depending on Python's repr of a
+        # sequence. Nesting is real: GoatTracker V1's `idle_priming` is a list
+        # of per-voice lists.
+        def _seq(v):
+            if isinstance(v, (list, tuple)):
+                return '[' + ', '.join(_seq(x) for x in v) + ']'
+            return str(int(v))
+        return _seq(val)
     if isinstance(val, str) and (' ' in val or not val.isidentifier()):
         return '"' + val + '"'                         # readable string knob
     return str(val)

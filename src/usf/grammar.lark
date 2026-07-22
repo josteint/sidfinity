@@ -135,12 +135,17 @@ param_value: signed_int      -> param_number
            // structure into opaque ints, the representation-principle §3
            // failure mode.
            | STRING          -> param_string
-           // A list-valued knob. `Params.fields` is typed `dict[str, Any]`
-           // and engines already store lists in it (GoatTracker V1's
-           // `filt_init` / `funk`), which the writer emits as `[a, b, c]`;
-           // without this rule the writer could produce files the parser
-           // could not read back.
-           | "[" (signed_int ("," signed_int)*)? "]"  -> param_list
+           // A list-valued knob, possibly NESTED. `Params.fields` is typed
+           // `dict[str, Any]` and engines already store both shapes in it
+           // (GoatTracker V1's flat `filt_init` / `funk`, and its per-voice
+           // `idle_priming`, a list of 3 lists), which the writer emits as
+           // `[a, b, c]` / `[[a, b], [c, d]]`; without this rule the writer
+           // could produce files the parser could not read back.
+           | param_list      -> param_list_value
+
+param_list: "[" (param_elem ("," param_elem)*)? "]"
+param_elem: signed_int      -> param_elem_int
+          | param_list      -> param_elem_list
 
 // ----- init -----
 // `init_inner*`: each entry is either an init_voice (engine-state
