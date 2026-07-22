@@ -91,7 +91,7 @@ practice, not code to factor).
 | off-table FREQ lookup · index past freq table · wave-relative note offset | C6 | recurring (FC + v5) |
 | ANTI-PATTERN: verbatim/opaque musical bytes · leapfrog · content-by-reference blob | C7 | methodology (recurring) |
 | de-fused per-entity pool exceeds byte-index capacity · "pool overflow" · separate copies per instrument | C8 | canonicalized |
-| runtime param unreadable by py65 (init hangs / IRQ-set / bad opcode) · measure from libsidplayfp writelog · a SECOND build path that defaults probed params → fix the CONSTRUCTOR, not the knob | C9 | logged |
+| runtime param unreadable by py65 (init hangs / IRQ-set / bad opcode) · measure from libsidplayfp writelog · a SECOND build path that defaults probed params → fix the CONSTRUCTOR, not the knob · and check WHICH LAYER the canonical build attaches params at (probe table applied by the CALLER) | C9 | logged |
 | chip-global $D415-$D418 automation during a song · master vol / filter varies · global_track vs MasterVolConfig/filter_programs · explicit-event vs parametric | C10 | logged |
 | engine reads a table via an 8-bit index register (`base,Y` w/ Y=#*stride) · orig "reads garbage"/looks broken · extractor must wrap `(#*stride)&0xFF` · suspect OUR extractor not the packer | C11 | logged |
 | off-table read sonifies a "positional" byte counter (sector position / stream offset) · per-event deltas derive from row kind + stated commands → live shadow, stated-command flags = §8 arrangement (DMC sectpos) | C11 | logged |
@@ -230,7 +230,13 @@ practice, not code to factor).
   and don't stop at the one knob: if a second constructor hand-rolls its
   config (TELL: addresses only, no probes / no `extra_params`), make it RUN
   the canonical build instead, keeping the hand-rolled form as a fallback.
-  A defaulted knob is silently wrong MUSIC, not a refusal.
+  A defaulted knob is silently wrong MUSIC, not a refusal. 5th occ: "make it
+  run the canonical build" is only a cure if you check WHICH LAYER the params
+  attach at — the wedge-probe table was applied by the CALLER, one layer above
+  the constructor the sub-player path stops at, so every wedge knob still came
+  back defaulted. Grep the probe table's CALL SITES, not just the constructor.
+  TELL when a retry hides it: batch FULL but a fresh build partial → the
+  stored `.usf` and `.sid` disagree (C20 fifth layer).
 - FULL ENTRY: [`ledger/C9.md`](ledger/C9.md) — read it before applying.
 
 ### C10 — chip-global ($D415-$D418) automation that varies during the song
@@ -391,6 +397,23 @@ practice, not code to factor).
   RECORDS `build_path` and the writer REPLAYS it; non-FULL members get their
   orphaned artifacts DELETED (nothing else ever does); the writer audits a
   path-stratified sample from disk.
+- FIFTH LAYER — the stored `.usf` does not REBUILD the stored `.sid`. Writer
+  and verifier take the SAME path, but the build consumes a PARAMETER absent
+  from the stored `.usf`: DMC's batch write-stream RETRY set `hold_gateoff` on
+  the PARSED object, recorded it in the jsonl, and the mass-writer re-injected
+  it post-parse. Verdict right, `.sid` right, `.usf` beside them specifying a
+  DIFFERENT build — and NO gate sees it (batch green, hash matches, `.usf`
+  parses AND is byte-identical to a fresh extract, and the 4th-layer audit
+  re-verifies the `.sid`, which passes). TELL: a member reads FULL in the batch
+  but a fresh build verifies partial with IDENTICAL numbers across unrelated
+  code changes. Split the layers: verify the stored `.sid` → diff stored vs
+  fresh `.usf` → rebuild FROM the stored `.usf` and compare bytes. DETECTOR
+  (wired): `dmc_mass_write --audit` asserts `build(parse(stored .usf)) ==
+  stored .sid` — the corpus-side Principle §8 invariant, general to any build
+  input that leaks outside the USF. CURE: push the value onto the CONFIG so the
+  writer emits it natively (a parse→write round-trip is NOT available — the USF
+  round-trip isn't byte-stable, 20/60), refuse the member if it still misses,
+  and root-cause why it was absent (here C9's 5th occ).
 - THIRD LAYER — the stored ARTIFACT is unreadable by the CURRENT grammar
   (schema drift). A typed-field move orphaned 1,182/11,943 stored .usf (9.9%)
   while regression stayed green — it builds from a ~116-member portfolio,
