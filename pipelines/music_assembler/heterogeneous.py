@@ -16,12 +16,17 @@ The rebuild composes all three engines into one image behind a dispatcher at
 the PSID vectors, exactly the shape the dmc_sfx path uses: init records which
 engine the subtune selected, play jumps to it.
 
-STATUS / SCOPE — read before extending. This is a WORKING BRING-UP PATH, not
-yet wired into the DMC pipeline: `detect_compilation` does not classify MA
-sub-players, and the member does not round-trip through USF (it is built
-straight from the two models). Both are required before the family batch can
-report it. What is proven is the audio: all three subtunes verify FULL against
-the original's write stream (225,157 / 127,969 / 35,179 writes).
+Every engine here is built THROUGH ITS USF — the DMC half via `write_dmc_usf`
+-> `parse_file` -> `compose_dmc_asm`, each MA sub-player via `model_to_usf` ->
+`write_file` -> `parse_file` -> `usf_to_model`. Nothing is composed from an
+in-memory model, so the regression canary guards the round trip and not merely
+the audio. All three subtunes verify FULL against the original's write stream
+(225,157 / 127,969 / 35,179 writes).
+
+STATUS / SCOPE — read before extending. Still not wired into the DMC pipeline:
+`detect_compilation` does not classify MA sub-players, so the DMC family batch
+reports this member `error: track at $836F never settles` rather than full.
+That is the remaining work.
 """
 
 from __future__ import annotations
@@ -37,12 +42,15 @@ sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
 from seed_disassembly import parse_psid                       # noqa: E402
 from src.composer_runtime import assemble, build_header       # noqa: E402
 from src.usf.parser import parse_file                         # noqa: E402
+from src.usf.writer import write_file                         # noqa: E402
 from pipelines.dmc.composer_asm import (_sanitize_asm,        # noqa: E402
                                         compose_dmc_asm)
 from pipelines.dmc.v4.extract.to_usf import write_dmc_usf     # noqa: E402
 from pipelines.dmc.v4.factory import dmc_v4_config            # noqa: E402
 from pipelines.music_assembler.composer_asm import compose_asm  # noqa: E402
 from pipelines.music_assembler.extract.model import extract_mem  # noqa: E402
+from pipelines.music_assembler.extract.to_usf import model_to_usf  # noqa: E402
+from pipelines.music_assembler.from_usf import usf_to_model     # noqa: E402
 
 LOAD = 0x1000
 DMC_ORIGIN = 0x1100
@@ -98,7 +106,15 @@ def build(rel: str, copies: dict, hvsc_root: str = 'hvsc84') -> bytes:
         mem = bytearray(img)
         mem[dst:dst + n] = mem[src:src + n]
         m = extract_mem(mem, hdr=s, lo=dst, hi=dst + n)
-        blob = assemble(compose_asm(m, origin=o, prefix='m%d_' % sub))
+        # THROUGH THE USF, like the DMC half above: write each sub-player's
+        # .usf and recover the model from the PARSED file. Building straight
+        # from the extracted model would leave this member's MA halves the one
+        # place in the pipeline that never exercises the USF round trip — the
+        # exact blind spot that let GoatTracker V1's .usf go unreadable.
+        mp = os.path.join(td, 'ma%d.usf' % sub)
+        write_file(model_to_usf(m), mp)
+        blob = assemble(compose_asm(usf_to_model(parse_file(mp)),
+                                    origin=o, prefix='m%d_' % sub))
         ma[sub] = (o, blob)
         o = (o + len(blob) + 1) & ~1
 
