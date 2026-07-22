@@ -23,10 +23,11 @@ in-memory model, so the regression canary guards the round trip and not merely
 the audio. All three subtunes verify FULL against the original's write stream
 (225,157 / 127,969 / 35,179 writes).
 
-STATUS / SCOPE — read before extending. Still not wired into the DMC pipeline:
-`detect_compilation` does not classify MA sub-players, so the DMC family batch
-reports this member `error: track at $836F never settles` rather than full.
-That is the remaining work.
+STATUS / SCOPE — read before extending. Wired into the DMC pipeline:
+`detect_compilation` classifies each base's engine (`kinds`), and every path
+that reconstructs a member — family batch, mass-write, `dmc_build_one` —
+dispatches on it, so the member counts FULL in the family batch and its
+stored `.usf` rebuilds its stored `.sid`.
 """
 
 from __future__ import annotations

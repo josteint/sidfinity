@@ -5,6 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: dc3e8ab6-14f1-45ad-97c8-053b066d511b
+  modified: 2026-07-22T20:01:01.143Z
 ---
 
 **DMC COMPILATIONS — one file, N independent DMC players, per-subtune dispatch.**
@@ -118,11 +119,30 @@ keeps its prior status.
   `offtable_freq` (a C6 reachability artifact, not intrinsic content) and UNIONs
   the records per merged id (collision → distinct). 29→28. This is the general
   lever for instrument-overflow compilations (may help Heavy_Metal's 30>28).
-- **RESIDUE (fall back, 0 regr):** 3 filter OVERRUN (repeat>5, need an
-  adjacency-preserving window — Zap_Zone/Protox-1/Mission_Moon); 1 instrument
-  overflow (Heavy_Metal 30>28 — retry with the offtable-union dedup). Next
-  steps: (a) an overrun-adjacency-preserving filter window (or per-player
-  contiguous blocks); (b) DUAL-PLAYER composer emit for the unmergeable tail.
+- **RESIDUE (fall back, 0 regr) — as of round 86:** 2 filter OVERRUN
+  (repeat>5, need an adjacency-preserving window — Zap_Zone/Protox-1); 1
+  instrument overflow (Lane_Crazy, 39); 1 third player layout (Black_It,
+  `base_override_not_player: $1000`). Next steps: (a) an
+  overrun-adjacency-preserving filter window (or per-player contiguous
+  blocks); (b) PER-SONG instrument WINDOWS for the >32 tail (below).
+
+## ✅ INSTRUMENT CAP — it was the ORIG's, not ours (round 86, 2026-07-22)
+`Heavy_Metal_Deluxe_beta` (3 players, 30 merged instruments) was the
+documented "30 > 28 instrument overflow" residue. The 28 came from DMC's
+EDITOR row encoding (5-bit `$60+id`), which our composer does not use — it
+emits its own pattern format where the slot is a full operand byte. The
+composer's real bound is its widest id-scaled index, fx_pulse's
+`lda cinst,x / asl×3 / adc pwphase,x / tay` (8-bit, stride 8) ⇒ **32**.
+Cap raised to 32, nothing else changed, **3/3 FULL** (222245/117622/164355).
+Zero-regression by construction (only fallback members can change path; all
+6 were partial) — verified over all 22 detected f1 compilations: 0 regressed.
+Ledger C8 gained the "first ask WHOSE cap it is" sibling.
+- **Next tier for >32 (Lane_Crazy, 39):** PER-SONG instrument windows. Only
+  ONE packed player runs per subtune and each uses ≤11 instruments, so the
+  merged pool never needs to be simultaneously addressable — give each song a
+  contiguous block and add a per-song base at note-init (gate the emission so
+  existing members stay byte-identical). The merge-side analogue of C8's
+  emit-and-walk tier.
 
 ## HETEROGENEOUS compilation — DMC players + a `dmc_sfx` sub-player (round 72, 2026-07-10)
 Canyon_Tank_Duel (Bayliss) = the FIRST heterogeneous compilation: 2 canonical

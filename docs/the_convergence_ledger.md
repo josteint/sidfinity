@@ -224,6 +224,13 @@ practice, not code to factor).
   must EXCLUDE reachability artifacts (e.g. offtable_freq) — carry the union.
   A composer-side 8-bit stream cursor that overflows is the sibling: widen to
   16-bit, don't dedup. Suffix/overlap packing is REFUTED (see full entry).
+- ⚠ FIRST ASK WHOSE CAP IT IS — before packing harder, check the constant is
+  OUR composer's bound and not the ORIGINAL FORMAT'S transcribed from the
+  disasm (TELL: its comment cites the orig's bit-field width). DMC's merged
+  instrument pool was capped at the editor's 5-bit `$60+id` row field, which
+  binds nothing in a composer that emits its own encoding; the real bound is
+  the widest id-scaled index (8-bit, stride 8 ⇒ 32) and raising it to the
+  measured value landed a 30-instrument member unchanged.
 - FULL ENTRY: [`ledger/C8.md`](ledger/C8.md) — read it before applying.
 
 ### C9 — a runtime parameter py65 can't read → measure it from the writelog

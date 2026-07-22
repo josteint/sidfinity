@@ -5,8 +5,45 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-22T11:08:53.260Z
+  modified: 2026-07-22T20:11:08.083Z
 ---
+
+## ✅ ROUND 86 (2026-07-22): the merged-pool cap was the ORIG's, not ours. f1 **5240 full / 161 partial / 0 error**, corpus SYNCED
+Next f1 partial by path = `Heavy_Metal_Deluxe_beta`, the documented
+"instrument overflow 30 > 28" compilation residue. **Now 3/3 FULL**
+(222245 / 117622 / 164355 writes). Commit b36f9d4e; ledger C8 gained the
+"first ask WHOSE cap it is" sibling.
+- **The cap was transcribed from the DISASM, never measured on us.** 28 came
+  from DMC's editor row encoding (5-bit `$60+id`, $7C-$7F special) — but the
+  composer emits its OWN pattern format (parallel arrays; the slot rides a
+  full operand byte after the event flags), so that field binds nothing in the
+  rebuild. Our engine's real bound is its widest id-scaled index: fx_pulse's
+  `lda cinst,x / asl×3 / adc pwphase,x / tay`, 8-bit at stride 8 ⇒ **32**.
+  Raising `_MAX_INSTR` to the measured bound was the entire fix — no packing,
+  no dedup, no composer change.
+- **Zero-regression BY CONSTRUCTION:** the cap only gates the compilation
+  merge, and a merge failure FALLS BACK to the single-player path, so only
+  members that already fail can change path. All 6 fallback members were
+  partial. Verified over all 22 detected f1 compilations: **0 regressed / 2
+  gained**.
+- **Tool defect found on the way:** `dmc_build_one` lacked the heterogeneous
+  (DMC+MA) branch the family batch + mass-write take, so it reported
+  Freespace_2075 partial after r85's work landed it — and it is what
+  `dmc_next_partial` reads, so the queue was parked on an already-FULL member.
+  The C20 fourth-layer rule generalises: when the build path grows a branch,
+  every tool that RECONSTRUCTS a member needs it, the localizer included.
+- **Gates:** full regression green (8 families, 0 regressed); 22 compilations
+  re-verified 0 regressed; dmc_smoke 6/6; usf_corpus_check **11902/11902 parse
+  OK (0 FAIL — the 80 stale are gone)**.
+- **CLOSEOUT (fresh `tmp/dmc_f1_r86.jsonl`, full 5401-member batch): 5240 full
+  / 161 partial / 0 error — 0 regressed / 2 gained vs r85** (Freespace_2075 +
+  Heavy_Metal_Deluxe_beta). Build paths: 5367 single / 17 compilation / 16
+  multisid / 1 hetero_masm.
+- **RESIDUE in this class:** Lane_Crazy needs 39 instruments — past the real
+  8-bit bound, so the next tier is PER-SONG instrument WINDOWS (only one
+  packed player runs per subtune, each using ≤11), see
+  [[project_dmc_compilations]]. Zap_Zone/Protox-1 filter overrun and Black_It's
+  3rd player layout are unchanged.
 
 ## ✅ ROUND 85 (2026-07-22): the RELOCATING dispatch wrapper. f1 **5238 full / 163 partial / 0 error**, corpus SYNCED
 Working the next f1 partial by path (`Freespace_2075`) surfaced a compilation
