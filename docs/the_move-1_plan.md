@@ -441,6 +441,39 @@ byte-exact verify intact.
 
 ---
 
+## Scaffolds that Move 1 DEMOLISHES
+
+### `origin_engine` (added 2026-07-22)
+
+`MusicSubtune.origin_engine` names, per subtune, which engine family it came
+from. It exists because there is not yet ONE composer: ~6 per-family composers
+exist, the dispatch between them is caller-side and invisible to the file, and
+a few originals pack players of DIFFERENT families behind a per-subtune
+dispatch wrapper (DMC + Music Assembler; DMC + `dmc_sfx`) which therefore
+cannot be stored as one `.usf` at all.
+
+Declared in `docs/the_principle.md` §8 as an explicit exception; recognition +
+boundary in ledger C35; enforced by `src/usf/validate.py::_check_origin_engine`.
+Permitted EXACTLY when a file **demonstrably requires more than one COMPOSER** —
+NOT merely when it contains more than one engine (5 Title Tunes packs five
+Hubbard '85 sub-engines under one composer and carries no tag).
+
+**Move 1 demolishes it by construction, not by policy.** With one engine-blind
+composer, "requires more than one composer" is false for every file in the
+corpus, so `_check_origin_engine` can only ever refuse. The removal is
+therefore a deletion, not a migration:
+
+- delete `MusicSubtune.origin_engine` + its grammar/parser/writer lines;
+- delete `_check_origin_engine`;
+- delete the §8 exception (restoring §8 to its unqualified form);
+- retire ledger C35 and this section.
+
+**Until then it is a progress measure.** The count of members carrying the
+field is the number of files Move 1 still owes a unified composer. It should
+only ever fall. If it starts RISING, that is the signal the ratchet has failed
+and the field has become the cheap answer to awkward migrations — which is
+exactly the §8 failure mode it was scoped to avoid.
+
 ## Move-1-era considerations (NOT before)
 
 ### Audio-equivalence verdict (former ledger C15 — removed 2026-07-01 by user decision)

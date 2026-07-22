@@ -310,6 +310,49 @@ and the universal composer uses that field, or (b) the universal
 composer grew a parametric feature that USF uses — and no engine
 identity entered the rebuild path.
 
+### The one exception — `origin_engine`, a Move-1 scaffold
+
+Stated here because a canon document that quietly contradicts practice
+is worse than no document: today there is not yet ONE composer. There
+are several per-family composers, and the dispatch between them lives
+outside the USF, in whichever caller knows the member's family. A
+handful of originals pack players from DIFFERENT families behind a
+per-subtune dispatch wrapper, and no single composer can build them.
+
+For those files only, each subtune may name its engine
+(`MusicSubtune.origin_engine`). The boundary is mechanical:
+
+> permitted EXACTLY when one file demonstrably requires more than one
+> COMPOSER — never merely because it contains more than one engine.
+
+5 Title Tunes is the bar. It packs five fully independent Hubbard '85
+sub-engines, each with its own init, play, freq table, instruments and
+patterns — and it carries no such field, because one composer serves
+all five through per-subtune `params`. The unified build is 38% the
+size of the compound one. Same-family plurality is a parameterization
+problem and has a parametric answer; try it first.
+
+Three constraints keep this from becoming the §8 leak it resembles:
+
+1. **File or subtune level only.** Never inside an instrument or an
+   effect. That distinction is not stylistic: this field is deleted BY
+   Move 1 — with one engine-blind composer, "requires more than one
+   composer" is false for every file, so the construct cannot outlive
+   the unification even by neglect. A per-instrument engine `kind` is
+   NOT deleted by Move 1, which unifies composers, not representations;
+   it would survive as permanent damage to the effect space (§7).
+2. **Read by the dispatcher, never by an emitter.** The moment a
+   composer branches on it to decide what to EMIT, this is §8 again in
+   full. It selects which composer runs; it never shapes that
+   composer's output.
+3. **Self-policing in the schema.** `src/usf/validate.py` refuses the
+   field unless every music subtune names one AND at least two distinct
+   values appear — a file whose subtunes all agree needs one composer
+   and the tag states nothing.
+
+It is a scaffold with a demolition date, not a softening of §8. The
+prohibition above stands unchanged for every other use.
+
 ---
 
 ## 9. The four tests — the ML-readiness gate

@@ -715,6 +715,9 @@ class _T(Transformer):
     def tempo_chip(self, items):
         return ('_tempo_chip', int(items[0]), int(items[1]))
 
+    def origin_engine_field(self, items):
+        return ('_origin_engine', str(items[0]))
+
     def music_body(self, items):
         # 'tempo' ':' INT tempo_chip* is_sfx_field? params_block?
         #   init_block? voice_block+ global_block*
@@ -729,6 +732,10 @@ class _T(Transformer):
             if chip in tempos:
                 raise UsfParseError(f'tempo {chip}: appears twice')
             tempos[chip] = t
+        origin_engine = None
+        if rest and isinstance(rest[0], tuple) \
+                and rest[0][0] == '_origin_engine':
+            origin_engine = rest.pop(0)[1]
         is_sfx = False
         if rest and isinstance(rest[0], tuple) and rest[0][0] == 'is_sfx':
             is_sfx = rest.pop(0)[1]
@@ -773,7 +780,7 @@ class _T(Transformer):
                     f'{n_chips * 3} voices')
         return ('music', {'tempo': tempo, 'voices': voices,
                           'params': params, 'init': init,
-                          'is_sfx': is_sfx,
+                          'is_sfx': is_sfx, 'origin_engine': origin_engine,
                           'global_track': globals_.get(1, []),
                           'tempo2': tempos.get(2), 'tempo3': tempos.get(3),
                           'global_track2': globals_.get(2, []),
@@ -870,6 +877,7 @@ class _T(Transformer):
                 params=body_data.get('params'),
                 init=body_data.get('init'),
                 is_sfx=body_data.get('is_sfx', False),
+                origin_engine=body_data.get('origin_engine'),
                 global_track=body_data.get('global_track', []),
                 tempo2=body_data.get('tempo2'),
                 tempo3=body_data.get('tempo3'),

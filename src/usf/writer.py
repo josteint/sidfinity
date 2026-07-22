@@ -670,6 +670,8 @@ def _write_subtune(s) -> list[str]:
             lines.append(f'  tempo 2: {s.tempo2}')
         if getattr(s, 'tempo3', None) is not None:
             lines.append(f'  tempo 3: {s.tempo3}')
+        if getattr(s, 'origin_engine', None):
+            lines.append(f'  origin_engine: {s.origin_engine}')
         if s.is_sfx:
             lines.append('  is_sfx: true')
         if s.params is not None and s.params.fields:

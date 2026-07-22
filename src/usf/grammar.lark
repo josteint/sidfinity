@@ -518,8 +518,18 @@ dmcsfx_body: "song" ":" INT
 // the parser validates the count is exactly 3, 6 or 9 and the numbering
 // consecutive. `tempo N:` (N = 2/3) is that chip's tempo when it differs
 // from chip 1's; one `global` block per chip, the bare form = chip 1.
-music_body: "tempo" ":" INT tempo_chip* is_sfx_field? params_block? init_block? voice_block+ global_block*
+// `origin_engine`: MOVE-1 SCAFFOLD. Which engine family this subtune came
+// from — permitted EXACTLY when one file demonstrably requires more than one
+// COMPOSER (an original packing players of different families behind a
+// per-subtune dispatch wrapper). NOT "the file contains several engines":
+// 5 Title Tunes packs five Hubbard '85 sub-engines and needs none, because
+// one composer serves them all. Validation refuses the field unless every
+// subtune names one and >=2 distinct values appear. Defined to disappear at
+// Move 1, when one engine-blind composer makes the condition false for every
+// file. Never valid inside an instrument or effect (principle §7).
+music_body: "tempo" ":" INT tempo_chip* origin_engine_field? is_sfx_field? params_block? init_block? voice_block+ global_block*
 tempo_chip: "tempo" INT ":" INT
+origin_engine_field: "origin_engine" ":" CNAME
 is_sfx_field: "is_sfx" ":" bool
 
 // ----- global automation track (optional) -----

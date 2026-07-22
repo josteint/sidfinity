@@ -261,6 +261,29 @@ class MusicSubtune:
     tempo3: 'int | None' = None
     global_track2: list[GlobalEvent] = field(default_factory=list)
     global_track3: list[GlobalEvent] = field(default_factory=list)
+    # MOVE-1 SCAFFOLD — which engine family this subtune came from.
+    #
+    # Permitted EXACTLY when one file demonstrably requires more than one
+    # COMPOSER: a few originals pack players from DIFFERENT families behind a
+    # per-subtune dispatch wrapper (DMC + Music Assembler), and no single
+    # composer can currently build them. It is NOT "this file contains several
+    # engines" — 5 Title Tunes packs five independent Hubbard '85 sub-engines
+    # and needed no such field: one composer serves them all via per-subtune
+    # `params`, and the unified build is 38% the size of the compound one.
+    # That is the bar; try it first.
+    #
+    # The field is defined to DISAPPEAR at Move 1: with one engine-blind
+    # composer, "requires more than one composer" is false for every file, so
+    # the construct cannot outlive the unification even by neglect. Never let
+    # it drift down into an instrument or effect — a per-instrument engine
+    # `kind` is NOT removed by Move 1 (which unifies composers, not
+    # representations) and would be permanent damage to the effect space
+    # (docs/the_principle.md §7).
+    #
+    # Validation refuses it unless every subtune names one AND at least two
+    # DISTINCT values appear — a file whose subtunes all agree needs one
+    # composer and the tag would say nothing. See src/usf/validate.py.
+    origin_engine: Optional[str] = None
     kind: str = 'music'
 
 

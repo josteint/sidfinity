@@ -118,6 +118,7 @@ practice, not code to factor).
 | LOSSY ENUM over independently-toggleable flag bits · USF enum assumed two editor flags mutually exclusive (gate hold $10 / never-release $08) · engine gives one priority so the co-set bit is MECHANICALLY DEAD · but the raw flags byte is OBSERVABLE via a state-as-data read (off-table fxf) → reconstruction misses the dead bit · carry the masked flag as an elidable boolean CO-FIELD, keep the enum = the EFFECTIVE articulation | C30 | logged |
 | COMPILATION · one file packs N INDEPENDENT players + a per-subtune SMC dispatch wrapper (subtune→(base,song)) · header overstates songs, sub0 FULL others silent/garbage · ≥2 jump-table bases · unified-merge (renumber+dedup instruments) · heterogeneous engines (dmc_sfx) · distinct from C27 parallel chips | C31 | logged |
 | engine STICKY STATE materialized into effective variants · orderlist state over the loop wrap (fitted pad/period/rcmd) · pattern-row sticky duration/instr/vol (FC (fc_id,init_len) variants · len=L pickup · DMC ~intro decode variants) · fold to STATED notation (value present iff the stream states the command; absent = inherit) + ONE shared resolution interpreter (src/usf/resolve.py) · re-derivation assert, fallback wholesale | C32 | canonicalized (2×) |
+| one FILE needs more than one COMPOSER · original packs players of DIFFERENT families behind a per-subtune dispatch wrapper · cannot be stored as one .usf · `origin_engine` Move-1 scaffold, boundary = "more than one COMPOSER" NOT "more than one engine" (5TT packs 5 sub-engines and needs none) | C35 | logged |
 | packed-stream byte whose meaning depends on the DECODER'S POSITION · a command handler consumes the following bytes itself with its OWN coarser rules (skipping the top-level dispatch AND the terminator test) · INVISIBLE to the write-stream verdict (re-emission round-trips through the same handler) — corrupts USF CONTENT only · find it by READING the handler | C34 | logged |
 | close a `Params.fields` ESCAPE-HATCH key → typed field · untyped behavior-named scalar in the generic params bag (init-phase state / mechanism scalar), borderline §7 · NOT opaque-bytes (C7) / NOT a wedge knob (C19) · it's a byte-identity CARRIER REFACTOR not a schema addition (value already in USF) · census ALL consumers (often cross-engine SHARED + dead readers) · clone an existing typed field of the same trichotomy category · type by MUSICAL category NOT a composer grouping · gate regenerates + MD5-compares every consumer family (surfaces broken extract paths behind a FULL verdict) | C33 | methodology |
 
@@ -673,6 +674,25 @@ practice, not code to factor).
   with the composer's table widening GATED so existing members stay
   byte-identical.
 - FULL ENTRY: [`ledger/C31.md`](ledger/C31.md) — read it before applying.
+
+### C35 — one FILE, more than one COMPOSER (`origin_engine`)
+- PRESENTS: an original packs players from DIFFERENT engine families behind a
+  per-subtune dispatch wrapper. Each subtune verifies on its own, but the file
+  cannot be STORED as one `.usf` — nothing says which composer builds which
+  subtune (today that dispatch is caller-side and invisible).
+- CANONICAL: `MusicSubtune.origin_engine`, permitted EXACTLY when a file
+  demonstrably requires more than one COMPOSER. A Move-1 scaffold declared in
+  the principle §8 and enforced by `validate.py` (all-or-nothing + >=2 distinct
+  values, so a file whose subtunes agree is refused).
+- ⚠ THE TEST IS "MORE THAN ONE COMPOSER", NOT "MORE THAN ONE ENGINE": 5 Title
+  Tunes packs FIVE independent Hubbard '85 sub-engines and needs no tag — one
+  composer serves them via per-subtune params, and the unified build is 38% the
+  size of the compound one. Same-family plurality is a parameterization problem;
+  try that first.
+- File/subtune level ONLY. It is deleted BY Move 1 (the condition becomes false
+  for every file); a per-instrument engine `kind` is NOT — Move 1 unifies
+  composers, not representations — and would be permanent §7 damage.
+- FULL ENTRY: [`ledger/C35.md`](ledger/C35.md) — read it before applying.
 
 ### C34 — a packed-stream byte whose meaning depends on the DECODER'S POSITION
 - PRESENTS: you decode an engine's command stream from its per-byte dispatch

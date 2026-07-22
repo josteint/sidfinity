@@ -115,10 +115,54 @@ def _check_sidecars(usf: UsfFile, usf_dir: str) -> None:
                 f'next to the .usf (looked in {usf_dir})')
 
 
+def _check_origin_engine(usf: UsfFile) -> None:
+    """`origin_engine` is a MOVE-1 SCAFFOLD and this is its ratchet.
+
+    It is permitted EXACTLY when one file demonstrably requires more than one
+    COMPOSER. Two rules make that self-policing:
+
+      * all-or-nothing — if any music subtune names an engine, every one must,
+        so a file never half-declares where its subtunes come from;
+      * at least two DISTINCT values — a file whose subtunes all name the SAME
+        engine needs exactly one composer, so the tag states nothing and is
+        refused.
+
+    The second rule is what keeps the pressure on. Without it the field would
+    become the cheap answer to any awkward migration, which is precisely how
+    the composer-side leak of principle §8 kept re-emerging. 5 Title Tunes is
+    the bar: five independent Hubbard '85 sub-engines in one file, unified
+    under ONE composer via per-subtune params, no tag — and the unified build
+    is 38% the size of the compound one.
+
+    At Move 1 there is one engine-blind composer, so no file can satisfy
+    "requires more than one" and the construct is dead by construction.
+    """
+    music = [s for s in usf.subtunes if isinstance(s, MusicSubtune)]
+    named = [s for s in music if getattr(s, 'origin_engine', None)]
+    if not named:
+        return
+    missing = [s.id for s in music if not getattr(s, 'origin_engine', None)]
+    if missing:
+        raise UsfValidationError(
+            'origin_engine: subtune(s) %s do not name an engine while others '
+            'do — it is all-or-nothing (a file must not half-declare where '
+            'its subtunes come from)' % ', '.join(str(i) for i in missing))
+    distinct = {s.origin_engine for s in named}
+    if len(distinct) < 2:
+        raise UsfValidationError(
+            "origin_engine: every subtune names %r, so this file needs ONE "
+            "composer and the field states nothing. It is permitted only when "
+            "a file demonstrably requires more than one composer (see "
+            "docs/the_principle.md §8); a same-family multi-engine file is "
+            "unified under one composer via per-subtune params instead — "
+            "5_Title_Tunes is the precedent." % distinct.pop())
+
+
 def validate(usf: UsfFile, usf_dir: str | None = None) -> None:
     """Run layers 2-4. If `usf_dir` is None, the sidecar check is skipped
     (useful for in-memory tests that don't need on-disk FLACs)."""
     _check_refs(usf)
     _check_lengths(usf)
+    _check_origin_engine(usf)
     if usf_dir is not None:
         _check_sidecars(usf, usf_dir)
