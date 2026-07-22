@@ -61,8 +61,13 @@ def main():
     # FC has ONE build path, so build_path is not required — the moment it
     # grows a second, the batch must record one and this must require it.
     from src import corpus_sync
+    # 'flagged' = fc_standard_config REFUSED the member, i.e. it is not an
+    # fc_standard tune at all — the Tel-variant canaries (Cybernoid_II,
+    # Hawkeye, Adrenalin) are built by their own configs. They must be skipped
+    # entirely, not read as "not full" and orphaned: doing so DELETED their
+    # stored artifacts and broke the regression (2026-07-22).
     p = corpus_sync.plan(results, 'fc_standard', os.path.join(ROOT, 'hvsc84'),
-                         path_key='sid')
+                         path_key='sid', out_of_scope=('flagged',))
     for line in p.report('tools/fc_family_batch.py'):
         print(line, flush=True)
     full = [d['sid'] for d in p.write]

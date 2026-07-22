@@ -1,14 +1,34 @@
 ---
 name: project_fc_principled_composer
-description: "FC family principled-composer work (de-verbatim patterns/sequences/aux) — ✅ COMPLETE: §9 fully closed, whole FC build orig-free (model-USF buildable), both canaries (Cyb II 2/2 + Hawkeye 12/12) de-verbatim, PSID header synthesized. Kept for the key findings + transpose/voiceinc decisions."
+description: "FC family principled-composer work: how the FC build was de-verbatimed (patterns/sequences/aux), the transpose/voiceinc representation decisions, and the audit of which cfg fields are engine mechanism vs per-member content."
 metadata: 
   node_type: memory
   type: project
   originSessionId: 34baf59d-942f-49ab-b1d7-123e07963888
-  modified: 2026-07-22T08:40:37.673Z
+  modified: 2026-07-22T08:58:06.516Z
 ---
 
-## ⚠️ 2026-07-22 — ORIG-FREE ≠ USF-COMPLETE (measured; OPEN, needs a decision)
+## ✅ 2026-07-22 — ORIG-FREE ≠ USF-COMPLETE: **CLOSED**, the 3 params now ride in the USF
+`to_usf._std_build_params` emits each of the three iff it differs from the
+FCConfig default (defaults read from `FCConfig` via `dataclasses.fields`, so
+they can't drift), and `composer_asm._apply_usf_build_params` resolves them
+from the USF at the single entry point, cfg as fallback for pre-existing USFs
+(canaries, Tel variants). Stored corpus now carries them: 32 / 20 / 2296 files.
+- **Gates:** a carrier's regenerated USF rebuilds its stored `.sid`
+  BYTE-IDENTICALLY while all-default members' USF text is unchanged; and with
+  the SAME cfg, TAMPERING with the USF value changes the build — the check
+  that actually proves the USF (not the config) is authoritative. Full FC
+  re-batch **2530 full / 140 partial / 1354 flagged = 0 regressed / 0 gained**;
+  corpus re-synced 2530, audit 20/20 self-consistent; full regression green;
+  usf_corpus_check unchanged at 80.
+- **I BROKE THE CANARIES DOING THIS** — the FC sync orphan-deleted
+  Cybernoid_II / Hawkeye / Adrenalin's stored artifacts, because
+  `fc_standard_config` REFUSES them (`flagged`) and `corpus_sync` read that as
+  "not full". Restored by regenerating from their own configs; cured by
+  `plan(out_of_scope=('flagged',))`. Ledger C20 "a batch may only delete what
+  it OWNS".
+
+## 2026-07-22 — the measurement that got here (numbers corrected once)
 
 The "§9 closed / orig-free" claim is about BUILD TIME: the composer no longer
 reads the original binary. It does NOT mean the `.usf` is the complete build
@@ -22,10 +42,10 @@ field `composer_asm.py` reads — 72 of them):
 - **3 vary per member and are LOAD-BEARING** — measured by forcing a wrong
   value and verifying against the ORIGINAL (full corpus census of all 10053
   FULL members for the carrier counts):
-  - `std_vibrato_stale_tail` (orig $2046, variant $EB/$DC) — **121 carriers,
-    load-bearing on 30/30 sampled.** The big one.
-  - `std_glide_hi_reg` (orig $1B3F operand, $01 vs $55) — **80 carriers,
-    load-bearing on 24** (the other 56 never reach the glide-up path).
+  - `std_vibrato_stale_tail` (orig $2046, variant $EB/$DC) — **32 carriers,
+    load-bearing on 22/22 tested.** The big one.
+  - `std_glide_hi_reg` (orig $1B3F operand, $01 vs $55) — **20 carriers,
+    load-bearing on 6** (the other 14 never reach the glide-up path).
   - `std_arp3_init` (orig $1E86-$1E88 seed) — 47 distinct values that LOOK
     musical (`(0,3,7)` minor, `(0,4,7)` major, `(0,12,24)` octaves) but slots
     1-2 are runtime scratch, overwritten by every vibrato-skipped instrument:
@@ -36,22 +56,24 @@ field `composer_asm.py` reads — 72 of them):
     stream: all 3 "changed bytes", so all 3 were called musical content. An
     init seed changes the `lda #$xx` immediate without changing the stream.
     Recorded as ledger C7's byte-identity-is-a-one-way-gate note.
+  - ⚠ AND the carrier counts were first published 4x too high (121/80/"~146
+    members") because the census scanned a batch jsonl that APPENDS on resume
+    without deduping by path — 10053 rows = 2530 members x ~4 runs. Ledger C7
+    counting trap; `corpus_sync.plan` now dedupes (last row wins).
 
-None appear in the `.usf` — a standard member's `params {}` block is EMPTY.
-They are C19-class player WEDGES, which the CORE TENET explicitly sanctions as
-per-engine config ("config fields parametrise differences between engines'
-write-log streams"). **The asymmetry worth noting: DMC carries its wedge knobs
-IN the USF (`params.fields`) — which is why `hold_gateoff` had to reach the
-stored `.usf` — while FC keeps the equivalent knobs in Python only.**
+(SUPERSEDED by the CLOSED section at the head — kept for the reasoning.) At
+the time none appeared in the `.usf`; a standard member's `params {}` block was
+EMPTY. They are C19-class player WEDGES. The CORE TENET sanctions per-ENGINE
+config fields, but these vary per MEMBER inside ONE engine family, so that
+clause does not cover them — the Principle's Rule 2 line (constant-across-
+family = machinery = engine; varies-per-member = content = USF) is what
+decides it. DMC already carried its equivalent wedge knobs IN the USF
+(`params.fields`), so FC was the outlier, not a new problem.
 
-CONSEQUENCE for the C20-fifth-layer audit: `fc_mass_write._rebuild_from_usf`
-must hand the builder a freshly-derived cfg, so the FC audit verifies
-`stored .usf + cfg -> stored .sid`, NOT `stored .usf -> stored .sid`. It is a
-genuinely weaker invariant than DMC's, and by necessity — closing the gap
-means carrying these three in the USF. **Not done: that is a schema decision
-(§8 vs the sanctioned per-engine-config category), so it is the user's call,
-not a unilateral fix.** ML angle: a model generating a USF cannot express
-"this tune's 3-step arp is (0,12,24)".
+CONSEQUENCE while it was open: `fc_mass_write._rebuild_from_usf` had to hand
+the builder a freshly-derived cfg, making the FC C20-fifth-layer audit verify
+`stored .usf + cfg -> stored .sid` rather than `stored .usf -> stored .sid`.
+Now that the params ride in the USF, the cfg no longer supplies them.
 
 Bringing the FC composer (`pipelines/future_composer/composer_asm.py`) up
 to the USF principle: today its `build_via_asm_featuredriven` emits engine

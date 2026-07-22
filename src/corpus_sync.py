@@ -85,13 +85,25 @@ class SyncPlan:
 
 
 def plan(results_path: str, engine: str, hvsc_root: str,
-         require_build_path: bool = False, path_key: str = 'path') -> SyncPlan:
+         require_build_path: bool = False, path_key: str = 'path',
+         out_of_scope: tuple = ()) -> SyncPlan:
     """Build the sync plan for `engine` from a batch results jsonl.
 
     `engine` names the `code_fingerprint` dependency set. Only rows whose
     code_hash matches it are authoritative — for writing AND for deleting,
     so a superseded row can never delete a live artifact. `path_key` is the
     row field holding the HVSC-relative path (FC's batch calls it 'sid').
+
+    `out_of_scope` lists statuses meaning "this member is NOT MINE" — the
+    batch swept it but its extractor refused it, so another pipeline owns it.
+    Such rows are skipped ENTIRELY: neither written nor orphaned. A batch may
+    only delete artifacts of members it OWNS. FC's batch sweeps every HVSC
+    FutureComposer SID, but `fc_standard_config` refuses the Tel-variant
+    canaries ('flagged'), which are built by their own configs — without this
+    they are read as not-full and their artifacts DELETED, taking out
+    Cybernoid_II / Hawkeye / Adrenalin and breaking the regression. Contrast
+    a status like DMC's 'unsupported', which means "this IS my member and I
+    cannot build it" — that one IS an orphan.
     """
     from src.code_fingerprint import code_fingerprint
     code_hash = code_fingerprint(engine)
@@ -113,6 +125,8 @@ def plan(results_path: str, engine: str, hvsc_root: str,
             d = json.loads(line)
             latest[d[path_key]] = d
     for d in latest.values():
+        if d.get('status') in out_of_scope:
+            continue                      # not this batch's member — hands off
         if d.get('code_hash') != code_hash:
             p.stale += 1
             continue

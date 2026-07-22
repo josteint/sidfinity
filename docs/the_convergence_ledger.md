@@ -409,6 +409,18 @@ practice, not code to factor).
   RECORDS `build_path` and the writer REPLAYS it; non-FULL members get their
   orphaned artifacts DELETED (nothing else ever does); the writer audits a
   path-stratified sample from disk.
+- ORPHAN DELETION — a batch may only delete what it OWNS. The orphan rule
+  assumes the batch owns every member it lists. FC's batch sweeps every HVSC
+  FutureComposer SID but `fc_standard_config` REFUSES the Tel-variant canaries
+  (`flagged`); read as "not full" they were orphaned and their stored
+  `.usf`/`.sid` DELETED (Cybernoid_II / Hawkeye / Adrenalin), breaking the
+  regression. Distinguish NOT MINE (extractor refused ⇒ skip the row entirely,
+  `plan(out_of_scope=('flagged',))`) from MINE-AND-FAILED (`partial`/`error`/
+  DMC's `unsupported` = my member, can't build ⇒ genuine orphan). TELL: the
+  orphan list names ANOTHER path's canaries — inspect `plan().orphans` before
+  any sync whose batch sweeps a whole engine family. NB deduping rows exposed
+  this: a canary previously had both an old `full` and a new `flagged` row, so
+  it was deleted then immediately rewritten — two wrongs cancelling.
 - FIFTH LAYER — the stored `.usf` does not REBUILD the stored `.sid`. Writer
   and verifier take the SAME path, but the build consumes a PARAMETER absent
   from the stored `.usf`: DMC's batch write-stream RETRY set `hold_gateoff` on
