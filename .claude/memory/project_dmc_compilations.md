@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: dc3e8ab6-14f1-45ad-97c8-053b066d511b
-  modified: 2026-07-22T20:27:38.656Z
+  modified: 2026-07-22T22:50:04.401Z
 ---
 
 **DMC COMPILATIONS — one file, N independent DMC players, per-subtune dispatch.**
@@ -158,6 +158,36 @@ is one cycle CHEAPER than the three shifts.
 - Per-song instrument WINDOWS (the other candidate design — each subtune runs
   one packed player and uses ≤16 here) were NOT needed and are not implemented;
   revisit only if a merge exceeds 42.
+
+## ✅ TWO-JMP PLAYER HEAD + reach-refined filter merge (round 90, 2026-07-23)
+`Quad_Core` (3 players, 4 subtunes) needed BOTH a detection and a merge fix.
+- **Detection: RE-ASSEMBLED players with a TWO-JMP head.** Bases `$2000/$1000/
+  $2F00` carry `JMP base+$807` (init) / `JMP base+$50` (play) then DATA at +6 —
+  not the canonical three-JMP head, so `_is_player_base` (three `4C` at +0/+3/+6)
+  rejected them and the file fell to single-player. Generalised the player-base
+  signature to the two essential vectors (init +0 / play +3) + a reloc-invariant
+  target-range guard (`[base, base+$1000)`) replacing the third JMP. `_is_player_head`
+  is the shared no-floor predicate; `_is_player_base`/`_is_player_base_ram` wrap it.
+  Over all 5401 f1 members exactly TWO change detection (Quad_Core +
+  Super_Tau-Zeta, both None→compilation); NO existing spec changes → 15 FULL
+  compilations byte-identical.
+- **Merge: the `repeat>5` refuse was an over-approximation.** A def whose reached
+  step has dur=0 stays pinned in-record no matter how large `repeat` is
+  (Quad_Core p1 def1: repeat=8, settles in-record). Replaced with `_walk_filter`
+  (exact `fx_filter` sim): a def overruns iff its step index actually advances to
+  ≥6. Genuine single-player overrun → strategy 3 `_overrun_anchored_window` (op's
+  window verbatim at native indices up to reach R, others in free slots R+1..15;
+  cap 16). **Closes the Zap_Zone/Protox-1 genuine-overrun residue**: Zap_Zone via
+  compact (false overrun), Protox-1 via strategy 3.
+- **REGRESSION SCARE:** first cut regressed Lane_Crazy + Mystery — the reach sim
+  hit `_cap` on a LOOPING (repeat≤5 / non-settling) def and mis-flagged it as an
+  overrun. `_def_overruns` now fast-paths repeat≤5→False and keys on "reached
+  step ≥6", never on settling. 0 regressed after.
+- **Gains: Quad_Core 4/4, Zap_Zone 2/2, Protox-1 2/2.** 0 regressed over all 24
+  detected compilations + full regression (9 families).
+- **RESIDUE update:** the filter-overrun class is now CLOSED. Remaining:
+  Black_It + Super_Tau-Zeta = `base_override_not_player` (a co-packed player the
+  dataflow locate can't find → unmergeable → single-player fallback). Next.
 
 ## HETEROGENEOUS compilation — DMC players + a `dmc_sfx` sub-player (round 72, 2026-07-10)
 Canyon_Tank_Duel (Bayliss) = the FIRST heterogeneous compilation: 2 canonical

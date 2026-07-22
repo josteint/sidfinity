@@ -5,8 +5,65 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-22T22:12:22.179Z
+  modified: 2026-07-22T22:49:46.649Z
 ---
+
+## ✅ ROUND 90 (2026-07-23): two-JMP player head + reach-refined filter merge. Quad_Core 4/4 + Zap_Zone/Protox-1
+Next f1 partial by path was `Quad_Core` — NOT `Rogue_Ninja` as r89's head
+claimed (Q < R). r89's note skipped it: the hint queue is rewritten in place,
+Quad_Core's row was sitting `full`, so `dmc_next_partial` (which only re-confirms
+`partial` rows) jumped past it; my queue repair (see below) reset all rows to
+`partial` and resurfaced it. A wrong `full` row silently removes a member from
+the work queue until a re-seed — a C20-flavoured trap in the queue itself.
+Commits: `dmc_next_partial` hardening + the compilation fix. Two blockers, both
+closed, plus a scare and a tool near-miss:
+- **DETECTION — two-JMP player head.** Quad_Core packs 3 RE-ASSEMBLED DMC
+  players (`$2000/$1000/$2F00`) with a **two-JMP head** (init `JMP base+$807` /
+  play `JMP base+$50`), then data at +6 — not the canonical three-JMP head, so
+  `_is_player_base` rejected all three bases and the file fell to the single-
+  player path (garbage for the subtunes not on the LOAD-address player).
+  Generalised the player-base signature to the two essential vectors (init +0 /
+  play +3), validated by a reloc-invariant **target-range** check
+  (`[base, base+$1000)`) that replaces the third JMP as the false-positive
+  guard. `_is_player_head` (no floor) + `_is_player_base` (with floor) +
+  `_is_player_base_ram` all share it. Across ALL 5401 f1 members **exactly TWO
+  change detection**, both `None`→compilation (Quad_Core + Super_Tau-Zeta); NO
+  existing spec changes (proven by old-vs-new detection diff) — which is why all
+  15 FULL compilations stay byte-identical.
+- **FILTER MERGE — the static `repeat>5` refuse is an over-approximation.**
+  Player 1 def 1 has repeat=8 but its first step's dur=0 pins the walk on step 0
+  until fcut settles IN-record → no overrun. Replaced the static check with
+  `_walk_filter`, an exact sim of the composer's `fx_filter` step-walk that
+  reports whether the step index actually advances to ≥6 (the real cross-record
+  overrun). A genuinely-overrunning single player gets a new **overrun-anchored
+  layout** (strategy 3): its window verbatim at native indices up to the
+  overrun's reach, other players' compact-safe defs in the free slots the
+  overrun never touches. Cap 16 (the composer's 8-bit `16*def#` walk index).
+- **REGRESSION SCARE (C20): Lane_Crazy + Mystery went partial** on my first
+  merge cut. Detection specs were byte-identical old-vs-new (so not detection);
+  git-stash confirmed both FULL on old code = REAL regression from the merge.
+  Root cause: my reach sim hit its iteration `_cap` on a LOOPING filter def
+  (repeat≤5 or non-settling), returned the conservative "unbounded" and
+  mis-flagged it as a genuine overrun → routed a previously-compact member into
+  strategy 3, reordering its window. Fix: `_def_overruns` fast-paths repeat≤5 to
+  False and keys on "step index reached ≥6", never on settling. 0 regressed
+  after.
+- **Gains: Quad_Core 4/4, Zap_Zone 2/2 (compact, false overrun), Protox-1 2/2
+  (strategy 3, genuine overrun).** Zap_Zone/Protox were the documented
+  genuine-overrun residue (were detected, merge RAISED → single-player fallback
+  → partial; now merge succeeds). **0 regressed / 4 gained** over all 24 detected
+  compilations (Para_Lander_DX also shows a "gain" only vs the pre-r89 r88
+  prior). Full cross-family regression green (9 families); dmc_smoke 6/6.
+- **Super_Tau-Zeta** now DETECTS (2nd two-JMP member) but merge-blocks on the
+  `base_override_not_player: $B400` locate residue (shared with Black_It) — was
+  partial, stays partial (fallback), NOT a regression. Next residue subclass.
+- **TOOL near-miss:** a `git stash`/`git stash pop` dance INSIDE one Bash command
+  that TIMED OUT stranded my changes in the stash (working tree at old code).
+  Recovered via `git stash pop`. LESSON: never stash/pop inside a single command
+  that can time out — split into separate commands, and `git diff > patch`
+  first.
+- **NOT yet closed out at write time** — full 5401 batch (`tmp/dmc_f1_qc.jsonl`)
+  + corpus sync running; counts below are still r88's until it lands.
 
 ## ✅ ROUND 89 (2026-07-23): the off-table window is a PER-PLAYER fact. Para_Lander_DX 3/3
 Next f1 partial by path = `Para_Lander_DX` (a COMPILATION: players $2000 and

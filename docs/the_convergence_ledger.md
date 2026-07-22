@@ -695,6 +695,18 @@ practice, not code to factor).
   has thousands (Freespace_2075's sub-players scanned as unique, then matched
   6,349 Music_Assembler members). Cross-check a candidate skeleton's carriers
   against the `engine` column before concluding anything about rarity.
+- A RE-ASSEMBLED player may carry only a TWO-JMP head (init/play vectors) then
+  DATA at +6, not the canonical three-JMP head → the three-JMP predicate
+  rejects it and the file falls to the single-player path. Generalise to the two
+  vectors + a reloc-invariant target-range guard (`[base, base+$1000)`) as the
+  false-positive gate; prove 0-regr by an old-vs-new detection diff over the
+  whole family (only the intended None→compilation members may change). MERGED
+  FILTER-DEF window: preserve a GENUINE overrun's record adjacency, but
+  `repeat>5` OVER-approximates "genuine" — a dur-0-pinned step stays in-record;
+  simulate the `fx_filter` step-walk and test whether the index actually reaches
+  ≥6 (a LOOPING repeat≤5 def hits the sim cap → do NOT key on settling, it
+  regressed 2 FULLs). Overrun-anchored layout = op's window verbatim at native
+  indices to reach R, others in free slots R+1..15 (cap 16).
 - MERGE TRAPS, both invisible until a voice idles a WHOLE song (a track that
   is a bare `$FE` stop): merged slot 0 must stay RECORD 0 (init clears the
   note-init cache to 0, so idle voices run record 0's pulse/wave mechanism —
