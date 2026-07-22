@@ -1058,7 +1058,8 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # actually reads (post-init, ground truth) — recovers the constant reads the
     # file-image capture mis-valued (the "dynamic residue" that wasn't).
     varying = _correct_offtable_postinit(m, path, cfg.freq_lo_addr,
-                                         cfg.freq_hi_addr, cfg.vibdepth_addr)
+                                         cfg.freq_hi_addr, cfg.vibdepth_addr,
+                                         getattr(cfg, 'song_subtunes', None))
     # State-geometry probe: the composer's off-table redirect map
     # (DMC_OFFTABLE_STATE) + the sectpos shadow identify window idx with the
     # canon live state vars via the CANON table→state geometry (state block at
@@ -1382,7 +1383,8 @@ def _postinit_values(sid_path: str, addrs, subtune: int | None = None) -> dict:
 
 
 def _correct_offtable_postinit(m: DmcModel, sid_path: str, flo_addr: int,
-                               fhi_addr: int, vibdepth_addr: int) -> None:
+                               fhi_addr: int, vibdepth_addr: int,
+                               song_subtunes: dict | None = None) -> None:
     """Replace the file-image off-table values with the original's POST-INIT
     values (the bytes the engine actually reads). Recovers the
     init-written-then-constant reads that the file-image capture got wrong.
@@ -1394,7 +1396,13 @@ def _correct_offtable_postinit(m: DmcModel, sid_path: str, flo_addr: int,
     when all reaching subtunes were sampled and agree; otherwise fall back to
     the START-SONG sample — exactly the pre-song-aware behavior, so records
     reached from the start song (and idle records, which carry no attribution)
-    are byte-identical to before."""
+    are byte-identical to before.
+
+    COMPILATION-AWARE: `song_subtunes` maps this player's OWN song index to the
+    PSID subtune that plays it (ledger C31). A compilation's per-player extract
+    numbers songs locally, so sampling file subtune `si` selects a DIFFERENT
+    player whose init leaves this player's work RAM at the file-image leftover.
+    None (the single-player case) = song index IS the subtune, unchanged."""
     addrs = set()
     for ins in m.instruments.values():
         for off, note, lo, hi in ins.offtable_freq:
@@ -1416,7 +1424,13 @@ def _correct_offtable_postinit(m: DmcModel, sid_path: str, flo_addr: int,
         need |= songs
     n_songs = max(1, len(m.songs))
     need = {si for si in need if 0 <= si < n_songs}
-    post_by_song = {si: _postinit_values(sid_path, addrs, subtune=si)
+    def _file_sub(si):
+        """This player's song `si` -> the PSID subtune to sample it in."""
+        if song_subtunes is None:
+            return si
+        return song_subtunes.get(si)      # None -> siddump's start song
+
+    post_by_song = {si: _postinit_values(sid_path, addrs, subtune=_file_sub(si))
                     for si in sorted(need)}
     post = post_by_song.get(start_si, {})
     if not any(post_by_song.values()):

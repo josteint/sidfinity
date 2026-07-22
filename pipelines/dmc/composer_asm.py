@@ -1660,8 +1660,8 @@ fx_dual_up:
     # For a non-canon member (offtable_redirect=0) the orig's window bytes are
     # unrelated static code/data: place every record verbatim and emit the live
     # structures OUTSIDE the window (see the ovrwin emission below).
-    ovr = [0] * 160
-    for inst in insts:
+    def _ovr_positions(inst):
+        """(window position, value) each of `inst`'s off-table records fills."""
         for rec in getattr(inst, 'offtable_freq', []) or []:
             off, note, lo, hi = rec[:4]     # rec may carry a 5th `live` flag
             idx = (off + note) & 0xFF
@@ -1669,11 +1669,60 @@ fx_dual_up:
                 continue
             ph = idx - 96
             if not (m.offtable_redirect and 6 <= ph <= 16):
-                ovr[ph] = hi
+                yield ph, hi
             if idx >= 192:
                 pl = idx - 192
                 if not (m.offtable_redirect and 6 <= pl <= 16):
-                    ovr[pl] = lo
+                    yield pl, lo
+
+    ovr = [0] * 160
+    for inst in insts:
+        for pos, val in _ovr_positions(inst):
+            ovr[pos] = val
+
+    # PER-SUBTUNE off-table window (ledger C31 — a per-player fact the merge
+    # collapses). The window is file-level and idx-keyed, but a COMPILATION's
+    # packed players each overrun into their OWN state block, so two players'
+    # records can name the SAME window position with different bytes and the
+    # loop above silently keeps the last (Para_Lander_DX idx 96 = the running
+    # player's V1 track-ptr lo: $C8 for the player subtune 0 selects, $D2 for
+    # the one subtune 1 selects — one static window cannot serve both).
+    # Attribute each record to the subtunes whose rows play its instrument;
+    # where they disagree, init writes those positions for the subtune it was
+    # called with. Every position is written on EVERY init (not just the
+    # differing ones) so a subtune change can't inherit the previous one's.
+    # GATED on an actual disagreement: with none, nothing below is emitted and
+    # the member's image is byte-identical.
+    ovr_sub = []
+    for sub in usf.subtunes:
+        used = set()
+        for v in sub.voices:
+            pat_by_id = {p.id: p for p in v.patterns}
+            ol = v.orderlist
+            for pid in (list(getattr(ol, 'intro_entries', None) or [])
+                        + list(ol.entries or [])):
+                for r in (pat_by_id[pid].rows if pid in pat_by_id else ()):
+                    ins_ref = getattr(r, 'instr', None)
+                    if ins_ref is not None:
+                        used.add(getattr(ins_ref, 'id', ins_ref))
+        d = {}
+        for inst in insts:
+            if inst.id in used:
+                for pos, val in _ovr_positions(inst):
+                    d[pos] = val
+        ovr_sub.append(d)
+    ovr_conflict = sorted({p for d in ovr_sub for p in d
+                           if any(p in e and e[p] != d[p] for e in ovr_sub)})
+    # Y walks the patch stream, so it must stay 8-bit; an over-long stream
+    # keeps the static window (the pre-change behaviour) rather than truncating.
+    if ovr_conflict and len(usf.subtunes) * (2 * len(ovr_conflict) + 1) > 256:
+        ovr_conflict = []
+    ovr_stream, ovr_rowbase = [], []
+    for d in ovr_sub:
+        ovr_rowbase.append(len(ovr_stream))
+        for pos in ovr_conflict:
+            ovr_stream += [pos, d.get(pos, ovr[pos])]
+        ovr_stream.append(0xFF)         # end of this subtune's patch row
 
     # Seed the SPARSE glide vars gla/glb from their captured off-table values so
     # they track the orig from init (see DMC_OFFTABLE_STATE). A state var at
@@ -1723,6 +1772,9 @@ fx_dual_up:
                     'fmask:    .byt $FE, $FD, $FB\n'
                     'spd:      .dsb 1, 0\n'
                     'mvol:     .dsb 1, 0')
+    if ovr_conflict:
+        data.append('ovrbase:\n' + _byt(ovr_rowbase))
+        data.append('ovrpat:\n' + _byt(ovr_stream))
     # vibdepth table (96-entry constant) + the off-table overrun window: a
     # note>95 reads `vibdepth[note]` past the table; place the captured depth at
     # pos note-96 so the read resolves to the original's value (it landed on
@@ -1895,6 +1947,23 @@ fx_dual_up:
                    '        adc tmp\n'
                    '        tay\n' if per_sub_prime else '')
     prime_step = '        iny\n' if per_sub_prime else ''
+    # per-subtune off-table window patch (see `ovr_conflict` above). Runs on
+    # entry, before the state clear, so `tmp` is free to hold the subtune.
+    ovr_patch = ('''        sta tmp                      ; per-subtune off-table window
+        tax
+        ldy ovrbase,x
+ovrp_l:
+        ldx ovrpat,y                 ; window position ($FF = row end)
+        cpx #$FF
+        beq ovrp_d
+        iny
+        lda ovrpat,y
+        sta ovrwin,x
+        iny
+        bne ovrp_l
+ovrp_d:
+        lda tmp
+''' if ovr_conflict else '')
 
     asm = f"""
 SLIDE_PHASE = ${slide_phase:02X}
@@ -1905,7 +1974,7 @@ CIA_PERIOD = ${cia_period:04X}
 
 ;; ===================== init (A = subtune) =====================
 init:
-        pha                          ; save subtune
+{ovr_patch}        pha                          ; save subtune
         lda #$00
         tax
 ini_st:

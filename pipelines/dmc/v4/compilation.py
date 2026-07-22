@@ -563,17 +563,36 @@ def sfx_player_indices(sid_path: str, spec: dict,
     return [i for i, b in enumerate(spec['bases']) if is_sfx_player(mem, b)]
 
 
+def _player_cfg(sid_path: str, hvsc_root: str, spec: dict, pidx: int,
+                base: int, post_init_sub):
+    """Config for one packed player, carrying its song -> PSID-subtune map.
+
+    Every RUNTIME measurement inside the per-player extract (the off-table
+    post-init capture) must run the file subtune that actually selects THIS
+    player; its own song numbering is local (ledger C31 — the per-player facts
+    the merge collapses). `song_subtunes` is that translation.
+    """
+    from pipelines.dmc.v4.factory import dmc_v4_config
+    cfg = dmc_v4_config(sid_path, hvsc_root=hvsc_root, base_override=base,
+                        post_init_sub=post_init_sub)
+    smap = {}
+    for k, (pi, song) in enumerate(spec['map']):
+        if pi == pidx:
+            smap.setdefault(song, k)
+    cfg.song_subtunes = smap
+    return cfg
+
+
 def extract_compilation(sid_path: str, spec: dict,
                         hvsc_root: str = 'hvsc84') -> 'em.DmcModel':
     """Extract every referenced player and merge into one unified DmcModel."""
     from pipelines.dmc.v4.factory import dmc_v4_config
     from seed_disassembly import parse_psid
     reloc = spec.get('reloc') or {}
-    models = [em.extract(dmc_v4_config(sid_path, hvsc_root=hvsc_root,
-                                       base_override=base,
-                                       post_init_sub=reloc.get(base)),
+    models = [em.extract(_player_cfg(sid_path, hvsc_root, spec, pidx, base,
+                                     reloc.get(base)),
                          hvsc_root=hvsc_root)
-              for base in spec['bases']]
+              for pidx, base in enumerate(spec['bases'])]
     s = parse_psid(os.path.join(hvsc_root, sid_path))
     b0 = models[0]
     hdr = {'title': b0.title, 'author': b0.author, 'released': b0.released,
@@ -610,9 +629,8 @@ def extract_heterogeneous(sid_path: str, spec: dict, hvsc_root: str = 'hvsc84'):
         sfx_engine = extract_sfx_engine(mem, sfx_base, need)
 
     reloc = spec.get('reloc') or {}
-    dmc_models = [em.extract(dmc_v4_config(sid_path, hvsc_root=hvsc_root,
-                                           base_override=bases[i],
-                                           post_init_sub=reloc.get(bases[i])),
+    dmc_models = [em.extract(_player_cfg(sid_path, hvsc_root, spec, i,
+                                         bases[i], reloc.get(bases[i])),
                              hvsc_root=hvsc_root) for i in dmc_idx]
     dmc_map, subtune_kinds, dmc_ctr = [], [], 0
     for pidx, song in mp:

@@ -104,6 +104,17 @@ class DMCV4Config:
     # extract) reads that post-init RAM instead of the file image.
     # None = the ordinary in-image player. Extract-only (never USF).
     post_init_sub: int = None
+    # COMPILATION player (ledger C31): this player's OWN song index -> the PSID
+    # subtune that plays it. A compilation's per-player extract numbers songs
+    # locally (0, 1, ...), but every runtime measurement — the off-table
+    # post-init capture above all — must select the FILE subtune whose init
+    # actually materialises this player's state. Without the map, player 1's
+    # song 0 is sampled at file subtune 0, which runs a DIFFERENT player, so its
+    # work RAM still holds the file-image leftover (Para_Lander_DX: the idx-96
+    # read captured $0B, the never-inited leftover, where subtune 1 reads $D2).
+    # None = the ordinary single-player member (song index IS the subtune).
+    # Extract-only (never USF).
+    song_subtunes: dict = None
     # Hand-crafted init WRAPPER that HARD-FORCES the played tune record
     # (factory-probed `LDA #imm` prefix, ledger C19). Sans_intro: init $0FFE =
     # `A9 01` falling through to base $1000 (JMP $101D = tune-select), so every

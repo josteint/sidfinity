@@ -681,7 +681,14 @@ practice, not code to factor).
   silently DEFAULTED). Per-player facts the merge collapses to the START
   player are a recurring family: `d417_shadow` (→ per-subtune
   `init.sid.filter.res_routing`, no schema addition) and any memory RE-READ
-  inside extract (the filter-def post-init window decoded all-zero).
+  inside extract (the filter-def post-init window decoded all-zero). RULE: any
+  RUNTIME measurement inside a per-player extract must run the FILE subtune
+  that SELECTS that player (song numbering is LOCAL; the wrong subtune leaves
+  that player's work RAM at the never-inited file-image leftover — a stable,
+  well-formed, WRONG byte). And no FILE-LEVEL idx-keyed composer table (the
+  off-table window) can hold a per-player fact: attribute records to subtunes
+  by the instruments their ROWS play, patch the disagreeing positions at init
+  (gated ⇒ conflict-free members byte-identical).
 - IDENTIFYING an unfamiliar packed player: build the opcode skeleton from
   REACHABLE CODE ONLY. A window spanning the player's SMC/scratch bytes is
   member-specific and reports "1 carrier in HVSC" for a player that actually
