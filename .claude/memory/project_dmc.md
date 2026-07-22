@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-22T06:30:44.880Z
+  modified: 2026-07-22T06:52:36.630Z
 ---
 
 ## ✅ ROUND 82 (2026-07-22): multi-SID residue + THE MASS-WRITE PALIMPSEST — f1 **5236 full / 165 partial / 0 error**, corpus mass-written
@@ -63,12 +63,22 @@ Commits d7eb79dd, d9e23bf0, 65a9b4b3, a9bce98e.
   no mass-write could ever refresh them) were DELETED per C20's rule. The
   remaining 80 are the two in-progress families' own residue (52 f2 `dcmd`,
   27 f4 `speed_ctr_init`, 1 GT1), refreshed by their own batches.
-- **OPEN — a wider palimpsest set nobody has scoped:** 56 of the 165 f1
-  non-FULL members still have a stored `.usf` (and 2 a stored
-  `.sidfinity.sid`) from an earlier code state that judged them FULL. They
-  PARSE, so `usf_corpus_check` cannot see them, and no mass-write will ever
-  refresh them (mass-writes only write FULLs). Same class as the 4 above,
-  just readable. Decide: delete, or keep as a record.
+- **The wider orphan set — CLOSED, and closed STRUCTURALLY.** 56 of the 165
+  f1 non-FULL members carried a stored `.usf` (2 also a `.sidfinity.sid`)
+  written when older code judged them FULL: they PARSE, so
+  `usf_corpus_check` can't see them, and no mass-write ever revisits a
+  non-FULL member. All 58 are gone — deleted BY THE MECHANISM, not by hand
+  (4 with the unparseable set, 54 by the first sync run), so they cannot
+  come back. A mass-write is now a SYNC (`src/corpus_sync.py`, shared by
+  the dmc/fc/v5 writers): current-code rows only → replay the batch's
+  recorded `build_path` → delete artifacts of non-FULL members → audit a
+  build-path-stratified sample by re-verifying FROM DISK, exit non-zero on
+  failure. See ledger C20's fourth layer.
+- **Closeout run (fresh `tmp/dmc_f1_r83.jsonl`):** 5236 full / 165 partial /
+  0 error, every FULL row carrying `build_path` (5213 single / 15 multisid /
+  8 compilation); sync wrote 5236 with 0 errors, removed 54 orphans, and the
+  audit re-verified **12/12 stored artifacts across all three build paths**.
+  `usf_corpus_check` 80 (f2/f4/GT1 only — 0 f1). Regression green ×4.
 - Gates: full regression green (8 families) ×3; dmc_smoke 6/6; every
   previously-FULL multi-SID member re-verified at each step.
 
