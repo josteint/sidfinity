@@ -80,7 +80,18 @@ def _confirm(path: str) -> tuple[str, str, str]:
     return path, 'error', out.strip().splitlines()[-1] if out.strip() else ''
 
 
-SEED_BATCH = os.path.join(ROOT, 'tmp', 'dmc_f1_dedup.jsonl')
+def _seed_batch() -> str | None:
+    """The NEWEST f1 batch results file to seed the queue from.
+
+    Was pinned to one filename, which silently rotted: each round writes its
+    own `tmp/dmc_f1_r<N>.jsonl`, so the pinned file aged out and a re-seed
+    handed the tool a round-53-era partial list. Every stale hint costs a full
+    build+verify before the self-heal drops it, so "it converges eventually"
+    is not good enough. Pick by mtime instead."""
+    import glob
+    cands = glob.glob(os.path.join(ROOT, 'tmp', 'dmc_f1_*.jsonl'))
+    cands = [c for c in cands if not c.endswith('dmc_f1_partials.jsonl')]
+    return max(cands, key=os.path.getmtime) if cands else None
 
 
 def _load(list_path: str) -> list[dict]:
@@ -89,12 +100,19 @@ def _load(list_path: str) -> list[dict]:
         # batch-partials start 'partial'; the tool re-confirms + self-heals as
         # it runs, so a stale seed only costs the first pass a few extra
         # verifies.
-        if not os.path.exists(SEED_BATCH):
-            raise SystemExit(f'No queue at {list_path} and no seed batch at '
-                             f'{SEED_BATCH} — run a family batch first.')
-        parts = sorted({json.loads(l)['path']
-                        for l in open(SEED_BATCH) if l.strip()
-                        and json.loads(l).get('status') == 'partial'})
+        SEED_BATCH = _seed_batch()
+        if SEED_BATCH is None or not os.path.exists(SEED_BATCH):
+            raise SystemExit(f'No queue at {list_path} and no f1 batch results '
+                             f'in tmp/ — run a family batch first.')
+        print(f'(seeding from the newest f1 batch: '
+              f'{os.path.relpath(SEED_BATCH, ROOT)})')
+        # Append-only jsonl -> dedupe LAST-WINS (src/batch_results). Without it
+        # a member that WAS partial and is now full is seeded as partial; the
+        # re-confirm below heals that, but only after paying a build+verify for
+        # each stale hint.
+        from batch_results import load_latest
+        parts = sorted(p for p, r in load_latest(SEED_BATCH).items()
+                       if r.get('status') == 'partial')
         _save(list_path, [{'path': p, 'status': 'partial'} for p in parts])
         print(f'(auto-seeded {len(parts)} partials into {list_path} from the '
               f'batch — statuses will self-heal as the tool re-confirms)')

@@ -286,17 +286,11 @@ def main():
                     help='representatives per cluster (default 2)')
     args = ap.parse_args()
 
-    # A batch jsonl is APPEND-ONLY: a resume (or a code_hash invalidation)
-    # re-runs members and appends fresh rows beside the old ones, so the same
-    # path can appear several times. Dedupe LAST-WINS, exactly as the batch
-    # itself does — otherwise the census counts superseded verdicts and lists
-    # already-FULL members as cluster representatives.
-    _by_path = {}
-    for l in open(args.results):
-        if l.strip():
-            r = json.loads(l)
-            _by_path[r['path']] = r
-    rows = list(_by_path.values())
+    # Append-only jsonl -> dedupe LAST-WINS (src/batch_results): otherwise the
+    # census counts superseded verdicts and lists already-FULL members as
+    # cluster representatives.
+    from batch_results import load_latest_rows
+    rows = load_latest_rows(args.results)
     cat = census(rows)
     print_census(cat, len(rows))
 

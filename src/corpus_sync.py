@@ -51,9 +51,10 @@ the same stratified sample.)
 """
 from __future__ import annotations
 
-import json
 import os
 from dataclasses import dataclass, field
+
+from batch_results import load_latest
 
 # What a member's rebuild stores next to the HVSC original. Every family
 # writes exactly these two (plus digi sidecars, which ride the .usf).
@@ -108,22 +109,11 @@ def plan(results_path: str, engine: str, hvsc_root: str,
     from src.code_fingerprint import code_fingerprint
     code_hash = code_fingerprint(engine)
     p = SyncPlan()
-    # DEDUPE BY PATH, LAST ROW WINS. A batch that APPENDS on resume accumulates
-    # one row per member per run, so a results file routinely holds several
-    # generations of the same member — 63 paths in FC's carried BOTH a `full`
-    # and a non-full row. Read naively that makes one member simultaneously a
-    # write and an orphan: the artifact is deleted and then rewritten, which
-    # only survives because remove_orphans happens to run before the writes,
-    # and leaves a FULL member with NO artifact if its write then fails. It
-    # also inflates every count and over-samples the audits. This is NOT the
-    # stale-verdict layer — duplicates can all carry the current code_hash.
-    latest = {}
-    with open(results_path) as f:
-        for line in f:
-            if not line.strip():
-                continue
-            d = json.loads(line)
-            latest[d[path_key]] = d
+    # DEDUPE BY PATH, LAST ROW WINS — the shared rule for every consumer of an
+    # append-only batch jsonl; rationale + the incidents that motivate it live
+    # in src/batch_results. NOT the stale-verdict layer: duplicates can all
+    # carry the current code_hash, so the hash gate below is not a substitute.
+    latest = load_latest(results_path, path_key)
     for d in latest.values():
         if d.get('status') in out_of_scope:
             continue                      # not this batch's member — hands off

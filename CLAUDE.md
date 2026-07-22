@@ -356,6 +356,15 @@ change auto-re-verifies exactly the members it could have affected — no more
 `*_mass_write.py` tools likewise skip (and warn about) any FULL row whose
 code_hash is stale, so they never write an unverified build to disk.
 
+**Reading a batch results jsonl — always via `src/batch_results.load_latest`.**
+The file is APPEND-ONLY (a resume, or a `code_hash` invalidation, appends fresh
+rows beside the old), so one member routinely has several rows with different
+verdicts. Dedupe by path, LAST ROW WINS — the `code_hash` gate is NOT a
+substitute (a plain resume adds no new hash, so duplicates can all carry the
+current one). The module's docstring is the one home for the rule and the
+incidents behind it. Safe without it: a resume gate that builds a `set()` of
+done paths.
+
 **A mass-write is a SYNC, not a write** (`src/corpus_sync.py`, shared by every
 family's `*_mass_write.py`). "What is stored" must equal "what was verified",
 which needs three things beyond the code_hash gate — each one a C20 layer that
