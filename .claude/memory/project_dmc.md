@@ -8,7 +8,7 @@ metadata:
   modified: 2026-07-22T11:08:53.260Z
 ---
 
-## ✅ ROUND 85 (2026-07-22): the RELOCATING dispatch wrapper. f1 partial 164 → 163
+## ✅ ROUND 85 (2026-07-22): the RELOCATING dispatch wrapper. f1 **5238 full / 163 partial / 0 error**, corpus SYNCED
 Working the next f1 partial by path (`Freespace_2075`) surfaced a compilation
 shape C31 detection is structurally blind to: **the wrapper COPIES a player
 into RAM per subtune**, so it is not in the file image at all. Commit
@@ -37,6 +37,13 @@ into RAM per subtune**, so it is not in the file image at all. Commit
 - **Gates:** full regression green (8 families, 0 regressed); 14 compilation +
   16 multi-SID = 0 regressed / 0 gained; the 7 newly-detected = 0 regressed /
   1 gained; dmc_smoke 6/6; usf_corpus_check unchanged at 80.
+- **CLOSEOUT (fresh `tmp/dmc_f1_r85.jsonl`, full 5401-member batch): 5238 full
+  / 163 partial / 0 error — 0 regressed / 1 gained vs r84**, the gain being
+  Pour_le_merite. Build paths: 5369 single / 16 compilation / 16 multisid.
+  Corpus SYNCED: 5238 written, 0 errors, **0 orphans** (nothing went
+  full→not-full), audit **18/18** stored artifacts re-verify across all three
+  build paths. Post-sync: full regression green (8 families); usf_corpus_check
+  unchanged at 80 (f2/f4/GT1, 0 f1), stored `.usf` 11900 → 11901.
 - **RESIDUE in this class** (all fall back safely): Super_Seven needs
   per-subtune `extra_params` (its players disagree on `rest_effects`;
   `MusicSubtune.params` exists but the DMC composer doesn't read it);
