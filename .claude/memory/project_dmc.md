@@ -5,10 +5,68 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-21T22:23:33.657Z
+  modified: 2026-07-22T06:29:06.877Z
 ---
 
-## ✅ ROUND 81 (2026-07-21): the multi-SID sub-player CONSTRUCTOR — f1 5221 → **5234 full / 167 partial / 0 error**
+## ✅ ROUND 82 (2026-07-22): multi-SID residue + THE MASS-WRITE PALIMPSEST — f1 **5236 full / 165 partial / 0 error**, corpus mass-written
+Follow-on to r81. Final batch 5401 members: **0 regressed / 15 gained** vs the
+r80 baseline; mass-write 5236 members, 0 errors. Multi-SID **15 FULL of 19**.
+Commits d7eb79dd, d9e23bf0, 65a9b4b3, a9bce98e.
+- **THE BIG ONE — `dmc_mass_write` wrote artifacts the batch never verified
+  (ledger C20, FOURTH layer).** `write_member` built EVERY member through the
+  single-player constructor while `run_member` dispatches multi-SID →
+  compilation → single. So `Dark_Knight_2SID.usf` on disk was a 3-voice
+  single-chip extraction of a 6-voice tune (dated June), carrying a valid
+  `code_hash`. NO gate sees this: batch green, hash matches, file parses,
+  regression never reads it. **`code_hash` proves the VERDICT came from
+  current code, never that the ARTIFACT is what earned it.** Detector =
+  re-verify FROM THE STORED artifact. Now mirrors `run_member` exactly;
+  post-mass-write spot-check: stored `.usf` → `.sid` byte-identical to the
+  stored `.sid`, and the stored artifact re-verifies FULL, on 2SID +
+  compilation + single-player members alike.
+- **Cow_Anus_Fucked partial → FULL** (129731/129731). C19 13th occ CLOSES the
+  per-STORE granularity trap the 12th documented: a `keep_regs` entry gains an
+  `@label` form (`00@sidwrite`) scoped to the composer routine that plays that
+  store's ROLE — named by what the block DOES, never by an address.
+  `_SIDSTORE_ROLE` maps the canon sites we can name; an unmapped site keeps
+  the coarse behaviour rather than guessing. Also added the `cymburst:` role
+  label (assembler-only, emits no bytes).
+- **Kordiaukis_01 first-div 34 → 351228.** Chip 0 now EXACT (740417); chip 2
+  matches 351228/530294 = ordinary single-chip content residue, no longer
+  multi-SID plumbing. (Its player 1 has a NON-canonical jump table, so it uses
+  the bare fallback config and still verifies exactly.)
+- **Mothafucka: FOUND but deliberately REFUSED.** Two more C18 observation
+  gaps closed — run a few PLAY calls (its wrapper SMC-patches its own call
+  operand per call: `INC imm / AND #$01 / TAX / LDA basehi,x / STA $0F16 /
+  JSR $xx03`, alternating $1000/$E800), and test the JT signature against
+  LIVE memory (its init COPIES chip 2's player to $E800, zero-fill in the
+  file — C26 applied to the PLAYER). Extracting it needs the C26 post-init
+  RAM path, which `_config_at_base` doesn't do, so an image-presence guard
+  returns None → the member falls back to its previous single-chip build
+  instead of raising `non-standard instrument base $0000` (a partial, not an
+  error).
+- **RSID captures forced.** siddump SKIPS an RSID orig unless `--force-rsid`,
+  and a skipped capture is EMPTY — a partial with nothing to localize (same
+  silent-wrong-verdict shape as the missing-ROMs trap). Rayden's two RSID
+  2SID members now capture (0 → 1,415,898 and 598,956 orig writes, both
+  chips). Both stay partial: the orig runs ~10× our rebuild's write count =
+  an unmeasured IRQ rate (C9 territory). Neither is in a batched family
+  (singleton fingerprint families outside f1), so no count moves.
+- **Nice_Dream** now probes its mixed store (`17,01@cymburst` — the
+  noise-attack burst relocates freq-lo but not freq-hi); unchanged at 63536,
+  blocked by the documented single-chip note-duration drift.
+- **REMAINING multi-SID residue (4):** Kordiaukis_01 (chip-2 content),
+  Nice_Dream (single-chip drift), Mothafucka (needs C26 for a sub-player),
+  4_Ever_Young + Popel_Premiere (RSID rate) — the last two outside f1.
+- **`usf_corpus_check` = 84 unparseable, unchanged** (52 f2 `dcmd`, 27 f4
+  `speed_ctr_init`, 4 f1 `slide_phase`, 1 GT1). The 4 f1 are
+  Big_GLORZ / Heniek / Yo_Raps / Radio_Napalm — all PARTIAL, so no
+  mass-write can ever refresh them; they want DELETING (not yet done —
+  awaiting the user's go-ahead).
+- Gates: full regression green (8 families) ×3; dmc_smoke 6/6; every
+  previously-FULL multi-SID member re-verified at each step.
+
+## ✅ ROUND 81 (2026-07-21): the multi-SID sub-player CONSTRUCTOR — f1 5221 → 5234 full / 167 partial / 0 error
 `_config_at_base` (the per-chip constructor) hand-rolled a bare config, so
 EVERY knob the canonical build probes was defaulted. Round 80 patched the one
 defaulted knob it noticed (`cia_period`); this round cured the constructor.
