@@ -538,8 +538,20 @@ def main():
     results, out = eng['results'], eng['out']
     features, witnesses, sid_key = (
         eng['features'], eng['witnesses'], eng['sid_key'])
-    fulls = [json.loads(l)[sid_key] for l in open(results)
-             if json.loads(l)['status'] == 'full']
+    # DEDUPE BY PATH, LAST ROW WINS — a batch jsonl is APPEND-ONLY, so a resume
+    # (or a code_hash invalidation) leaves one row per member per run. Read
+    # naively, a member that was `full` in an older generation and is now
+    # `partial` still enters the FULL pool and can be SELECTED into the tier-1
+    # portfolio, where it would fail regression forever; and every member that
+    # ran twice is feature-extracted twice, inflating `corpus_full` (the stored
+    # dmc_v4 portfolio recorded 5654 against a true 5252). Same rule as
+    # corpus_sync.plan() and divergence_census.
+    _latest = {}
+    for l in open(results):
+        if l.strip():
+            r = json.loads(l)
+            _latest[r[sid_key]] = r
+    fulls = [p for p, r in _latest.items() if r['status'] == 'full']
     print(f'[{args.engine}] {len(fulls)} FULL members; '
           f'deriving feature matrix...', flush=True)
     rows = []
