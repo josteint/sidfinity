@@ -288,9 +288,10 @@ ffon    sta fdurr0+1
         sta $d417
 fnend   lda #$ff
         sta gmask,x
-        lda #0
-        sta vibph,x
         sta rattle,x
+        lda #0
+        sta vibfr,x
+        sta vibph,x
 fend    iny
         lda ($fa),y
         cmp #$ff
