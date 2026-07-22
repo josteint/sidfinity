@@ -5,8 +5,42 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-22T21:18:45.028Z
+  modified: 2026-07-22T22:02:40.325Z
 ---
+
+## ✅ ROUND 89 (2026-07-23): the off-table window is a PER-PLAYER fact. Para_Lander_DX 3/3
+Next f1 partial by path = `Para_Lander_DX` (a COMPILATION: players $2000 and
+$1000; subtune 0 → ($2000, song 0), subtunes 1-2 → ($1000, songs 0-1)). Subs 0
+AND 1 diverged at V3 freq hi (orig $C8 / $D2, ours $0B) — the SAME off-table
+idx 96, which is each player's OWN V1 track-ptr-lo slot ($2707 / $1707). Commit
+5bc03955; ledger C31 gained the third per-player fact (both halves).
+- **EXTRACT half:** the per-player extract numbers songs LOCALLY, and
+  `_correct_offtable_postinit` fed those straight to `siddump --subtune`. So
+  player $1000's song 0 was sampled in file subtune 0 — which runs the OTHER
+  player, leaving $1707 at the never-inited FILE-IMAGE leftover $0B (subtune 1
+  reads $D2). New `DMCV4Config.song_subtunes`, built in `_player_cfg` from
+  `spec['map']`. Same shape as r85's filter-def post-init re-read.
+- **COMPOSER half:** the window is ONE file-level idx-keyed array, so the two
+  players' records at position 0 resolved last-wins (which is why fixing the
+  extract alone would have flipped sub 1 FULL and left sub 0 partial).
+  Attribute each record to the subtunes whose ROWS play its instrument (USF
+  content — NO schema addition); on disagreement, init writes those positions
+  for its subtune. ALL conflicting positions on EVERY init, else a subtune
+  inherits its predecessor's patch. Gated ⇒ conflict-free members byte-identical.
+- **Measurement traps this round:** per-frame `--memwatch` said $1707 was
+  constant, and `taint_source` (~45 s/subtune) saw only {$0B,$D2} — neither
+  covers a value that differs per PLAYER at the SAME canon offset. What settled
+  it was `--memwatch 1707,2707` per subtune. Also: `siddump --subtune N` is
+  1-BASED (verify's sub k = `--subtune k+1`), and `--memwatch-on-write` takes
+  ONE trigger + a COMMA-separated list (spaces are silently eaten as argv).
+- **Census (C19, both sides): 0 regressed / 1 gained.** Exposure is cheap and
+  complete for the FULL side — scan the stored `.usf` for two instruments
+  naming one window position with different bytes: **16 of 5401** (14 single,
+  1 multisid, 2 compilation). Those 16 + all 18 detected compilations
+  re-verified FULL. Full regression green (9 families); dmc_smoke 6/6.
+- **NOT yet closed out** — no full 5401 batch this round, so the f1 counts
+  below are still r88's. Next f1 partial by path is now `Rogue_Ninja`
+  (compilation, sub 1 diverges at write 25596/226742).
 
 ## ✅ ROUND 88 (2026-07-23): a rejected redirect row EXPIRED — $1720 fclaim. f1 **5252 full / 149 partial / 0 error**, corpus SYNCED
 Next f1 partial by path = `Industrial_Sci-Fi` (V3 freq hi $00 vs $01 at write
