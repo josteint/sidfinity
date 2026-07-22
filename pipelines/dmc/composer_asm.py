@@ -854,27 +854,54 @@ def _reloc_sid_regs(asm: str, reg_delta: int, keep_regs=()) -> str:
     writes (verified: no data literal takes that form — the freq table etc.
     emit single bytes `$D4`, never words), so a targeted rewrite is safe.
 
-    `keep_regs`: registers this chip's player stores to CHIP 1 rather than
-    its own, because the editor's relocation missed those operands (C19) —
-    e.g. Surgeon/Nice_Dream's res/route `$D417`, so both players' res/route
-    land on chip 1. Probed per member by `factory._multisid_keep_regs`;
-    empty (a fully relocated player) is the default and the common case."""
+    `keep_regs`: stores this chip's player directs at CHIP 1 rather than its
+    own, because the editor's relocation missed those operands (C19) — e.g.
+    Surgeon/Nice_Dream's res/route `$D417`, so both players' res/route land
+    on chip 1. Probed per member by `factory._multisid_keep_regs`; empty (a
+    fully relocated player) is the default and the common case.
+
+    Two granularities, because the miss is per-STORE while a register can
+    have several stores across different routines:
+      * `0x17`             — every store to that register stays on chip 1;
+      * `(0x00, 'sidwrite')` — only the stores to that register inside the
+        block that starts at the composer label `sidwrite`.
+    The label is the ROLE: the composer re-architects the player, so a canon
+    store site is named by what its block DOES, not by an address. Scoping
+    to "after label L, before the next label" works because the composer
+    emits one label per routine and never interleaves them."""
     if reg_delta == 0:
         return asm
-    keep_regs = frozenset(keep_regs)
+    plain = frozenset(k for k in keep_regs if isinstance(k, int))
+    scoped = {}                       # label -> {reg}
+    for k in keep_regs:
+        if not isinstance(k, int):
+            scoped.setdefault(k[1], set()).add(k[0])
     # safety: no $d4NN word may hide in a data line
     for ln in asm.split('\n'):
         code = ln.split(';')[0]
         if re.search(r'\.(byt|word|dsb)\b', code, re.I) and \
                 re.search(r'\$d4[0-9a-f]{2}\b', code, re.I):
             raise AssertionError(f'$d4xx word in data line: {ln!r}')
+    if scoped:
+        missing = scoped.keys() - set(re.findall(r'^(\w+):', asm, re.M))
+        if missing:
+            raise AssertionError(f'keep_regs names unknown labels: {missing}')
 
-    def _sub(mobj):
-        nn = int(mobj.group(1), 16)
-        if nn > 0x18 or nn in keep_regs:
-            return mobj.group(0)
-        return f'${(0xD400 + nn + reg_delta):04x}'
-    return re.sub(r'\$d4([0-9a-f]{2})\b', _sub, asm, flags=re.I)
+    label = None
+    out = []
+    for ln in asm.split('\n'):
+        m = re.match(r'^(\w+):', ln)
+        if m:
+            label = m.group(1)
+        here = plain | scoped.get(label, set())
+
+        def _sub(mobj, here=here):
+            nn = int(mobj.group(1), 16)
+            if nn > 0x18 or nn in here:
+                return mobj.group(0)
+            return f'${(0xD400 + nn + reg_delta):04x}'
+        out.append(re.sub(r'\$d4([0-9a-f]{2})\b', _sub, ln, flags=re.I))
+    return '\n'.join(out)
 
 
 def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
@@ -1677,8 +1704,14 @@ fx_dual_up:
         data.append(f'pat_{i}:\n' + _byt(blob))
     data_asm = '\n'.join(data)
 
-    # note-init cymbal (canon onset 0) vs frame-2 cymbal (family-2 onset 1)
+    # note-init cymbal (canon onset 0) vs frame-2 cymbal (family-2 onset 1).
+    # `cymburst:` is a ROLE label: a multi-SID keep_regs entry can name this
+    # block to leave one of its stores on chip 1 (C19 per-store granularity —
+    # Surgeon/Nice_Dream's chip-2 player relocates the burst's freq-lo but
+    # not its freq-hi). Both call sites end at a label, so the scope is
+    # exactly the burst.
     _cym_burst = (
+        'cymburst:\n'
         '        ldy sidoff,x\n'
         f'        lda #${cymbal_burst:02X}\n'
         '        sta $d400,y\n'
@@ -2720,8 +2753,14 @@ def build_dmc_2sid_sid(usf: UsfFile) -> bytes:
     # chip ci sounds in subtune s iff s carries a voice in ci's id block
     act = [{(v.id - 1) // 3 for v in s.voices} for s in usf.subtunes]
     # per-chip un-relocated stores (C19, ';'-separated chip order) — empty
-    # for the fully relocated players the editor normally produces
-    keep = [frozenset(int(r, 16) for r in part.split(',') if r)
+    # for the fully relocated players the editor normally produces. An entry
+    # is either `NN` (every store to that register) or `NN@label` (only the
+    # stores inside the composer routine `label` — the miss is per-STORE).
+    def _keep_entry(r):
+        reg, _, role = r.partition('@')
+        return (int(reg, 16), role) if role else int(reg, 16)
+
+    keep = [frozenset(_keep_entry(r) for r in part.split(',') if r)
             for part in
             usf.params.fields.get('multisid_keep_regs', '').split(';')]
     keep += [frozenset()] * (n_chips - len(keep))

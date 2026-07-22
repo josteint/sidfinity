@@ -1616,8 +1616,7 @@ def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
         cfg.cia_period = cia
         keep = _multisid_keep_regs(mem, cfg.base, addrs[ci])
         if keep:
-            cfg.extra_params['multisid_keep_regs'] = \
-                ','.join('%02X' % r for r in keep)
+            cfg.extra_params['multisid_keep_regs'] = ','.join(keep)
     # C18: the wrapper may run the full play only every Nth call and dispatch
     # the others to each chip's effects entry. Observed per chip; the
     # composer's phase dispatcher then lives inside each player, so the chips
@@ -1873,6 +1872,25 @@ def multisid_active_chips(sid_path: str, bases, n_subtunes: int,
     return out
 
 
+# Canon SID-store sites -> the composer routine (label) that plays the same
+# role. Used only to name a store when a register's stores are MIXED (some
+# relocated to this chip, some not — C19's per-store granularity trap): the
+# composer re-architects the player, so a store is identified by what its
+# block DOES, never by an address. Extend a row at a time, and only when the
+# composer's label is unambiguously the same role — an unmapped site falls
+# back to relocating the whole register (today's behaviour).
+_SIDSTORE_ROLE = {
+    0x130C: 'cymburst',    # STA $D400,y — noise-attack burst freq lo ($FFFF)
+    0x130F: 'cymburst',    # STA $D401,y — noise-attack burst freq hi
+    0x1314: 'cymburst',    # STA $D404,y — noise-attack burst ctrl ($81)
+    0x160D: 'sidwrite',    # STA $D400,y — voice freq lo (base + accum)
+    0x1616: 'sidwrite',    # STA $D401,y — voice freq hi
+    0x161C: 'pwwrite',     # STA $D402,y — pulse width lo
+    0x1622: 'pwwrite',     # STA $D403,y — pulse width hi
+    0x162B: 'pwwrite',     # STA $D404,y — waveform ctrl (gate-masked)
+}
+
+
 def _multisid_keep_regs(mem, base: int, chip_addr: int) -> tuple:
     """C19 STATIC opcode probe — which SID registers this chip's player still
     stores to CHIP 1 because the 2SID relocation missed their operand.
@@ -1896,6 +1914,7 @@ def _multisid_keep_regs(mem, base: int, chip_addr: int) -> tuple:
     body = bytes(mem[base:base + 0x1000])
     own = [0] * 0x19
     foreign = [0] * 0x19
+    foreign_at = {}                    # reg -> [canon offset, ...]
     # STA abs ($8D) / STA abs,y ($99) / STA abs,x ($9D)
     for i in range(len(body) - 2):
         if body[i] not in (0x8D, 0x99, 0x9D):
@@ -1903,9 +1922,22 @@ def _multisid_keep_regs(mem, base: int, chip_addr: int) -> tuple:
         tgt = body[i + 1] | (body[i + 2] << 8)
         if 0xD400 <= tgt <= 0xD418:
             foreign[tgt - 0xD400] += 1
+            foreign_at.setdefault(tgt - 0xD400, []).append(0x1000 + i)
         elif chip_addr <= tgt <= chip_addr + 0x18:
             own[tgt - chip_addr] += 1
-    return tuple(r for r in range(0x19) if foreign[r] and not own[r])
+    keep = [f'%02X' % r for r in range(0x19) if foreign[r] and not own[r]]
+    # MIXED register (some stores relocated, some not) — name the specific
+    # canon SITE by the composer ROUTINE that plays its role, so the composer
+    # can keep just that store on chip 1. Only sites in _SIDSTORE_ROLE are
+    # nameable; anything else keeps the old behaviour (relocate the register
+    # wholesale, member stays partial) rather than guessing at a role.
+    for r in range(0x19):
+        if not (foreign[r] and own[r]):
+            continue
+        roles = {_SIDSTORE_ROLE.get(a) for a in foreign_at[r]}
+        if None not in roles:
+            keep += ['%02X@%s' % (r, role) for role in sorted(roles)]
+    return tuple(keep)
 
 
 # C19 static-opcode wedge probes with a UNIFORM shape: probe(path, cfg) returns
