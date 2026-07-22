@@ -231,6 +231,14 @@ practice, not code to factor).
   binds nothing in a composer that emits its own encoding; the real bound is
   the widest id-scaled index (8-bit, stride 8 ⇒ 32) and raising it to the
   measured value landed a 30-instrument member unchanged.
+- ⚠ THEN WIDEN THE INDEX ITSELF past that bound — raising the constant alone
+  aliases (ids ≥32 wrapped onto instrument 0, diverging at V1 PW lo). Shrink
+  the STRIDE to the record's true width + a per-entity base BYTE (keeps the
+  index 8-bit, one cycle cheaper than the shift chain, cap 256/stride);
+  GATE on the count so everything below emits byte-identical code (proof =
+  a corpus-wide MD5 rebuild); REFUSE where another feature encodes positions
+  in the old layout. The ORIGINAL may have no answer to copy — its own index
+  wraps EARLIER; the overflow is created by our merge of N packed players.
 - FULL ENTRY: [`ledger/C8.md`](ledger/C8.md) — read it before applying.
 
 ### C9 — a runtime parameter py65 can't read → measure it from the writelog

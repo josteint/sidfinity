@@ -5,8 +5,45 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-22T20:14:49.316Z
+  modified: 2026-07-22T20:41:51.181Z
 ---
+
+## ✅ ROUND 87 (2026-07-22): past the cap — WIDEN the index. Lane_Crazy 6/6
+`Lane_Crazy` (4 players, 6 subtunes, **39** merged instruments) — **6/6 FULL**
+(155299 / 109993 / 3892 / 3916 / 130448 / 109037). Commit b3fc59d3; ledger C8
+gained the widening half of the r86 sibling. f1 **5241 full / 160 partial / 0
+error**, corpus SYNCED.
+- **Raising a cap without widening its index ALIASES.** r86 moved
+  `_MAX_INSTR` to 32, the bound of fx_pulse's `id*8 + pwphase` 8-bit index.
+  At 39, ids ≥32 wrapped onto instrument 0's records — subs 4+5 diverged at
+  **V1 PW lo, write 24**, which is the wrap's signature (the pulse-step path,
+  early, on the players holding the high ids).
+- **The widening is NOT a 16-bit index.** Shrink the STRIDE to the record's
+  true width (6; the 8 existed only so the index could be `asl×3`) and give
+  each instrument a base BYTE: `ldy cinst,x / lda istepbase,y / clc / adc
+  pwphase,x / tay`. Index stays 8-bit, cap = 256/6 = **42**, and it costs one
+  cycle LESS than the shift chain (C25 asks that of anything on the per-voice
+  per-frame path).
+- **The ORIGINAL has no wider index to copy** — it computes its record offset
+  as `ASL×3 + ADC×3` (= ×11) in the 8-bit accumulator with carries dropped,
+  wrapping after 23 instruments, INSIDE the editor's own 0-27 range (the C11
+  wrap `_inst_offset` reproduces). It never needs more because one editor file
+  holds ≤28; 39 exists only because we MERGE four packed players.
+- **Gate = byte-identity, not re-verification.** The layout is gated on the
+  count, so all **5240 stored f1 members rebuild BYTE-IDENTICAL** from their
+  stored `.usf` — which re-confirms the C20 fifth-layer invariant corpus-wide
+  in the same pass. 22 compilations: 0 regressed / 1 gained. Full regression
+  green (8 families); dmc_smoke 6/6.
+- `dual_freq_generator` + >32 instruments is REFUSED, not approximated (the
+  wedge's off-the-end reads are stride-8 positions; empty intersection today).
+- **CLOSEOUT (fresh `tmp/dmc_f1_r87.jsonl`, full 5401-member batch): 5241 full
+  / 160 partial / 0 error — 0 regressed / 1 gained vs r86.** Build paths: 5366
+  single / 18 compilation / 16 multisid / 1 hetero_masm. Corpus SYNCED: 5241
+  written, 0 errors, **0 orphans**, audit **13/13** stored artifacts re-verify
+  across all four build paths. Post-sync usf_corpus_check 11904/11904.
+- **RESIDUE:** the instrument-overflow class is now CLOSED. Remaining
+  compilation residue = Zap_Zone/Protox-1 filter overrun + Black_It's 3rd
+  player layout ([[project_dmc_compilations]]).
 
 ## ✅ ROUND 86 (2026-07-22): the merged-pool cap was the ORIG's, not ours. f1 **5240 full / 161 partial / 0 error**, corpus SYNCED
 Next f1 partial by path = `Heavy_Metal_Deluxe_beta`, the documented
