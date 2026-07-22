@@ -39,6 +39,7 @@ Public entry:
 """
 from __future__ import annotations
 
+import dataclasses
 import struct
 from pathlib import Path
 
@@ -4618,6 +4619,35 @@ def _make_psid_header(usf: UsfFile, init_addr: int, play_addr: int,
     return hdr
 
 
+def _apply_usf_build_params(usf, cfg: FCConfig) -> FCConfig:
+    """Take the fc_standard PLAYER-BUILD params from the USF when it carries
+    them, so the rebuild is specified by the USF rather than by the config the
+    extractor happened to probe (ledger C7 class A3 / the Principle §8).
+
+    Each of these is a hand-patched byte in the member's player that changes
+    the write stream; they vary per MEMBER inside one engine family, so they
+    are content, not the per-ENGINE mechanism the Core Tenet lets the engine
+    hold. `to_usf._std_build_params` emits one iff it differs from the
+    FCConfig default, so a key's ABSENCE means the default — and falling back
+    to `cfg` here is equivalent for any regenerated member while keeping
+    pre-existing USFs (the canaries, the Tel variants) building exactly as
+    before."""
+    fields = getattr(getattr(usf, 'params', None), 'fields', None) or {}
+    over = {}
+    for key in ('std_vibrato_stale_tail', 'std_glide_hi_reg', 'std_arp3_init'):
+        if key not in fields:
+            continue
+        val = fields[key]
+        if key == 'std_arp3_init':
+            over[key] = tuple(int(x) for x in str(val).split(','))
+        elif key == 'std_vibrato_stale_tail':
+            over[key] = val if isinstance(val, bool) else \
+                str(val).strip().lower() in ('1', 'true', 'yes')
+        else:
+            over[key] = int(val)
+    return dataclasses.replace(cfg, **over) if over else cfg
+
+
 def build_via_asm_featuredriven(cfg: FCConfig,
                                  usf_path: str | None = None,
                                  root: str | None = None) -> bytes:
@@ -4630,6 +4660,7 @@ def build_via_asm_featuredriven(cfg: FCConfig,
         usf_path = str(Path(root) / cfg.sid_path).removesuffix('.sid') + '.usf'
     with open(usf_path) as f:
         usf = parse(f.read())
+    cfg = _apply_usf_build_params(usf, cfg)
 
     if cfg.emit_data_from_usf and cfg.contiguous_data_layout:
         # Dynamic data-base float: lift the contiguous data region to sit just

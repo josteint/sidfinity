@@ -529,6 +529,43 @@ def _freq_table_bytes(song: FCSong) -> list[int]:
 # Top-level converter
 # ---------------------------------------------------------------------------
 
+# fc_standard PLAYER-BUILD params (ledger C7 class A3). Each is a byte the
+# member's player was hand-patched with, factory-probed from the orig; each
+# changes the WRITE STREAM per member, so the USF must carry it or it is not
+# the complete build specification (the Principle §8). Measured carriers /
+# load-bearing counts live in [[project_fc_principled_composer]].
+#
+# Emitted iff the value differs from the FCConfig default, so `absent =>
+# default` is a true invariant of the corpus — the same convention DMC's
+# params.fields uses. Defaults are read from FCConfig rather than restated
+# here, so the two can't drift apart.
+_STD_BUILD_PARAM_KEYS = ('std_vibrato_stale_tail', 'std_glide_hi_reg',
+                         'std_arp3_init')
+
+
+def _std_build_param_defaults() -> dict:
+    import dataclasses as _dc
+    from pipelines.future_composer.config import FCConfig
+    return {f.name: f.default for f in _dc.fields(FCConfig)
+            if f.name in _STD_BUILD_PARAM_KEYS}
+
+
+def _std_build_params(cfg) -> dict:
+    """The non-default player-build params for `cfg`, as USF param fields."""
+    out = {}
+    for key, dflt in _std_build_param_defaults().items():
+        val = getattr(cfg, key, dflt)
+        if isinstance(dflt, tuple) or isinstance(val, (tuple, list)):
+            val, dflt = tuple(val), tuple(dflt)
+        if val == dflt:
+            continue
+        # a tuple rides as a readable "0,12,24" string (the grammar's param
+        # value kinds are int / keyword / bool / string)
+        out[key] = ','.join(str(x) for x in val) if isinstance(val, tuple) \
+            else val
+    return out
+
+
 def fcsong_to_usf(song: FCSong, root: str | None = None) -> UsfFile:
     """Convert decoded `FCSong` to `UsfFile` per the v0 schema."""
     if root is None:
@@ -552,7 +589,7 @@ def fcsong_to_usf(song: FCSong, root: str | None = None) -> UsfFile:
 
     return UsfFile(
         psid=psid,
-        params=Params(fields={}),
+        params=Params(fields=_std_build_params(song.cfg)),
         init=InitState(),
         freq_table=_freq_table_bytes(song),
         instruments=instruments,
