@@ -145,6 +145,7 @@ param_value: signed_int      -> param_number
 // means "no overrides, use composer defaults."
 init_block: "init" "{" init_inner* "}"
 init_inner: init_voice | init_sid_block | init_slide_phase | init_speed_ctr | init_fade_frac
+          | init_filter_arm_cutoff | init_filter_arm_frames
 // Global engine-state priming (trichotomy §4.5, scalar): initial phase
 // bit of the shared half-rate slide clock (dual-effect update parity).
 init_slide_phase: "slide_phase" ":" number
@@ -154,6 +155,12 @@ init_slide_phase: "slide_phase" ":" number
 //     $101C startup fade-fraction. File-level or per-subtune init; 0 = default.
 init_speed_ctr: "speed_ctr_init" ":" number
 init_fade_frac: "fade_frac_init" ":" number
+// The cutoff seed + frame count a NOTE-INIT re-arms the filter sweep with
+// (distinct from the sweep's live state, which is default_filter continuing
+// from init.sid.filter). Work-file leftovers before the first stated filter
+// command. 0 = default.
+init_filter_arm_cutoff: "filter_arm_cutoff" ":" number
+init_filter_arm_frames: "filter_arm_frames" ":" number
 
 // Common voice-state fields: ctrl (SID ctrl byte at engine init),
 // dur_field (initial note-duration state — Hubbard's vibrato carry-path
@@ -292,6 +299,15 @@ instrument_field: "waveform" ":" byte_list                              -> inst_
                 // the `drum` effect. Same musical concept as the FC
                 // standard wave program's dual ctrl/freq tables. (DMC)
                 | "wave_freq" ":" "[" (signed_int ("," signed_int)*)? "]" -> inst_wave_freq
+                // Parallel per-step flag for wave_freq: 1 = the step's pitch
+                // is an ABSOLUTE note index (fixed pitch, ignores the row's
+                // note); 0 = a signed offset added to the played note.
+                // Absent = every step is relative. (Music Assembler)
+                | "wave_abs" ":" "[" (INT ("," INT)*)? "]"              -> inst_wave_abs
+                // Parallel per-step filter cutoff for wave_freq: the cutoff
+                // this wave step writes; 0 = leave the filter alone.
+                // Absent = the wave program never touches the filter.
+                | "wave_filter" ":" byte_list                           -> inst_wave_filter
                 | "pwm" ":" pwm_args                                    -> inst_pwm
                 | "adsr" ":" byte byte                                  -> inst_adsr
                 | "arp" ":" arp_args                                    -> inst_arp
@@ -601,6 +617,13 @@ fx_flag: "tie"                  -> fx_tie
        | "glide_hold" "=" INT     -> fx_glide_hold
        | "wave_adjust" "=" INT  -> fx_wave_adjust
        | "filter" "=" number    -> fx_filter
+       // Row-armed filter sweep (Music Assembler): the row starts a cutoff
+       // sweep seeded at <cutoff> running for <frames> frames, routed to the
+       // triggering voice and all lower ones. frames=0 turns the filter off
+       // for the rest of the song instead. The sweep's per-frame velocity is
+       // a function of the seed (engine mechanism), so the pair is the whole
+       // musical content — one editor field, one flag.
+       | "filter_sweep" "=" number "," INT   -> fx_filter_sweep
        // FC $F0 marker: play this note WITHOUT retriggering the
        // instrument (skip ADSR/wave reload) — legato to a new pitch.
        | "noretrig"             -> fx_noretrig

@@ -127,6 +127,18 @@ def _write_init_voice(v: InitVoice) -> str:
         parts.append(f'guard: {_hex(v.guard)}')
     if v.dur_reload is not None:
         parts.append(f'dur_reload: {_hex(v.dur_reload)}')
+    if getattr(v, 'note_active', False):
+        parts.append('note_active: 1')
+    if getattr(v, 'sliding', False):
+        parts.append('sliding: 1')
+    if getattr(v, 'freq', None) is not None:
+        parts.append(f'freq: {_hex(v.freq, 4)}')
+    if getattr(v, 'slide_freq', None) is not None:
+        parts.append(f'slide_freq: {_hex(v.slide_freq, 4)}')
+    if getattr(v, 'slide_rate', None) is not None:
+        parts.append(f'slide_rate: {_hex(v.slide_rate, 4)}')
+    if getattr(v, 'pulse_width', None) is not None:
+        parts.append(f'pulse_width: {_hex(v.pulse_width, 4)}')
     return f'  voice {v.id} {{ ' + '  '.join(parts) + ' }'
 
 
@@ -187,6 +199,10 @@ def _write_init(state: InitState) -> list[str]:
         lines.append(f'  speed_ctr_init: {state.speed_ctr_init}')
     if getattr(state, 'fade_frac_init', 0):
         lines.append(f'  fade_frac_init: {state.fade_frac_init}')
+    if getattr(state, 'filter_arm_cutoff', 0):
+        lines.append(f'  filter_arm_cutoff: {_hex(state.filter_arm_cutoff)}')
+    if getattr(state, 'filter_arm_frames', 0):
+        lines.append(f'  filter_arm_frames: {state.filter_arm_frames}')
     if state.sid is not None:
         lines.extend(_write_init_sid(state.sid))
     if getattr(state, 'sid2', None) is not None:
@@ -474,6 +490,12 @@ def _write_instrument(i: Instrument) -> list[str]:
     if i.wave_freq:
         wf = ', '.join(str(v) for v in i.wave_freq)
         lines.append(f'  wave_freq: [{wf}]')
+    if getattr(i, 'wave_abs', None):
+        wa = ', '.join(str(int(v)) for v in i.wave_abs)
+        lines.append(f'  wave_abs: [{wa}]')
+    if getattr(i, 'wave_filter', None):
+        wfi = ' '.join(_hex(b) for b in i.wave_filter)
+        lines.append(f'  wave_filter: {wfi}')
     if getattr(i, 'offtable_freq', None):
         def _ofreq(rec):
             s, n, lo, hi = rec[:4]

@@ -95,6 +95,12 @@ def _data(m) -> str:
         out.append(_tbl('trk_%d' % i, by))
     out.append('trklo\n        .byt <trk_0,<trk_1,<trk_2')
     out.append('trkhi\n        .byt >trk_0,>trk_1,>trk_2')
+    # Byte offset the orderlist wraps to (2 bytes per entry). The original's
+    # base build always wrapped to 0; the `$FD nn` variant wraps to entry nn.
+    # We emit our own advance, so this is one table rather than a player
+    # variant — and it is 0 for every base-build member, hence byte-identical
+    # for them.
+    out.append(_tbl('trkloop', [(t.loop_to * 2) & 0xFF for t in m.tracks]))
     # presets (8 bytes each)
     pb = []
     for p in m.presets:
@@ -308,7 +314,7 @@ fend    iny
         lda ($fa),y
         cmp #$ff
         bne fnw
-        ldy #0
+        ldy trkloop,x
 fnw     tya
         sta orderpos,x
         lda ($fa),y
@@ -567,6 +573,7 @@ _LABELS = ('init', 'play', 'padv', 'dnext', 'dadv', 'vnext', 'rel', 'fetch',
            'asave', 'astop', 'anote0', 'fcut0', 'fvel0', 'fdur0', 'fcutr0',
            'fdurr0', 'seqlo', 'seqhi', 'seq_none', 'trklo', 'trkhi', 'preset',
            'arplo', 'arphi', 'arp_none', 'freqlo', 'freqhi', 'vbase', 'vibdir',
+           'trkloop',
            'froute', 'speedctr', 'filtowner', 'readpos', 'ctrlw', 'orderpos',
            'durctr', 'seqnum', 'transrep', 'repctr', 'curnote', 'nfrqlo',
            'nfrqhi', 'sfrqlo', 'sfrqhi', 'noteflg', 'arppos', 'sl1', 'sl2',

@@ -187,6 +187,10 @@ class _T(Transformer):
         for k, val in fields.items():
             if not hasattr(v, k):
                 raise UsfParseError(f'init voice {voice_id}: unknown field {k!r}')
+            # Flag-valued fields serialize as 0/1 (the grammar's init_value has
+            # no boolean literal); restore the declared type.
+            if isinstance(getattr(v, k), bool):
+                val = bool(val)
             setattr(v, k, val)
         return v
 
@@ -204,11 +208,19 @@ class _T(Transformer):
     def init_fade_frac(self, items):
         return ('_init_fade_frac', int(items[0]))
 
+    def init_filter_arm_cutoff(self, items):
+        return ('_init_filter_arm_cutoff', int(items[0]))
+
+    def init_filter_arm_frames(self, items):
+        return ('_init_filter_arm_frames', int(items[0]))
+
     def init_block(self, items):
         voices = [it for it in items if isinstance(it, InitVoice)]
         slide_phase = 0
         speed_ctr_init = 0
         fade_frac_init = 0
+        filter_arm_cutoff = 0
+        filter_arm_frames = 0
         for it in items:
             if isinstance(it, tuple) and it and it[0] == '_init_slide_phase':
                 slide_phase = it[1]
@@ -216,6 +228,10 @@ class _T(Transformer):
                 speed_ctr_init = it[1]
             elif isinstance(it, tuple) and it and it[0] == '_init_fade_frac':
                 fade_frac_init = it[1]
+            elif isinstance(it, tuple) and it and it[0] == '_init_filter_arm_cutoff':
+                filter_arm_cutoff = it[1]
+            elif isinstance(it, tuple) and it and it[0] == '_init_filter_arm_frames':
+                filter_arm_frames = it[1]
         sids = {}
         for it in items:
             if isinstance(it, tuple) and it and it[0] == '_init_sid':
@@ -231,7 +247,9 @@ class _T(Transformer):
                          sid2=sids.get(2), sid3=sids.get(3),
                          slide_phase=slide_phase,
                          speed_ctr_init=speed_ctr_init,
-                         fade_frac_init=fade_frac_init)
+                         fade_frac_init=fade_frac_init,
+                         filter_arm_cutoff=filter_arm_cutoff,
+                         filter_arm_frames=filter_arm_frames)
 
     # ----- init.sid -----
     def ifilt_lo(self, items):  return ('cutoff_lo', items[0])
@@ -310,6 +328,12 @@ class _T(Transformer):
 
     def inst_wave_freq(self, items):
         return ('wave_freq', [int(x) for x in items])
+
+    def inst_wave_abs(self, items):
+        return ('wave_abs', [int(x) for x in items])
+
+    def inst_wave_filter(self, items):
+        return ('wave_filter', list(items[0]))
 
     def ofreq_static(self, items):
         # at(step, note, freq_lo, freq_hi) — read sonifies a fixed byte
@@ -1106,6 +1130,9 @@ class _T(Transformer):
 
     def fx_glide_down(self, items):
         return f'glide_down=${int(items[0]):04X}'
+
+    def fx_filter_sweep(self, items):
+        return f'filter_sweep=${int(items[0]):02X},{int(items[1])}'
 
     def fx_glide_onset(self, items):
         return f'glide_onset={int(items[0])}'

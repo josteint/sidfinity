@@ -639,6 +639,22 @@ class Instrument:
     # `sectpos_shadow` params, which described HVSC memory geometry (Core Tenet
     # corollary). Serialized as `at(...)` (static) vs `live(...)`.
     offtable_freq: list[tuple] = field(default_factory=list)
+    # Parallel per-step flag for `wave_freq`: 1 = the step's pitch is an
+    # ABSOLUTE note index (a fixed pitch, played regardless of the row's
+    # note); 0 = a signed offset added to the played note (the default, and
+    # what an empty list means for every step). The same musical distinction
+    # DMC carries per-INSTRUMENT via its 'drum' effect (absolute freq bytes vs
+    # transposing offsets), at per-STEP granularity — a wave program that
+    # mixes a fixed percussion transient with transposing arpeggio steps.
+    # Music Assembler's arpeggio steps carry it per step (bit 7 of the step's
+    # note byte). Empty = every step is relative.
+    wave_abs: list[int] = field(default_factory=list)
+    # Parallel per-step filter cutoff for `wave_freq`: the cutoff value this
+    # wave step writes, or 0 = leave the filter alone (Music Assembler's
+    # arpeggio step byte 3). Empty = the wave program never touches the
+    # filter. Same musical family as `filter_env`, but sampled per wave step
+    # rather than as a free-running contour.
+    wave_filter: list[int] = field(default_factory=list)
     # The instrument's position in the editor's SHARED wave table (DMC byte 9
     # — a number the composer typed; §8 arrangement, like transpose-command
     # placement). Audible ONLY when an off-table freq read sonifies a voice's
@@ -728,6 +744,32 @@ class InitVoice:
     # equals the current row's duration). Audible only when an
     # off-table read sonifies it. None = 0.
     dur_reload: Optional[int] = None
+    # ----- idle-mid-note priming (trichotomy §4.5) -----
+    # Some editors save their work file with a voice caught MID-NOTE, and the
+    # engine's init does not clear that state. The voice then idles as if a
+    # note were already sounding, and its first stream event inherits it —
+    # audible from frame 1. Music Assembler surfaced this class: its init
+    # clears only a 16-byte work block, so a voice whose first event is a rest
+    # or a hold (neither of which re-initialises the note) plays these values.
+    #
+    #   `note_active` — the voice idles mid-note: its first event does NOT
+    #     re-attack (no envelope/waveform re-init). The articulation twin of
+    #     a row's `noretrig`, at song start.
+    #   `sliding`     — ...and with a pitch slide already running, so the
+    #     voice's frequency comes from `slide_freq` advancing by `slide_rate`
+    #     rather than from `freq`.
+    #   `freq`        — the 16-bit frequency the voice idles at.
+    #   `slide_freq`  — the 16-bit slide accumulator's current frequency.
+    #   `slide_rate`  — the signed 16-bit per-frame slide delta.
+    #   `pulse_width` — the 16-bit pulse width the voice idles at.
+    #
+    # None/False = the engine's zero state (no priming).
+    note_active: bool = False
+    sliding: bool = False
+    freq: Optional[int] = None
+    slide_freq: Optional[int] = None
+    slide_rate: Optional[int] = None
+    pulse_width: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------
@@ -808,8 +850,18 @@ class InitState:
     #     single engines; per-subtune init for compound ones (5TT / v5).
     #   fade_frac_init: DMC v5's $101C startup fade-fraction accumulator.
     # 0 = default (composer emits nothing). Formerly Params.fields keys.
+    #   filter_arm_cutoff / filter_arm_frames: the cutoff seed and frame count
+    #     a NOTE-INIT re-arms the filter sweep with. An engine whose filter
+    #     sweep is (re)started per note carries the arming pair separately
+    #     from the sweep's live state — the live state is the play-time
+    #     contour (`UsfFile.default_filter`) continuing from the
+    #     `init.sid.filter` priming, whereas these are what the NEXT note
+    #     will load. Before the song states its first filter command they are
+    #     the editor's work-file leftovers (Music Assembler). 0 = default.
     speed_ctr_init: int = 0
     fade_frac_init: int = 0
+    filter_arm_cutoff: int = 0
+    filter_arm_frames: int = 0
 
 
 @dataclass
