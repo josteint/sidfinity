@@ -5,8 +5,54 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-22T20:41:51.181Z
+  modified: 2026-07-22T21:18:45.028Z
 ---
+
+## ✅ ROUND 88 (2026-07-23): a rejected redirect row EXPIRED — $1720 fclaim. f1 **5252 full / 149 partial / 0 error**, corpus SYNCED
+Next f1 partial by path = `Industrial_Sci-Fi` (V3 freq hi $00 vs $01 at write
+130601 of 224675 — 58% deep). Root cause: an off-table freq read at **hi idx
+121 / lo idx 217 = $1720, the FILTER CLAIM FLAG** — the one deliberate hole in
+the otherwise-mapped $1718-$1723 filter-state block. Commit ba1e09e7; ledger
+C11 gained the "a rejection expires" lesson.
+- **The row was rejected 2026-06-29** (+0 recovery / −1 Long_Night, "fclaim
+  timing ≠ orig") — measured on **family-2** and filed as a fact about the
+  variable. It is a fact about ONE composer on ONE date: re-measured now, our
+  `fclaim` and the orig's `$9720` agree at **ALL 12,784 read moments, 0
+  mismatches**. The composer's claim has been op-for-op the orig's for a while
+  (same play()-entry reset, same first-voice-in-X-order store, both starting
+  each play() at 0 ⇒ no seed needed, like `guard`/`fxf`).
+- **No static byte could ever serve this read** — the value depends on which
+  voice claims the filter that frame, so `_offtable_eventdriven` drops the key
+  as unstable and the window falls back to the post-init sample ($01, while the
+  orig reads $00 there). **A key the event-driven capture OMITS is the positive
+  signal for a redirect row**, not a reason to improve the capture.
+- **TRAP that cost the first measurement: the player is RELOCATED ($9000).**
+  Probing canon $1720/$177D watched unrelated RAM and returned an incoherent
+  picture (fxf=$FF, route=$00, claim always 0 — while $D417=$F1 said voice 1
+  WAS routed) that read as a genuine engine difference. Offset every watched
+  address by the member's `base` first. TELL: watched bytes that contradict
+  the write stream.
+- **Census (C19, both sides): 45 f1 FULLs read idx 121/217 via the static
+  window — all held. 0 regressed / 11 gained** on the 205-member subset (all
+  160 partials + all 45 exposed FULLs), then confirmed on the full batch.
+  v5 is structurally unaffected (4-tuple `at(...)` records, never consumes
+  `offtable_live_idx`).
+- **Stored `.usf` go stale-by-SEMANTICS here** (C20 third layer): a stale
+  `at(...)` at a now-live idx sets `_static_at_live` and turns that member's
+  WHOLE redirect off — so the round's mass-write had to regenerate, not rebuild.
+- **Tool fix:** `divergence_census.py` now dedupes the results jsonl LAST-WINS.
+  A batch jsonl is append-only, so a resume leaves superseded rows; the census
+  was counting them (10802 "members" for a 5401-member family) and listing
+  already-FULL members as partial representatives.
+- **CLOSEOUT (fresh `tmp/dmc_f1_r88.jsonl`, full 5401-member batch): 5252 full
+  / 149 partial / 0 error — 0 regressed / 11 gained vs r87.** Build paths
+  unchanged (5366 single / 18 compilation / 16 multisid / 1 hetero_masm).
+  Corpus SYNCED: 5252 written, 0 errors, **0 orphans**, audit **10/10** from
+  disk across all four build paths. usf_corpus_check **11915/11915**. Full
+  regression green (8 families); dmc_smoke 6/6.
+- **RESIDUE (149):** freq clusters still dominate — V3 freqlo 16 / V1 freqlo
+  12+7 / V2 freqlo 8+6 / V3 freqhi 6, plus V1 SR @<64 9 (the Zap_Zone/Protox-1
+  compilation filter-overrun class) and $D418 7. 10 `unknown`.
 
 ## ✅ ROUND 87 (2026-07-22): past the cap — WIDEN the index. Lane_Crazy 6/6
 `Lane_Crazy` (4 players, 6 subtunes, **39** merged instruments) — **6/6 FULL**
