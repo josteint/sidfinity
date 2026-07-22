@@ -358,8 +358,10 @@ practice, not code to factor).
   generalised from ONE observed carrier is an un-probed hardcode in
   disguise** — probe the operand, never enshrine the quirk (`keep_res=True`
   was wrong for 7 of 8 carriers). Watch GRANULARITY: the wedge can be
-  per-STORE while the knob is per-register.
-  12 occurrences — the full entry catalogues every known wedge.
+  per-STORE while the knob is per-register — cure by naming the store with
+  the COMPOSER LABEL of the routine that plays its role (`00@sidwrite`),
+  never an address; an unmapped site keeps the coarse behaviour, no guessing.
+  13 occurrences — the full entry catalogues every known wedge.
 - FULL ENTRY: [`ledger/C19.md`](ledger/C19.md) — read it before applying.
 
 ### C20 — stale-FULL palimpsest
@@ -375,6 +377,16 @@ practice, not code to factor).
 - RELATIVE (C33): the EXTRACT-layer version — a member FULL in regression can
   hide a silently-broken REGENERATION path (regression builds from a STORED
   .usf, not from regeneration); a byte-gate that REGENERATES surfaces it.
+- FOURTH LAYER — the WRITER takes a DIFFERENT BUILD PATH than the VERIFIER.
+  `code_hash` proves the verdict came from current code, NOT that the stored
+  artifact is what earned it. DMC's mass-writer built every member through
+  the single-player constructor while the batch dispatches multi-SID ->
+  compilation -> single, so multi-SID members were stored as 3-voice
+  single-chip `.usf` for 6-voice tunes — hash-blessed, well-formed, WRONG,
+  and invisible to every gate. RULE: a mass-writer must call the SAME
+  dispatch as the verifier; when the build path grows a branch, grep every
+  tool that reconstructs a member. DETECTOR: re-verify FROM THE STORED
+  artifact (not a fresh in-memory build).
 - THIRD LAYER — the stored ARTIFACT is unreadable by the CURRENT grammar
   (schema drift). A typed-field move orphaned 1,182/11,943 stored .usf (9.9%)
   while regression stayed green — it builds from a ~116-member portfolio,
