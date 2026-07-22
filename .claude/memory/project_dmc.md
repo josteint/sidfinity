@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-22T22:49:46.649Z
+  modified: 2026-07-22T23:04:09.406Z
 ---
 
 ## ✅ ROUND 90 (2026-07-23): two-JMP player head + reach-refined filter merge. Quad_Core 4/4 + Zap_Zone/Protox-1
@@ -62,8 +62,14 @@ closed, plus a scare and a tool near-miss:
   Recovered via `git stash pop`. LESSON: never stash/pop inside a single command
   that can time out — split into separate commands, and `git diff > patch`
   first.
-- **NOT yet closed out at write time** — full 5401 batch (`tmp/dmc_f1_qc.jsonl`)
-  + corpus sync running; counts below are still r88's until it lands.
+- **CLOSEOUT (fresh `tmp/dmc_f1_qc.jsonl`, full 5401-member batch): 5256 full /
+  145 partial / 0 error — 0 regressed / 4 gained vs r88** (Para_Lander_DX from
+  r89 + Quad_Core + Zap_Zone + Protox-1). Build paths: 5224 single / 16
+  compilation / 15 multisid / 1 hetero_masm. Corpus SYNCED: 5256 written, 0
+  errors, **0 orphans**, audit **10/10** stored artifacts re-verify across all
+  four build paths. usf_corpus_check **11919/11919**. Full regression green (9
+  families); dmc_smoke 6/6. Next f1 partial by path = `Rogue_Ninja`
+  (compilation, sub 1 diverges).
 
 ## ✅ ROUND 89 (2026-07-23): the off-table window is a PER-PLAYER fact. Para_Lander_DX 3/3
 Next f1 partial by path = `Para_Lander_DX` (a COMPILATION: players $2000 and
