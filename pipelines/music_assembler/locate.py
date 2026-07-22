@@ -19,11 +19,14 @@ compilation `Bayliss_Richard/Freespace_2075`):
 The work block sits at base+$81..base+$90 (per-track read position, gate/flags,
 duration counter, sequence number; master speed counter at +$90).
 
-NOTE the tables are found via OPERANDS, never via fixed offsets: the signature's
-own offset from base VARIES BY VERSION (+$91 on ~84% of the family, also +$B5 /
-+$70 / +$191 — see docs/README.md), so `base = signature - $91` would be wrong
-for ~1,000 members. We derive the base from the work-block operand the
-signature itself carries, and validate it against the play-body shape.
+NOTE the tables are found via OPERANDS, never via fixed offsets. The base is
+anchored on init's fixed prefix at base+$48, NOT on the signature and NOT on
+the work block — those offsets are build-dependent, and using either as the
+primary anchor costs ~50 members and admits false positives. With the init
+anchor the signature offset measures `+$91` for ALL 5,618 members that locate
+(tools/masm_census.py), i.e. ONE dominant build — which supersedes the
+`+$91/+$B5/+$70/+$191` spread reported in docs/README.md. See the CORRECTION
+block at the head of docs/spec_player_RE_grounded.md.
 """
 
 from __future__ import annotations
