@@ -96,23 +96,35 @@ def plan(results_path: str, engine: str, hvsc_root: str,
     from src.code_fingerprint import code_fingerprint
     code_hash = code_fingerprint(engine)
     p = SyncPlan()
+    # DEDUPE BY PATH, LAST ROW WINS. A batch that APPENDS on resume accumulates
+    # one row per member per run, so a results file routinely holds several
+    # generations of the same member — 63 paths in FC's carried BOTH a `full`
+    # and a non-full row. Read naively that makes one member simultaneously a
+    # write and an orphan: the artifact is deleted and then rewritten, which
+    # only survives because remove_orphans happens to run before the writes,
+    # and leaves a FULL member with NO artifact if its write then fails. It
+    # also inflates every count and over-samples the audits. This is NOT the
+    # stale-verdict layer — duplicates can all carry the current code_hash.
+    latest = {}
     with open(results_path) as f:
         for line in f:
             if not line.strip():
                 continue
             d = json.loads(line)
-            if d.get('code_hash') != code_hash:
-                p.stale += 1
+            latest[d[path_key]] = d
+    for d in latest.values():
+        if d.get('code_hash') != code_hash:
+            p.stale += 1
+            continue
+        base = os.path.splitext(os.path.join(hvsc_root, d[path_key]))[0]
+        if d.get('status') == 'full':
+            if require_build_path and not d.get('build_path'):
+                p.nopath += 1
                 continue
-            base = os.path.splitext(os.path.join(hvsc_root, d[path_key]))[0]
-            if d.get('status') == 'full':
-                if require_build_path and not d.get('build_path'):
-                    p.nopath += 1
-                    continue
-                p.write.append(d)
-            else:
-                p.orphans += [base + s for s in ARTIFACT_SUFFIXES
-                              if os.path.exists(base + s)]
+            p.write.append(d)
+        else:
+            p.orphans += [base + s for s in ARTIFACT_SUFFIXES
+                          if os.path.exists(base + s)]
     return p
 
 
