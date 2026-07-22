@@ -107,9 +107,33 @@ def build(rel: str, out_sid: str, out_usf: str | None):
     return nch, usf_src, path
 
 
-def verify(orig: str, reb: str, nch: int):
+def _localize_from_streams(a, b, dur: float, cia: bool, context: int = 8):
+    """Print the first (reg, val) divergence from ALREADY-captured writelog
+    streams — reusing verify()'s capture instead of a second full-songlength
+    siddump run (the redundant re-capture that motivated this). Reuses
+    find_first_divergence's flatten + formatter so the output matches the
+    standalone tool. skip_init: vblank frame 0 IS the init (trichotomy differs
+    there) → skip; per-IRQ capture already drops the init prefix → keep."""
+    from find_first_divergence import _flatten, _format_div
+    skip_init = not cia
+    fo = _flatten(a, skip_init)
+    fr = _flatten(b, skip_init)
+    n = min(len(fo), len(fr))
+    div = next((i for i in range(n) if fo[i][:2] != fr[i][:2]), None)
+    print(_format_div({
+        'duration_s': dur, 'orig_writes': len(fo), 'rebuild_writes': len(fr),
+        'match_prefix': div if div is not None else n, 'first_div': div,
+        'orig_flat': fo, 'rebuild_flat': fr}, context))
+
+
+def verify(orig: str, reb: str, nch: int, localize: bool = False,
+           only_sub: int | None = None):
     """Trichotomy verdict per subtune (the family-batch gate). Prints one line
-    per subtune + an overall FULL/PARTIAL verdict; returns True iff FULL."""
+    per subtune + an overall FULL/PARTIAL verdict; returns (allok, fails) where
+    `fails` is the list of partial subtune indices. When `localize` is set, the
+    first divergence of each failing subtune (or `only_sub`) is printed inline
+    from the SAME capture — no second siddump run, and it always targets the
+    subtune that actually diverges (sub 0 is often FULL in a compilation)."""
     from pipelines.hubbard.verify_cycle import (writelog_capture,
                                                 writelog_per_irq_capture,
                                                 compare_instruction_stream)
@@ -122,7 +146,7 @@ def verify(orig: str, reb: str, nch: int):
     # siddump SKIPS an RSID original unless forced, and a skipped capture is
     # empty — a partial with nothing to localize. The rebuild is always PSID.
     rsid = open(orig, 'rb').read(4) == b'RSID'
-    allok = True
+    allok, fails = True, []
     for sub in range(n):
         cia = bool((speed >> min(sub, 31)) & 1)
         cap = writelog_per_irq_capture if cia else writelog_capture
@@ -138,11 +162,20 @@ def verify(orig: str, reb: str, nch: int):
         if isf and abs(r['len_post_a'] - r['len_post_b']) > 176 and not r['audio_guaranteed']:
             isf = False
         allok = allok and isf
+        if not isf:
+            fails.append(sub)
         print(f"  sub {sub}: {'FULL' if isf else 'partial'}  "
               f"play_match={r['play_match']} play_overlap={r['play_overlap']} "
               f"state_match={r['state_match']} len_a={r['len_post_a']} len_b={r['len_post_b']}")
+        if localize and not isf and (only_sub is None or sub == only_sub):
+            if nch > 1:
+                print("  (multi-chip: the flat localize below does not split by "
+                      "chip — a cross-chip adjacency may show as the diff; C28)")
+            print(f"  --- first divergence, subtune {sub} "
+                  f"(from the capture above) ---")
+            _localize_from_streams(a, b, dur, cia)
     print("VERDICT:", "FULL" if allok else "PARTIAL")
-    return allok
+    return allok, fails
 
 
 def main():
@@ -153,8 +186,10 @@ def main():
     ap.add_argument('--usf', help='also write the .usf here')
     ap.add_argument('--verify', action='store_true', help='run the trichotomy verdict')
     ap.add_argument('--localize', action='store_true',
-                    help='run tools/find_first_divergence.py')
-    ap.add_argument('--subtune', type=int, default=0, help='subtune for --localize')
+                    help='localize the first divergence of the FAILING subtune, '
+                         'inline from the verify capture (implies --verify)')
+    ap.add_argument('--subtune', type=int, default=None,
+                    help='localize only this subtune (default: every failing one)')
     args = ap.parse_args()
 
     rel = args.path
@@ -175,12 +210,10 @@ def main():
     # know the path chases the wrong address (Para_Lander_DX, 2026-07-23).
     print(f"build path: {path}")
 
-    if args.verify:
-        verify(orig, out_sid, nch)
-    if args.localize:
-        subprocess.run([sys.executable,
-                        os.path.join(ROOT, 'tools', 'find_first_divergence.py'),
-                        orig, out_sid, '--subtune', str(args.subtune)])
+    if args.verify or args.localize:
+        # --localize implies verify (it needs the per-subtune verdict to know
+        # WHICH subtune to localize, and reuses that capture to do it).
+        verify(orig, out_sid, nch, localize=args.localize, only_sub=args.subtune)
 
 
 if __name__ == '__main__':

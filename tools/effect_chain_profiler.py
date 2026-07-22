@@ -125,6 +125,20 @@ def _capture(sid_path: str, subtune: int, start_frame: int, end_frame: int):
         os.unlink(pc_path)
 
 
+def _song_frames(sid_path: str, subtune: int, cap: int = 6000) -> int:
+    """Frame count (50 Hz) for `subtune` from HVSC's Songlengths.md5, capped so
+    a full-song pc-trace stays bounded. Falls back to `cap` if unavailable."""
+    try:
+        from src.songlengths import load_database, get_durations
+        db = load_database(str(ROOT / 'hvsc84' / 'DOCUMENTS' / 'Songlengths.md5'))
+        durs = get_durations(sid_path, db)
+        if durs and subtune < len(durs):
+            return min(cap, max(50, int(durs[subtune] * 50 * 1.1)))
+    except Exception:
+        pass
+    return cap
+
+
 def _voice_role(reg: int) -> str:
     if 0x00 <= reg <= 0x14:
         v = reg // 7 + 1
@@ -144,18 +158,45 @@ def main() -> int:
     p.add_argument('sid')
     p.add_argument('--subtune', type=int, default=0,
                    help='0-indexed (default 0)')
-    p.add_argument('--frames', required=True,
-                   help='Frame range START-END (e.g. 145-152)')
+    p.add_argument('--frames', default=None,
+                   help='Frame range START-END (e.g. 145-152). Optional with '
+                        '--find-write (defaults to a full-song scan).')
     p.add_argument('--register', default=None,
                    help='Filter to specific $D4xx register(s), '
                         'comma-separated hex (e.g. D408 or 02,03)')
+    p.add_argument('--find-write', default=None, metavar='REG=VAL',
+                   help='Find every write of REG=VAL (e.g. D408=B7) and report '
+                        'its PC + play index — no frame guess needed. This is '
+                        'the answer to "find_first_divergence gave me a VALUE '
+                        'but not the frame" (siddump frame != play() index).')
     args = p.parse_args()
     if not os.path.exists(args.sid):
         print(f'sid not found: {args.sid}', file=sys.stderr); return 1
-    if '-' not in args.frames:
-        print('--frames must be START-END', file=sys.stderr); return 1
-    sf_s, ef_s = args.frames.split('-')
-    sf, ef = int(sf_s), int(ef_s)
+
+    find_reg = find_val = None
+    if args.find_write:
+        if '=' not in args.find_write:
+            print('--find-write must be REG=VAL (e.g. D408=B7)',
+                  file=sys.stderr); return 1
+        rs, vs = args.find_write.split('=')
+        find_reg = int(rs, 16)
+        if find_reg >= 0xD400:
+            find_reg -= 0xD400
+        find_val = int(vs, 16)
+
+    if args.frames is None:
+        if not args.find_write:
+            print('--frames START-END is required (or use --find-write)',
+                  file=sys.stderr); return 1
+        # Full-song scan: derive the frame count from the songlength (capped so
+        # the pc-trace stays bounded). --find-write's whole point is not knowing
+        # the frame, so scan the song.
+        sf, ef = 1, _song_frames(args.sid, args.subtune)
+    else:
+        if '-' not in args.frames:
+            print('--frames must be START-END', file=sys.stderr); return 1
+        sf_s, ef_s = args.frames.split('-')
+        sf, ef = int(sf_s), int(ef_s)
 
     reg_filter: set[int] | None = None
     if args.register:
@@ -180,13 +221,43 @@ def main() -> int:
     # label by siddump frame). Play 0 = the first play() in the range; for a
     # capture that starts at frame F it corresponds to ~frame F.
     PLAY_GAP = 4000
+
+    if find_reg is not None:
+        # --find-write: report every occurrence of REG=VAL with its play index
+        # + exact PC. No frame guessing — the play index is recovered from the
+        # cycle gaps, and the PC pins the writer. Answers "where is this value
+        # written?" given only the value.
+        play_idx = 0
+        hits = []
+        prev_cyc: int | None = None
+        for pc, reg, val, cyc in pcw:
+            if prev_cyc is not None and cyc is not None and cyc - prev_cyc > PLAY_GAP:
+                play_idx += 1
+            prev_cyc = cyc
+            if reg == find_reg and val == find_val:
+                hits.append((sf + play_idx, pc, cyc))
+        print(f'# {args.sid} subtune {args.subtune}: '
+              f'$D4{find_reg:02X} ({_voice_role(find_reg)}) = ${find_val:02X}')
+        print(f'# {len(hits)} occurrence(s) over frames {sf}-{ef} '
+              f'(play index by cycle gap; PC = the exact store)')
+        if not hits:
+            print('  (none — widen --frames, or the value is written to a '
+                  'different register)')
+        pcs = sorted({pc for _, pc, _ in hits})
+        print(f'  writer PC(s): ' + ', '.join(f'${p:04X}' for p in pcs))
+        for play, pc, cyc in hits[:40]:
+            print(f'  p{play:<5}  PC=${pc:04X}   c{cyc}')
+        if len(hits) > 40:
+            print(f'  ... (+{len(hits) - 40} more)')
+        return 0
+
     play_idx = 0
     print(f'# {args.sid} subtune {args.subtune} frames {sf}-{ef}')
     print(f'# {len(pcw)} $D4xx store(s); play() boundaries by cycle gap '
           f'(>{PLAY_GAP} cyc). PC = the exact store instruction.')
     print()
     print('  play  register             val   PC      cycle')
-    prev_cyc: int | None = None
+    prev_cyc = None
     for pc, reg, val, cyc in pcw:
         if prev_cyc is not None and cyc is not None and cyc - prev_cyc > PLAY_GAP:
             play_idx += 1
