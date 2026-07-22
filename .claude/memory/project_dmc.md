@@ -5,8 +5,43 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-22T23:04:09.406Z
+  modified: 2026-07-22T23:38:58.976Z
 ---
+
+## ✅ ROUND 91 (2026-07-23): event-driven off-table correction is a per-player runtime measurement. Rogue_Ninja 2/2
+Next f1 partial by path = `Rogue_Ninja` (COMPILATION: players $1000/$2000;
+sub 0 → ($1000, song 0) FULL, sub 1 → ($2000, song 0) partial). Sub 1 diverged
+at V2 freq hi (orig $B7 / ours $D6) — off-table idx **97** (Y=$61 from a
+wave-step note), reading `freqhi[97]` = **$2708** = $B7 (player 1's static
+window byte); ours had player 0's $1708 = $D6. Same per-player-window class as
+r89's Para_Lander_DX (idx 96) but the r89 fix DIDN'T cover it. Commit before
+this memory; ledger C31 EXTRACT rule gained its second-miss instance.
+- **ROOT CAUSE — the SIBLING runtime measurement.** r89 made
+  `_correct_offtable_postinit` compilation-aware (`song_subtunes` → sample the
+  file subtune that selects the player). Its sibling
+  `_correct_offtable_eventdriven` was missed: it ran siddump with **no
+  `--subtune`** (start song = player 0) AND watched **hardcoded canon addresses**
+  (`$1783/$1012/$172F/$1732`), so for player 1 it captured player 0's note-97
+  read ($1708=$D6) keyed by the same `(inst,off,note)` and OVERWROTE the
+  post-init-resolved $B7. The post-init pass had it RIGHT; the event-driven pass
+  re-litigated it wrong.
+- **FIX (two axes — subtune AND addresses):** `_eventdriven_addrs` derives the 5
+  watched 3-voice tuples from cfg — CN/INS base-relative (`curnote_addr`/
+  `base+$12`), Y/BLO/BHI freq-table-relative (`freq_hi+$DC/$88/$8B`) — so a
+  RELOCATED player's state block is watched; `_correct_offtable_eventdriven` runs
+  each file subtune in `song_subtunes.values()` and keeps a key only where every
+  run agrees. Canon single-player (base $1000, freq_hi $16A7, no song_subtunes)
+  computes the exact canon addresses + start song → **byte-identical** (the 5224
+  single members unaffected). Also fixes a LATENT relocated-single-player bug
+  (the canon hardcode was wrong there too, just never bit).
+- **0 regressed / 1 gained** over all **21 detected compilations** (16 FULL stay
+  FULL incl. Para_Lander_DX/Quad_Core/Canyon/Zap_Zone/Protox-1; Rogue_Ninja
+  gains; Super_Seven/Chwat/Goldrake/Wiz_Max still partial = different residue).
+  Full regression green (9 families, DMC portfolio 11 ok); dmc_smoke 6/6.
+- **NOT closed out** — no full 5401 batch this round, so the f1 counts below are
+  still r90's (5256 full / 145 partial). A closeout batch may surface more gains
+  from the relocation-awareness (relocated singles that hit the event-driven
+  path). Next f1 partial by path after Rogue_Ninja: re-run `dmc_next_partial`.
 
 ## ✅ ROUND 90 (2026-07-23): two-JMP player head + reach-refined filter merge. Quad_Core 4/4 + Zap_Zone/Protox-1
 Next f1 partial by path was `Quad_Core` — NOT `Rogue_Ninja` as r89's head
