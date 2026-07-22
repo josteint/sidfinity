@@ -18,7 +18,9 @@
  *   3 = skipped (RSID or multi-SID)
  *
  * Usage: siddump <file.sid> [options]
- *   --subtune N    Select subtune (default: start song)
+ *   --subtune N    Select subtune, 1-BASED (0/absent = the tune's start song).
+ *                  NB the rest of the project counts subtunes from 0, so a
+ *                  verify/verdict "sub k" is `--subtune k+1`.
  *   --duration N   Duration in seconds (default: 60)
  *   --timeout N    Timeout in seconds (default: 0 = no timeout)
  *   --raw          Skip metadata/header lines
@@ -97,7 +99,9 @@ int main(int argc, char* argv[])
     if (argc < 2) {
         fprintf(stderr,
             "Usage: %s <file.sid> [options]\n"
-            "  --subtune N    Select subtune (default: start song)\n"
+            "  --subtune N    Select subtune, 1-BASED (0/absent = start song).\n"
+            "                 NB the rest of the project counts subtunes from\n"
+            "                 0 — a verdict's \"sub k\" is `--subtune k+1`.\n"
             "  --duration N   Duration in seconds (default: 60)\n"
             "  --timeout N    Timeout in seconds (default: 0 = none)\n"
             "  --raw          Skip metadata/header lines\n"
@@ -123,10 +127,11 @@ int main(int argc, char* argv[])
             "                             number of PSID play() invocations that fired in this\n"
             "                             siddump frame. Used to diagnose Trap C alignment.\n"
             "  --memwatch-on-write HEX HEX[,HEX...]  Event-driven memwatch. First HEX is the\n"
-            "                             trigger address (e.g. D404). The remaining list is the\n"
-            "                             RAM addresses to snapshot every time the CPU writes to\n"
-            "                             the trigger. Emits one E<idx>:<trigger=val>:<addr=val>...\n"
-            "                             line per event. Use for SMC / conditional-update traces.\n",
+            "                             trigger address (e.g. D404). The second argument is ONE\n"
+            "                             COMMA-separated list (NO spaces) of the RAM addresses to\n"
+            "                             snapshot every time the CPU writes to the trigger.\n"
+            "                             Emits one E<idx>:<trigger=val>:<addr=val>... line per\n"
+            "                             event. Use for SMC / conditional-update traces.\n",
             argv[0]);
         return 1;
     }
@@ -206,10 +211,22 @@ int main(int argc, char* argv[])
             seconds = atof(argv[++i]);
         } else if (strcmp(argv[i], "--timeout") == 0 && i + 1 < argc) {
             timeout = atoi(argv[++i]);
-        } else if (atoi(argv[i]) > 0) {
-            // Legacy positional: first number = subtune, second = seconds
-            if (subtune == 0) subtune = atoi(argv[i]);
-            else seconds = atoi(argv[i]);
+        } else {
+            // HARD ERROR on anything unrecognised. This used to be a legacy
+            // positional catch-all (`atoi(argv[i]) > 0` -> subtune, then
+            // seconds) with unknown FLAGS silently dropped, which made a
+            // mistyped invocation produce a plausible WRONG dump instead of a
+            // failure: `--memwatch-on-write D40F 1707 1708 170A` (spaces where
+            // the option wants ONE comma-separated list) watched only $1707
+            // and silently ran subtune 1708 -> 1707. Measurement tools must
+            // refuse rather than answer confidently (cf. dmc_state_addr.py).
+            fprintf(stderr, "Unrecognised argument: %s\n", argv[i]);
+            if (atoi(argv[i]) > 0)
+                fprintf(stderr, "  (bare numbers are no longer accepted — use "
+                                "--subtune N / --duration N; note --memwatch "
+                                "and --memwatch-on-write take ONE "
+                                "COMMA-separated address list)\n");
+            return 1;
         }
     }
 

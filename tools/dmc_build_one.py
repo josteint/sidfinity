@@ -39,9 +39,20 @@ def _cia_speed(sid_path: str) -> int:
     return int.from_bytes(b[0x12:0x16], 'big')
 
 
+def _path_note(kind: str, bases, submap) -> str:
+    """One-line build-path description: which dispatch branch built this member
+    and which player bases it packs. Printed always — see main()."""
+    txt = f'{kind} ({len(bases)} players: ' + \
+          ', '.join(f'${b:04X}' for b in bases) + ')'
+    if submap:
+        txt += '  subtune->player ' + ', '.join(
+            f'{k}->{pi}(song {song})' for k, (pi, song) in enumerate(submap))
+    return txt
+
+
 def build(rel: str, out_sid: str, out_usf: str | None):
     """Build `rel` (HVSC-relative) to `out_sid`; copy its .usf to `out_usf`
-    if given. Returns (n_chips, usf_src_path)."""
+    if given. Returns (n_chips, usf_src_path, build_path_description)."""
     from pipelines.dmc.v4.factory import dmc_v4_config, dmc_v4_config_2sid
     from pipelines.dmc.v4.extract.to_usf import (write_dmc_usf,
                                                  write_dmc_2sid_usf,
@@ -66,28 +77,34 @@ def build(rel: str, out_sid: str, out_usf: str | None):
         usf_src = os.path.join(td, os.path.basename(rel)[:-4] + '.usf')
         write_file(heterogeneous_to_usf(rel, comp, hvsc_root=hv), usf_src)
         builder, nch = build_from_usf, 1
+        path = _path_note('hetero_masm', comp['bases'], comp['map'])
     elif cfgs2 is not None:
         usf_src = write_dmc_2sid_usf(cfgs2, td, hvsc_root=hv)
         nch = len(cfgs2)
+        path = _path_note('multisid', [c.base for c in cfgs2], None)
     elif comp is not None:
         try:
             usf_src = write_dmc_compilation_usf(rel, comp, td, hvsc_root=hv)
-        except Exception:
+            path = _path_note('compilation', comp['bases'], comp['map'])
+        except Exception as exc:
             # unmergeable compilation -> single-player fallback (never regress)
-            comp = None
             usf_src = write_dmc_usf(dmc_v4_config(rel, hvsc_root=hv), td,
                                     hvsc_root=hv)
+            path = (f"single (UNMERGEABLE compilation, "
+                    f"{len(comp['bases'])} players: {exc})")
+            comp = None
         nch = 1
     else:
         cfg = dmc_v4_config(rel, hvsc_root=hv)
         usf_src = write_dmc_usf(cfg, td, hvsc_root=hv)
         nch = 1
+        path = f'single (base ${cfg.base:04X})'
     usf = parse_file(usf_src)
     open(out_sid, 'wb').write(builder(usf))
     if out_usf:
         import shutil
         shutil.copy(usf_src, out_usf)
-    return nch, usf_src
+    return nch, usf_src, path
 
 
 def verify(orig: str, reb: str, nch: int):
@@ -149,10 +166,14 @@ def main():
     os.makedirs(os.path.dirname(out_sid), exist_ok=True)
 
     from src.code_fingerprint import code_fingerprint
-    nch, _ = build(rel, out_sid, args.usf)
+    nch, _, path = build(rel, out_sid, args.usf)
     print(f"built {out_sid}"
           + (f"  usf {args.usf}" if args.usf else "")
           + f"  chips={nch}  code_hash={code_fingerprint('dmc_v4')}")
+    # The BUILD PATH, always. A member packing several players resolves every
+    # canon $17xx offset once per player, so an investigation that does not
+    # know the path chases the wrong address (Para_Lander_DX, 2026-07-23).
+    print(f"build path: {path}")
 
     if args.verify:
         verify(orig, out_sid, nch)

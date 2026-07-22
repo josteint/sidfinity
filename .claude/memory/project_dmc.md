@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-22T22:02:40.325Z
+  modified: 2026-07-22T22:12:22.179Z
 ---
 
 ## ✅ ROUND 89 (2026-07-23): the off-table window is a PER-PLAYER fact. Para_Lander_DX 3/3
@@ -27,12 +27,23 @@ idx 96, which is each player's OWN V1 track-ptr-lo slot ($2707 / $1707). Commit
   content — NO schema addition); on disagreement, init writes those positions
   for its subtune. ALL conflicting positions on EVERY init, else a subtune
   inherits its predecessor's patch. Gated ⇒ conflict-free members byte-identical.
-- **Measurement traps this round:** per-frame `--memwatch` said $1707 was
-  constant, and `taint_source` (~45 s/subtune) saw only {$0B,$D2} — neither
-  covers a value that differs per PLAYER at the SAME canon offset. What settled
-  it was `--memwatch 1707,2707` per subtune. Also: `siddump --subtune N` is
-  1-BASED (verify's sub k = `--subtune k+1`), and `--memwatch-on-write` takes
-  ONE trigger + a COMMA-separated list (spaces are silently eaten as argv).
+- **Measurement traps this round — ALL FOUR now fixed in the tools** (~30 min
+  lost; the retrospective is the fix):
+  - Nothing said the member was a COMPILATION. `dmc_state_addr` printed
+    `base $1000 / CANON / shift +$0000` while the divergent read was at
+    `$2707` — the confident-wrong-answer class the tool exists to refuse, one
+    level out. It now reports EVERY player base + the subtune→player map and
+    resolves each address once per player; `dmc_build_one` (and `dmc_smoke`)
+    now always print the build path.
+  - per-frame `--memwatch` said $1707 was constant and `taint_source` saw only
+    {$0B,$D2} — neither covers a value that differs per PLAYER at the SAME
+    canon offset. `--memwatch 1707,2707` per subtune settled it in one run.
+  - `siddump` silently swallowed stray args (a legacy positional catch-all
+    turned a SPACE-separated address list into `--subtune 1708`) and produced a
+    plausible wrong dump. Unrecognised args are now a hard error.
+  - `--subtune` is 1-BASED (verify's sub k = `--subtune k+1`) — now stated in
+    the usage text; and `env.sh` finally puts `tools/` on PATH, which CLAUDE.md
+    had claimed all along.
 - **Census (C19, both sides): 0 regressed / 1 gained.** Exposure is cheap and
   complete for the FULL side — scan the stored `.usf` for two instruments
   naming one window position with different bytes: **16 of 5401** (14 single,

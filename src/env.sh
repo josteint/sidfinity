@@ -2,7 +2,10 @@
 # Source this to set up the sidfinity environment
 export SIDFINITY_ROOT=/home/jtr/sidfinity
 export PYTHONPATH="$SIDFINITY_ROOT/.pylocal/lib/python3.12/site-packages:$SIDFINITY_ROOT/src:$PYTHONPATH"
-export PATH="$SIDFINITY_ROOT/.pylocal/bin:$SIDFINITY_ROOT/tools/xa65/xa:$SIDFINITY_ROOT/local/bin:$PATH"
+# `tools` is on PATH so `siddump` resolves by name — CLAUDE.md has always said
+# sourcing this puts it there, but until 2026-07-23 only xa65 was added and
+# every ad-hoc `siddump ...` died with "No such file or directory".
+export PATH="$SIDFINITY_ROOT/.pylocal/bin:$SIDFINITY_ROOT/tools:$SIDFINITY_ROOT/tools/xa65/xa:$SIDFINITY_ROOT/local/bin:$PATH"
 export LD_LIBRARY_PATH="$SIDFINITY_ROOT/local/lib:$LD_LIBRARY_PATH"
 
 # C64 ROMs, read straight from the repo. siddump needs kernal/basic/chargen

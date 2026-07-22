@@ -59,8 +59,10 @@ def _build_one(rel: str, mode: str = 'build') -> str:
     from tools.dmc_build_one import build
     td = tempfile.mkdtemp()
     out_sid = os.path.join(td, 'smoke.sid')
-    nch, _ = build(rel, out_sid, None)
-    return f'{nch} chip(s)'
+    nch, _, path = build(rel, out_sid, None)
+    # the build PATH is part of what this smoke test pins: a member that
+    # silently falls off its dispatch branch is a defect the chip count hides.
+    return f'{nch} chip(s)  [{path}]'
 
 
 def main() -> int:

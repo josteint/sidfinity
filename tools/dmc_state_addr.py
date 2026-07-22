@@ -134,6 +134,47 @@ def main() -> int:
           f'{"   ** RELOCATED **" if shift else ""}')
     print(f'freq tables : lo ${cfg.freq_lo_addr:04X}  hi ${cfg.freq_hi_addr:04X}')
 
+    # MULTI-PLAYER members. A COMPILATION (ledger C31) packs N complete
+    # players, each with its OWN state block and freq tables; a 2SID/3SID
+    # member (C27) has one player per chip. The factory's `cfg.base` names only
+    # ONE of them, so a canon offset resolves to N DIFFERENT addresses and
+    # reporting a single one is exactly the confident-wrong-answer this tool
+    # exists to refuse — the relocation trap in the docstring, one level out.
+    # Para_Lander_DX cost ~20 min of treating an off-table byte as dynamic:
+    # this printed `base $1000 / CANON / shift +$0000` while the divergent read
+    # was at $2707, the OTHER player's slot.
+    players = [(base, '')]
+    submap = {}
+    try:
+        from pipelines.dmc.v4.compilation import detect_compilation
+        from pipelines.dmc.v4.factory import dmc_v4_config_2sid
+        cfgs2 = dmc_v4_config_2sid(args.member, hvsc_root='hvsc84')
+        comp = None if cfgs2 else detect_compilation(args.member,
+                                                     hvsc_root='hvsc84')
+        if comp and len(comp.get('bases') or []) > 1:
+            players = [(b, f'player {i}')
+                       for i, b in enumerate(comp['bases'])]
+            for k, (pi, song) in enumerate(comp['map']):
+                submap.setdefault(pi, []).append(f'{k}(song {song})')
+            kind = 'COMPILATION'
+        elif cfgs2 and len(cfgs2) > 1:
+            players = [(c.base, f'chip {i}') for i, c in enumerate(cfgs2)]
+            kind = 'MULTI-SID'
+        else:
+            kind = None
+        if kind:
+            print(f'players     : {len(players)} players ({kind}) '
+                  f'** every canon offset resolves ONCE PER PLAYER — the base '
+                  f'above is only one of them **')
+            for i, (b, tag) in enumerate(players):
+                sub = ('  <- subtune ' + ', '.join(submap[i])
+                       if i in submap else '')
+                print(f'   {tag:9s} base ${b:04X}   shift '
+                      f'{"+" if b >= CANON_BASE else "-"}'
+                      f'${abs(b - CANON_BASE):04X}{sub}')
+    except Exception as exc:                           # noqa: BLE001
+        print(f'players     : multi-player check unavailable ({exc})')
+
     # Canon state GEOMETRY decides whether the redirect map means anything for
     # this member at all (page-3 variant builds moved the per-voice state, so
     # window idx N is unrelated code/data there — ledger C6 non-canon boundary).
@@ -164,8 +205,16 @@ def main() -> int:
     live = offtable_live_idx()
 
     def show(canon_addr: int, prefix: str = '') -> None:
+        # one line per packed player (see the multi-player block above) — a
+        # single address would be right for at most one of them.
+        for pbase, ptag in players:
+            _show_one(canon_addr, prefix, pbase - CANON_BASE,
+                      f'[{ptag}] ' if ptag else '')
+
+    def _show_one(canon_addr: int, prefix: str, shift: int, ptag: str) -> None:
         lbl, vbase, k, note = _find_var(canon_addr)
         addr = canon_addr + shift
+        prefix = prefix + ptag
         if not canon_geom:
             # Refuse to name a variable we cannot locate. The whole point of
             # this tool is not to hand someone a confident wrong address, and
@@ -191,7 +240,14 @@ def main() -> int:
                                           ('lo', ORIG_FLO, cfg.freq_lo_addr)):
             canon_addr = tbl_canon + i
             tag = '  [LIVE-served]' if i in live else '  [static window byte]'
-            print(f'  {name} read -> ${tbl_addr + i:04X}{tag}')
+            if len(players) > 1:
+                # each packed player overruns into its OWN state block
+                for pbase, ptag in players:
+                    print(f'  {name} read -> '
+                          f'${tbl_canon + i + pbase - CANON_BASE:04X}'
+                          f'  [{ptag}]{tag}')
+            else:
+                print(f'  {name} read -> ${tbl_addr + i:04X}{tag}')
             show(canon_addr, prefix='       ')
         print()
 
@@ -233,7 +289,10 @@ def main() -> int:
         if not targets:
             print('(--reg needs --idx or --var to know what to watch)')
             return 0
-        orig_addrs = ','.join(f'{t + shift:04X}' for t in targets)
+        # watch the target in EVERY packed player — which one the subtune under
+        # investigation actually runs is the thing you are trying to find out.
+        orig_addrs = ','.join(f'{t + pbase - CANON_BASE:04X}'
+                              for pbase, _tag in players for t in targets)
         print('tracking measurement (ledger C11) — run both, compare the '
               'watched value event-by-event:')
         print(f'  tools/siddump {sid_path} --duration {dur} '
