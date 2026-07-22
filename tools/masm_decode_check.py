@@ -38,6 +38,7 @@ def probe(rel: str) -> dict:
     from pipelines.music_assembler.extract.decode import walk
     from pipelines.music_assembler.extract.presets import (preset_table,
                                                            presets)
+    from pipelines.music_assembler.extract.arps import arp_tables, arp
     row = {'path': rel}
     try:
         s = parse_psid(os.path.join(ROOT, 'hvsc84', rel))
@@ -61,6 +62,16 @@ def probe(rel: str) -> dict:
     pt = preset_table(mem)
     pres = presets(mem, pt[0], max(used) + 1) if (pt and used) else []
     pres = [q for q in pres if q.id in set(used)]
+    # arpeggios referenced by those presets
+    at = arp_tables(mem)
+    arps, arp_err = [], None
+    if at and pres:
+        for i in sorted({q.arp_index for q in pres if q.arp_index}):
+            try:
+                arps.append(arp(mem, at[0], at[1], i))
+            except Exception as e:
+                arp_err = repr(e)[:60]
+                break
     n_ev = sum(len(ev) for _, ev in r['sequences'].values())
     kinds = collections.Counter(e.kind for _, ev in r['sequences'].values()
                                 for e in ev)
@@ -81,6 +92,10 @@ def probe(rel: str) -> dict:
                     maxnote = max(maxnote, ev.value + e.transpose)
     if maxnote >= FREQ_TABLE_NOTES:
         bad.append('note_past_freq_table:%d' % maxnote)
+    if at is None and any(q.arp_index for q in pres):
+        bad.append('arp_tables_not_located')
+    if arp_err:
+        bad.append('arp_decode:' + arp_err[:28])
     if pt is None:
         bad.append('preset_table_not_located')
     elif pres and not (lo <= pt[0] < hi):
@@ -91,6 +106,13 @@ def probe(rel: str) -> dict:
                 pslide=sum(1 for q in pres if q.pulse_slide_on),
                 arp=sum(1 for q in pres if q.arp_index),
                 waves=sorted({q.waveform for q in pres}),
+                n_arps=len(arps),
+                arp_steps=sum(len(A.steps) for A in arps),
+                arp_loop=sum(1 for A in arps if A.loops),
+                arp_abs=sum(1 for A in arps for st in A.steps if st.absolute),
+                arp_rel=sum(1 for A in arps for st in A.steps
+                            if not st.absolute),
+                arp_filt=sum(1 for A in arps for st in A.steps if st.filter_lp),
                 events=n_ev, maxnote=maxnote,
                 n_seq=len(r['sequences']),
                 entries=[len(t.entries) for t in r['tracks']],
@@ -144,6 +166,14 @@ def main() -> int:
         print('  %-22s %9d' % ('with pulse slide ($40)',
                                sum(r['pslide'] for r in ok)))
         print('  %-22s %9d' % ('with arpeggio', sum(r['arp'] for r in ok)))
+        print('\narpeggios over the same members:')
+        print('  %-22s %9d' % ('arpeggios decoded', sum(r['n_arps'] for r in ok)))
+        print('  %-22s %9d' % ('steps', sum(r['arp_steps'] for r in ok)))
+        print('  %-22s %9d' % ('looping ($FF)', sum(r['arp_loop'] for r in ok)))
+        print('  %-22s %9d' % ('absolute steps', sum(r['arp_abs'] for r in ok)))
+        print('  %-22s %9d' % ('relative steps', sum(r['arp_rel'] for r in ok)))
+        print('  %-22s %9d' % ('steps setting filter',
+                               sum(r['arp_filt'] for r in ok)))
         wv = collections.Counter(w for r in ok for w in r['waves'])
         print('  distinct waveform bytes, most common:',
               ['$%02X:%d' % (w, n) for w, n in wv.most_common(8)])

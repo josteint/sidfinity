@@ -14,9 +14,11 @@ orderlists + sequence streams; `tools/masm_census.py` / `tools/masm_decode_check
 are the scale checks. **5,618 / 6,351 (88.5%) locate; of those 5,455 (97.1%)
 decode cleanly** (1.28M notes, 290k preset selects, 57k filter cmds, 18k
 slides), and the 8-byte PRESET table is decoded for all of them (46,660
-presets). Next: the arpeggio table, then a model -> USF -> composer. Nothing
-is write-stream-verified yet — no rebuild exists, so every number here is
-structural, not a verdict.
+presets) and the ARPEGGIO table (31,369 arps / 140k steps). The packed format
+is now fully decoded: orderlists, sequences, presets, arpeggios. Next: fold
+these into a model -> USF -> composer, at which point
+`compare_instruction_stream` becomes the judge. Nothing is write-stream
+verified yet — no rebuild exists, so every number here is structural.
 
 ## Census result (tools/masm_census.py, 2026-07-22)
 
@@ -46,7 +48,10 @@ triaged. `tmp/masm_census.jsonl` holds the per-member rows.
 | notes / rests / holds / presets | 1,284,997 / 115,961 / 37,237 / 289,945 |
 | slide / filter / legato events | 18,230 / 57,304 / 15,896 |
 | presets decoded (median 8/member, max 32) | 46,660 |
-| presets with vibrato / pulse-slide / arpeggio | 22,829 / 22,715 / 35,833 |
+| presets with vibrato / pulse-slide / arpeggio | 22,771 / 22,670 / 35,759 |
+| arpeggios decoded (median 6/member, max 15) | 31,369 |
+| arpeggio steps (mean 4.4/arp) | 140,151 |
+| arp steps absolute / relative | 50,394 / 89,757 |
 
 The 102 "suspect" members overrun the 96-entry freq table by 1-12 notes after
 transpose — the classic OFF-TABLE READ pattern (ledger C6/C2), to be handled
@@ -75,6 +80,29 @@ A `LDA`-only ($B9) scan misses +6 entirely — it is reached by `SBC`/`ADC`
 ($F9/$79) — which nearly produced a wrong "the docs are wrong, +6 is unused"
 claim. The docs ARE wrong here, but differently: the Fx+arpeggio byte is +7,
 not +6, and +6 is the vibrato depth.
+
+## The arpeggio table — `extract/arps.py`
+
+Selected by preset+7's low nibble (0 = none); 16-entry lo/hi pointer tables
+located from the runner's own operands ($C3E5). Read off the runner
+($C3E5-$C436):
+
+- **A STEP IS 3 BYTES**: `(waveform, note, filter_lp)`. The terminator is the
+  FOURTH byte, PEEKED — it occupies the first slot of what would be the next
+  step. `$FE` = STOP (and it clears the arp nibble in the voice's Fx byte, so
+  the arpeggio stops running), `$FF` = LOOP to offset 0.
+- `waveform` is ANDed with the voice's GATE MASK, which the sequence decoder
+  sets to $FF on a note and $FE on a rest — that is how a rest releases the
+  gate while an arpeggio keeps running.
+- `note` bit7 = ABSOLUTE note index; otherwise it is an OFFSET added to the
+  playing note. Result masked to 7 bits, used as the freq-table index.
+- `filter_lp` 0 = leave the filter alone.
+
+Corpus confirmations: max arpeggios per member is **15**, exactly the 4-bit
+index cap; both bit-7 classes are heavily used (50,394 absolute vs 89,757
+relative), so the distinction is real and not a misreading; mean 4.4 steps per
+arpeggio. Decoded arps read as instrument macros — e.g. Sid_Slam's arp 1 is
+`noise abs 95 -> pulse abs 31 -> triangle abs 31`, a percussion transient.
 
 ## Corrections to the research docs (verified at scale, not assumed)
 
