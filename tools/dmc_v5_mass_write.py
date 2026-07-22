@@ -48,24 +48,16 @@ def main():
     results = RESULTS
     if '--results' in sys.argv:
         results = sys.argv[sys.argv.index('--results') + 1]
-    from src.code_fingerprint import code_fingerprint
-    code_hash = code_fingerprint('dmc_v5')
-    full, stale = [], 0
-    for l in open(results):
-        if not l.strip():
-            continue
-        d = json.loads(l)
-        if d.get('status') != 'full':
-            continue
-        if d.get('code_hash') != code_hash:
-            stale += 1                 # verdict predates current code — DON'T write
-            continue
-        full.append(d['path'])
-    print(f'{len(full)} current-code FULL members to write', flush=True)
-    if stale:
-        print(f'  WARNING: skipped {stale} FULL rows with stale/absent code_hash. '
-              f'Re-run tools/dmc_v5_family_batch.py to refresh before mass-write.',
-              flush=True)
+    # SYNC the stored corpus to the verdicts (src/corpus_sync): current-code
+    # rows only, and a member that is NOT full must have no stored artifact.
+    # v5 has ONE build path, so build_path is not required — the moment it
+    # grows a second, the batch must record one and this must require it.
+    from src import corpus_sync
+    p = corpus_sync.plan(results, 'dmc_v5', os.path.join(ROOT, 'hvsc84'))
+    for line in p.report('tools/dmc_v5_family_batch.py'):
+        print(line, flush=True)
+    full = [d['path'] for d in p.write]
+    corpus_sync.remove_orphans(p)
     ok = err = 0
     errs = []
     with Pool(default_jobs(cap=len(full))) as pool:

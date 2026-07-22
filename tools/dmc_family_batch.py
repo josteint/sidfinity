@@ -241,9 +241,18 @@ def run_member(rel: str) -> dict:
                 if ok2 or nfull(s2) > nfull(subs):
                     subs, ok, first_diff, flat_div = s2, ok2, fd2, fl2
                     hold_gateoff = 'mask_only'
+            # RECORD which build path produced this verdict. The mass-writer
+            # REPLAYS it instead of re-deriving the dispatch — re-deriving is
+            # how the stored artifact came to disagree with the verified one
+            # (ledger C20, fourth layer), and re-derivation cannot see the
+            # compilation fallback below, which is triggered by a VERIFY-time
+            # exception no writer can observe.
+            build_path = ('multisid' if cfgs2 is not None
+                          else 'compilation' if comp is not None else 'single')
             return {'path': rel, 'status': 'full' if ok else 'partial',
                     'subs': subs, 'first_diff': first_diff,
-                    'flat_div': flat_div, 'hold_gateoff': hold_gateoff}
+                    'flat_div': flat_div, 'hold_gateoff': hold_gateoff,
+                    'build_path': build_path}
     except TimeoutError:
         return {'path': rel, 'status': 'error', 'reason': 'timeout'}
     except Exception as e:

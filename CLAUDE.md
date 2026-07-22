@@ -348,6 +348,29 @@ change auto-re-verifies exactly the members it could have affected — no more
 `*_mass_write.py` tools likewise skip (and warn about) any FULL row whose
 code_hash is stale, so they never write an unverified build to disk.
 
+**A mass-write is a SYNC, not a write** (`src/corpus_sync.py`, shared by every
+family's `*_mass_write.py`). "What is stored" must equal "what was verified",
+which needs three things beyond the code_hash gate — each one a C20 layer that
+has already bitten us:
+
+- **Replay the recorded build path, never re-derive the dispatch.** When a
+  batch dispatches over several build paths (multi-SID / compilation / single),
+  a writer that re-derives can pick a different one and store a well-formed,
+  code_hash-blessed, WRONG artifact no other gate can see (DMC stored every
+  multi-SID member as a single-chip extraction of a multi-chip tune). It also
+  *cannot* match a fallback fired by a verify-time exception. So the batch
+  records `build_path` in its row and the writer replays it; a row missing it
+  is refused, never guessed. A one-path family may pass
+  `require_build_path=False` — until it grows a second path.
+- **Remove orphans.** A member that is NOT full must have no stored artifact.
+  Nothing else deletes one: mass-writes only ever revisit FULL members, and
+  `usf_corpus_check` can't see it because the file parses fine (56 such files
+  had accumulated in DMC f1).
+- **Audit from disk.** After writing, re-verify a sample **from the stored
+  artifacts**, stratified over the build paths — the only check that exercises
+  writer and verifier against each other. `dmc_mass_write.py --audit N`
+  (default 12) does this and exits 1 on failure.
+
 ### Per-family documentation state — `engine_docs` table
 
 A second table records, per engine family, **how far we've researched its

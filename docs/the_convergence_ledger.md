@@ -386,7 +386,11 @@ practice, not code to factor).
   and invisible to every gate. RULE: a mass-writer must call the SAME
   dispatch as the verifier; when the build path grows a branch, grep every
   tool that reconstructs a member. DETECTOR: re-verify FROM THE STORED
-  artifact (not a fresh in-memory build).
+  artifact (not a fresh in-memory build). CLOSED structurally by
+  `src/corpus_sync.py` (shared by every `*_mass_write.py`): the batch
+  RECORDS `build_path` and the writer REPLAYS it; non-FULL members get their
+  orphaned artifacts DELETED (nothing else ever does); the writer audits a
+  path-stratified sample from disk.
 - THIRD LAYER — the stored ARTIFACT is unreadable by the CURRENT grammar
   (schema drift). A typed-field move orphaned 1,182/11,943 stored .usf (9.9%)
   while regression stayed green — it builds from a ~116-member portfolio,
