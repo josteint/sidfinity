@@ -1594,6 +1594,14 @@ def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
         bases = _observe_player_bases(path, n_chips)
         if bases is None:
             return None
+    # The observer finds a player wherever it RUNS, including one an init
+    # COPIES out of the image (Surgeon/Mothafucka relocates chip 2 to $E800,
+    # zero-fill in the file). Extracting that chip needs the C26 post-init
+    # RAM path, which this constructor does not do — its tables would read as
+    # zeros — so refuse the member here and let it fall back to the
+    # single-chip build it had before, rather than raising mid-extract.
+    if not all(mem[b] == 0x4C and mem[b + 3] == 0x4C for b in bases):
+        return None
     base0 = os.path.splitext(os.path.basename(sid_path))[0]
     addrs = [0xD400, _sid_header_multi(path)[1], _sid_header_multi(path)[2]]
     cfgs = [_config_at_base(sid_path, hvsc_root, b, f'{base0}_chip{i + 1}',
@@ -1740,14 +1748,19 @@ def _observe_player_bases(sid_path: str, n_chips: int,
     page boundary — true of all known carriers) with `JMP` at both +0 and
     +3. First-seen order is the wrapper's call order = chip order.
 
-    A wrapper need not use JSR: an init that sets up chip 1 and TAIL-JUMPS
-    into chip 2's init (Surgeon's Cow_Anus_Fucked: `JSR $1000 / LDA #$00 /
-    JMP $3000`) reaches its second player by `JMP`. So the JSR-only pass
-    runs FIRST — unchanged for every member it already resolves — and only
-    when that fails does a second pass also accept `JMP` targets. Ordering
-    it this way is zero-regression by construction: a member whose JSR pass
-    already found exactly `n_chips` can never be pushed over the count by
-    the looser scan.
+    Two things widen what "call" and "when" mean, each as a LATER pass so a
+    member the strict pass already resolves can never be pushed over the
+    chip count by a looser one (zero-regression by construction):
+
+    * JMP as well as JSR — an init that sets up chip 1 and TAIL-JUMPS into
+      chip 2's init (Surgeon's Cow_Anus_Fucked: `JSR $1000 / LDA #$00 /
+      JMP $3000`) reaches its second player by `JMP`.
+    * a few PLAY calls as well as init — a wrapper can pick the player by
+      SMC-patching its own call operand per call (Surgeon's Mothafucka:
+      `INC imm / AND #$01 / TAX / LDA basehi,x / STA $0F16 / JSR $xx03`,
+      alternating $1000 and $E800), so chip 2 is never named during init.
+      Reading the operand at EXECUTION time sees whatever the patch left,
+      which is the point — parsing the wrapper could not.
 
     Returns the base list, or None if it doesn't find exactly `n_chips`.
     """
@@ -1763,33 +1776,49 @@ def _observe_player_bases(sid_path: str, n_chips: int,
         if s['load'] + i < 0x10000:
             img[s['load'] + i] = b
 
-    def _scan(call_ops):
+    def _scan(call_ops, n_play=0):
         mpu = MPU()
         mem = ObservableMemory()
         for i, b in enumerate(s['payload']):
             if s['load'] + i < 0x10000:
                 mem[s['load'] + i] = b
         mpu.memory = mem
-        mpu.stPush(0x00)
-        mpu.stPush(0x00)                   # RTS sentinel -> PC = $0001
-        mpu.pc = s['init']
-        mpu.a = 0
         found = []
-        for _ in range(max_steps):
-            if mpu.pc == 0x0001:
+
+        def _run(pc, acc):
+            mpu.stPush(0x00)
+            mpu.stPush(0x00)               # RTS sentinel -> PC = $0001
+            mpu.pc = pc
+            mpu.a = acc
+            for _ in range(max_steps):
+                if mpu.pc == 0x0001:
+                    return True
+                if mem[mpu.pc] in call_ops:   # JSR abs (+ JMP abs on a retry)
+                    t = mem[mpu.pc + 1] | (mem[mpu.pc + 2] << 8)
+                    # Test the jump-table signature against LIVE memory, not
+                    # the file image: an init can COPY a player to its run
+                    # address (Surgeon/Mothafucka relocates chip 2 to $E800,
+                    # which is zero-fill in the file — C26's "the data is not
+                    # in the image" applied to the player itself). We are
+                    # observing the machine, so read what the CPU would.
+                    if not (t & 0xFF) and mem[t] == 0x4C \
+                            and mem[t + 3] == 0x4C and t not in found:
+                        found.append(t)
+                try:
+                    mpu.step()
+                except Exception:
+                    return False
+            return False
+
+        if not _run(s['init'], 0):
+            return None
+        for _ in range(n_play):
+            if not (s['load'] <= s['play'] < 0x10000) or not _run(s['play'], 0):
                 break
-            if mem[mpu.pc] in call_ops:    # JSR abs (+ JMP abs on the retry)
-                t = mem[mpu.pc + 1] | (mem[mpu.pc + 2] << 8)
-                if not (t & 0xFF) and img[t] == 0x4C and img[t + 3] == 0x4C \
-                        and t not in found:
-                    found.append(t)
-            try:
-                mpu.step()
-            except Exception:
-                return None
         return found if len(found) == n_chips else None
 
-    return _scan((0x20,)) or _scan((0x20, 0x4C))
+    return (_scan((0x20,)) or _scan((0x20, 0x4C))
+            or _scan((0x20,), n_play=4) or _scan((0x20, 0x4C), n_play=4))
 
 
 def multisid_active_chips(sid_path: str, bases, n_subtunes: int,
