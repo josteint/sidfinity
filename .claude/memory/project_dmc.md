@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-22T07:21:27.529Z
+  modified: 2026-07-22T08:09:05.521Z
 ---
 
 ## ✅ ROUND 83 (2026-07-22): Defuzion_3 — the COMPILATION path's three defects. f1 partial 165 → 164
@@ -51,11 +51,51 @@ documented "per-player idle priming is global-only" residue).
   verifies partial at play_match=63536 on PRE-change code too, identical
   numbers before and after the fix (its documented single-chip note-duration
   drift). Do not read it as a regression.
-- **Not yet re-batched:** the counts above are the r83 batch minus this one
-  member. The remaining 8 partial compilations (Heavy_Metal / Lane_Crazy /
+- **CLOSEOUT (fresh `tmp/dmc_f1_r84.jsonl`): 5237 full / 164 partial / 0
+  error — 0 regressed / 1 gained vs r83.** Build paths: 5213 single / 15
+  multisid / 9 compilation. Corpus SYNCED: 5237 written, 0 errors, 0 orphans;
+  audit **18/18** stored artifacts re-verify (now including the new
+  stored-`.usf`-rebuilds-stored-`.sid` check). Full regression green (8
+  families); usf_corpus_check unchanged at 80 (f2/f4/GT1, 0 f1).
+- The remaining 9 partial compilations (Heavy_Metal / Lane_Crazy /
   Para_Lander_DX / Rogue_Ninja / Zap_Zone / Chwat / Goldrake / Protox-1 /
-  Wiz_Max) were re-verified and are unchanged — the documented filter-overrun
-  / instrument-overflow / locate residue.
+  Wiz_Max) are unchanged — the documented filter-overrun /
+  instrument-overflow / locate residue.
+
+## ✅ ROUND 83b (2026-07-22): the WEDGE PROBES never reached multi-SID sub-players — C9 5th occ, C20 FIFTH layer
+Chasing r83's "stale FULL" note on `Nice_Dream_2SID` found a REAL defect, not
+a flake. Commit 1f026c13. **The member is now FULL from its own USF** and NO
+member in the family needs the batch's hold_gateoff retry any more (r84:
+zero rows carry one) — the root-cause fix subsumed the compensating mechanism.
+- **What the layers said** (the C20 protocol, and the reason to run all three):
+  stored `.sid` verifies FULL · stored `.usf` byte-identical to a fresh
+  extract · stored `.usf` → `.sid` **DIFFERS** (17322 vs 17299 B),
+  deterministically (checked across processes — Python hash randomization was
+  the first suspect) and on PRE-change code too. The two stored files
+  disagreed with EACH OTHER.
+- **Root cause:** `_WEDGE_PROBES` are applied by `dmc_v4_config`, but
+  multi-SID sub-players are built by `_config_at_base` → `_build_via_canon`,
+  one layer BELOW that loop, so every wedge knob came back defaulted. **r81
+  fixed this class at the table/layout level and it still bit** — "make the
+  second path run the canonical build" is only a cure if you check WHICH LAYER
+  the params attach at. Nice_Dream carries the wedge on BOTH chips ($17EC and
+  $37EC) and got neither; the batch's write-stream RETRY then supplied it at
+  verify time and the mass-writer re-injected it post-parse.
+- **Fixes:** `_apply_wedge_probes()` factored out, called from both
+  constructors incl. the bare fallback; `_hold_gateoff_probe` takes `base` and
+  scopes to that player's own window (it was a whole-image FIRST match —
+  answering for player 1 on behalf of every chip), falling back image-wide so
+  nothing can lose its old answer; `dmc_mass_write` pushes a retry value onto
+  the CONFIG so the writer emits it natively and REFUSES the member if it
+  still misses the `.usf`.
+- **New general detector:** the mass-write audit now asserts
+  `build(parse(stored .usf)) == stored .sid` — the corpus-side Principle §8
+  invariant, catching ANY build input that leaks outside the USF. NB a
+  parse→write round-trip is NOT available to persist such a param: the USF
+  round-trip is not byte-stable (20/60 sampled corpus files differ).
+- **Gate:** 400/400 sampled single-player members REGENERATE byte-identical
+  (the base-scoped probe changes nothing for them) + 14/15 multi-SID; only
+  Nice_Dream (gains the param) and the 8 compilations (r83's fix) differ.
 
 ## ✅ ROUND 82 (2026-07-22): multi-SID residue + THE MASS-WRITE PALIMPSEST — f1 **5236 full / 165 partial / 0 error**, corpus mass-written
 Follow-on to r81. Final batch 5401 members: **0 regressed / 15 gained** vs the
