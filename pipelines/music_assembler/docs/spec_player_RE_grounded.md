@@ -12,6 +12,27 @@ provenance:
 
 # Music Assembler — GROUNDED player + packed-format RE
 
+> **CORRECTION (2026-07-22, migration session).** Two table labels below are
+> SWAPPED relative to this document's own disassembly, and one anchor rule does
+> not generalise. Verified against 5,618 located HVSC members
+> (`tools/masm_census.py`) — trust these over the text below:
+>
+> - **Seq pointer LO is `$C675`, HI is `$C669`** (this file's "Data tables"
+>   row says the opposite). The disassembly here is right and the table is
+>   wrong: `$C0A1` loads `$C675,Y` into `$FA`, and `($FA),Y` is little-endian,
+>   so `$C675` supplies the LO byte. The doc's own dumps agree — `$C669` holds
+>   `C5 C5 C4 C4 …` (page numbers = HI). Resolved correctly for 296/300
+>   sampled members; 0 needed the swap.
+> - **Do NOT derive the player base from the work block** (`seqnum - $8D`) or
+>   from the signature (`sig - $91`). Both sit at build-dependent offsets. The
+>   reliable anchor is init's fixed opening `A9 1F 8D 18 D4 A9 F0 8D 17 D4`
+>   (`LDA #$1F/STA $D418/LDA #$F0/STA $D417`) at **base+$48**, which held on
+>   every member measured. With that anchor the signature offset is `+$91` for
+>   **all 5,618** located members — i.e. one dominant build, not the
+>   `+$91/+$B5/+$70/+$191` spread README.md reports from the research sweep.
+>
+> Implementation: `pipelines/music_assembler/locate.py`.
+
 This is the crux deliverable: the packed runtime layout and the per-frame
 `$D400-$D418` write model, derived by **disassembling a real HVSC member**
 (`MUSICIANS/O/OPM/Sid_Slam.sid`, Music-Assembler V1.0, Dutch USA-Team, 1989,

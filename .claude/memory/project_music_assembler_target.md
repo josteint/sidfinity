@@ -8,9 +8,44 @@ metadata:
   modified: 2026-07-22T11:09:14.607Z
 ---
 
-STATUS (2026-07-22): **not started.** Research complete
-(`pipelines/music_assembler/docs/`, `engine_docs.doc_state = OK`); no active
-migration tree (`pipelines/music_assembler/` holds only `docs/`).
+STATUS (2026-07-22): **STARTED — the anchor + family census are in.**
+`pipelines/music_assembler/locate.py` locates the player and its tables;
+`tools/masm_census.py` is the family census. **5,618 / 6,351 (88.5%) locate
+cleanly, ALL at signature offset +$91 — one dominant build.** Next: decode the
+sequence stream + preset table into a model (extract), then a composer.
+
+## Census result (tools/masm_census.py, 2026-07-22)
+
+| | |
+|---|---:|
+| locate OK | 5,618 (88.5%) |
+| no player found | 733 (11.5%) |
+| signature offset from base | `+$91` on **all** 5,618 |
+| PSID vectors `init=base+$48/play=base+$21` | 2,746 |
+| PSID vectors `init=base+$00/play=base+$03` | 2,561 |
+| other vector convention | 311 |
+| song speed 2 / 3 / 1 / other | 3,296 / 990 / 819 / 513 |
+| single-subtune members | 5,509 |
+| player materialised by init (packed, C26) | 9 |
+
+The 733 misses are the predicted version tail (V1.1 / V1.4 Triad,
+VoiceTracker derivative, multispeed DoubleTracker/Ten Tracker) — not yet
+triaged. `tmp/masm_census.jsonl` holds the per-member rows.
+
+## Two corrections to the research docs (verified, not assumed)
+
+Both are annotated at the head of
+`pipelines/music_assembler/docs/spec_player_RE_grounded.md`:
+
+- **Seq pointer LO is `$C675`, HI is `$C669`** — the doc's data-table row has
+  them swapped (its own disassembly and byte dumps say otherwise). Checked on
+  300 sampled members: 296 resolve as located, **0** need the swap.
+- **The base anchor is init's fixed prefix at base+$48**
+  (`A9 1F 8D 18 D4 A9 F0 8D 17 D4`), NOT `signature - $91` and NOT
+  `seqnum - $8D` — those offsets are build-dependent and cost ~50 members plus
+  4 false positives when used as the primary anchor. With the init anchor the
+  signature offset collapses to a single value (`+$91`) family-wide, which
+  also supersedes README.md's `+$91/+$B5/+$70/+$191` spread.
 
 ## Why it is next
 
