@@ -162,11 +162,24 @@ DMC_OFFTABLE_STATE = [
     # so these track by construction — verified index-match + value-match on 5
     # reps (Senna/In_die_Dunkelheit/Slide_Me/High_Tech/1st_Intro). Mapped so an
     # off-table read lands on the live var instead of a stale freqhi-overrun byte.
-    # NOT mapped: $1720 fclaim (voice/claim ordering differs — rejected f2).
     # (fcut $171C IS mapped below — the old "regressed Humppa" caution was
     # fcut+wavepos bundled; fcut alone tracks and is 0-regression,
     # exposure-censused this round.)
     (0x1718, 'spdctr', 1),   # speed counter (DEC per frame; reload = $1716)
+    (0x1720, 'fclaim', 1),   # filter claim flag — 0 at play() entry ($1092
+                             # `ldx #0 / stx fclaim`), then the FIRST filter-
+                             # flagged voice in X order stores X+1 ($13D2).
+                             # The composer's fclaim is op-for-op the same
+                             # (same reset site, same `lda fclaim / bne / inx /
+                             # stx fclaim / dex` claim in fx_filter, same voice
+                             # order), and both sides start each play() at 0 —
+                             # no seed needed. The 2026-06-29 rejection ("+0/−1
+                             # Long_Night, fclaim timing ≠ orig") was measured
+                             # against an f2 member and is superseded: on
+                             # Industrial_Sci-Fi the two agree at ALL 12,784
+                             # read moments (memwatch-on-write D40F, orig
+                             # $9720 vs our fclaim — 0 mismatches). Sonified
+                             # via hi idx 121 / lo idx 217.
     (0x171C, 'fcut', 1),     # filter current cutoff (-> $D416 every frame). The
                              # composer's fcut drives the identical $D416 stream,
                              # so it tracks $171C by construction (verified
