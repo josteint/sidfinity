@@ -23,14 +23,16 @@ note-init frame writes preset+2 and every frame after that writes the next
 arpeggio step. So:
 
     waveform = [preset+2, step0.wave, step1.wave, ...]
-    loop     = 1                       when the arpeggio loops ($FF)
-             = len(waveform)           when it stops   ($FE)
-             = 0                       when there is no arpeggio (1 step)
+    loop     =  1   when the arpeggio loops ($FF) — back to the first arp step
+             = -1   when it stops ($FE)
+             =  0   when there is no arpeggio (a 1-step program)
 
-`loop == len` means "run once and hold the last step", which is what $FE does
-— and it is also what re-enables vibrato, since the engine's stop clears the
-arp nibble. The two extra parallel per-step lists (`wave_abs`, `wave_filter`)
-carry the step's absolute/relative pitch mode and its filter cutoff.
+`loop = -1` is the schema's STOP sentinel (the same one GoatTracker V1 uses):
+the program ENDS rather than looping, and the engine's continuous effects take
+over. For MA that is exactly what $FE does — it clears the arp nibble, so the
+last step's waveform and pitch hold AND vibrato becomes active again. The two
+extra parallel per-step lists (`wave_abs`, `wave_filter`) carry the step's
+absolute/relative pitch mode and its filter cutoff.
 
 SEQUENCES -> PATTERNS OF NOTE ROWS, per ledger C14 (command-per-row effects
 become parametric `fx_flags` strings, never a schema field):
@@ -180,7 +182,7 @@ def _instrument(p, arp) -> Instrument:
             wabs.append(1 if st.absolute else 0)
             wfreq.append(st.offset if st.absolute else _wave_offset(st.note))
             wfilt.append(st.filter_lp)
-        loop = 1 if arp.loops else len(wave)
+        loop = 1 if arp.loops else -1        # -1 = the STOP sentinel
     else:
         loop = 0
 

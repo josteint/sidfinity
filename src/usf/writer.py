@@ -39,6 +39,10 @@ def _format_param_value(key: str, val) -> str:
         return 'true' if val else 'false'
     if isinstance(val, int):
         return _hex(val) if key in _HEX_FIELDS else str(val)
+    if isinstance(val, (list, tuple)):
+        # Explicit, so the emitted form is guaranteed to match the grammar's
+        # `param_list` rather than depending on Python's repr of a sequence.
+        return '[' + ', '.join(str(int(v)) for v in val) + ']'
     if isinstance(val, str) and (' ' in val or not val.isidentifier()):
         return '"' + val + '"'                         # readable string knob
     return str(val)

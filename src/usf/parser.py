@@ -155,6 +155,9 @@ class _T(Transformer):
     def param_string(self, items):
         return str(items[0])[1:-1]                     # strip quotes
 
+    def param_list(self, items):
+        return [int(x) for x in items]
+
     def param_value(self, items):
         return items[0]
 
@@ -1133,6 +1136,21 @@ class _T(Transformer):
 
     def fx_filter_sweep(self, items):
         return f'filter_sweep=${int(items[0]):02X},{int(items[1])}'
+
+    def fx_arp3(self, items):
+        return 'arp=%d,%d,%d' % tuple(int(x) for x in items)
+
+    def fx_vibrato2(self, items):
+        return 'vibrato=%d,%d' % (int(items[0]), int(items[1]))
+
+    def fx_fcutadd(self, items):
+        return f'fcutadd={int(items[0])}'
+
+    def fx_fctrl(self, items):
+        return f'fctrl={int(items[0])}'
+
+    def fx_keyoff(self, _):
+        return 'keyoff'
 
     def fx_glide_onset(self, items):
         return f'glide_onset={int(items[0])}'

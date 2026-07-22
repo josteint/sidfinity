@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: feedback
   originSessionId: 31df618e-1d05-4346-8dfa-a60476d0a5cc
-  modified: 2026-07-22T12:01:17.484Z
+  modified: 2026-07-22T14:50:20.426Z
 ---
 
 **TRIPWIRE — do NOT write `while pgrep -f 'PATTERN' >/dev/null; do sleep N; done`
@@ -44,6 +44,30 @@ looking plausible.
 
 Guard for any future poll: `c=$(pgrep -c -f PAT); [ "${c:-0}" -eq 0 ]` — no
 `|| echo`, since `pgrep -c` already prints 0.
+
+**THIRD OCCURRENCE (2026-07-22, same session as the second) — the plain
+self-match again, invited by the harness's own error text.** Trying to block
+on a foreground `sleep`, the harness refuses and suggests: *"use Monitor with
+an until-loop (e.g. `until <check>; do sleep 2; done`)"*. Taking that shape
+literally produced
+
+```bash
+until ! pgrep -f masm_family_batch >/dev/null; do sleep 20; done
+```
+
+— failure mode 1 verbatim, with this memory already in context. It spun 22 min
+and was only noticed because the task's output file was 0 bytes long after the
+job it "waited for" had already reported DONE. **The suggested LOOP FORM is
+fine; the predicate is what kills you** — and `pgrep -f <name-of-the-thing-in-
+this-very-command>` can never be a valid predicate. TELL that you are in it: a
+`run_in_background` task whose output file stays EMPTY while the thing it
+waited on has finished, plus a lone `sleep N` in `ps` that keeps reappearing
+with a fresh elapsed time.
+
+The durable fix is behavioural, not syntactic: when the harness blocks a
+`sleep`, that is a signal to **stop waiting entirely** and go do other work —
+the `<task-notification>` will arrive. Three occurrences have now all come from
+trying to synchronously wait for something the harness was already tracking.
 
 **How to apply:**
 - The harness already RE-INVOKES you with a `<task-notification>` when a

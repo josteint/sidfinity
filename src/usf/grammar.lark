@@ -135,6 +135,12 @@ param_value: signed_int      -> param_number
            // structure into opaque ints, the representation-principle §3
            // failure mode.
            | STRING          -> param_string
+           // A list-valued knob. `Params.fields` is typed `dict[str, Any]`
+           // and engines already store lists in it (GoatTracker V1's
+           // `filt_init` / `funk`), which the writer emits as `[a, b, c]`;
+           // without this rule the writer could produce files the parser
+           // could not read back.
+           | "[" (signed_int ("," signed_int)*)? "]"  -> param_list
 
 // ----- init -----
 // `init_inner*`: each entry is either an init_voice (engine-state
@@ -291,7 +297,10 @@ dsfx_voice_init: "voice_init" INT "{" "duration" ":" number "pitch" ":" number "
 instrument_block: "instrument" INT instrument_name? "{" instrument_field+ "}"
 instrument_name:  CNAME
 instrument_field: "waveform" ":" byte_list                              -> inst_waveform
-                | "loop" ":" INT                                        -> inst_loop
+                // The step the wave program loops back to. -1 is the STOP
+                // sentinel: the program ENDS rather than looping, and the
+                // engine's continuous effects take over (GoatTracker V1).
+                | "loop" ":" signed_int                                 -> inst_loop
                 // Parallel per-step freq values for the waveform
                 // envelope: each waveform step also has a pitch value —
                 // a signed semitone offset added to the note (arpeggio),
@@ -624,6 +633,19 @@ fx_flag: "tie"                  -> fx_tie
        // a function of the seed (engine mechanism), so the pair is the whole
        // musical content — one editor field, one flag.
        | "filter_sweep" "=" number "," INT   -> fx_filter_sweep
+       // GoatTracker V1 per-row commands (ledger C14). The extract has
+       // emitted these since its bring-up; without the rules its .usf could
+       // be written but never read back, so the family had no round trip.
+       //   arp     — cycle root/+X/+Y, speed 1 = one frame per step
+       //   vibrato — amplitude, width
+       //   fcutadd — global filter cutoff sweep RATE (player2 SETCUTOFFADD)
+       //   fctrl   — global filter control $D417 (player2 SETFILTER)
+       //   keyoff  — the row releases the gate ($5E), vs a sustaining rest
+       | "arp" "=" INT "," INT "," INT       -> fx_arp3
+       | "vibrato" "=" INT "," INT           -> fx_vibrato2
+       | "fcutadd" "=" number                -> fx_fcutadd
+       | "fctrl" "=" number                  -> fx_fctrl
+       | "keyoff"                            -> fx_keyoff
        // FC $F0 marker: play this note WITHOUT retriggering the
        // instrument (skip ADSR/wave reload) — legato to a new pitch.
        | "noretrig"             -> fx_noretrig

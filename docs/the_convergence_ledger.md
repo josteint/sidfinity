@@ -441,6 +441,19 @@ practice, not code to factor).
   writer emits it natively (a parse→write round-trip is NOT available — the USF
   round-trip isn't byte-stable, 20/60), refuse the member if it still misses,
   and root-cause why it was absent (here C9's 5th occ).
+- THIRD-LAYER CLEAN-UP, WORKED (2026-07-22): the 80 residual unreadable `.usf`
+  split EXACTLY along their failure cause, and the two halves needed OPPOSITE
+  actions — which is why "delete the stale ones" would have been wrong. 52
+  (`dcmd`, a renamed fx flag) were FULL under current v4 → regenerate. 27
+  (`speed_ctr_init` left in `params` by the typed-field move) came back
+  `DMCV4Unsupported: no_jumptable` — which reads like "not full ⇒ orphan ⇒
+  delete", but is the ORPHAN-DELETION rule's **NOT MINE** case: they are DMC
+  **v5**-owned, and all 27 verify FULL there. Deleting them would have
+  destroyed 27 verified artifacts. RULE: before deleting an artifact because
+  path A refuses the member, ask which path OWNS it — an extractor refusal is
+  evidence about the PATH, never about the member. Then restore the fifth-layer
+  invariant too: regenerating a `.usf` leaves the neighbouring `.sid` built by
+  older code, so rebuild it FROM the stored `.usf`.
 - THIRD LAYER — the stored ARTIFACT is unreadable by the CURRENT grammar
   (schema drift). A typed-field move orphaned 1,182/11,943 stored .usf (9.9%)
   while regression stayed green — it builds from a ~116-member portfolio,

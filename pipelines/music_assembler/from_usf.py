@@ -69,6 +69,7 @@ def _arp_pool(instruments) -> tuple:
             note = (off | 0x80) if absolute else (off & 0x7F)
             steps.append(ArpStep(waveform=wave[k], note=note,
                                  filter_lp=at(wfilt, k)))
+        # loop 1 = back to the first arp step; -1 = the STOP sentinel.
         loops = inst.loop == 1
         key = (tuple((s.waveform, s.note, s.filter_lp) for s in steps), loops)
         if key not in seen:

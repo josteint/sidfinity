@@ -5,9 +5,29 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c0742216-af17-42da-9a5c-fa8ae0d40172
+  modified: 2026-07-22T14:50:40.332Z
 ---
 
 ## STATUS (head — newest wins; update THIS section, prepend new rounds here)
+
+**2026-07-22 — V1's USF ROUND TRIP WAS BROKEN AND IS NOW FIXED.** The V1
+extract emitted three things the GRAMMAR could not read back, so every `.usf`
+it wrote was unparseable and the family had no round trip at all:
+
+  * list-valued `params` (`filt_init`, `funk`) — the writer emitted
+    `[0, 128, 15, 0, 0]` via `str(val)` with no matching `param_value` rule;
+  * `loop: -1`, V1's wave-program STOP sentinel (grammar took only `INT`);
+  * the whole per-row command vocabulary (`arp=X,Y,S`, `vibrato=X,Y`,
+    `fcutadd=`, `fctrl=`, `keyoff`) — `to_usf.py` even says "grammar extension
+    pending", because the V1 composer reads the in-memory model, so nothing
+    ever exercised the parse side.
+
+Fixed in the grammar/parser/writer (ledger C14 for the row commands). V1's one
+stored `.usf` now parses and is round-trip stable (730 rows, params/loops/flags
+preserved). NOTE this means the earlier 164/1359 batch verdict never went
+through USF — when V1 work resumes, re-run the batch through the USF path
+before trusting it, and wire V1 into `regression.py` (still absent, which is
+why this stayed invisible).
 
 **2026-07-16:** V1 extract + composer BUILT (`pipelines/goattracker/v1/`);
 authoritative wide batch **164/1359 FULL** incl. the player1 `optimized`
