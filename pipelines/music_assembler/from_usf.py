@@ -182,6 +182,34 @@ def _prime(usf) -> dict:
     return p
 
 
+FREQ_NOTES = 96
+FREQ_READ = 128
+
+
+def _freq_tables(usf) -> tuple:
+    """The composer's freq tables: the musical 96 plus the off-table tail the
+    instruments' `offtable_freq` records describe (ledger C6).
+
+    Both tables are padded to a CONSTANT 128 entries for every member, never a
+    per-tune size. A per-tune-varying array size shifts everything after it and
+    can change page-crossing branch cycles — the GoatTracker V1 lesson in C6.
+    Unreachable slots stay 0: nothing reads them, and if the reach model ever
+    under-captures, the read lands on a 0 and diverges in verify rather than
+    silently playing a plausible wrong byte.
+    """
+    ft = list(usf.freq_table or [])
+    half = len(ft) // 2
+    lo = ft[:half] + [0] * (FREQ_READ - half)
+    hi = ft[half:] + [0] * (FREQ_READ - half)
+    for inst in usf.instruments:
+        for rec in getattr(inst, 'offtable_freq', ()) or ():
+            offset, note, flo, fhi = rec[:4]
+            idx = (offset + note) & 0xFF
+            if FREQ_NOTES <= idx < FREQ_READ:
+                lo[idx], hi[idx] = flo, fhi
+    return lo, hi
+
+
 def usf_to_model(usf) -> MasmModel:
     """A UsfFile as the composer's MasmModel."""
     sub = next(s for s in usf.subtunes if getattr(s, 'kind', 'music') == 'music')
@@ -200,12 +228,11 @@ def usf_to_model(usf) -> MasmModel:
         for pat in vb.patterns:
             sequences.setdefault(pat.id, _events(pat.rows))
 
-    ft = usf.freq_table or []
-    half = len(ft) // 2
+    lo, hi = _freq_tables(usf)
     return MasmModel(
         speed=sub.tempo, tracks=tracks, sequences=sequences,
         presets=presets, arps=arps,
-        freq_lo=ft[:half], freq_hi=ft[half:],
+        freq_lo=lo, freq_hi=hi,
         title=usf.psid.title, author=usf.psid.author,
         released=usf.psid.released,
         start_song=usf.psid.start_song,

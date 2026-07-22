@@ -107,6 +107,67 @@ def _wave_offset(b: int) -> int:
     return b - 0x80 if b >= 0x40 else b
 
 
+FREQ_NOTES = 96
+
+
+def offtable_reach(m) -> dict:
+    """{preset id -> {freq-table index}} for every read that runs PAST the
+    96-entry table (ledger C6).
+
+    Two read sites, both reading `freqlo[idx]` AND `freqhi[idx]`:
+
+      NOTE  idx = (orderlist transpose + note) & $FF   — up to 15+95 = 110
+      ARP   idx = (step + curnote) & $7F               — a relative step
+            idx = step & $7F                           — an absolute step
+
+    Reachability is walked per track in PLAY order, carrying the running
+    instrument and the running note across sequence boundaries (both persist
+    in the engine — a preset select is sticky, and a rest or hold leaves
+    `curnote` alone while the arpeggio keeps stepping). Conservative
+    over-approximation, per C6's boundary note: an over-capture is harmless,
+    and an under-capture cannot be silent — it diverges in verify.
+    """
+    reach = {}
+
+    def add(pid, idx):
+        if idx >= FREQ_NOTES:
+            reach.setdefault(pid, set()).add(idx)
+
+    arp_of = {p.id: m.arps.get(p.arp_index) for p in m.presets}
+
+    def step_arp(pid, curnote):
+        a = arp_of.get(pid)
+        if a is None:
+            return
+        for st in a.steps:
+            add(pid, (st.note & 0x7F) if st.absolute
+                else (st.note + curnote) & 0x7F)
+
+    for t in m.tracks:
+        inst, curnote = None, 0
+        for ent in t.entries:
+            for e in m.sequences.get(ent.seq, []):
+                if e.kind == 'preset':
+                    inst = e.value
+                elif e.kind == 'note':
+                    curnote = (ent.transpose + e.value) & 0xFF
+                    add(inst, curnote)
+                step_arp(inst, curnote)
+    return reach
+
+
+def _offtable_records(idxs, freq_lo, freq_hi) -> list:
+    """The C6 record form: the explicit frequency each off-table read plays.
+
+    MA's freq table is global (indexed by absolute note), so the read is keyed
+    by the index alone — GoatTracker V1's `(idx, 0, lo, hi)` encoding, where
+    idx = (offset + note) & $FF with offset carrying the whole index.
+    """
+    return [(i, 0, freq_lo[i], freq_hi[i])
+            for i in sorted(idxs)
+            if i < len(freq_lo) and i < len(freq_hi)]
+
+
 def _instrument(p, arp) -> Instrument:
     """One preset (+ the arpeggio its Fx nibble selects) as an Instrument."""
     wave = [p.waveform]
@@ -224,6 +285,11 @@ def model_to_usf(m) -> UsfFile:
     """A MasmModel as a UsfFile — the complete musical specification."""
     arp_for = {p.id: m.arps.get(p.arp_index) for p in m.presets}
     insts = [_instrument(p, arp_for[p.id]) for p in m.presets]
+    reach = offtable_reach(m)
+    for inst in insts:
+        idxs = reach.get(inst.id - 1)
+        if idxs:
+            inst.offtable_freq = _offtable_records(idxs, m.freq_lo, m.freq_hi)
     voices = [_voice(i + 1, t, m.sequences) for i, t in enumerate(m.tracks)]
 
     # The filter's live sweep state at song start: cutoff `fcut` moving by
@@ -249,7 +315,11 @@ def model_to_usf(m) -> UsfFile:
         init=_init(m),
         instruments=insts,
         subtunes=[MusicSubtune(id=1, tempo=m.speed, voices=voices)],
-        freq_table=list(m.freq_lo) + list(m.freq_hi),
+        # Only the MUSICAL table. The off-table bytes are carried per
+        # instrument as offtable_freq records (the explicit pitch each read
+        # plays), never as a contiguous window — C6 forbids the window form
+        # because it silently masks reach-model under-captures.
+        freq_table=list(m.freq_lo[:FREQ_NOTES]) + list(m.freq_hi[:FREQ_NOTES]),
         default_filter=dflt,
     )
 

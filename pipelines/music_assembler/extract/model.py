@@ -24,6 +24,13 @@ from pipelines.music_assembler.extract import decode as _decode   # noqa: E402
 from pipelines.music_assembler.extract import presets as _presets  # noqa: E402
 
 FREQ_NOTES = 96
+# The engine's freq index is masked to 7 bits on the arpeggio path and is a
+# plain 8-bit sum on the note path (transpose <= 15 + note <= 95 = 110), so no
+# read can exceed 127. Capturing 128 entries covers every reachable read; the
+# 32 past the musical table are the OFF-TABLE region (ledger C6) and are the
+# bytes that follow each table in the original image — for freq_hi that is
+# usually player code, which the original plays as real frequencies.
+FREQ_READ = 128
 
 
 @dataclass
@@ -33,7 +40,9 @@ class MasmModel:
     sequences: dict = field(default_factory=dict)   # seq# -> [decode.Event]
     presets: list = field(default_factory=list)     # [presets.Preset]
     arps: dict = field(default_factory=dict)        # idx -> arps.Arp
-    freq_lo: list = field(default_factory=list)     # 96 entries
+    # FREQ_READ entries: [:96] is the musical tuning table, [96:] the
+    # off-table region every reachable read can reach (ledger C6).
+    freq_lo: list = field(default_factory=list)
     freq_hi: list = field(default_factory=list)
     # PSID header content
     title: str = ''
@@ -65,8 +74,8 @@ def _freq_tables(mem, lay) -> 'tuple[list, list] | None':
         return None
     lo = m.group(1)[0] | (m.group(1)[1] << 8)
     hi = m.group(2)[0] | (m.group(2)[1] << 8)
-    return ([mem[lo + i] for i in range(FREQ_NOTES)],
-            [mem[hi + i] for i in range(FREQ_NOTES)])
+    return ([mem[(lo + i) & 0xFFFF] for i in range(FREQ_READ)],
+            [mem[(hi + i) & 0xFFFF] for i in range(FREQ_READ)])
 
 
 def extract(sid_path: str, hvsc_root: str = 'hvsc84') -> MasmModel:
