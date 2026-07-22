@@ -53,7 +53,20 @@ def build(rel: str, out_sid: str, out_usf: str | None):
     td = tempfile.mkdtemp()
     cfgs2 = dmc_v4_config_2sid(rel, hvsc_root=hv)
     comp = None if cfgs2 is not None else detect_compilation(rel, hvsc_root=hv)
-    if cfgs2 is not None:
+    builder = build_dmc_sid
+    if comp is not None and 'masm' in (comp.get('kinds') or []):
+        # HETEROGENEOUS (ledger C31/C35): the packed players are from
+        # DIFFERENT families, so one DMC model cannot hold them. One UsfFile
+        # whose subtunes name their engine; the MA-aware builder dispatches.
+        # Same branch the family batch + the mass-write take — this tool is
+        # the localizer they are read against, so its dispatch must match.
+        from pipelines.music_assembler.heterogeneous import (
+            heterogeneous_to_usf, build_from_usf)
+        from src.usf.writer import write_file
+        usf_src = os.path.join(td, os.path.basename(rel)[:-4] + '.usf')
+        write_file(heterogeneous_to_usf(rel, comp, hvsc_root=hv), usf_src)
+        builder, nch = build_from_usf, 1
+    elif cfgs2 is not None:
         usf_src = write_dmc_2sid_usf(cfgs2, td, hvsc_root=hv)
         nch = len(cfgs2)
     elif comp is not None:
@@ -70,7 +83,7 @@ def build(rel: str, out_sid: str, out_usf: str | None):
         usf_src = write_dmc_usf(cfg, td, hvsc_root=hv)
         nch = 1
     usf = parse_file(usf_src)
-    open(out_sid, 'wb').write(build_dmc_sid(usf))
+    open(out_sid, 'wb').write(builder(usf))
     if out_usf:
         import shutil
         shutil.copy(usf_src, out_usf)

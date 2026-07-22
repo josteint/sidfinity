@@ -343,9 +343,20 @@ def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
 # Merge N per-player models into one unified model
 # ---------------------------------------------------------------------------
 
-# instrument-select is a 5-bit id ($60+id, id 0-27 -> $60-$7B; $7C-$7F special),
-# so the merged pool must stay within 28 instruments.
-_MAX_INSTR = 28
+# Merged-pool cap — measured on OUR composer, not on the original editor.
+#
+# The ORIGINAL DMC stream selects an instrument with a 5-bit id ($60+id, id
+# 0-27 -> $60-$7B; $7C-$7F special), and this cap was 28 because of it. But the
+# composer emits its OWN pattern encoding (composer_asm: parallel arrays, the
+# slot rides a full operand byte after the event flags), so the orig's 5-bit
+# field binds nothing here — inheriting its limit refused members our engine
+# can play (core tenet: the orig's format is a historical artifact).
+#
+# The composer's OWN binding index is fx_pulse's `lda cinst,x / asl asl asl /
+# adc pwphase,x / tay`, an 8-bit index into isteps/irawsp at stride 8: id*8 +
+# pwphase <= 255 with canon pwphase 0-5 => ids 0..31, i.e. 32 instruments.
+# Audit that chain (and any other id-scaled table) before raising this again.
+_MAX_INSTR = 32
 
 
 def _inst_key(inst, drop=()):
@@ -470,7 +481,7 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
 
     # ---- instruments: remap to one compact pool. Dedup identical instruments
     # (same drum kit shared across players) so many-player members stay under
-    # the 5-bit id cap. The dedup key EXCLUDES offtable_freq (a reachability
+    # the `_MAX_INSTR` cap. The dedup key EXCLUDES offtable_freq (a reachability
     # artifact, not intrinsic content); instruments equal in every other field
     # share one merged id carrying the UNION of their offtable_freq records
     # (Principle Rule 1 — cluster by behavior). A record collision refuses the
@@ -517,7 +528,7 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
     if len(merged.instruments) > _MAX_INSTR:
         raise ValueError(
             f'merged compilation needs {len(merged.instruments)} instruments '
-            f'> {_MAX_INSTR} (5-bit id cap)')
+            f'> {_MAX_INSTR} (composer pulse-step index cap)')
 
     # songs in PSID-subtune order; rewrite each row's instrument to the merged id
     merged.songs = []
