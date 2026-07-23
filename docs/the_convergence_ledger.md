@@ -662,7 +662,10 @@ practice, not code to factor).
   player bases); per-subtune (player, song) map; extract each player
   standalone (base_override; region-bounded locate); UNIFIED-MERGE into one
   model (renumber+dedup instruments, share/compact tables) → the ordinary
-  composer. Players need not be the same engine (heterogeneous: dmc_sfx).
+  composer. Players need not be the same engine (heterogeneous: dmc_sfx, MA,
+  DMC V5 beside V4 — a V5 sub-player can be PARTIALLY RELOCATED: dead paths
+  left at canon; per-player file-level pools ride per-subtune overrides
+  incl. wave_programs).
   Distinct from C27 (parallel chips every frame; here exactly ONE player
   runs per subtune). Analogues: FC Adrenalin, 5-Title-Tunes.
 - DON'T keep teaching the static wrapper parser new shapes (scaled index

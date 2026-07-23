@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: dc3e8ab6-14f1-45ad-97c8-053b066d511b
-  modified: 2026-07-22T22:50:04.401Z
+  modified: 2026-07-23T09:25:01.172Z
 ---
 
 **DMC COMPILATIONS — one file, N independent DMC players, per-subtune dispatch.**
@@ -158,6 +158,24 @@ is one cycle CHEAPER than the three shifts.
 - Per-song instrument WINDOWS (the other candidate design — each subtune runs
   one packed player and uses ≤16 here) were NOT needed and are not implemented;
   revisit only if a merge exceeds 42.
+
+## ✅ HETEROGENEOUS V4 + V5 (round 93, 2026-07-23) — Super_Tau-Zeta 5/5
+`Super_Tau-Zeta` (r90's `base_override_not_player` residue) = 2 canonical V4
+players ($A400/$9000, subs 0-3) + a **DMC V5** player at $B400 (sub 4, head
+`JMP +$40 / JMP +$A1`) — the first V4+V5 member. Commit `48d7624e`; detail in
+[[project_dmc]] r93. Machinery (all in pipelines/music_assembler/
+heterogeneous.py + v5 factory):
+- static `detect_compilation` now returns per-base `kinds` ('dmcv5' via the
+  play+$A1 vector); any non-'dmc' kind routes to the heterogeneous builder
+  (build_path `hetero_v5`; mass-write accepts both hetero names).
+- `dmc_v5_config(base_override=, n_songs=)`; masked compare admits a
+  PARTIALLY-RELOCATED copy (dead paths left at canon by the re-linker).
+- V4 players merge via the homogeneous path as ONE unit; group-aware
+  instrument blocks; `set_instr=` refs first-class; per-subtune
+  `wave_programs` override carries the V5 idle program.
+- **RESIDUE**: `The_Syndrom/Black_It` now detects as a compilation under the
+  new code but subs 4/5/8 stay partial (play_match 26/26/1 — the "third
+  player layout" note below; different class). NEXT by path.
 
 ## ✅ TWO-JMP PLAYER HEAD + reach-refined filter merge (round 90, 2026-07-23)
 `Quad_Core` (3 players, 4 subtunes) needed BOTH a detection and a merge fix.

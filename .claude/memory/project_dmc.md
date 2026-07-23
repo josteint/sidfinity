@@ -5,8 +5,42 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T01:23:39.708Z
+  modified: 2026-07-23T09:24:28.829Z
 ---
+
+## ✅ ROUND 93 (2026-07-23): heterogeneous V4+V5 compilation. Super_Tau-Zeta 5/5 FULL
+Next f1 partial by path = `Super_Tau-Zeta` (r90's `base_override_not_player`
+residue): 2 canonical V4 players ($A400/$9000) + a **DMC V5** player at $B400
+(head `JMP +$40 / JMP +$A1`) behind the wrapper — the first V4+V5
+heterogeneous member. Commit `48d7624e`. Key findings:
+- **The $B400 player is PARTIALLY RELOCATED**: the re-linker patched only the
+  paths song 0 reaches; 101 reloc operands still hold canon $1xxx values, none
+  executed (pc-trace-proven). `dmc_v5_config(base_override=)` admits
+  `mv == rv OR mv == rv+delta`; build+verify judges dead-path claims.
+- **V5 wave_init has NO $90 marker check** ($137F reads ctrl[start] raw,
+  INCs; wave_step $165B redirects without recheck). Instrument 8 starts ON
+  its own marker → first note frame plays the raw ($90,$20) bytes (ctrl $90 =
+  test+noise to the chip). `_slice_wave` rewritten as an exact walk
+  simulation (C2 canonical); previously-passing shapes byte-identical, 25
+  affected v5 FULLs re-verified FULL (0 regressed).
+- **Heterogeneous machinery generalised** (pipelines/music_assembler/
+  heterogeneous.py): V4 players merge via the homogeneous compilation path as
+  ONE unit; V5/MA one unit each; per-subtune `wave_programs` override (NEW
+  MusicSubtune field — the V5 idle program is per-player state, same class as
+  per-subtune freq_table/default_filter); `set_instr=` fx refs now first-class
+  in _refs/_shift_refs (shared deduped pattern OBJECTS must shift ONCE);
+  v5 from_usf maps set_instr id→engine position (identity standalone).
+- **Round-90 aftershock fixed**: `_is_player_head` had a STALE three-JMP
+  duplicate in extract/engine_model — `_postinit_window(stop_at_player=True)`
+  never stopped on two-JMP heads and burned 1M steps → None. One
+  implementation now (engine_model), compilation.py re-exports.
+- Gates: dmc_smoke 6/6; 6 key compilations FULL (Freespace 3/3 hetero_masm,
+  Quad_Core, Super_Seven, Rogue_Ninja, Canyon, Para_Lander_DX);
+  usf_corpus_check 11919/11919; full regression 9 families 0 regressed.
+- **NOT closed out** (no 5401 batch). f1 counts below still r90's + r91/92/93
+  gains. Next partial by path: `The_Syndrom/Black_It` re-checked with the new
+  code — now builds as a compilation but subs 4/5/8 stay partial (play_match
+  26/26/1, different residue class; its note says "third player layout").
 
 ## ✅ ROUND 92 (2026-07-23): per-subtune rest_effects + the CPU-EYE environment window. Super_Seven 2/2
 Next f1 partial by path = `Super_Seven` (COMPILATION: players $1000/$3800,
