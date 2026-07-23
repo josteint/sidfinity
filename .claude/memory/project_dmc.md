@@ -38,9 +38,10 @@ heterogeneous member. Commit `48d7624e`. Key findings:
   Quad_Core, Super_Seven, Rogue_Ninja, Canyon, Para_Lander_DX);
   usf_corpus_check 11919/11919; full regression 9 families 0 regressed.
 - **NOT closed out** (no 5401 batch). f1 counts below still r90's + r91/92/93
-  gains. Next partial by path: `The_Syndrom/Black_It` re-checked with the new
-  code — now builds as a compilation but subs 4/5/8 stay partial (play_match
-  26/26/1, different residue class; its note says "third player layout").
+  gains. The other `base_override_not_player` member, `The_Syndrom/Black_It`,
+  re-checked with the new code: now builds as a compilation but subs 4/5/8
+  stay partial (play_match 26/26/1, different residue class; "third player
+  layout"). Next f1 partial by path: re-run `dmc_next_partial`.
 
 ## ✅ ROUND 92 (2026-07-23): per-subtune rest_effects + the CPU-EYE environment window. Super_Seven 2/2
 Next f1 partial by path = `Super_Seven` (COMPILATION: players $1000/$3800,

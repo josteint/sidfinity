@@ -175,7 +175,8 @@ heterogeneous.py + v5 factory):
   `wave_programs` override carries the V5 idle program.
 - **RESIDUE**: `The_Syndrom/Black_It` now detects as a compilation under the
   new code but subs 4/5/8 stay partial (play_match 26/26/1 — the "third
-  player layout" note below; different class). NEXT by path.
+  player layout" note below; different class). Next partial by path:
+  re-run `dmc_next_partial`.
 
 ## ✅ TWO-JMP PLAYER HEAD + reach-refined filter merge (round 90, 2026-07-23)
 `Quad_Core` (3 players, 4 subtunes) needed BOTH a detection and a merge fix.
