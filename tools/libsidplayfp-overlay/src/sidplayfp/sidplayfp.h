@@ -292,6 +292,14 @@ public:
     };
     void setMemWatchOnWrite(uint16_t triggerAddr,
                              const std::vector<uint16_t>& ramAddrs);
+
+    /**
+     * Read one byte the way the CPU would (through the MMU, so banked-in
+     * ROM — including psiddrv's patched KERNAL vectors — and the 6510 port
+     * are returned, not the RAM underneath). Diagnostic; drives siddump's
+     * --peek-post-init capture of environment bytes an engine sonifies.
+     */
+    uint8_t cpuPeek(uint16_t addr);
     size_t getMemWatchEventCount() const;
     MemWatchEvent getMemWatchEvent(size_t i) const;
     void clearMemWatchEvents();

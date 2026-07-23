@@ -188,6 +188,10 @@ public:
     { return m_c64.getCpuBus().getPlayEntryCycles(); }
     void clearPlayEntryCycles() { m_c64.getCpuBus().clearPlayEntryCycles(); }
 
+    // CPU-eye byte read (through the MMU: banked ROM + 6510 port visible).
+    uint8_t cpuPeek(uint_least16_t addr)
+    { return m_c64.getCpuBus().peek(addr); }
+
     // Memwatch-on-event: see c64cpubus::setMemWatchOnWrite.
     void setMemWatchOnWrite(uint16_t triggerAddr,
                              const std::vector<uint16_t>& ramAddrs)

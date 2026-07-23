@@ -204,6 +204,11 @@ void sidplayfp::setMemWatchOnWrite(uint16_t triggerAddr,
     sidplayer.setMemWatchOnWrite(triggerAddr, ramAddrs);
 }
 
+uint8_t sidplayfp::cpuPeek(uint16_t addr)
+{
+    return sidplayer.cpuPeek(addr);
+}
+
 size_t sidplayfp::getMemWatchEventCount() const
 {
     return sidplayer.getEventLog().size();

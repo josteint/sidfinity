@@ -5,8 +5,50 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-22T23:38:58.976Z
+  modified: 2026-07-23T01:23:39.708Z
 ---
+
+## ✅ ROUND 92 (2026-07-23): per-subtune rest_effects + the CPU-EYE environment window. Super_Seven 2/2
+Next f1 partial by path = `Super_Seven` (COMPILATION: players $1000/$3800,
+player 1 RELOCATED — the wrapper copies image pages $2000-$2EFF → $3800-$46FF).
+Sub 1 needed TWO independent fixes; commit `d1016d30` (rest_effects) + the
+env-window commit after it.
+- **FIX 1 — per-subtune `rest_effects` (C31 open item, closed).** Player 0 is
+  family-2 (`rest_effects='skip'`), player 1 canon ('run'); the merge kept the
+  start player's extra_params → player 1's filter sweep stalled one frame at
+  every event-fetch boundary (div at play 142; TELL: fclaim=0 + fframe frozen
+  at the D416 write on hold frames). Merge writes disagreeing values to
+  `DmcSong.params` → `MusicSubtune.params`; composer widening GATED (tune-rec
+  byte +9 → `resteff` → 3-way `rest_dispatch`); all-agree members
+  byte-identical. Census: Super_Seven = the ONLY disagreeing carrier of 21
+  compilations. 142 → 78009.
+- **FIX 2 — the truncated-copy KERNAL-tail window (C29 generalized, 2nd
+  class).** The wrapper's copy CUTS the player's data at $46FF; secp_hi[9]
+  ($4700) reads POWER-ON RAM ($FF stripe under libsidplayfp, $00 under py65
+  zero-fill) → sector 9 at $FFEF = the KERNAL jump-table tail ($4C JMP
+  opcodes = the audible "note 76") + psiddrv's PATCHED reset vector
+  ($FFFC/D = $11/$48, invisible to RAM-only memwatch AND to ROM files) +
+  16-bit pointer wrap into env zeropage. Cure, three layers:
+  `_poweron_fill` pattern-seeds `_postinit_window` (+ psiddrv's $0-$3FF
+  zero); `_offimage_sectors` gates on ANY played sector leaving defined RAM;
+  window bytes from NEW `siddump --peek-post-init` / `_cpu_peek` (CPU-eye
+  read through the MMU — facade `sidplayfp::cpuPeek` → `c64cpubus::peek`,
+  mirrored into libsidplayfp-overlay). 78009 → FULL (157,986).
+- **TWO regressions caught by the 25-member gate batch, both fixed:**
+  (1) overlay clobbered DEFINED bytes via spurious garbage-record windows
+  (Pour_le_merite sub 0 + Abyssal_Karma 1-4, priming smashed) → overlay only
+  bytes ≠ image and == reference seed; (2) peek's mid-play snapshot vs the
+  old stability filter for DYNAMIC RAM (Remix_1995: stack-page window bytes;
+  plus last-wins $F8/$F9 pokes across overlapping low windows) → RAM bytes
+  go through `_postinit_values` stability (static→value, dynamic→0), and
+  $F8/$F9 are served SELF-REFERENTIALLY per window inside
+  `_simulate_sector.rd()`. Baseline discipline: fresh worktree at the parent
+  commit proved Remix_1995 FULL pre-change (C20 reflex).
+- **Gate: 22/25 FULL** (Super_Seven + Rogue_Ninja + Killer_Beat/Axel_Foley/
+  Remix_1995/Centric_tune_4 + all 16 prior-FULL compilations); Chwat/Wiz_Max/
+  Goldrake stay partial (other residue). dmc_smoke 6/6. NOT closed out — no
+  full 5401 batch; f1 counts below still r90's (5256/145) + Rogue_Ninja +
+  Super_Seven. Next: re-run `dmc_next_partial`.
 
 ## ✅ ROUND 91 (2026-07-23): event-driven off-table correction is a per-player runtime measurement. Rogue_Ninja 2/2
 Next f1 partial by path = `Rogue_Ninja` (COMPILATION: players $1000/$2000;

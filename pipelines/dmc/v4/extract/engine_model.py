@@ -269,6 +269,19 @@ def _is_player_head(mem, a: int) -> bool:
             and mem[a] == 0x4C and mem[a + 3] == 0x4C and mem[a + 6] == 0x4C)
 
 
+def _poweron_fill(memory):
+    """libsidplayfp's power-on RAM pattern (SystemRAMBank::reset()): 16K
+    blocks with alternating base byte $00/$FF, and offsets 2-5 of every
+    8 bytes holding the flipped byte. Verified against a live memwatch
+    ($4700 = $FF on the running emulator)."""
+    byte = 0x00
+    for j in range(0, 0x10000, 0x4000):
+        memory[j:j + 0x4000] = [byte] * 0x4000
+        byte ^= 0xFF
+        for i in range(j + 0x02, j + 0x4000, 0x08):
+            memory[i:i + 4] = [byte] * 4
+
+
 def _postinit_window(s, lo: int, n: int, sub: 'int | None' = None,
                      stop_at_player: bool = False):
     """Bytes [lo, lo+n) AFTER running the member's init under py65 (subtune =
@@ -296,6 +309,20 @@ def _postinit_window(s, lo: int, n: int, sub: 'int | None' = None,
     try:
         from py65.devices.mpu6502 import MPU
         mpu = MPU()
+        # Seed the libsidplayfp power-on RAM pattern (SystemRAMBank::reset():
+        # 16K blocks alternating base $00/$FF, offsets 2-5 of every 8 bytes
+        # flipped) so a byte the image/init never writes reads what the ENGINE
+        # reads — py65's zero-fill is a different machine. Bit hard on
+        # Super_Seven: the wrapper's copy loop truncates the player's data at
+        # $46FF, so secp_hi[9] at $4700 is power-on RAM = $FF at runtime
+        # ($00 under zero-fill), sending sector 9 to $FFEF (KERNAL tail),
+        # not $00EF (zeros).
+        _poweron_fill(mpu.memory)
+        # psiddrv::install zeroes $0000-$03FF before init on every PSID —
+        # mirror it, or unwritten low RAM reads pattern where the engine
+        # reads $00.
+        for _a in range(0x400):
+            mpu.memory[_a] = 0
         load = s['load']
         for i, b in enumerate(s['payload']):
             if load + i < 0x10000:
@@ -402,7 +429,19 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
         return {'dcmd': d, 'icmd': i, 'vcmd': v, 'softcmd': s}
 
     def rd(off):
-        return mem[sec_addr + (off & 0xFF)]     # 8-bit sectpos, as the player
+        # 8-bit sectpos wrap (as the player, C11) + 16-bit address wrap: the
+        # 6502's (zp),y crosses $FFFF into zeropage (a sector based in the
+        # KERNAL tail — Super_Seven's truncated-copy $FFEF window).
+        a = (sec_addr + (off & 0xFF)) & 0xFFFF
+        # The sector pointer $F8/$F9 holds THIS sector's base during the
+        # read — a SELF-REFERENTIAL window byte (C29). Its live value is
+        # per-window, so no single mem[] byte can represent two overlapping
+        # low windows; serve it here instead of poking mem.
+        if a == 0x00F8:
+            return sec_addr & 0xFF
+        if a == 0x00F9:
+            return (sec_addr >> 8) & 0xFF
+        return mem[a]
 
     def peek_end():
         return rd(pos) == fmt.term
@@ -542,7 +581,7 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 v.loop_to = mod_states[key]
                 return v
             mod_states[key] = len(v.entries)
-        b = mem[track_addr + pos]
+        b = mem[(track_addr + pos) & 0xFFFF]
         if b == 0xFE:
             v.stop = True
             return v
@@ -550,7 +589,7 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
             if loop_reset_pos is not None:
                 tgt = loop_reset_pos    # reset-all-to-N SYNC hook (ledger C13)
             else:
-                tgt = mem[track_addr + ((pos + 1) & 0xFF)] if loop_target else 0
+                tgt = mem[(track_addr + ((pos + 1) & 0xFF)) & 0xFFFF] if loop_target else 0
             key = (tgt, st.key())
             if key in wrap_states:
                 v.loop_to = wrap_states[key]
@@ -569,10 +608,10 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
             if pos > 0xFF:
                 pos &= 0xFF
                 wrapped = True
-            b = mem[track_addr + pos]
+            b = mem[(track_addr + pos) & 0xFFFF]
         sec = b
         v.entry_offsets.append(pos)
-        sec_addr = mem[secp_lo + sec] | (mem[secp_hi + sec] << 8)
+        sec_addr = mem[(secp_lo + sec) & 0xFFFF] | (mem[(secp_hi + sec) & 0xFFFF] << 8)
         rows = _simulate_sector(mem, sec_addr, st, fmt)
         if isinstance(rows, tuple) and rows[0] == 'endless':
             # unterminated sector (8-bit sectpos wrap): the voice never
@@ -598,20 +637,26 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
         pos += 1
 
 
-def _loops_offimage(mem, secp_lo: int, secp_hi: int, tunetab: int,
-                    n_sub: int, load: int, loop_target: bool,
-                    forced: int | None = None) -> bool:
-    """Does any voice's track LOOP to a sector whose pointer resolves BELOW the
-    load address (out of the file image)?
+def _offimage_sectors(mem, secp_lo: int, secp_hi: int, tunetab: int,
+                      n_sub: int, load: int, loop_target: bool,
+                      forced: int | None = None) -> list:
+    """Base addresses of PLAYED sectors whose 256-byte read window leaves the
+    RAM the image/init defines — the engine then sonifies ENVIRONMENT bytes:
 
-    Such a sector reads RAM the file image doesn't hold — for the '$0000' case
-    (a $FF loop into a garbage sector number past the pointer table → $0000) the
-    engine sonifies live ZEROPAGE as note data (the 6510 I/O port $2F/$37 at
-    offset 0/1, then static zp). The file image is all-zero there, so the naive
-    decode is note-0-forever; the extract must instead read the runtime low RAM.
-    This is the detector that gates that capture. Follows each $FF once (mirrors
-    _walk_track) and reports on the FIRST out-of-image sector it reaches; a
-    normal in-image track returns False immediately (byte-identical build)."""
+    - base BELOW the load address (the C29 '$0000' class: a $FF loop into a
+      garbage sector number → live zeropage as note data — 6510 port $2F/$37
+      at offset 0/1, then static zp);
+    - window overlapping banked-in ROM ($A000-$BFFF / $E000-$FFFF under the
+      PSID default $01=$37) or WRAPPING past $FFFF into zeropage — the
+      truncated-copy class (Super_Seven: the wrapper copies the player's data
+      only to $46FF, secp_hi[9] reads power-on RAM $FF → sector 9 at $FFEF =
+      KERNAL tail bytes + zp).
+
+    The file image / py65 view is wrong there, so the extract overlays what
+    the engine reads (runtime zp capture + ROM bytes). Walks every track
+    (mirrors _walk_track, $FF followed once); an all-in-image member returns
+    [] (byte-identical build)."""
+    out = set()
     for sub in range(n_sub):
         rec = tunetab + (sub if forced is None else forced) * 8
         for vi in range(3):
@@ -638,10 +683,12 @@ def _loops_offimage(mem, secp_lo: int, secp_hi: int, tunetab: int,
                     continue
                 sec_addr = mem[(secp_lo + b) & 0xFFFF] | \
                     (mem[(secp_hi + b) & 0xFFFF] << 8)
-                if sec_addr < load:
-                    return True
+                if (sec_addr < load or sec_addr + 0xFF > 0xFFFF
+                        or (0xA000 <= sec_addr + 0xFF and sec_addr <= 0xBFFF)
+                        or sec_addr + 0xFF >= 0xE000):
+                    out.add(sec_addr)
                 pos += 1
-    return False
+    return sorted(out)
 
 
 # ---------------------------------------------------------------------------
@@ -945,18 +992,68 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # forced_subtune, factory C19 probe: Sans_intro's `LDA #$01` prefix forces
     # record 1 — record 0 is a $FE-stop dummy). Walk the played record then.
     forced = getattr(cfg, 'forced_subtune', None)
-    if _loops_offimage(mem, secp_lo, secp_hi, tunetab, s.get('songs', 1),
-                       s['load'], cfg.track_loop_target, forced=forced):
-        zpvals = _postinit_values(path, list(range(0x100)))
-        for a in range(0x100):
-            mem[a] = zpvals.get(a, 0)
-        # 6510 processor port: reads return the port register, not RAM. Standard
-        # PSID reset = DDR $2F / port $37 (this tune never banks; confirmed by
-        # pc-trace [0000]{2f}/[0001]{37}).
-        mem[0x00], mem[0x01] = 0x2F, 0x37
-        # the sector pointer ($F8/$F9) holds the sector base ($0000) during the
-        # read, so those two offsets read $00 (not the post-play snapshot value).
-        mem[0xF8], mem[0xF9] = 0x00, 0x00
+    oob = _offimage_sectors(mem, secp_lo, secp_hi, tunetab, s.get('songs', 1),
+                            s['load'], cfg.track_loop_target, forced=forced)
+    if oob:
+        # CPU-EYE capture of every window byte (siddump --peek-post-init,
+        # libsidplayfp = ground truth): banked-in ROM — including psiddrv's
+        # PATCHED KERNAL vectors, which no ROM file holds (Super_Seven's
+        # window byte 14 = $FFFD = the relocated driver entry hi) — the 6510
+        # port ($2F/$37), env zeropage, and the power-on RAM pattern for
+        # never-written bytes. One mechanism for all of it: read what the
+        # engine's LDA ($F8),y reads. The old class (base $0000, live-zp
+        # sonified) gets identical bytes to the former _postinit_values +
+        # hardcoded-port overlay. Run the subtune whose init materialises
+        # this player (C31 — song numbering is local).
+        wranges = []
+        for base in oob:
+            if base + 0xFF > 0xFFFF:                 # 16-bit pointer wrap
+                wranges.append((base, 0xFFFF))
+                wranges.append((0x0000, (base + 0xFF) & 0xFFFF))
+            else:
+                wranges.append((base, base + 0xFF))
+        # ONLY overlay UNDEFINED bytes — outside the image and untouched by
+        # the (wrapper) init. A window found by walking a GARBAGE tune record
+        # (header-overstated subtunes; the pre-scan covers all file subtunes)
+        # can overlap REAL player data, and the peek is a FULL-init+play
+        # snapshot — writing it over defined bytes clobbers the landing view
+        # (bit Pour_le_merite sub 0 + Abyssal_Karma subs 1-4: priming read
+        # from smashed state). Defined = image span ∪ bytes the py65 init run
+        # changed vs the same seed (same-value writes are indistinguishable
+        # and harmless — the value is right either way).
+        ref = bytearray(0x10000)
+        if getattr(cfg, 'data_post_init', False) or post_sub is not None:
+            _poweron_fill(ref)
+            for _a in range(0x400):
+                ref[_a] = 0
+        _ld = s['load']
+        for _i, _b in enumerate(s['payload']):
+            if _ld + _i < 0x10000:
+                ref[_ld + _i] = _b
+        _imgspan = range(_ld, min(0x10000, _ld + len(s['payload'])))
+        # Per-byte source rule (C29 boundary — reproduce STATIC environment,
+        # leave DYNAMIC as honest residue): the 6510 port + banked-in ROM are
+        # static → the peek value is the truth; a RAM byte gets the peek's
+        # snapshot ONLY if it is CONSTANT during play (memwatch stability),
+        # else 0 — the old class's verdict-proven default. Without the
+        # stability filter, a garbage window reaching the STACK PAGE wrote a
+        # live mid-play snapshot where the old code (and the FULL verdict)
+        # had 0 (regressed Remix_1995).
+        _rom = ((0xA000, 0xBFFF), (0xE000, 0xFFFF))
+        peek = _cpu_peek(path, wranges, subtune=post_sub)
+        _ram = [a for a in peek if a >= 2
+                and not any(lo <= a <= hi for lo, hi in _rom)]
+        stable = _postinit_values(path, _ram, subtune=post_sub)
+        for a, v in peek.items():
+            if a in _imgspan or mem[a] != ref[a]:
+                continue                     # defined — never clobber
+            if a < 2 or any(lo <= a <= hi for lo, hi in _rom):
+                mem[a] = v
+            else:
+                mem[a] = stable.get(a, 0)
+        # ($F8/$F9 — the live sector pointer — is served per-window inside
+        # _simulate_sector's rd(); overlapping low windows each see their
+        # OWN base, which one shared mem[] byte cannot express.)
 
     # decode subtunes; collect referenced instruments + filter defs as
     # they surface
@@ -1394,6 +1491,37 @@ def _postinit_values(sid_path: str, addrs, subtune: int | None = None) -> dict:
                 a, v = tok.split('=')
                 seen.setdefault(int(a, 16), set()).add(int(v, 16))
     return {a: next(iter(vs)) for a, vs in seen.items() if len(vs) == 1}
+
+
+def _cpu_peek(sid_path: str, ranges, subtune: int | None = None) -> dict:
+    """CPU-EYE post-init bytes via `siddump --peek-post-init` (libsidplayfp =
+    ground truth, read THROUGH the MMU): banked-in ROM — including psiddrv's
+    PATCHED KERNAL vectors ($FFFC/$FFFD -> the relocated driver entry) — the
+    6510 port ($00/$01 = $2F/$37), and the power-on RAM pattern for bytes
+    nothing ever wrote. This is exactly what the engine's `LDA ($F8),y`
+    returns, which a RAM-only memwatch capture cannot see (it reads the RAM
+    under the ROM). `ranges` = [(lo, hi)] inclusive; returns {addr: val}."""
+    if not ranges:
+        return {}
+    import subprocess
+    sd = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..',
+                      'tools', 'siddump')
+    st = [] if subtune is None else ['--subtune', str(subtune + 1)]
+    spec = ','.join(f'{lo & 0xFFFF:04X}-{hi & 0xFFFF:04X}' for lo, hi in ranges)
+    try:
+        out = subprocess.run(
+            [sd, sid_path, '--raw', *st, '--peek-post-init', spec],
+            capture_output=True, text=True, timeout=90).stdout
+    except Exception:
+        return {}
+    vals = {}
+    for line in out.splitlines():
+        if line.startswith('PEEK:'):
+            for tok in line[5:].split(','):
+                if '=' in tok:
+                    a, v = tok.split('=')
+                    vals[int(a, 16)] = int(v, 16)
+    return vals
 
 
 def _correct_offtable_postinit(m: DmcModel, sid_path: str, flo_addr: int,

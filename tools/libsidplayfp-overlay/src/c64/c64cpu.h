@@ -122,6 +122,10 @@ public:
     const std::vector<EventRecord>& getEventLog() const { return m_eventLog; }
     void clearEventLog() { m_eventLog.clear(); }
 
+    // Side-effect-free CPU-eye read (through the MMU: banked ROM + 6510
+    // port visible; no trace/play-counter bookkeeping).
+    uint8_t peek(uint_least16_t addr) { return m_mmu.cpuRead(addr); }
+
 protected:
     uint8_t cpuRead(uint_least16_t addr) override
     {

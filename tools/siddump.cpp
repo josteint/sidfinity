@@ -34,6 +34,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "sidplayfp/sidplayfp.h"
@@ -126,6 +127,10 @@ int main(int argc, char* argv[])
             "                             When --memwatch is on, also emits |P:<count> giving the\n"
             "                             number of PSID play() invocations that fired in this\n"
             "                             siddump frame. Used to diagnose Trap C alignment.\n"
+            "  --peek-post-init HEX-HEX[,HEX-HEX...]  Print CPU-EYE bytes (through the MMU:\n"
+            "                             banked ROM incl. psiddrv-patched vectors, 6510 port,\n"
+            "                             power-on RAM pattern) for the ranges after init, then\n"
+            "                             exit. One PEEK:AAAA=VV,... line.\n"
             "  --memwatch-on-write HEX HEX[,HEX...]  Event-driven memwatch. First HEX is the\n"
             "                             trigger address (e.g. D404). The second argument is ONE\n"
             "                             COMMA-separated list (NO spaces) of the RAM addresses to\n"
@@ -155,6 +160,7 @@ int main(int argc, char* argv[])
     std::vector<uint16_t> memwatch_addrs;
     uint16_t memwatch_event_trigger = 0;     // 0 = disabled
     std::vector<uint16_t> memwatch_event_ram;
+    std::vector<std::pair<uint16_t, uint16_t>> peek_ranges;
 
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--raw") == 0) {
@@ -203,6 +209,25 @@ int main(int argc, char* argv[])
                 if (end == p) break;
                 memwatch_event_ram.push_back(static_cast<uint16_t>(addr));
                 p = end;
+                if (*p == ',') ++p;
+            }
+        } else if (strcmp(argv[i], "--peek-post-init") == 0 && i + 1 < argc) {
+            // ONE comma-separated list of AAAA-BBBB hex ranges (inclusive)
+            const char* p = argv[++i];
+            while (*p) {
+                char* end = nullptr;
+                unsigned long lo = strtoul(p, &end, 16);
+                if (end == p) break;
+                p = end;
+                unsigned long hi = lo;
+                if (*p == '-') {
+                    ++p;
+                    hi = strtoul(p, &end, 16);
+                    if (end == p) break;
+                    p = end;
+                }
+                peek_ranges.emplace_back(static_cast<uint16_t>(lo),
+                                         static_cast<uint16_t>(hi));
                 if (*p == ',') ++p;
             }
         } else if (strcmp(argv[i], "--subtune") == 0 && i + 1 < argc) {
@@ -440,6 +465,29 @@ int main(int argc, char* argv[])
 
     // Initialize mixer (needed for play() to work)
     engine.initMixer(false); // mono
+
+    // --peek-post-init: run two frames (init completes inside the first
+    // play() call), then print CPU-EYE bytes for the requested ranges —
+    // through the MMU, so banked-in ROM (including psiddrv's patched KERNAL
+    // vectors), the 6510 port, and the power-on RAM pattern are all returned
+    // exactly as an engine LDA would see them — then exit. Built for the
+    // sonified-environment sector windows (Super_Seven's $FFEF window).
+    if (!peek_ranges.empty()) {
+        engine.play(cyclesPerFrame);
+        engine.play(cyclesPerFrame);
+        printf("PEEK:");
+        bool first = true;
+        for (auto& r : peek_ranges) {
+            for (unsigned int a = r.first; a <= r.second; a++) {
+                printf(first ? "%04X=%02X" : ",%04X=%02X",
+                       a & 0xFFFF, engine.cpuPeek(a & 0xFFFF));
+                first = false;
+                if (a == 0xFFFF) break;   // unsigned wrap guard
+            }
+        }
+        printf("\n");
+        return 0;
+    }
 
     // PCM output mode: render audio and write raw 16-bit samples to stdout
     if (pcm) {

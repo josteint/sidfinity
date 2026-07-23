@@ -114,7 +114,7 @@ practice, not code to factor).
 | song data ABSENT from file image · init generates/unpacks tables in RAM · operands point outside the loaded image · extract from POST-INIT RAM (py65), all-or-nothing signature · banking-wrapper JT-less base from the wrapper JSR target | C26 | logged |
 | multi-SID (2SID/3SID) · N chips, one player each behind a dispatch wrapper · players run sequentially -> merged log = [chip1][chip2] · extract/compose/verify each with single-chip machinery, chip-TAGGED (reg=chip*$20+reg) · voices number through chips, addresses are pipeline constants not USF | C27 | logged |
 | multi-SID VERDICT · rebuild is per-chip correct but the merged chip-tagged stream diverges on a CROSS-CHIP adjacency (chip1 vs chip2 write order) · cross-chip order is physically UNobservable (independent hardware, Trap-B analogue) · split by reg//0x20, require each chip's substream to pass · compare_instruction_stream(n_chips=N) · do NOT chase cycle precision / straddle-free capture | C28 | logged |
-| track $FF loop into an OUT-OF-IMAGE sector (garbage sector# past the ptr table → $0000) · engine sonifies live ZEROPAGE as notes (6510 port $00=$2F/$01=$37 then static zp, read via ($F8),y=$0000) · extract overlays libsidplayfp runtime low-RAM (C9, py65 can't reproduce env zp) gated on _loops_offimage · port + $F8/$F9 read-time corrections · regr-safe: unplayed decode = byte-identical | C29 | logged |
+| PLAYED sector reads the EMULATOR ENVIRONMENT · $FF loop → $0000 live zp sonified · truncated-copy wrapper → power-on-RAM secp byte → KERNAL-tail window + patched psiddrv vectors + 16-bit wrap · gate = any played sector leaving defined RAM (`_offimage_sectors`) · CPU-EYE capture `siddump --peek-post-init` (`_cpu_peek`) · py65 pattern-seed (`_poweron_fill`) · overlay ONLY undefined bytes | C29 | recurring (2×) |
 | LOSSY ENUM over independently-toggleable flag bits · USF enum assumed two editor flags mutually exclusive (gate hold $10 / never-release $08) · engine gives one priority so the co-set bit is MECHANICALLY DEAD · but the raw flags byte is OBSERVABLE via a state-as-data read (off-table fxf) → reconstruction misses the dead bit · carry the masked flag as an elidable boolean CO-FIELD, keep the enum = the EFFECTIVE articulation | C30 | logged |
 | COMPILATION · one file packs N INDEPENDENT players + a per-subtune SMC dispatch wrapper (subtune→(base,song)) · header overstates songs, sub0 FULL others silent/garbage · ≥2 jump-table bases · unified-merge (renumber+dedup instruments) · heterogeneous engines (dmc_sfx) · distinct from C27 parallel chips | C31 | logged |
 | engine STICKY STATE materialized into effective variants · orderlist state over the loop wrap (fitted pad/period/rcmd) · pattern-row sticky duration/instr/vol (FC (fc_id,init_len) variants · len=L pickup · DMC ~intro decode variants) · fold to STATED notation (value present iff the stream states the command; absent = inherit) + ONE shared resolution interpreter (src/usf/resolve.py) · re-derivation assert, fallback wholesale | C32 | canonicalized (2×) |
@@ -602,16 +602,18 @@ practice, not code to factor).
   blocker — verify at full songlength.
 - FULL ENTRY: [`ledger/C28.md`](ledger/C28.md) — read it before applying.
 
-### C29 — track $FF loop into an OUT-OF-IMAGE sector → live zeropage sonified
-- PRESENTS: a voice's $FF loop marker resolves to a garbage sector past the
-  pointer table → address $0000/below load. The file image there is zeros
-  (decode = note 0 forever) but the ORIG audibly plays "impossible" notes —
-  47, 55, then held low notes: it is reading the 6510 I/O port ($00=$2F,
-  $01=$37) and static zeropage as note data.
-- CANONICAL: overlay libsidplayfp's runtime low RAM onto the image for the
-  decode (py65 cannot reproduce the environment zp — C9), gated on the
-  loop-off-image detection, with port + sector-pointer read-time
-  corrections. Regression-safe: unplayed decode is byte-identical.
+### C29 — PLAYED sector reads the EMULATOR ENVIRONMENT (zp / ROM / power-on RAM)
+- PRESENTS: a played sector's pointer resolves out of defined RAM — a $FF
+  loop into a garbage sector# → $0000 (live zp sonified: port $2F/$37 then
+  static zp), OR a truncated-copy wrapper leaves a secp byte at POWER-ON RAM
+  ($FF stripe) sending the sector into banked-in KERNAL ROM with a 16-bit
+  wrap (Super_Seven $FFEF: the jump table's $4C opcodes ARE "note 76", plus
+  psiddrv's PATCHED reset vector). File image/py65 reads zeros there.
+- CANONICAL: `_offimage_sectors` gate (ANY played sector leaving defined
+  RAM) + `siddump --peek-post-init` CPU-EYE window capture (banked ROM incl.
+  patched vectors + port + RAM pattern in one mechanism) + `_poweron_fill`
+  pattern-seeded py65. ⚠ overlay ONLY undefined bytes (≠ image,
+  ≠ init-written) — spurious garbage-record windows clobber real data.
 - FULL ENTRY: [`ledger/C29.md`](ledger/C29.md) — read it before applying.
 
 ### C30 — lossy enum over independently-toggleable editor flag bits
@@ -680,7 +682,9 @@ practice, not code to factor).
   layer further out: probing a base the image lacks reads zeros ⇒ every wedge
   silently DEFAULTED). Per-player facts the merge collapses to the START
   player are a recurring family: `d417_shadow` (→ per-subtune
-  `init.sid.filter.res_routing`, no schema addition) and any memory RE-READ
+  `init.sid.filter.res_routing`, no schema addition), a disagreeing WEDGE
+  KNOB (`rest_effects` → `MusicSubtune.params` + gated composer runtime
+  dispatch, Super_Seven), and any memory RE-READ
   inside extract (the filter-def post-init window decoded all-zero). RULE: any
   RUNTIME measurement inside a per-player extract must run the FILE subtune
   that SELECTS that player (song numbering is LOCAL; the wrong subtune leaves
