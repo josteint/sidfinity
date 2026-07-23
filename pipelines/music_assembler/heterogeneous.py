@@ -269,7 +269,8 @@ def heterogeneous_to_usf(rel: str, spec: dict | None = None,
                 model_to_usf as v5_to_usf, _verify_window_frames)
             n_songs = max(song for p, song in spec['map'] if p == pi) + 1
             cfg5 = dmc_v5_config(rel, hvsc_root=hvsc_root, base_override=base,
-                                 n_songs=n_songs)
+                                 n_songs=n_songs,
+                                 post_init_sub=reloc.get(base))
             per_player[pi] = ('dmc_v5', v5_to_usf(
                 v5x(cfg5, hvsc_root=hvsc_root),
                 reach=_verify_window_frames(cfg5, hvsc_root)), 'song')
@@ -285,7 +286,16 @@ def heterogeneous_to_usf(rel: str, spec: dict | None = None,
 
     merged_insts, shift, subtunes = [], {}, []
     top = 0
-    for pi in sorted(per_player):
+    # The V4 unit goes FIRST in the id space regardless of its player index:
+    # the first (lowest-block) unit keeps the merged file's file-level slots,
+    # and only V4 has file-level init the park/lift cannot carry (its
+    # subtunes already hold their own per-subtune inits, so the file init
+    # could never be parked — Black_It's V5 player is pi 0 but must not own
+    # the file level). Members whose V4 unit is already lowest-pi (Freespace,
+    # Super_Tau-Zeta) are byte-identical under this ordering.
+    unit_order = sorted(per_player,
+                        key=lambda uid: (per_player[uid][0] != 'dmc_v4', uid))
+    for pi in unit_order:
         eng0, u, _mode = per_player[pi]
         ids = [i.id for i in u.instruments]
         # A V5 unit idles every voice on instrument-table position 0 (its
@@ -324,7 +334,7 @@ def heterogeneous_to_usf(rel: str, spec: dict | None = None,
             merged_insts.append(dataclasses.replace(inst, id=inst.id + shift[pi]))
         top = (shift[pi] + max(ids)) if ids else top
 
-    first_uid = min(per_player)
+    first_uid = unit_order[0]
     first = per_player[first_uid][1]
     seq_ctr = {uid: 0 for uid in per_player}
     for k, (pi, song) in enumerate(spec['map']):

@@ -45,6 +45,11 @@ class DMCV5Config:
                                  # COMPILATION sub-player (ledger C31) owns
                                  # fewer songs than the FILE header declares;
                                  # None = the PSID header count (standalone).
+    post_init_sub: 'int | None' = None  # RELOCATED sub-player (C31+C26): the
+                                 # wrapper copies it into RAM, so every memory
+                                 # read uses the RAM left by THIS subtune's
+                                 # init (snapshot at the landing), not the
+                                 # file image. None = the image (standalone).
 
 
 KATUSHA = DMCV5Config(sid_path='DEMOS/G-L/Katusha.sid', name='katusha')

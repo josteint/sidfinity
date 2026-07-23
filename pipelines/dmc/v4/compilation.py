@@ -164,11 +164,19 @@ def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
 
 
 def _base_kind(mem, b: int) -> str:
-    """Engine kind of a statically-detected player base: 'dmcv5' when the
-    play vector (+3) targets base+$A1 (the V5 play-body offset — V4 layouts
-    use +$85 / +$50), else 'dmc' (V4)."""
+    """Engine kind of a detected player base (works on the file image OR a
+    post-init RAM view): 'dmcv5' when the play vector (+3) targets base+$A1
+    (the V5 family-3 play-body offset) or base+$95 with init at base+$40
+    (the V5 family-4 / Jupiter41 layout — Black_It's relocated $1000
+    player). V4 layouts use +$85 / +$50, so neither test can fire on one.
+    Else 'dmc' (V4)."""
+    it = mem[b + 1] | (mem[b + 2] << 8)
     pt = mem[b + 4] | (mem[b + 5] << 8)
-    return 'dmcv5' if pt == b + 0xA1 else 'dmc'
+    if pt == b + 0xA1:
+        return 'dmcv5'
+    if it == b + 0x40 and pt == b + 0x95:
+        return 'dmcv5'
+    return 'dmc'
 
 
 def _is_player_base_ram(mem, a: int) -> bool:
@@ -317,7 +325,10 @@ def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
             if pc != s['init']:
                 if not (pc & 0xFF) and _is_player_base_ram(mem, pc):
                     landed = (pc, mpu.a)
-                    kinds[pc] = 'dmc'
+                    # classify at the LANDING, on the RAM view — a relocated
+                    # player is not in the image (Black_It's family-4 V5
+                    # player materialises at $1000).
+                    kinds[pc] = _base_kind(mem, pc)
                     break
                 # Music Assembler is entered at its INIT (base+$48), never at
                 # the page-aligned base — the DMC convention of "execution

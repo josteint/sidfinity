@@ -148,7 +148,15 @@ def _v5_play_ref():
     return _PLAY_REF
 
 
-def _load(sid_path: str):
+def _load(sid_path: str, post_init_sub: 'int | None' = None):
+    """Load the member's file image into a 64K map.
+
+    `post_init_sub` (0-based) returns the RAM left by running THAT subtune's
+    init under py65 instead of the raw file image — for a RELOCATING
+    compilation sub-player (ledger C31 + C26; Black_It's family-4 V5 player
+    is COPIED to $1000 by the wrapper and absent from the image). Snapshot
+    AT THE LANDING (`stop_at_player`), mirroring the V4 factory's _load.
+    Falls back to the file image when py65 can't complete the init."""
     import sys
     sys.path.insert(0, os.path.join(os.path.dirname(__file__),
                                     '..', '..', '..', 'tools'))
@@ -160,6 +168,12 @@ def _load(sid_path: str):
     for i, b in enumerate(s['payload']):
         if s['load'] + i < 0x10000:
             mem[s['load'] + i] = b
+    if post_init_sub is not None:
+        from pipelines.dmc.v4.extract.engine_model import _postinit_window
+        post = _postinit_window(s, 0, 0x10000, sub=post_init_sub,
+                                stop_at_player=True)
+        if post is not None:
+            mem = bytearray(post)
     return mem, s
 
 
@@ -337,19 +351,25 @@ def _family4_config(sid_path, mem, s, jt_addr) -> DMCV5Config:
 
 def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc84',
                   base_override: 'int | None' = None,
-                  n_songs: 'int | None' = None) -> DMCV5Config:
-    mem, s = _load(os.path.join(hvsc_root, sid_path))
+                  n_songs: 'int | None' = None,
+                  post_init_sub: 'int | None' = None) -> DMCV5Config:
+    mem, s = _load(os.path.join(hvsc_root, sid_path), post_init_sub)
     if base_override is not None:
         # COMPILATION sub-player (ledger C31): the caller forces the base —
         # auto-detection can't pick it (the file also packs other players,
         # and the scan stops at the first jump table it sees). The masked
         # compare below still validates the player; a partially-relocated
-        # re-linked copy is admitted (see _diff_play_body).
+        # re-linked copy is admitted (see _diff_play_body). A family-4 head
+        # (init +$40 / play +$95 — Black_It's relocated $1000 player)
+        # dispatches to the family-4 config like auto-detection would.
         base, jt_addr, layout = base_override, base_override, 'v5'
         if not (mem[base] == 0x4C and mem[base + 3] == 0x4C):
             raise DMCV5Unsupported('no_jumptable',
                                    f'base_override=${base:04X}')
         init_target = mem[base + 1] | (mem[base + 2] << 8)
+        play_target = mem[base + 4] | (mem[base + 5] << 8)
+        if init_target == base + 0x40 and play_target == base + 0x95:
+            layout = 'family4'
     else:
         base, init_target, jt_addr, layout = _detect_v5(mem, s)
     if base is None and layout != 'family4':
@@ -357,7 +377,9 @@ def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc84',
             'no_jumptable',
             f"load=${s['load']:04X} init=${s['init']:04X} play=${s['play']:04X}")
     if layout == 'family4':
-        return _family4_config(sid_path, mem, s, jt_addr)
+        d = _family4_config(sid_path, mem, s, jt_addr)
+        d.n_songs, d.post_init_sub = n_songs, post_init_sub
+        return d
     delta = base - 0x1000
 
     # ---- masked identity compare of the PLAY-reachable body vs the
@@ -396,7 +418,8 @@ def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc84',
 
     d = DMCV5Config(sid_path=sid_path,
                     name=os.path.splitext(os.path.basename(sid_path))[0],
-                    base=base, cia_period=cia_period, n_songs=n_songs)
+                    base=base, cia_period=cia_period, n_songs=n_songs,
+                    post_init_sub=post_init_sub)
     # play-body operand sites relocate with the base; the orderlist site is
     # read from the (possibly relocated/wrapped) init's actual load operand.
     for f in ('op_secp_lo', 'op_secp_hi', 'op_instr', 'op_freq_lo',

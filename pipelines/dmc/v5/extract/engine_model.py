@@ -103,7 +103,10 @@ class V5Model:
     sid_model: int = 6581   # PSID header SID model (write-log-blind; audible)
 
 
-def _load(path: str):
+def _load(path: str, post_init_sub: 'int | None' = None):
+    """File image as a 64K map; `post_init_sub` swaps in the RAM left by that
+    subtune's init (snapshot at the landing) for a RELOCATED compilation
+    sub-player (ledger C31 + C26) — mirrors the V4 extract's view."""
     import sys
     sys.path.insert(0, os.path.join(os.path.dirname(__file__),
                                     '..', '..', '..', '..', 'tools'))
@@ -113,6 +116,12 @@ def _load(path: str):
     for i, b in enumerate(s['payload']):
         if s['load'] + i < 0x10000:
             mem[s['load'] + i] = b
+    if post_init_sub is not None:
+        from pipelines.dmc.v4.extract.engine_model import _postinit_window
+        post = _postinit_window(s, 0, 0x10000, sub=post_init_sub,
+                                stop_at_player=True)
+        if post is not None:
+            mem = bytearray(post)
     return mem, s
 
 
@@ -190,7 +199,8 @@ def _decode_sector(mem, ptr: int):
 def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
     from pipelines.dmc.v4.extract.engine_model import (_hdr_clock,
                                                        _hdr_sid_model)
-    mem, s = _load(os.path.join(hvsc_root, cfg.sid_path))
+    mem, s = _load(os.path.join(hvsc_root, cfg.sid_path),
+                   getattr(cfg, 'post_init_sub', None))
 
     a_order = _rd16(mem, cfg.op_orderlist)
     a_secp_lo = _rd16(mem, cfg.op_secp_lo)
