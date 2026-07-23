@@ -1516,21 +1516,22 @@ def _play_unit_repeat_probe(path: str, base: int,
     if stx is None:
         return None
     q = stx + 3
-    sites = []                    # (site_addr, target) per per-voice JSR
-    for _ in range(20):
-        op = mem[q]
-        if op == 0x20:            # JSR abs = a per-voice call
-            sites.append((q, mem[q + 1] | (mem[q + 2] << 8))); q += 3
+    x = 0                         # track X so a SKIPPED voice is visible:
+    sites = []                    # (site_addr, target, voice) per JSR — the
+    for _ in range(24):           # two-voice build (Two_Channels) inserts
+        op = mem[q]               # INX before the first JSR, so voice 0 has
+        if op == 0x20:            # NO site at all (unit count 0)
+            sites.append((q, mem[q + 1] | (mem[q + 2] << 8), x)); q += 3
         elif op == 0xE8:          # INX = step to the next voice
-            q += 1
+            x += 1; q += 1
+            if x > 2:
+                break
         else:
             break
-        if len(sites) >= 3:
-            break
-    if len(sites) < 3:
+    if not sites or len(sites) > 3:
         return None
     vaddr = sites[0][1]
-    filter_tail_addr = sites[2][0] + 3   # the play body continues here
+    filter_tail_addr = sites[-1][0] + 3  # the play body continues here
     filt = [1]                    # boxed so _count can bump the filter unit
 
     def _count(i, tgt):
@@ -1559,9 +1560,12 @@ def _play_unit_repeat_probe(path: str, base: int,
                 return None              # unrecognised stub shape
         return None
 
-    reps = [_count(i, t) for i, (_, t) in enumerate(sites)]
-    if any(r is None for r in reps):
-        return None
+    reps = [0, 0, 0]                     # 0 = the voice has NO call site
+    for _, t, vx in sites:
+        c = _count(vx, t)
+        if c is None:
+            return None
+        reps[vx] += c
     units = reps + filt
     if all(u == 1 for u in units):
         return None

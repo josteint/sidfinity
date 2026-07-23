@@ -1646,12 +1646,17 @@ fx_dual_up:
     # detected; the '1,1,1,1' default emits the canonical single-pass body
     # byte-identically. (Distinct from play_repeat, which repeats the WHOLE
     # play() — all four units together.)
+    # A 0 count SKIPS that voice's unit entirely (the two-voice player build:
+    # Two_Channels inserts INX before the first JSR, so voice 0 never runs —
+    # no writes, no state, ever). The `inx` chain below still steps X, so the
+    # remaining voices keep their indices. The filter tail is clamped to >=1.
     pur_s = str(usf.params.fields.get('play_unit_repeat', '') or '1,1,1,1')
     try:
-        play_unit_repeat = [max(1, int(x)) for x in pur_s.split(',')]
+        play_unit_repeat = [max(0, int(x)) for x in pur_s.split(',')]
     except ValueError:
         play_unit_repeat = [1, 1, 1, 1]
     play_unit_repeat = (play_unit_repeat + [1, 1, 1, 1])[:4]
+    play_unit_repeat[3] = max(1, play_unit_repeat[3])
     _vc = ['        ldx #$00', '        stx fclaim']
     for _vi in range(3):
         if _vi:

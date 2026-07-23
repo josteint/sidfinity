@@ -5,8 +5,32 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T16:05:16.815Z
+  modified: 2026-07-23T19:01:36.562Z
 ---
+
+## ⏳ ROUND 103 (2026-07-23): play_unit_repeat ZERO count (voice unit REMOVED, C24). Two_Channels 0%→55.7%, NOT yet FULL
+Next f1 partial by path = `Doxx/Two_Channels` (single, base $1000 — a
+heavily CUSTOM Doxx build: rewritten play body, different init, relocated
+globals ($1636 shadow), stale $1016 cur-inst byte). BLOCKER 1 (fixed): the
+play body inserts INX before the first per-voice JSR — voice 0 NEVER runs
+(true two-voice build; V1 track = bare $FE, but canon $FE voices still
+freewheel refreshes → we emitted a phantom voice, first div at flat 0).
+FIX: C24 play_unit_repeat generalized to 0 counts (probe tracks X through
+the JSR/INX scan; composer max(0,..) + filter clamped ≥1). Census: 5
+firers — Two_Channels 0,1,1,1; NEW Enforcer_2_Level_1_preview 1,1,0,1
+(first div 32→15,663) + Blood_2_game 1,0,0,1 (excess tail halved), both
+pre-existing partials; both Tichelmann stub carriers unchanged + FULL.
+Gates: dmc_smoke 6/6, full regression 0 regressed.
+BLOCKER 2 (OPEN, documented for the next round): at 55.7% (f3243) our V2
+runs the holding gate-off ADSR-clear ($00/$00) ~9 frames EARLY — orig's
+dur counter shows a 4-tick row where our decode reaches dur==1 a tick
+early; the row is inst 3 (drum+hold+noise_attack, fxf $91 via ioff —
+$1016 is stale in this build, use $174D,x for instrument identity); orig
+alternates noise/tri wave steps with freq $1000 which is NOT an in-table
+note (drum-mechanism output). Suspect: duration/row-boundary decode in
+this custom build's sector format. The $17EC holding code is canon and
+UNREACHED at the event (pc-traced) — the orig fires it at its own dur==1
+later. Member stays partial (first div moved 0 → 38,287 of 68,070).
 
 ## ✅ ROUND 102 (2026-07-23): rest-tail RTS wedge = rest_effects 'none' (C19 17th occ). Bassy_Introtune FULL
 Next f1 partial by path = `Doxx/Bassy_Introtune` (single, base $1000,
