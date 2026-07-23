@@ -739,6 +739,9 @@ class _Model:
             self.subtunes.append({
                 'tracks': voices, 'speed': sub.tempo,
                 'mvol': mvol, 'routing': routing,
+                # per-subtune composer-param overrides (MusicSubtune.params —
+                # compilation players disagreeing on a wedge knob, ledger C31)
+                'params': dict(sub.params.fields) if sub.params else {},
             })
         # gid rides byte 0 of a track pattern entry; $FD/$FE/$FF are the
         # transpose-command / stop / loop opcodes, so gid must stay <= $FC.
@@ -1064,6 +1067,20 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
                   + [s & 0xFF for s, _ in steps]
                   + [f & 0xFF for _, f in steps])
 
+    # rest / switch / slide fetch-frame effect behaviour (see the rest_effects
+    # block below for semantics). Computed HERE because a COMPILATION's packed
+    # players can DISAGREE on the knob (ledger C31 — Super_Seven: player 0
+    # family-2 'skip', player 1 canon 'run'): each subtune's effective value =
+    # its MusicSubtune.params override, else the file-level key. WIDENING IS
+    # GATED like the per-subtune idle priming: unless subtunes actually
+    # disagree, the static single-target form below is emitted byte-identically
+    # (tune-record byte +9 stays $00, no resteff var, no dispatcher).
+    _file_rest = str(usf.params.fields.get('rest_effects', 'run'))
+    _rest_code = {'run': 0, 'skip': 1, 'vibflip': 2}
+    sub_rest = [str(s['params'].get('rest_effects', _file_rest))
+                for s in m.subtunes] or [_file_rest]
+    per_sub_rest = len(set(sub_rest)) > 1
+
     # ---- tune records + tracks + patterns ----
     tune_lines = []
     track_blobs = []
@@ -1073,10 +1090,12 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
             lbl = f'trk_{si}_{vi}'
             track_blobs.append((lbl, sub['tracks'][vi]))
             refs.append(lbl)
+        # +9 = per-subtune rest-effects code (only when subtunes disagree)
+        rcode = _rest_code.get(sub_rest[si], 0) if per_sub_rest else 0
         tune_lines.append(
             f'        .byt <{refs[0]}, >{refs[0]}, <{refs[1]}, >{refs[1]}, '
             f'<{refs[2]}, >{refs[2]}, ${sub["speed"]:02X}, ${sub["mvol"]:02X}, '
-            f'${sub["routing"]:02X}, $00, $00, $00, $00, $00, $00, $00')
+            f'${sub["routing"]:02X}, ${rcode:02X}, $00, $00, $00, $00, $00, $00')
     def _ptr_tab(pfx):
         lines = []
         for i in range(0, len(m.patterns), 12):
@@ -1141,9 +1160,31 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # stall at each tie boundary).
     # a third sub-build JMPs the mid-routine vibrato half-cycle entry (canon
     # $1567, 'vibflip'): rest frames flip the vibrato direction + wave-step.
-    rest_effects = str(usf.params.fields.get('rest_effects', 'run'))
-    rest_jmp = {'skip': 'wavestep', 'vibflip': 'vib_half'}.get(
-        rest_effects, 'run_effects')
+    # `sub_rest`/`per_sub_rest` are computed above the tune-record loop. When
+    # every subtune agrees, the single static target keeps the emitted image
+    # byte-identical; a disagreement (compilation, C31) routes the fetch-frame
+    # JMP through a 3-way dispatcher on `resteff` (loaded at init from the
+    # tune record's +9 byte).
+    if per_sub_rest:
+        rest_jmp = 'rest_dispatch'
+    else:
+        rest_jmp = {'skip': 'wavestep', 'vibflip': 'vib_half'}.get(
+            sub_rest[0], 'run_effects')
+    rest_load = ('        lda tunetab+3,y              ; +9 = per-subtune '
+                 'rest-effects code\n'
+                 '        sta resteff\n' if per_sub_rest else '')
+    rest_dispatch = ('''rest_dispatch:                       ; fetch-frame effect behaviour,
+        lda resteff                  ; per-subtune (0=run 1=skip 2=vibflip)
+        bne rd_ns
+        jmp run_effects
+rd_ns:
+        lsr
+        bne rd_vf
+        jmp wavestep
+rd_vf:
+        jmp vib_half
+''' if per_sub_rest else '')
+    rest_var = 'resteff:  .dsb 1, 0\n' if per_sub_rest else ''
     # SWITCH ($7D tie/legato) gate-mask toggle bits (C19 wedge,
     # Bax/Feed_a_Bird — 1 family-1 carrier): the switch handler EORs this
     # onto the voice's gate mask. Canon $01 toggles ONLY the gate bit
@@ -2006,7 +2047,7 @@ ini_ptr:
         sta $d418                    ; priming (matches the family init)
         lda tunetab+2,y              ; +8 = $D417 routing-shadow priming
         sta shadow17
-{d418_prime}        lda #SLIDE_PHASE             ; half-rate slide clock phase
+{rest_load}{d418_prime}        lda #SLIDE_PHASE             ; half-rate slide clock phase
         sta dualpar
 {prime_setup}        ldx #$00
 ini_v:
@@ -2416,7 +2457,7 @@ ni_vib:
         jmp wavestep
 
 ;; ----- running effects -----
-run_effects:
+{rest_dispatch}run_effects:
         lda guard,x
         beq fx_gate
 {cym_rf}        dec guard,x
@@ -2781,7 +2822,7 @@ otrk:     .dsb 3, 0                  ; orig track byte-offset shadow (= $1726)
 wnote:    .dsb 3, 0                  ; orig arp-note shadow (= $1783)
 durrel:   .dsb 3, 0                  ; orig duration-reload shadow (= $173E)
 ioff:     .dsb 3, 0                  ; orig instrument-offset shadow (= $174D)
-{d418_var}{sectpos_bss}state_end:
+{rest_var}{d418_var}{sectpos_bss}state_end:
 {hr_test_var}{dual_vars}        .byt $00
 """
     return _reloc_sid_regs(asm, reg_delta, keep_regs)

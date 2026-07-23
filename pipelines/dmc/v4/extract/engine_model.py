@@ -143,6 +143,14 @@ class DmcSong:
     # START player's shadow, which handed Pour_le_merite's sub 0 the other
     # player's $01 where its own player primes $02.
     d417_shadow: int | None = None
+    # Per-subtune composer-param overrides (MusicSubtune.params). Same
+    # per-player-fact split as the priming above: a COMPILATION's packed
+    # players can disagree on a factory-probed wedge knob (Super_Seven:
+    # player 0 is family-2 `rest_effects='skip'`, player 1 canon 'run'),
+    # and the merge used to keep only the START player's extra_params —
+    # a one-frame modulator stall (or its absence) on every event boundary
+    # of the other player's subtunes. None = file-level params serve.
+    params: dict | None = None
 
 
 @dataclass

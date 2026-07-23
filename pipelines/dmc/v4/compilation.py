@@ -717,6 +717,19 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
                 for r in rows:
                     r.instr = rm.get(r.instr, r.instr)
         merged.songs.append(song)
+
+    # Per-subtune composer-param overrides (ledger C31 — per-player facts the
+    # merge must not collapse to the start player). `rest_effects` is a
+    # write-stream TIMING knob (one-frame modulator stall on event-fetch
+    # frames): when the packed players disagree, each subtune carries its own
+    # value on `MusicSubtune.params` (the composer dispatches at runtime);
+    # agreement keeps the file-level key so the emitted image is byte-identical.
+    eff = [str(mm.extra_params.get('rest_effects', 'run')) for mm in models]
+    if len({eff[pidx] for pidx, _ in subtune_map}) > 1:
+        for si, (pidx, _) in enumerate(subtune_map):
+            merged.songs[si].params = {**(merged.songs[si].params or {}),
+                                       'rest_effects': eff[pidx]}
+        merged.extra_params.pop('rest_effects', None)
     return merged
 
 

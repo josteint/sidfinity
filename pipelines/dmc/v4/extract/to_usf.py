@@ -630,8 +630,11 @@ def model_to_usf(m: DmcModel) -> UsfFile:
             sid=InitSid(
                 master_vol=song.master_vol,
                 filter=InitFilter(res_routing=shadow) if shadow else None))
-        subtunes.append(MusicSubtune(id=song.id, tempo=song.speed,
-                                     voices=voices, init=sub_init))
+        subtunes.append(MusicSubtune(
+            id=song.id, tempo=song.speed, voices=voices, init=sub_init,
+            # per-subtune composer-param overrides (compilations whose packed
+            # players disagree on a wedge knob — ledger C31); None otherwise
+            params=(Params(fields=dict(song.params)) if song.params else None)))
 
     # (the file-level `durrel` gate — flo idx 247-249 / fhi idx 151-153, so the
     # composer's live `durrel` shadow gets the pre-first-event value for voices
