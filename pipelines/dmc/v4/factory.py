@@ -2449,6 +2449,9 @@ def _dataflow_knob_probes(mem, load: int) -> dict:
         p = a + 9
         if mem[p] == 0x20:                      # optional JSR end-check
             p += 3
+        if mem[p] == 0x60:                      # RTS wedge: NO effects on
+            extra['rest_effects'] = 'none'      # the fetch frame (C19)
+            break
         if mem[p] != 0x4C:
             continue
         tgt = mem[p + 1] | (mem[p + 2] << 8)
@@ -2726,7 +2729,15 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84',
     # rest/switch/slide-tail dispatch ($1180): canon JMP $1322 (run
     # effects); a sub-build JMP $1591 (wavestep) — the modulators hold one
     # frame at each tie (the family-2 rest_effects='skip' behavior).
-    if mem[at(0x1180)] == 0x4C:
+    if mem[at(0x1180)] == 0x60:
+        # RTS wedge (C19, Bassy_Introtune): the rest/switch/slide tail
+        # RETURNS instead of jumping anywhere — the fetch frame runs NO
+        # effects for the voice, not even the wave-step refresh ('skip'
+        # still refreshes). The two bytes after the RTS are dead.
+        extra['rest_effects'] = 'none'
+        for i in range(0x1180, 0x1183):
+            masked[i - 0x1000] = 1
+    elif mem[at(0x1180)] == 0x4C:
         tgt = _rd16(mem, at(0x1180) + 1)
         if tgt == reloc(0x1591):
             extra['rest_effects'] = 'skip'

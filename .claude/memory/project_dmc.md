@@ -5,8 +5,27 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T15:55:04.390Z
+  modified: 2026-07-23T16:05:16.815Z
 ---
+
+## ✅ ROUND 102 (2026-07-23): rest-tail RTS wedge = rest_effects 'none' (C19 17th occ). Bassy_Introtune FULL
+Next f1 partial by path = `Doxx/Bassy_Introtune` (single, base $1000,
+relocated globals — shadow at $1636 etc.). First div ~frame 102: a play
+where orig emits ONLY V1 hard-restart + filter tail — V2/V3 (both
+fetching REST rows that tick) write NOTHING. Wedge: canon $1180
+`JMP $1322` (rest tail → run effects) patched to RTS ⇒ a resting voice
+runs NO effects on its fetch frame — a FOURTH rest_effects variant
+'none' (family-2 'skip' still runs the wave-step refresh; 'none' skips
+even that). DIAGNOSIS TRAPS: siddump 0-play buckets + straddled plays
+look like "short plays" (frames 7/20/44… were straddle artifacts); only
+the FLAT stream identifies the genuinely short play. FIX: extend both
+rest-dispatch probes (canon $1180 opcode + `_dataflow_knob_probes` shape
+scan) with the RTS case → `rest_effects='none'` → composer `rest_none:
+rts` target + gated dispatcher arm (code 3); emission byte-identical for
+everyone else (label only emitted when used). Gates: corpus census → 2
+carriers, BOTH partials (Bassy_Introtune + sibling Blue_Dos_t0nt — both
+flip FULL; zero FULL-side exposure); dmc_smoke 6/6; full regression 0
+regressed. NOT closed out; f1 counts = r90's + r91-102 gains.
 
 ## ✅ ROUND 101 (2026-07-23): route-clear-dead wedge (C19 16th occ). Classic_Mix FULL
 Next f1 partial by path = `Daf/Classic_Mix` (single, base $1000). First div

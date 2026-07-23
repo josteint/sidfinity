@@ -1100,7 +1100,7 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # disagree, the static single-target form below is emitted byte-identically
     # (tune-record byte +9 stays $00, no resteff var, no dispatcher).
     _file_rest = str(usf.params.fields.get('rest_effects', 'run'))
-    _rest_code = {'run': 0, 'skip': 1, 'vibflip': 2}
+    _rest_code = {'run': 0, 'skip': 1, 'vibflip': 2, 'none': 3}
     sub_rest = [str(s['params'].get('rest_effects', _file_rest))
                 for s in m.subtunes] or [_file_rest]
     per_sub_rest = len(set(sub_rest)) > 1
@@ -1192,12 +1192,31 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     if per_sub_rest:
         rest_jmp = 'rest_dispatch'
     else:
-        rest_jmp = {'skip': 'wavestep', 'vibflip': 'vib_half'}.get(
-            sub_rest[0], 'run_effects')
+        rest_jmp = {'skip': 'wavestep', 'vibflip': 'vib_half',
+                    'none': 'rest_none'}.get(sub_rest[0], 'run_effects')
     rest_load = ('        lda tunetab+3,y              ; +9 = per-subtune '
                  'rest-effects code\n'
                  '        sta resteff\n' if per_sub_rest else '')
-    rest_dispatch = ('''rest_dispatch:                       ; fetch-frame effect behaviour,
+    # 'none' (C19 RTS wedge, Bassy_Introtune: canon $1180 JMP $1322 -> RTS):
+    # the fetch frame runs NO effects at all for the voice — not even the
+    # wave-step SID refresh ('skip' still refreshes). Label + the extended
+    # dispatcher arm are emitted ONLY when some subtune uses it, so every
+    # existing member (incl. per-sub dispatch members) stays byte-identical.
+    _has_none = 'none' in sub_rest
+    rest_none = 'rest_none:\n        rts\n' if _has_none else ''
+    rest_dispatch = (('''rest_dispatch:                       ; fetch-frame effect behaviour,
+        lda resteff                  ; per-subtune (0=run 1=skip 2=vibflip
+        bne rd_ns                    ;  3=none)
+        jmp run_effects
+rd_ns:
+        cmp #$03
+        beq rest_none
+        lsr
+        bne rd_vf
+        jmp wavestep
+rd_vf:
+        jmp vib_half
+''' if _has_none else '''rest_dispatch:                       ; fetch-frame effect behaviour,
         lda resteff                  ; per-subtune (0=run 1=skip 2=vibflip)
         bne rd_ns
         jmp run_effects
@@ -1207,7 +1226,7 @@ rd_ns:
         jmp wavestep
 rd_vf:
         jmp vib_half
-''' if per_sub_rest else '')
+''') if per_sub_rest else '')
     rest_var = 'resteff:  .dsb 1, 0\n' if per_sub_rest else ''
     # SWITCH ($7D tie/legato) gate-mask toggle bits (C19 wedge,
     # Bax/Feed_a_Bird — 1 family-1 carrier): the switch handler EORs this
@@ -2512,7 +2531,7 @@ ni_vib:
         jmp wavestep
 
 ;; ----- running effects -----
-{rest_dispatch}run_effects:
+{rest_dispatch}{rest_none}run_effects:
         lda guard,x
         beq fx_gate
 {cym_rf}        dec guard,x
