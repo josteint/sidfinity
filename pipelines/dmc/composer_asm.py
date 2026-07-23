@@ -1811,6 +1811,89 @@ fx_dual_up:
             'gfatab2:' + _byt(_poweron_page(_tabhi2)) + '\n\n'
             ) + play_wrapper
         play_entry = 'playgfa'
+    # Third Ed filter-def driver (Only_Ones, factory-probed C19): phase A
+    # (every p1 plays) ramps def s2's init/stop toward cap2 while its res
+    # nibble follows a 1..rescap counter, then walks def s1's init/stop
+    # down to dncap, then flips to phase B (every play): def s2 init/stop =
+    # tri[X1]/2 + add2, def s1 = tri[X2]/2 + add1; X1 += 1 per p8 plays,
+    # X2 += 1 per p8*p2. The triangle is generated from its two seeds; a
+    # phase flag replaces the original's SMC JSR retarget.
+    ooa = usf.params.fields.get('filterdef_anim3', None)
+    if ooa is not None:
+        (_p1, _cap2, _rescap, _dncap, _x1, _x2, _p8, _p2,
+         _add2, _add1, _step, _d0, _s2, _s1) = (
+            int(x, 16) for x in str(ooa).split(','))
+        _tri = [(_i + _step) & 0xFF for _i in range(0x80)] \
+            + [(_d0 - _i) & 0xFF for _i in range(0x80)]
+        play_wrapper = (
+            'playooa:                             ; filter-def driver (2-phase)\n'
+            '        lda ooaph\n'
+            '        bne ooa_pb\n'
+            '        dec ooac1\n'
+            '        bne ooa_done\n'
+            f'        lda #${_p1:02X}\n'
+            '        sta ooac1\n'
+            f'        lda fdinit+{_s2}\n'
+            f'        cmp #${_cap2:02X}\n'
+            '        beq ooa_res\n'
+            f'        inc fdinit+{_s2}\n'
+            f'        inc fdstop+{_s2}\n'
+            'ooa_res:\n'
+            '        lda ooacnt\n'
+            '        asl\n        asl\n        asl\n        asl\n'
+            f'        sta fdres+{_s2}\n'
+            '        lda ooacnt\n'
+            f'        cmp #${_rescap:02X}\n'
+            '        beq ooa_dn\n'
+            '        inc ooacnt\n'
+            '        jmp ooa_done\n'
+            'ooa_dn:\n'
+            f'        lda fdinit+{_s1}\n'
+            f'        cmp #${_dncap:02X}\n'
+            '        beq ooa_sw\n'
+            f'        dec fdinit+{_s1}\n'
+            f'        dec fdstop+{_s1}\n'
+            '        jmp ooa_done\n'
+            'ooa_sw:\n'
+            '        inc ooaph                    ; -> phase B\n'
+            '        jmp ooa_done\n'
+            'ooa_pb:\n'
+            '        ldx ooax1\n'
+            '        lda ooatab,x\n'
+            '        lsr\n'
+            '        clc\n'
+            f'        adc #${_add2:02X}\n'
+            f'        sta fdinit+{_s2}\n'
+            f'        sta fdstop+{_s2}\n'
+            '        ldx ooax2\n'
+            '        lda ooatab,x\n'
+            '        lsr\n'
+            '        clc\n'
+            f'        adc #${_add1:02X}\n'
+            f'        sta fdinit+{_s1}\n'
+            f'        sta fdstop+{_s1}\n'
+            '        dec ooac8\n'
+            '        bne ooa_done\n'
+            f'        lda #${_p8:02X}\n'
+            '        sta ooac8\n'
+            '        inc ooax1\n'
+            '        dec ooac2\n'
+            '        bne ooa_done\n'
+            f'        lda #${_p2:02X}\n'
+            '        sta ooac2\n'
+            '        inc ooax2\n'
+            'ooa_done:\n'
+            f'        jmp {play_entry}\n'
+            'ooaph:  .byt 0\n'
+            f'ooac1:  .byt {_p1}\n'
+            f'ooacnt: .byt {(_x2 + 1) & 0xFF}\n'
+            f'ooax1:  .byt {_x1}\n'
+            f'ooax2:  .byt {_x2}\n'
+            f'ooac8:  .byt {_p8}\n'
+            f'ooac2:  .byt {_p2}\n'
+            'ooatab: ' + _byt(_tri) + '\n\n'
+            ) + play_wrapper
+        play_entry = 'playooa'
     # Play-body unit repeat (default '1,1,1,1'): the play body executes four
     # units per frame — voice 0, voice 1, voice 2, then the global filter tail
     # ($D416/$D417) — and this 4-int list gives how many times each unit runs.

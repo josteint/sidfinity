@@ -1715,6 +1715,131 @@ def _d417_tail_anim_probe(path: str, base: int, op_filtdef: int,
             f'{x2:02X},{tabhi2:02X},{wf1:02X},{wf2:02X}')
 
 
+def _filterdef_anim3_probe(path: str, base: int, op_filtdef: int,
+                           post_init_sub: 'int | None' = None):
+    """Third Ed appended filter-def driver (Only_Ones; C19 20th occ). Both
+    vectors re-pointed. Init generates a 256-byte triangle (asc i+step /
+    desc d0-i), pokes def s2 (r0/init/stop) + def s1 (init/stop), seeds the
+    SMC slots, then continues canon init. Play: `JSR <smc> / JMP base+$85`.
+    PHASE A (every p1 plays): ramp def s2 init/stop up to cap2; res nibble
+    of def s2's r0 = a counter<<4 (counter seeded x2seed+1, capped rescap);
+    at the cap, ramp def s1 init/stop DOWN to dncap; then retarget the SMC
+    to PHASE B (every play): def s2 init/stop = tri[X1]/2 + add2 and def s1
+    = tri[X2]/2 + add1, X1 += 1 per p8 plays, X2 += 1 per p8*p2 plays.
+    Full-shape template match, fail-open. Returns
+    'p1,cap2,rescap,dncap,x1,x2,p8,p2,add2,add1,step,d0,s2,s1' (hex)."""
+    if base is None or op_filtdef is None:
+        return None
+    mem, _ = _load(path, post_init_sub)
+
+    def rd16(a):
+        return mem[a] | (mem[a + 1] << 8)
+
+    def match(addr, spec):
+        out = {}
+        a = addr
+        for it in spec:
+            if isinstance(it, int):
+                if mem[a] != it:
+                    return None
+                a += 1
+            elif it[0] == 'b':
+                out[it[1]] = mem[a]
+                a += 1
+            else:                        # ('w', name)
+                out[it[1]] = rd16(a)
+                a += 2
+        out['_end'] = a
+        return out
+
+    if mem[base] != 0x4C or mem[base + 3] != 0x4C:
+        return None
+    I = rd16(base + 1)
+    W = rd16(base + 4)
+    w = match(W, [0x20, ('w', 'A'), 0x4C, ('w', 'play')])
+    if w is None or w['play'] != base + 0x85:
+        return None
+    A = w['A']
+    ini = match(I, [
+        0xA2, 0x00, 0x8A, 0x18, 0x69, ('b', 'step'), 0x9D, ('w', 'tab'),
+        0xE8, 0xE0, 0x80, 0xD0, 0xF4,
+        0xA2, 0x00, 0xA0, ('b', 'd0'), 0x98, 0x9D, ('w', 'tab80'),
+        0x88, 0xE8, 0xE0, 0x80, 0xD0, 0xF6,
+        0xA9, ('b', 'r0v'), 0xA2, ('b', 'i2v'), 0xA0, ('b', 'i1v'),
+        0x8D, ('w', 't_r0'), 0x8E, ('w', 't_i2'), 0x8E, ('w', 't_s2'),
+        0x8C, ('w', 't_i1'), 0x8C, ('w', 't_s1'),
+        0xA9, ('b', 'x1'), 0xA2, ('b', 'x2'),
+        0x8D, ('w', 'x1op'), 0x8E, ('w', 'x2op'), 0xE8, 0x8E, ('w', 'cnt'),
+        0xA9, 0x00, 0xAA, 0xA8, 0x4C, ('w', 'caninit')])
+    if ini is None or ini['tab80'] != ini['tab'] + 0x80 \
+            or ini['caninit'] != base + 0x1D:
+        return None
+    fd = rd16(op_filtdef)
+    if (ini['t_r0'] - fd) % 16 or (ini['t_i1'] - fd - 1) % 16:
+        return None
+    s2 = (ini['t_r0'] - fd) // 16
+    s1 = (ini['t_i1'] - fd - 1) // 16
+    if not (0 <= s2 < 16 and 0 <= s1 < 16) \
+            or ini['t_i2'] != fd + 16 * s2 + 1 or ini['t_s2'] != fd + 16 * s2 + 3 \
+            or ini['t_s1'] != fd + 16 * s1 + 3:
+        return None
+    pa = match(A, [
+        0xA2, ('b', 'p1'), 0xCA, 0x8E, ('w', 'actr'), 0xF0, 0x01, 0x60,
+        0xA2, ('b', 'p1b'), 0x8E, ('w', 'actr2'),
+        0xAD, ('w', 'ti2'), 0xC9, ('b', 'cap2'), 0xF0, 0x06,
+        0xEE, ('w', 'ti2b'), 0xEE, ('w', 'ts2b'),
+        0xA9, ('b', 'cntfile'), 0x0A, 0x0A, 0x0A, 0x0A, 0x8D, ('w', 'oraop'),
+        0xAD, ('w', 'r0a'), 0x29, 0x0F, 0x09, ('b', 'orafile'),
+        0x8D, ('w', 'r0b'),
+        0xAD, ('w', 'cnta'), 0xC9, ('b', 'rescap'), 0xF0, 0x04,
+        0xEE, ('w', 'cntb'), 0x60,
+        0xAD, ('w', 'i1a'), 0xC9, ('b', 'dncap'), 0xF0, 0x07,
+        0xCE, ('w', 'i1b'), 0xCE, ('w', 's1b'), 0x60,
+        0xA9, ('b', 'Blo'), 0xA2, ('b', 'Bhi'),
+        0x8D, ('w', 'smc1'), 0x8E, ('w', 'smc2'), 0x60])
+    if pa is None:
+        return None
+    if pa['p1'] != pa['p1b'] or pa['actr'] != A + 1 or pa['actr2'] != A + 1 \
+            or pa['ti2'] != ini['t_i2'] or pa['ti2b'] != ini['t_i2'] \
+            or pa['ts2b'] != ini['t_s2'] or pa['oraop'] != A + 0x2A \
+            or pa['r0a'] != ini['t_r0'] or pa['r0b'] != ini['t_r0'] \
+            or pa['cnta'] != ini['cnt'] or pa['cntb'] != ini['cnt'] \
+            or ini['cnt'] != A + 0x1C \
+            or pa['i1a'] != ini['t_i1'] or pa['i1b'] != ini['t_i1'] \
+            or pa['s1b'] != ini['t_s1'] \
+            or pa['smc1'] != W + 1 or pa['smc2'] != W + 2:
+        return None
+    B = pa['Blo'] | (pa['Bhi'] << 8)
+    pb = match(B, [
+        0xA2, ('b', 'x1f'), 0xBD, ('w', 'tabB1'), 0x4A, 0x18, 0x69,
+        ('b', 'add2'), 0x8D, ('w', 'i2p'), 0x8D, ('w', 's2p'),
+        0xA2, ('b', 'x2f'), 0xBD, ('w', 'tabB2'), 0x4A, 0x18, 0x69,
+        ('b', 'add1'), 0x8D, ('w', 'i1p'), 0x8D, ('w', 's1p'),
+        0xA2, ('b', 'p8'), 0xCA, 0x8E, ('w', 'c8op'), 0xD0, ('b', 'r1'),
+        0xA2, ('b', 'p8b'), 0x8E, ('w', 'c8op2'), 0xEE, ('w', 'x1opB'),
+        0xA2, ('b', 'p2'), 0xCA, 0x8E, ('w', 'c2op'), 0xD0, ('b', 'r2'),
+        0xA2, ('b', 'p2b'), 0x8E, ('w', 'c2op2'), 0xEE, ('w', 'x2opB'),
+        0x60])
+    if pb is None:
+        return None
+    if pb['tabB1'] != ini['tab'] or pb['tabB2'] != ini['tab'] \
+            or pb['i2p'] != ini['t_i2'] or pb['s2p'] != ini['t_s2'] \
+            or pb['i1p'] != ini['t_i1'] or pb['s1p'] != ini['t_s1'] \
+            or B + 1 != ini['x1op'] or pb['x1opB'] != ini['x1op'] \
+            or pb['x2opB'] != ini['x2op'] \
+            or pb['p8'] != pb['p8b'] or pb['p2'] != pb['p2b'] \
+            or pb['c8op'] != pb['c8op2'] or pb['c2op'] != pb['c2op2']:
+        return None
+    # the X2 immediate slot phase B reads must be the init-seeded one
+    if B + 16 != ini['x2op']:
+        return None
+    return (f"{pa['p1']:02X},{pa['cap2']:02X},{pa['rescap']:02X},"
+            f"{pa['dncap']:02X},{ini['x1']:02X},{ini['x2']:02X},"
+            f"{pb['p8']:02X},{pb['p2']:02X},{pb['add2']:02X},"
+            f"{pb['add1']:02X},{ini['step']:02X},{ini['d0']:02X},"
+            f"{s2:02X},{s1:02X}")
+
+
 # The dual-effect wedge: canon `LDY $170D,x / LDA $172F,x / ... / STA $1724`
 # byte-edited into `LDY $170D,x / LDX $2F / ADC #$18 / ADC $1735,x / STA <tgt>`
 # (opcode BD->A6 turns the base-freq load into `LDX $2F`, re-indexing every
@@ -2474,6 +2599,7 @@ _WEDGE_PROBES = [
     ('v3_instr_tempo',                  lambda p, c: _v3_instr_tempo_probe(p, c.base, c.post_init_sub)),
     ('filterdef_anim',                  lambda p, c: _filterdef_anim_probe(p, c.base, c.op_filtdef, c.post_init_sub)),
     ('d417_tail_anim',                  lambda p, c: _d417_tail_anim_probe(p, c.base, c.op_filtdef, c.op_wavefreq, c.post_init_sub)),
+    ('filterdef_anim3',                 lambda p, c: _filterdef_anim3_probe(p, c.base, c.op_filtdef, c.post_init_sub)),
 ]
 
 

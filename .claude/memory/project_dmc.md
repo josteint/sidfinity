@@ -5,8 +5,23 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T21:14:44.266Z
+  modified: 2026-07-23T21:22:13.444Z
 ---
+
+## ✅ ROUND 109 (2026-07-23): third Ed filter-def driver (C19 20th occ). Only_Ones FULL
+Next f1 partial by path = `Ed/Only_Ones` (single, base $E000, both vectors
+→ appendix $EB9A/$EBE0). First div frame 27: $D416 $03 vs $02 (the first
+phase-A INC of def2.init). Two-phase SMC-retargeted def-table animator:
+phase A (every 16 plays) def2 init/stop ramp → $62, res nibble = 1..15
+counter, then def1 init/stop DOWN to $02, then retarget; phase B (every
+play) def2 = tri[X1]/2+$0A, def1 = tri[X2]/2+$0C over an init-generated
+triangle (4..$83), X1 +1/8 plays, X2 +1/16. FIX: `_filterdef_anim3_probe`
+(template-matcher w/ hole captures + operand cross-refs) →
+`filterdef_anim3` → composer `playooa` chunk. FULL first try
+(145440/145440). Ed cluster CLEARED (Cliche_Beat r106, Elechromania r107,
+Go_Funk r108, Only_Ones r109 — 4 distinct bespoke drivers, all C19
+singletons). Gates: dmc_smoke 6/6, full regression 0 regressed. f1 =
+closeout's 5296 + 4; next partial by path = Eye/Chwat.
 
 ## ✅ ROUND 108 (2026-07-23): filter-tail stub sonifies POWER-ON pattern into player data (C19 19th occ). Go_Funk FULL
 Next f1 partial by path = `Ed/Go_Funk` (single, base $E000, CANON vectors).
