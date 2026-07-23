@@ -1216,6 +1216,38 @@ def _glide_neutered_probe(path: str, base: int,
     return f'{store:04X}'
 
 
+def _v3_instr_tempo_probe(path: str, base: int,
+                          post_init_sub: 'int | None' = None):
+    """Tempo-mailbox play tail (STATIC opcode probe, custom Doxx build —
+    Two_Channels). The rewritten play body ends `JMP <handler>` where the
+    handler reads the THIRD voice's current-instrument slot and treats a
+    value >= $10 as a tempo command:
+
+        AD lo hi   LDA curinst+2
+        C9 10      CMP #$10
+        90 05      BCC +5
+        29 0F      AND #$0F
+        8D 16 17   STA speed          (base+$716)
+        60         RTS
+
+    Layout-independent shape scan (the build relocates its globals); the
+    STA operand must be the member's speed reload (base+$716) — the one
+    address the canon layout pins. Fail-open: no match -> None (extract
+    unchanged; an instr command >= $10 stays a plain phantom-instrument
+    statement)."""
+    if base is None:
+        return None
+    mem, _ = _load(path, post_init_sub)
+    spd = base + 0x716
+    tail = bytes([0xC9, 0x10, 0x90, 0x05, 0x29, 0x0F,
+                  0x8D, spd & 0xFF, spd >> 8, 0x60])
+    hi = min(0x10000, base + 0x2000) - 13
+    for a in range(base, hi):
+        if mem[a] == 0xAD and bytes(mem[a + 3:a + 13]) == tail:
+            return '1'
+    return None
+
+
 def _route_clear_dead_probe(path: str, base: int,
                             post_init_sub: 'int | None' = None):
     """Non-filter route-bit CLEAR re-pointed off the $D417 shadow (STATIC
@@ -2132,6 +2164,7 @@ _WEDGE_PROBES = [
     ('switch_toggle_mask',              lambda p, c: _switch_toggle_mask_probe(p, c.base, c.gatemask_addr, c.post_init_sub)),
     ('glide_neutered',                  lambda p, c: _glide_neutered_probe(p, c.base, c.post_init_sub)),
     ('route_clear_dead',                lambda p, c: _route_clear_dead_probe(p, c.base, c.post_init_sub)),
+    ('v3_instr_tempo',                  lambda p, c: _v3_instr_tempo_probe(p, c.base, c.post_init_sub)),
 ]
 
 

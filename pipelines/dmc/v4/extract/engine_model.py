@@ -115,6 +115,11 @@ class DmcRow:
     icmd: bool = False       # $60-$7B instrument command on this row
     vcmd: bool = False       # $Fx volume/sustain command on this row
     softcmd: int = 0         # count of $7C soft-start toggles on this row
+    tempo: int | None = None  # speed reload set AT this row (the Doxx tempo
+                             # mailbox: an instr command >= $10 on the third
+                             # voice doubles as a tempo command — see the
+                             # factory `v3_instr_tempo` probe). None = no
+                             # tempo change; rendered as fx `tempo=N`.
 
 
 @dataclass
@@ -1395,6 +1400,19 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
                     and ctrl_tab[ws] == 0x90 + n):
                 ins.wave_start_on_marker = True
     _split_offtable_by_subtune(m)
+    # v3_instr_tempo (custom Doxx build, factory-probed): the play tail reads
+    # the THIRD voice's current-instrument slot as a TEMPO MAILBOX — an
+    # instrument command with number >= $10 doubles as "speed reload = n &
+    # $0F" (the row still sets the sticky instrument to the phantom record,
+    # which the pool carries faithfully). Attach the musical tempo event to
+    # the row (fx `tempo=N`, ledger C14); the composer emits a gated tempo
+    # prefix at the row fetch.
+    if cfg.extra_params.get('v3_instr_tempo'):
+        for song in m.songs:
+            for rows in song.voices[2].patterns:
+                for r in rows:
+                    if r.icmd and r.instr >= 16:
+                        r.tempo = r.instr & 0x0F
     return m
 
 

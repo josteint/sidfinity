@@ -453,12 +453,35 @@ def _row_event_stated(rr, inst_slot: dict) -> tuple:
     return ('note', soft, note, rr.duration, slot, vol, 0, None)
 
 
-def _encode_pattern(rows_events: list, secvals: list | None = None) -> bytes:
+def _pattern_tempos(rows) -> 'list | None':
+    """Per-row tempo events (fx `tempo=N`, ledger C14 — the Doxx
+    v3_instr_tempo build): the composer emits a gated [$05, N] prefix at the
+    row's fetch, setting the speed reload. None when the pattern has none
+    (the corpus-dominant case — no encoding change)."""
+    out = [next((int(f[6:]) for f in r.fx_flags if f.startswith('tempo=')),
+                None) for r in rows]
+    return out if any(t is not None for t in out) else None
+
+
+def _encode_pattern(rows_events: list, secvals: list | None = None,
+                    tempos: list | None = None) -> bytes:
     """Encode one pattern. With `secvals` (sectpos shadow on), each event
     carries the row's visible orig sector-position right after the opcode —
     every handler stores it to sectpos,x at fetch, mirroring the orig's
-    per-byte INC + $7F reset settled value."""
+    per-byte INC + $7F reset settled value. With `tempos`, a row carrying a
+    tempo event gets a [$05, N] prefix (speed reload = N) consumed before
+    the row's own event."""
     out = bytearray()
+    if tempos:
+        pre = bytearray()
+        for k, ev in enumerate(rows_events):
+            if tempos[k] is not None:
+                pre += bytes([0x05, tempos[k] & 0x0F])
+            pre += _encode_pattern(rows_events[k:k + 1],
+                                   None if secvals is None
+                                   else secvals[k:k + 1])[:-1]
+        pre.append(0x00)
+        return bytes(pre)
 
     def _sv_tail(slot, vol):
         # STICKY slot/vol values (D6 piece 3), appended only when stated (None =
@@ -640,8 +663,8 @@ class _Model:
                 # otrk_pad phase scalar, extract-measured; the dual_phase
                 # pattern). Off-table reads sonify this counter ($1726,x), so
                 # the runtime keeps otrk,x as real state seeded per entry.
-                def _intern(events, secvals):
-                    enc = _encode_pattern(events, secvals)
+                def _intern(events, secvals, tempos=None):
+                    enc = _encode_pattern(events, secvals, tempos)
                     gid = pat_ids.get(enc)
                     if gid is None:
                         gid = len(self.patterns)
@@ -654,7 +677,8 @@ class _Model:
                         [_row_event(r, self.inst_slot)
                          for r in pat_by_local[pid].rows],
                         _pattern_secvals(pat_by_local[pid].rows)
-                        if self.sectpos else None)
+                        if self.sectpos else None,
+                        _pattern_tempos(pat_by_local[pid].rows))
 
                 # D6 piece 3 STICKY slot/vol: a note emits its instrument slot /
                 # vol only where the SOURCE row states it (None = inherit -> the
@@ -668,7 +692,8 @@ class _Model:
                         [_row_event_stated(rr, self.inst_slot)
                          for rr in resolved],
                         _pattern_secvals(pat_by_local[pid].rows)
-                        if self.sectpos else None)
+                        if self.sectpos else None,
+                        _pattern_tempos(pat_by_local[pid].rows))
 
                 # ORDERLIST: sticky-TRANSPOSE physical stream (D6 piece 3). A
                 # $FD,(T+64) transpose command wherever the transpose changes —
@@ -1228,6 +1253,26 @@ rd_vf:
         jmp vib_half
 ''') if per_sub_rest else '')
     rest_var = 'resteff:  .dsb 1, 0\n' if per_sub_rest else ''
+    # tempo event (fx `tempo=N`, ledger C14 — the Doxx v3_instr_tempo build):
+    # a gated [$05, N] pattern prefix consumed at the row fetch, setting the
+    # speed RELOAD (the running counter is untouched, so the change takes
+    # effect at the next reload — exactly the original's play-tail mailbox).
+    # Emitted only when some pattern carries a tempo row; everyone else's
+    # dispatcher is byte-identical.
+    _has_tempo = any(f.startswith('tempo=')
+                     for sub in usf.subtunes
+                     for v in (getattr(sub, 'voices', None) or [])
+                     for p in v.patterns for r in p.rows for f in r.fx_flags)
+    tempo_evd = ('''        cmp #$05
+        bne evd5
+        ldy #$01
+        lda ($f8),y                  ; tempo event: speed reload = N
+        sta spd
+        lda #$02
+        jsr adv                      ; consume [$05, N], re-dispatch the row
+        jmp patrd
+evd5:
+''' if _has_tempo else '')
     # SWITCH ($7D tie/legato) gate-mask toggle bits (C19 wedge,
     # Bax/Feed_a_Bird — 1 family-1 carrier): the switch handler EORs this
     # onto the voice's gate mask. Canon $01 toggles ONLY the gate bit
@@ -2274,7 +2319,7 @@ evd3:
         bne evd4
         jmp ev_slide
 evd4:
-        ; defensive: stray end marker - advance track
+{tempo_evd}        ; defensive: stray end marker - advance track
         jsr pat_end
         jmp fetch
 

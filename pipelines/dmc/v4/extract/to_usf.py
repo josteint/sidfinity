@@ -89,6 +89,8 @@ def _row_to_usf(r: DmcRow, cmd_flags: bool = False) -> NoteRow:
             flags.append('vol_cmd')
         if r.softcmd:
             flags.append(f'soft_cmd={r.softcmd}')
+    if getattr(r, 'tempo', None) is not None:
+        flags.append(f'tempo={r.tempo}')
     if r.gate_toggle:
         flags.append('gate_toggle')
     if r.soft or r.glide_slide:
@@ -141,6 +143,8 @@ def _row_to_usf_stated(r: DmcRow, cmd_flags: bool) -> NoteRow:
             flags.append('vol_cmd')
         if r.softcmd:
             flags.append(f'soft_cmd={r.softcmd}')
+    if getattr(r, 'tempo', None) is not None:
+        flags.append(f'tempo={r.tempo}')
     if r.gate_toggle:
         flags.append('gate_toggle')
     if r.soft or r.glide_slide:

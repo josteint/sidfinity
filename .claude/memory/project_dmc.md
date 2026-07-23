@@ -5,10 +5,32 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T19:01:36.562Z
+  modified: 2026-07-23T19:34:30.963Z
 ---
 
-## ⏳ ROUND 103 (2026-07-23): play_unit_repeat ZERO count (voice unit REMOVED, C24). Two_Channels 0%→55.7%, NOT yet FULL
+## ✅ ROUND 104 (2026-07-23): the Doxx TEMPO MAILBOX (C14 3rd family). Two_Channels FULL
+Blocker 2 resolved: the r103 "duration decode" suspicion was WRONG — the
+decode was exact. The custom Doxx build ADDS A TEMPO COMMAND canon DMC
+lacks: the rewritten play body tails into `LDA curinst+2 / CMP #$10 / BCC /
+AND #$0F / STA $1716 / RTS` — V3 instrument commands >= $10 double as
+"speed reload = n & $0F" (the mid-song speedup 3→2 at ~55% shifted every
+later tick; the hold gate-off clears were the first visible symptom). FIX:
+`factory._v3_instr_tempo_probe` (shape scan, STA pinned base+$716) →
+extract attaches fx `tempo=N` to the stated V3 rows (phantom instrument
+statement KEPT — the pool already carries records 18/19 faithfully) →
+composer `_pattern_tempos` + gated `[$05, N]` pattern-prefix event setting
+`spd` at the row fetch (next-reload semantics = the orig's play-tail
+mailbox). `tempo=N` round-trips the grammar; direct vs round-tripped build
+MD5-identical. DIAGNOSIS LESSONS (hard-won): (1) the motif repeats — I
+state-watched the WRONG occurrence for three passes; ONLY a straddle-free
+flat diff with EMPTY FRAMES KEPT (grep -o 'W:.*' silently drops 0-play
+buckets and corrupts frame attribution!) pins the true frame; (2)
+`memwatch $1716/$1718` then showed the cadence change in one look — watch
+the SPEED COUNTER whenever tick-phase-dependent writes (hold clears, dur
+plateaus) drift by one play. Gates: probe census = exactly ONE carrier corpus-wide (Two_Channels itself, singleton — zero exposure), dmc_smoke 6/6,
+full regression 0 regressed. NOT closed out; f1 counts = r90's + r91-104.
+
+## ✅ ROUND 103 (2026-07-23): play_unit_repeat ZERO count (voice unit REMOVED, C24). Two_Channels 0%→55.7% (superseded by r104 — FULL)
 Next f1 partial by path = `Doxx/Two_Channels` (single, base $1000 — a
 heavily CUSTOM Doxx build: rewritten play body, different init, relocated
 globals ($1636 shadow), stale $1016 cur-inst byte). BLOCKER 1 (fixed): the
