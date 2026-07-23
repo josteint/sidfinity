@@ -5,8 +5,29 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T20:49:10.747Z
+  modified: 2026-07-23T20:57:41.807Z
 ---
+
+## ✅ ROUND 107 (2026-07-23): filter_mod generalized to MULTI-TAP (8 progs). Elechromania FULL
+Next f1 partial by path = `Ed/Elechromania` (single, base $E000). First div
+frame 13: $D416 cutoff hi $DB vs $CE. Both vectors re-pointed at an
+appendix — the SMC roving-pointer table stream AGAIN (the filter_mod
+mechanism, Ed/Core_of_Acid), but EIGHT taps: APPLY = 8× `LDA ptr / STA
+fd+16p+1 / STA fd+16p+3` (ONE pointer per def feeds BOTH init+stop cells),
+then 8 wrap/inc automata (cap hi=$F3 → reset $F0FF → always INC; visited
+cycle = reset+1..reset+period INCLUSIVE — the $F300 bridge byte is read
+once per cycle, so the contour is ram[reset+1+i], phase = p-reset-1; the
+old probe's ram[reset+i] convention would be off by one byte per cycle
+HERE — simulate, don't assume). Init generates the 513-byte triangle
+(+1×253 / -1×253 + patch glitches) and runs APPLY once, so file pointer
+bytes = play-1 positions. FIX: `factory._filter_mod_multi_probe` (full
+shape template, fail-open, ';'-joined per-prog segments in the SAME format)
+→ to_usf splits on ';' (usf.filter_mod dict + grammar already multi-prog) →
+composer playfmod loop de-limited (labels suffixed by slot; single-tap =
+init_phase==stop_phase). Census: appendix shape = ONLY Core_of_Acid (kept
+on the single probe via `or` short-circuit, rebuilt MD5-IDENTICAL) +
+Elechromania. Gates: dmc_smoke 6/6, full regression 0 regressed.
+f1 counts = closeout's 5296 + Elechromania (queue: Go_Funk next).
 
 ## ✅ CLOSEOUT (2026-07-23, post-r106): fresh full batch + mass-write. **5296/5401 FULL (98.1%) + 105 partial + 0 error**
 The r106 factory change invalidated every code_hash, so the batch

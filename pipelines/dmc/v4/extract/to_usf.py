@@ -679,12 +679,13 @@ def model_to_usf(m: DmcModel) -> UsfFile:
     filter_mod = {}
     fm = m.extra_params.pop('filter_mod', None)
     if fm:
-        prog, start, ip, sp, steps = fm.split('|')
-        filter_mod[int(prog)] = {
-            'start': int(start), 'init_phase': int(ip),
-            'stop_phase': int(sp),
-            'steps': [(int(d), int(f)) for d, f in
-                      (t.split(':') for t in steps.split(','))]}
+        for seg in fm.split(';'):        # multi-tap probe joins progs by ';'
+            prog, start, ip, sp, steps = seg.split('|')
+            filter_mod[int(prog)] = {
+                'start': int(start), 'init_phase': int(ip),
+                'stop_phase': int(sp),
+                'steps': [(int(d), int(f)) for d, f in
+                          (t.split(':') for t in steps.split(','))]}
     return UsfFile(
         psid=PsidMeta(title=m.title, author=m.author, released=m.released,
                       clock=m.clock, sid=m.sid_model,

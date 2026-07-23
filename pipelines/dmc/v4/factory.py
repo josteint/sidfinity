@@ -1547,6 +1547,98 @@ def _filter_mod_probe(path: str, op_filtdef: int,
     return f'{prog}|{tab[0]}|{p1 - reset}|{p2 - reset}|{steps}'
 
 
+def _filter_mod_multi_probe(path: str, base: int, op_filtdef: int,
+                            post_init_sub: 'int | None' = None):
+    """Multi-tap variant of the filter-def cutoff LFO (Ed/Elechromania; the
+    Core_of_Acid single-prog probe above fail-opens on it). The play vector
+    JMPs an appendix: `JSR APPLY / LDY #<reset_lo> / LDX #<reset_hi> / N x
+    automaton / JMP base+$85`. APPLY is N x `LDA ptr / STA fd+16p+1 /
+    STA fd+16p+3` + RTS — ONE roving pointer per def feeds BOTH its init and
+    stop cutoff cells. Each automaton block wraps its pointer's hi byte at a
+    cap back to (reset_hi:reset_lo) then ALWAYS increments — so the visited
+    cycle is reset+1 .. reset+period inclusive (the byte at reset+period is
+    read once per cycle before the wrap check fires), period = (cap<<8) -
+    reset. The contour bytes are init-GENERATED (read from post-init RAM);
+    the init tail also runs APPLY once, so the file bytes of the pointers
+    are exactly play 1's apply positions. Returns the same per-prog format
+    as the single probe, ';'-joined: 'prog|start|ip|sp|d:f,...;...' with
+    ip == sp (one tap serves both cells)."""
+    if base is None or op_filtdef is None:
+        return None
+    mem, s = _load(path, post_init_sub)
+
+    def rd16(a):
+        return mem[a] | (mem[a + 1] << 8)
+
+    if mem[base + 3] != 0x4C:
+        return None
+    W = rd16(base + 4)
+    if mem[W] != 0x20 or mem[W + 3] != 0xA0 or mem[W + 5] != 0xA2:
+        return None
+    A = rd16(W + 1)
+    reset = (mem[W + 6] << 8) | mem[W + 4]
+    fd = rd16(op_filtdef)
+    taps = []                            # (ptr operand addr, ptr, target)
+    a = A
+    while mem[a] == 0xAD and len(taps) < 16:
+        t = rd16(a + 4)
+        if mem[a + 3] != 0x8D or mem[a + 6] != 0x8D or rd16(a + 7) != t + 2:
+            return None
+        taps.append((a + 1, rd16(a + 1), t))
+        a += 9
+    if mem[a] != 0x60 or not taps:
+        return None
+    wrap = None
+    b = W + 7
+    for opa, _p, _t in taps:
+        if mem[b] != 0xAD or rd16(b + 1) != opa + 1 or mem[b + 3] != 0xC9 \
+                or bytes(mem[b + 5:b + 7]) != b'\xd0\x06' \
+                or mem[b + 7] != 0x8C or rd16(b + 8) != opa \
+                or mem[b + 10] != 0x8E or rd16(b + 11) != opa + 1 \
+                or mem[b + 13] != 0xEE or rd16(b + 14) != opa \
+                or bytes(mem[b + 16:b + 18]) != b'\xd0\x03' \
+                or mem[b + 18] != 0xEE or rd16(b + 19) != opa + 1:
+            return None
+        if wrap is None:
+            wrap = mem[b + 4]
+        elif mem[b + 4] != wrap:
+            return None
+        b += 21
+    if mem[b] != 0x4C or rd16(b + 1) != base + 0x85:
+        return None
+    period = (wrap << 8) - reset
+    if not 2 <= period <= 4096:
+        return None
+    progs = []
+    for _opa, p, t in taps:
+        if (t - fd - 1) % 16 or not 0 <= (t - fd - 1) // 16 < 16:
+            return None
+        if not reset + 1 <= p <= reset + period:
+            return None
+        progs.append((t - fd - 1) // 16 + 1)
+    if len(set(progs)) != len(progs):
+        return None
+    ram = _post_init_ram(path, s['start'] - 1)
+    if ram is None:
+        return None
+    tab = [ram[reset + 1 + i] for i in range(period)]
+    runs = []
+    for i in range(period):
+        d = (tab[(i + 1) % period] - tab[i]) & 0xFF
+        if runs and runs[-1][0] == d:
+            runs[-1][1] += 1
+        else:
+            runs.append([d, 1])
+    if len(runs) > 32 or any(c > 255 for _, c in runs):
+        return None
+    steps = ','.join(f'{d if d < 128 else d - 256}:{c}' for d, c in runs)
+    out = []
+    for prog, (_opa, p, _t) in zip(progs, taps):
+        ph = p - reset - 1
+        out.append(f'{prog}|{tab[0]}|{ph}|{ph}|{steps}')
+    return ';'.join(out)
+
+
 # The dual-effect wedge: canon `LDY $170D,x / LDA $172F,x / ... / STA $1724`
 # byte-edited into `LDY $170D,x / LDX $2F / ADC #$18 / ADC $1735,x / STA <tgt>`
 # (opcode BD->A6 turns the base-freq load into `LDX $2F`, re-indexing every
@@ -2296,7 +2388,8 @@ _WEDGE_PROBES = [
     ('play_unit_repeat',                lambda p, c: _play_unit_repeat_probe(p, c.base, c.post_init_sub)),
     ('pulsewidth_hi_const',             lambda p, c: _pw_hi_const_probe(p, c.base, c.post_init_sub)),
     ('dual_freq_generator',             lambda p, c: _dual_freq_gen_probe(p, c.base, c.freq_lo_addr, c.post_init_sub)),
-    ('filter_mod',                      lambda p, c: _filter_mod_probe(p, c.op_filtdef, c.post_init_sub)),
+    ('filter_mod',                      lambda p, c: _filter_mod_probe(p, c.op_filtdef, c.post_init_sub)
+                                            or _filter_mod_multi_probe(p, c.base, c.op_filtdef, c.post_init_sub)),
     ('pw_bound_shift',                  lambda p, c: _pw_bound_shift_probe(p, c.base, c.post_init_sub)),
     ('pulsewidth_dir_persist',          lambda p, c: _pw_dir_persist_probe(p, c.base, c.post_init_sub)),
     ('switch_toggle_mask',              lambda p, c: _switch_toggle_mask_probe(p, c.base, c.gatemask_addr, c.post_init_sub)),

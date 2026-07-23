@@ -1626,7 +1626,9 @@ fx_dual_up:
     # stop cutoff cells every play() call; the engine samples them at filter
     # note-init. Two sweep walkers (value / run index / frames-left) share
     # the contour's (rate, frames) run tables — clean parametric replacement
-    # for the original's SMC roving-pointer table stream (Ed/Core_of_Acid).
+    # for the original's SMC roving-pointer table stream (Ed/Core_of_Acid;
+    # multi-prog since Elechromania — one chunk per modulated prog, labels
+    # suffixed by slot; a single-tap driver has init_phase == stop_phase).
     for _fm_prog, _fm in sorted(usf.filter_mod.items()):
         _slot = m.filter_slots.get(_fm_prog)
         if _slot is None:
@@ -1643,43 +1645,43 @@ fx_dual_up:
             return val, 0, _runs[0][1]
 
         _sa = [_fm_seed(_fm['init_phase']), _fm_seed(_fm['stop_phase'])]
+        _s = f'{_slot}'
         play_wrapper = (
-            'playfmod:                            ; global cutoff LFO\n'
-            '        lda fmv+0\n'
+            f'playfmod{_s}:                            ; global cutoff LFO\n'
+            f'        lda fmv{_s}+0\n'
             f'        sta fdinit+{_slot}\n'
-            '        lda fmv+1\n'
+            f'        lda fmv{_s}+1\n'
             f'        sta fdstop+{_slot}\n'
             '        ldx #$00\n'
-            '        jsr fmadv\n'
+            f'        jsr fmadv{_s}\n'
             '        ldx #$01\n'
-            '        jsr fmadv\n'
+            f'        jsr fmadv{_s}\n'
             f'        jmp {play_entry}\n'
-            'fmadv:  ldy fmi,x\n'
-            '        lda fmv,x\n'
+            f'fmadv{_s}:  ldy fmi{_s},x\n'
+            f'        lda fmv{_s},x\n'
             '        clc\n'
-            '        adc fmrate,y\n'
-            '        sta fmv,x\n'
-            '        dec fmc,x\n'
-            '        bne fmadv_rts\n'
+            f'        adc fmrate{_s},y\n'
+            f'        sta fmv{_s},x\n'
+            f'        dec fmc{_s},x\n'
+            f'        bne fmadv_rts{_s}\n'
             '        iny\n'
             f'        cpy #{len(_runs)}\n'
-            '        bne fmadv_set\n'
+            f'        bne fmadv_set{_s}\n'
             '        ldy #$00\n'
-            'fmadv_set:\n'
+            f'fmadv_set{_s}:\n'
             '        tya\n'
-            '        sta fmi,x\n'
-            '        lda fmlen,y\n'
-            '        sta fmc,x\n'
-            'fmadv_rts:\n'
+            f'        sta fmi{_s},x\n'
+            f'        lda fmlen{_s},y\n'
+            f'        sta fmc{_s},x\n'
+            f'fmadv_rts{_s}:\n'
             '        rts\n'
-            f'fmv:    .byt {_sa[0][0]},{_sa[1][0]}\n'
-            f'fmi:    .byt {_sa[0][1]},{_sa[1][1]}\n'
-            f'fmc:    .byt {_sa[0][2]},{_sa[1][2]}\n'
-            'fmrate: ' + _byt([d for d, _ in _runs]) + '\n'
-            'fmlen:  ' + _byt([f & 0xFF for _, f in _runs]) + '\n\n'
+            f'fmv{_s}:    .byt {_sa[0][0]},{_sa[1][0]}\n'
+            f'fmi{_s}:    .byt {_sa[0][1]},{_sa[1][1]}\n'
+            f'fmc{_s}:    .byt {_sa[0][2]},{_sa[1][2]}\n'
+            f'fmrate{_s}: ' + _byt([d for d, _ in _runs]) + '\n'
+            f'fmlen{_s}:  ' + _byt([f & 0xFF for _, f in _runs]) + '\n\n'
             ) + play_wrapper
-        play_entry = 'playfmod'
-        break                        # label scheme supports one modulated prog
+        play_entry = f'playfmod{_s}'
     # Appended filter-def ANIMATOR (Ed/Wrath_Designs Cliche_Beat driver,
     # factory-probed C19): the original's play vector JSRs a self-retargeting
     # routine before the play body — phase 1 ramps defs 0-2's resonance cell
