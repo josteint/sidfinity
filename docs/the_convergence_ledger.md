@@ -286,6 +286,13 @@ practice, not code to factor).
   EXTRACTOR (wrap / wrong base / wrong stride) FIRST, not the data. An
   add-chain with intermediate carries is NOT `& $FF` — emulate the exact
   instruction sequence. Negative transposes wrap low notes HIGH.
+- PRESENTS (wavepos): a note-init/wave-step freq write diverges and an
+  instrument's (wave offset + note) & $FF hits fhi idx 211-213 ($177A-$177C =
+  live wave position). Fix = layout-preserving pool (`wave_table_pos`); the
+  verbatim gate admits NON-verbatim programs that are UNOBSERVABLE (every
+  wavepos read self-referential to a verbatim instrument → free-slot
+  placement, r98). ⚠ `dmc_offtable_probe`'s by-value attribution has
+  mis-fired 3× here — check idx 211-213 against instrument offsets FIRST.
 - PRESENTS (live-redirect): an off-table read sonifies ENGINE STATE — the
   first-divergence value equals a live counter / position / scratch var, not
   a static byte. TELLs: a cluster whose (orig,mine) values are EOR-$0F

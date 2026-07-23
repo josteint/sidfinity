@@ -1360,38 +1360,79 @@ def _wave_layout_verbatim(m: DmcModel, ctrl_tab, freq_tab, n_wave):
     loop 0). That's admitted; the composer skips the transient chase (iwst =
     first-step position), which is unobservable EXCEPT through the chase's
     $171F wjmp write — so a member that ALSO reads the wjmp window (flo idx
-    216 / fhi idx 120) with any chasing instrument is rejected."""
+    216 / fhi idx 120) with any chasing instrument is rejected.
+
+    A NON-verbatim program (chain-resolved / off-table / runaway) does not
+    reject the member outright: its positions matter only while a wavepos
+    read can OBSERVE them. When every recorded wavepos read (fhi idx
+    211-213) is SELF-REFERENTIAL — voice j reading its own $177A+j during
+    its own wave step of a verbatim-placed instrument (reader voices ==
+    {j}, per _assign_offtable_freq's attribution) — a read can only occur
+    while voice j plays that instrument, so a non-verbatim program is never
+    observed and gets a FREE position past every verbatim placement
+    (Object_of_Art: inst 2's $9F marker chain, played by V1 only, while
+    the sole read is V3's own inst-5 step). Any cross-voice / unattributed
+    (idle-path) wavepos read falls back to the strict all-verbatim rule."""
     progs = [(None, 0, list(m.idle_wave[0]), list(m.idle_wave[1]),
               m.idle_wave[2])]
     progs += [(iid, ins.wave_start, list(ins.wave_ctrl),
                list(ins.wave_freq), ins.wave_loop)
               for iid, ins in m.instruments.items()]
     lim = min(n_wave, 256)
-    out, chased = {}, False
+    out, chased, nonverb, max_end = {}, False, [], 0
     for iid, start, ctrl, freq, loop in progs:
         n = len(ctrl)
         if n == 0 or not 0 <= loop < n or n - loop > 0x6F:
-            return None
+            return None                  # composer-shape limit: hard reject
+        ok, chase = True, False
         if start < lim and ctrl_tab[start] >= 0x90:
             # start on a marker: admit ONLY the own-end-marker form
             # (back distance n, i.e. loop 0 with the slice right before it)
             if loop != 0 or ctrl_tab[start] != 0x90 + n or start < n:
-                return None
-            start -= n
-            chased = True
-        if start + n >= lim:             # marker must sit inside the table
-            return None
-        if any(b >= 0x90 for b in ctrl):
-            return None                  # embedded marker (resolved chain)
-        if ctrl != ctrl_tab[start:start + n]:
-            return None
-        f = freq if freq else [0] * n
-        if f != freq_tab[start:start + n]:
-            return None
-        if ctrl_tab[start + n] != 0x90 + (n - loop):
-            return None
+                ok = False
+            else:
+                start -= n
+                chase = True
+        if ok and (start + n >= lim      # marker must sit inside the table
+                   or any(b >= 0x90 for b in ctrl)   # resolved chain
+                   or ctrl != ctrl_tab[start:start + n]
+                   or (freq if freq else [0] * n)
+                   != freq_tab[start:start + n]
+                   or ctrl_tab[start + n] != 0x90 + (n - loop)):
+            ok = False
+        if not ok:
+            if iid is None:
+                return None      # the composer pins the idle program at 0
+            nonverb.append((iid, n))
+            continue
+        chased = chased or chase
         if iid is not None:
             out[iid] = start
+        max_end = max(max_end, start + n + 1)
+    if nonverb:
+        # relaxation gate: every recorded wavepos read must be
+        # self-referential to a verbatim instrument (see docstring)
+        rv = getattr(m, 'offtable_read_voices', None) or {}
+        for iid, ins in m.instruments.items():
+            for off, note, *_rest in ins.offtable_freq:
+                idx = (off + note) & 0xFF
+                if not 211 <= idx <= 213:
+                    continue
+                if iid not in out:       # reading inst must be verbatim
+                    return None
+                if rv.get((iid, off, note)) != {idx - 211}:
+                    return None
+        seen = {}
+        for iid, n in nonverb:
+            ins = m.instruments[iid]
+            key = (tuple(ins.wave_ctrl), tuple(ins.wave_freq), ins.wave_loop)
+            if key in seen:
+                out[iid] = seen[key]
+                continue
+            if max_end + n > 255:        # place_prog bound (marker at pos+n)
+                return None
+            out[iid] = seen[key] = max_end
+            max_end += n + 1
     if chased:
         _WJMP_IDX = {(0x171F - 0x16A7) & 0xFF, (0x171F - 0x1647) & 0xFF}
         if any((off + note) & 0xFF in _WJMP_IDX
@@ -1439,8 +1480,14 @@ def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
     # sub 1: idx 96 = V1 track-ptr lo, start-song $F8 vs reading-song $17).
     songmap = defaultdict(set)         # (inst id, off, note) -> {song idx}
     vibsongs = defaultdict(set)        # note -> {song idx}
+    # Reader-VOICE attribution: which voice performs each record's read (the
+    # wave step / note reload runs on the reading row's own voice). Consumed
+    # by _wave_layout_verbatim to prove a wavepos read ($177A+j, fhi idx
+    # 211-213) is SELF-REFERENTIAL (readers == {j}) — idle-path records get
+    # no entry (attribution imprecise), which reads as "unattributed" there.
+    voicemap = defaultdict(set)        # (inst id, off, note) -> {voice idx}
 
-    def add_note(n, inst_id, si):
+    def add_note(n, inst_id, si, vi=None):
         inst = m.instruments.get(inst_id)
         # curnote is an 8-bit value: note-init adds the transpose with an 8-bit
         # ADC ($11A3), so a NEGATIVE transpose wraps a low note PAST the 96-entry
@@ -1470,6 +1517,8 @@ def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
                 recs[inst_id].add((0, n, mem[(flo_addr + n) & 0xFFFF],
                                    mem[(fhi_addr + n) & 0xFFFF]))
                 songmap[(inst_id, 0, n)].add(si)
+                if vi is not None:
+                    voicemap[(inst_id, 0, n)].add(vi)
         elif n < 96 and mem[(vibdepth_addr + n) & 0xFFFF] != VIBDEPTH[n]:
             # PER-MEMBER VIBDEPTH DEVIATION (in-table, note 0-95): the composer
             # ships the CANONICAL 96-byte VIBDEPTH ramp, but a member can carry a
@@ -1498,9 +1547,11 @@ def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
                                    mem[(flo_addr + y) & 0xFFFF],
                                    mem[(fhi_addr + y) & 0xFFFF]))
                 songmap[(inst_id, off & 0xFF, n)].add(si)
+                if vi is not None:
+                    voicemap[(inst_id, off & 0xFF, n)].add(vi)
 
     for si, song in enumerate(m.songs):
-        for v in song.voices:
+        for vi, v in enumerate(song.voices):
             # `running` = the instrument whose wave program is LIVE before a
             # row's note-init runs. Notes are FETCHED on a P call (curnote +
             # base update at $11A3-$11B3) but note-init (wave restart) is
@@ -1517,13 +1568,13 @@ def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
                 tr = v.transposes[ei] if v.transposes else 0
                 for r in v.patterns[e]:
                     if r.note is not None:
-                        add_note(r.note + tr, r.instr, si)
+                        add_note(r.note + tr, r.instr, si, vi)
                         if running is not None and running != r.instr:
-                            add_note(r.note + tr, running, si)
+                            add_note(r.note + tr, running, si, vi)
                         if not r.soft:
                             running = r.instr
                     if r.glide_to is not None:
-                        add_note(r.glide_to + tr, r.instr, si)
+                        add_note(r.glide_to + tr, r.instr, si, vi)
     # IDLE-WAVE off-table reads: a voice that starts on rests freewheels the
     # idle wave (m.idle_wave, the cleared-cache path) with curnote = its idle
     # note — and the idle-wave freq offsets + idle note can overshoot the
@@ -1548,6 +1599,7 @@ def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
     # start-song sample, exactly the pre-song-aware behavior.
     m.offtable_songs = dict(songmap)
     m.offtable_vib_songs = dict(vibsongs)
+    m.offtable_read_voices = dict(voicemap)
 
 
 def _postinit_values(sid_path: str, addrs, subtune: int | None = None) -> dict:

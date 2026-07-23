@@ -5,8 +5,31 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T13:54:46.726Z
+  modified: 2026-07-23T14:46:27.782Z
 ---
+
+## ✅ ROUND 98 (2026-07-23): wavepos-layout gate relaxed to OBSERVABILITY. Object_of_Art FULL
+Next f1 partial by path = `Compod/Object_of_Art` (single, base $1000) — the
+ORIGINAL wavepos-blocked member from 2026-06-28, finally landed. First div:
+V3's first note-init freq hi $1D vs $1F = fhi idx 213 = $177C, V3 reading its
+OWN wavepos during its own inst-5 wave step (self-referential; orig 29 =
+inst 5's wave_start, ours 31 = file-image leftover served static).
+`_wave_layout_verbatim` had rejected the member because inst 2's program is a
+$9F marker CHAIN (walks 2-14, hops to 0) — not a verbatim slice. FIX
+(extract-only, C11 refinement): non-verbatim programs are admitted when
+UNOBSERVABLE — every recorded wavepos read must be self-referential (reader
+voices == {idx-211}, new `m.offtable_read_voices` attribution in
+`_assign_offtable_freq`) to a verbatim instrument; the non-verbatim program
+gets a FREE pool position past the verbatim placements (composer untouched,
+place_prog contract intact). Idle non-verbatim / cross-voice / unattributed
+reads still reject. TRAP RECURRENCE: `dmc_offtable_probe` by-value scan
+mis-attributed the read to idx 130 "sectpos" (3rd misfire — r95 warning);
+the real read fell out of the instrument's off value (160+53=213).
+Gates: 45 stored-FULL live-stamped 211-213 carriers (19 potential gate-flips
++ 26 already-layout) ALL re-verified FULL; partial census: only Real_Hardcore
+also flips layout (first-div unchanged at 79, neutral); dmc_smoke 6/6; full
+regression 9 families 0 regressed. NOT closed out; f1 counts = r90's +
+r91-98 gains.
 
 ## ✅ ROUND 97 (2026-07-23): off-table glide-target boundary DISSOLVED. Cleve_24 FULL
 Next f1 partial by path = `Cleve/Cleve_24` (single, base $1000). The r22
