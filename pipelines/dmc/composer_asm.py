@@ -1680,6 +1680,72 @@ fx_dual_up:
             ) + play_wrapper
         play_entry = 'playfmod'
         break                        # label scheme supports one modulated prog
+    # Appended filter-def ANIMATOR (Ed/Wrath_Designs Cliche_Beat driver,
+    # factory-probed C19): the original's play vector JSRs a self-retargeting
+    # routine before the play body — phase 1 ramps defs 0-2's resonance cell
+    # (+step every p1 plays until def0 hits the cap), then phase 2 walks a
+    # generated 256-byte triangle into def0/def1's init-cutoff cells every p2
+    # plays (def0 index decrements, def1's advances by 2; def2 is never
+    # animated — the original stores def1 twice, an author bug whose first
+    # store is dead). fres/fcut pick the animated cells up at filter
+    # note-inits. The triangle is generated from its two ramp seeds, and the
+    # phase flag replaces the original's SMC JSR operand.
+    fda = usf.params.fields.get('filterdef_anim', None)
+    if fda is not None:
+        _step, _capf0, _c1, _p1, _c2, _p2, _ts, _td = (
+            int(x, 16) for x in str(fda).split(','))
+        _tri = [(_ts + i) & 0xFF for i in range(0x80)] \
+            + [(_td - i) & 0xFF for i in range(0x80)]
+        play_wrapper = (
+            'playfda:                             ; filter-def animator\n'
+            '        lda fdaph\n'
+            '        bne fda_p2\n'
+            '        dec fdac1\n'
+            '        bne fda_done\n'
+            f'        lda #${_p1:02X}\n'
+            '        sta fdac1\n'
+            '        lda fdres+0\n'
+            f'        cmp #${_capf0:02X}\n'
+            '        bne fda_add\n'
+            '        inc fdaph                    ; ramp capped -> phase 2\n'
+            '        jmp fda_done\n'
+            'fda_add:\n'
+            '        clc\n'
+            f'        adc #${_step:02X}\n'
+            '        sta fdres+0\n'
+            '        lda fdres+1\n'
+            '        clc\n'
+            f'        adc #${_step:02X}\n'
+            '        sta fdres+1\n'
+            '        lda fdres+2\n'
+            '        clc\n'
+            f'        adc #${_step:02X}\n'
+            '        sta fdres+2\n'
+            '        jmp fda_done\n'
+            'fda_p2:\n'
+            '        dec fdac2\n'
+            '        bne fda_done\n'
+            f'        lda #${_p2:02X}\n'
+            '        sta fdac2\n'
+            '        ldx fdax0\n'
+            '        lda fdatri,x\n'
+            '        sta fdinit+0\n'
+            '        dec fdax0\n'
+            '        ldx fdax1\n'
+            '        lda fdatri,x\n'
+            '        sta fdinit+1\n'
+            '        inc fdax1\n'
+            '        inc fdax1\n'
+            'fda_done:\n'
+            f'        jmp {play_entry}\n'
+            'fdaph:  .byt 0\n'
+            f'fdac1:  .byt {_c1}\n'
+            f'fdac2:  .byt {_c2}\n'
+            'fdax0:  .byt 0\n'
+            'fdax1:  .byt 0\n'
+            'fdatri: ' + _byt(_tri) + '\n\n'
+            ) + play_wrapper
+        play_entry = 'playfda'
     # Play-body unit repeat (default '1,1,1,1'): the play body executes four
     # units per frame — voice 0, voice 1, voice 2, then the global filter tail
     # ($D416/$D417) — and this 4-int list gives how many times each unit runs.

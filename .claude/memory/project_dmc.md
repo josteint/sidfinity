@@ -5,8 +5,29 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T19:50:50.153Z
+  modified: 2026-07-23T20:13:06.624Z
 ---
+
+## ✅ ROUND 106 (2026-07-23): appended FILTER-DEF ANIMATOR driver (C19 18th occ). Cliche_Beat FULL
+Next f1 partial by path = `Ed/Cliche_Beat` (single, canon $1000). First div
+frame 17: $D417 res nibble orig $37 vs ours $17, state_match=False. The res
+nibble WALKS across note-inits ($17→$37→$47) while fbase + the def-table
+FILE bytes stay constant — `taint_source 1960` showed def1's r0 DYNAMIC (15
+ascending values $11..$F1) = the data is ANIMATED at runtime. Both PSID
+vectors re-point at an APPENDED driver: init pokes defs 0-2 (r0=$11,
+init=$02, captured by the existing post-init def window — why our START
+matched), builds a triangle table $14..$93 at $1C00, aims an SMC JSR; per
+play: phase 1 = every 8 plays defs 0-2 r0 += $10 until def0==$F1 → retarget
+to phase 2 = every 12 plays def0.init=tri[i--], def1.init=tri[j], j+=2
+(author bug: 3rd store hits def1 twice; def2 never animated). TRAP: the SMC
+slot's FILE byte points at phase 2 (stale) — probe the aim from the init
+immediates. FIX: `factory._filterdef_anim_probe` (full-shape template,
+fail-open, lifts '10,F0,08,08,08,0C,14,93') → `filterdef_anim` param →
+composer `playfda` wrapper chunk (phase flag; generated triangle; targets
+fdres+0..2 / fdinit+0..1 — composer def slots are dense in orig order).
+Sibling of filter_mod (Ed/Core_of_Acid). Census: signature singleton
+corpus-wide. Gates: dmc_smoke 6/6, full regression 0 regressed. NOT closed
+out; f1 counts = r90's + r91-106.
 
 ## ✅ ROUND 105 (2026-07-23): off-image SECTOR-POINTER fetch (C29 3rd occ). Trailways_A FULL
 Next f1 partial by path = `Dunkel_Nilsen_and_Elektrond/Trailways_A` (single,

@@ -1286,6 +1286,144 @@ def _route_clear_dead_probe(path: str, base: int,
     return f'{tgt:04X}'
 
 
+def _filterdef_anim_probe(path: str, base: int, op_filtdef: int,
+                          post_init_sub: 'int | None' = None):
+    """Appended filter-def ANIMATOR driver (Ed/Wrath Designs, Cliche_Beat;
+    C19 18th occ). Both PSID vectors are re-pointed at a driver appended
+    after the canon body. Its init pokes defs 0-2 (r0 = a start byte, init
+    cell = a seed), builds a 256-byte triangle table, aims an SMC JSR at the
+    ramp routine, then continues the canon init (base+$1D). Every play() the
+    wrapper JSRs the SMC target then JMPs the canon play body (base+$85):
+
+      phase 1 (ramp):  every p1 plays, defs 0-2 r0 += step until def0's r0
+                       equals the cap byte — then the stub retargets the SMC
+                       JSR to phase 2;
+      phase 2 (LFO):   every p2 plays, def0.init = tri[i0--] and def1.init =
+                       tri[i3], i3 += 2. (The third store hits def1 AGAIN —
+                       an author bug that leaves def2's init static and makes
+                       the middle index walk dead; reproduced as-is.)
+
+    fres/fcut sample these table bytes at filter note-inits, so the audible
+    effect is a resonance sweep then a cutoff-init triangle LFO. Full-shape
+    template match anchored from the two vectors; any deviation fail-opens.
+    Returns 'step,capF0,c1seed,p1reset,c2seed,p2reset,tristart,tridesc'."""
+    if base is None or op_filtdef is None:
+        return None
+    mem, _ = _load(path, post_init_sub)
+
+    def rd16(a):
+        return mem[a] | (mem[a + 1] << 8)
+
+    if mem[base] != 0x4C or mem[base + 3] != 0x4C:
+        return None
+    I = rd16(base + 1)
+    W = rd16(base + 4)
+    fd = rd16(op_filtdef)
+    if mem[W] != 0x20 or mem[W + 3] != 0x4C or rd16(W + 4) != base + 0x85:
+        return None
+    # (W+1 is the SMC slot — its FILE byte is stale; init re-aims it below.)
+    # --- init block ---
+    if mem[I] != 0xA9 or mem[I + 2] != 0xA2 or mem[I + 4] != 0xA0:
+        return None
+    r0i, c_seed = mem[I + 1], mem[I + 5]
+    a = I + 6
+    for op, tgt in ((0x8D, fd), (0x8D, fd + 16), (0x8D, fd + 32),
+                    (0x8E, fd + 1), (0x8E, fd + 17), (0x8E, fd + 33)):
+        if mem[a] != op or rd16(a + 1) != tgt:
+            return None
+        a += 3
+    if mem[a] != 0x8C or mem[a + 3] != 0x8C:
+        return None
+    ctr1, ctr2 = rd16(a + 1), rd16(a + 4)
+    a += 6
+    if mem[a] != 0xA9 or mem[a + 2] != 0xA2 or mem[a + 4] != 0x20:
+        return None
+    R = mem[a + 1] | (mem[a + 3] << 8)   # init aims the SMC JSR at phase 1
+    setsmc = rd16(a + 5)
+    a += 7
+    if bytes(mem[a:a + 3]) != b'\xa2\x00\xa0' or mem[a + 4] != 0x98 \
+            or mem[a + 5] != 0x9D:
+        return None
+    tstart = mem[a + 3]
+    tri = rd16(a + 6)
+    if bytes(mem[a + 8:a + 13]) != bytes((0xC8, 0xE8, 0xE0, 0x80, 0xD0)):
+        return None
+    a += 14
+    if bytes(mem[a:a + 3]) != b'\xa2\x00\xa0' or mem[a + 4] != 0x98 \
+            or mem[a + 5] != 0x9D or rd16(a + 6) != tri + 0x80:
+        return None
+    tdesc = mem[a + 3]
+    if bytes(mem[a + 8:a + 13]) != bytes((0x88, 0xE8, 0xE0, 0x80, 0xD0)):
+        return None
+    a += 14
+    if bytes(mem[a:a + 2]) != b'\xa9\x00' or mem[a + 2] != 0x8D \
+            or mem[a + 5] != 0x8D or mem[a + 8] != 0x8D:
+        return None
+    i_slots = {rd16(a + 3), rd16(a + 6), rd16(a + 9)}
+    if bytes(mem[a + 11:a + 13]) != b'\xaa\xa8' or mem[a + 13] != 0x4C \
+            or rd16(a + 14) != base + 0x1D:
+        return None
+    # --- phase 1 (ramp) at R ---
+    if mem[R] != 0xA2 or R + 1 != ctr1 or bytes(mem[R + 2:R + 4]) != b'\xca\x8e' \
+            or rd16(R + 4) != ctr1 or bytes(mem[R + 6:R + 9]) != b'\xf0\x01\x60':
+        return None
+    if mem[R + 9] != 0xA2 or mem[R + 11] != 0x8E or rd16(R + 12) != ctr1:
+        return None
+    p1_reset = mem[R + 10]
+    if mem[R + 14] != 0xAD or rd16(R + 15) != fd or mem[R + 17] != 0xC9 \
+            or mem[R + 19] != 0xF0:
+        return None
+    cap = mem[R + 18]
+    retgt = R + 21 + mem[R + 20]
+    step = mem[R + 26]
+    a2 = R + 21
+    for tgt in (fd, fd + 16, fd + 32):
+        if mem[a2] != 0xAD or rd16(a2 + 1) != tgt or mem[a2 + 3] != 0x18 \
+                or mem[a2 + 4] != 0x69 or mem[a2 + 5] != step \
+                or mem[a2 + 6] != 0x8D or rd16(a2 + 7) != tgt:
+            return None
+        a2 += 9
+    if mem[a2] != 0x60:
+        return None
+    # --- retarget stub + SMC setter ---
+    if mem[retgt] != 0xA9 or mem[retgt + 2] != 0xA2 or retgt + 4 != setsmc:
+        return None
+    P2 = mem[retgt + 1] | (mem[retgt + 3] << 8)
+    if mem[setsmc] != 0x8D or rd16(setsmc + 1) != W + 1 \
+            or mem[setsmc + 3] != 0x8E or rd16(setsmc + 4) != W + 2 \
+            or mem[setsmc + 6] != 0x60:
+        return None
+    # --- phase 2 (init-cell LFO) at P2 ---
+    if mem[P2] != 0xA2 or P2 + 1 != ctr2 or bytes(mem[P2 + 2:P2 + 4]) != b'\xca\x8e' \
+            or rd16(P2 + 4) != ctr2 or mem[P2 + 6] != 0xD0:
+        return None
+    if mem[P2 + 8] != 0xA2 or mem[P2 + 10] != 0x8E or rd16(P2 + 11) != ctr2:
+        return None
+    p2_reset = mem[P2 + 9]
+    a3 = P2 + 13
+    pokes = []
+    for _ in range(3):
+        if mem[a3] != 0xA2 or mem[a3 + 2] != 0xBD or rd16(a3 + 3) != tri \
+                or mem[a3 + 5] != 0x8D:
+            return None
+        pokes.append((a3 + 1, rd16(a3 + 6)))
+        a3 += 8
+    if [t for _, t in pokes] != [fd + 1, fd + 17, fd + 17]:
+        return None                       # incl. the dup-store author bug
+    if mem[a3] != 0xEE or rd16(a3 + 1) != pokes[1][0] \
+            or mem[a3 + 3] != 0xEE or rd16(a3 + 4) != pokes[2][0] \
+            or mem[a3 + 6] != 0xEE or rd16(a3 + 7) != pokes[2][0] \
+            or mem[a3 + 9] != 0xCE or rd16(a3 + 10) != pokes[0][0] \
+            or mem[a3 + 12] != 0x60:
+        return None
+    if i_slots != {s for s, _ in pokes}:
+        return None                       # init must zero exactly these
+    if (cap ^ r0i) & 0x0F:
+        return None                       # masked fdres compare equivalence
+    return (f'{step:02X},{cap & 0xF0:02X},{c_seed:02X},{p1_reset:02X},'
+            f'{c_seed:02X},{p2_reset:02X},{tstart:02X},{tdesc:02X}')
+
+
 def _pw_bound_shift_probe(path: str, base: int,
                           post_init_sub: 'int | None' = None):
     """PWM bound-A extraction shift (STATIC opcode probe, C19). The note-init
@@ -2165,6 +2303,7 @@ _WEDGE_PROBES = [
     ('glide_neutered',                  lambda p, c: _glide_neutered_probe(p, c.base, c.post_init_sub)),
     ('route_clear_dead',                lambda p, c: _route_clear_dead_probe(p, c.base, c.post_init_sub)),
     ('v3_instr_tempo',                  lambda p, c: _v3_instr_tempo_probe(p, c.base, c.post_init_sub)),
+    ('filterdef_anim',                  lambda p, c: _filterdef_anim_probe(p, c.base, c.op_filtdef, c.post_init_sub)),
 ]
 
 
