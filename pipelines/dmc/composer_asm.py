@@ -1748,6 +1748,69 @@ fx_dual_up:
             'fdatri: ' + _byt(_tri) + '\n\n'
             ) + play_wrapper
         play_entry = 'playfda'
+    # Filter-tail POWER-ON-PATTERN cutoff animator (Ed/Go_Funk, factory-
+    # probed C19): the original re-points the filter tail's STA $D417 at a
+    # stub that (after the store) every `reset` plays pokes one filter
+    # def's INIT-cutoff cell from an address past the image end — i.e. the
+    # emulator environment's power-on RAM pattern (C29). The table page is
+    # generated here from that pattern (an environment constant, same for
+    # every tune — mechanism, not member data). The original pokes at the
+    # END of play N; this chunk runs at the START of play N+1 (counter
+    # seeded +1), which is observably identical — the cell is only read by
+    # note-inits inside a play body. The stub's two instrument-record
+    # pokes are NOT reproduced: on the only carrier those instruments are
+    # never played (unobservable); a carrier that plays them would simply
+    # verify partial.
+    gfa = usf.params.fields.get('d417_tail_anim', None)
+    if gfa is not None:
+        (_seed, _reset, _x1, _tabhi, _dslot,
+         _x2, _tabhi2, _wf1, _wf2) = (
+            int(x, 16) for x in str(gfa).split(','))
+
+        def _poweron_page(hi):
+            # one page of libsidplayfp's power-on RAM pattern (see the
+            # extract's _poweron_fill): 16K blocks alternate base $00/$FF,
+            # offsets 2-5 of every 8 hold the flipped byte. An environment
+            # constant — mechanism, not member data (ledger C29).
+            b = 0xFF if (hi >> 6) & 1 else 0x00
+            page = bytearray([b] * 0x100)
+            for i in range(0x02, 0x100, 0x08):
+                page[i:i + 4] = bytes([b ^ 0xFF] * 4)
+            return list(page)
+
+        # wavefreq pokes only when the pool is layout-preserving AND the
+        # offset exists in the emitted pool (an uncovered position is never
+        # read by any program — unobservable either way).
+        _wfpokes = ''
+        if m.wavepos_layout:
+            _tg = [o for o in (_wf1, _wf2) if o < len(m.wfreq)]
+            if _tg:
+                _wfpokes = (
+                    '        inc gfax2\n'
+                    '        inc gfax2\n'
+                    '        ldx gfax2\n'
+                    '        lda gfatab2,x\n'
+                    + ''.join(f'        sta wftab+{o}\n' for o in _tg))
+        play_wrapper = (
+            'playgfa:                             ; filter-tail cutoff animator\n'
+            '        dec gfac\n'
+            '        bne gfa_done\n'
+            f'        lda #${_reset:02X}\n'
+            '        sta gfac\n'
+            '        inc gfax\n'
+            '        ldx gfax\n'
+            '        lda gfatab,x\n'
+            f'        sta fdinit+{_dslot}\n'
+            + _wfpokes +
+            'gfa_done:\n'
+            f'        jmp {play_entry}\n'
+            f'gfac:   .byt {(_seed + 1) & 0xFF}\n'
+            f'gfax:   .byt {_x1}\n'
+            f'gfax2:  .byt {_x2}\n'
+            'gfatab: ' + _byt(_poweron_page(_tabhi)) + '\n'
+            'gfatab2:' + _byt(_poweron_page(_tabhi2)) + '\n\n'
+            ) + play_wrapper
+        play_entry = 'playgfa'
     # Play-body unit repeat (default '1,1,1,1'): the play body executes four
     # units per frame — voice 0, voice 1, voice 2, then the global filter tail
     # ($D416/$D417) — and this 4-int list gives how many times each unit runs.

@@ -1438,6 +1438,20 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
             for iid, c in pos.items():
                 m.instruments[iid].wave_pool_pos = c
             m.wavepos_layout = True
+    # d417_tail_anim (Ed/Go_Funk, C19): the stub animates two WAVEFREQ-table
+    # bytes, targetable in our build only when the wave pool is emitted
+    # layout-preserving (positions == the orig table's). Force that layout
+    # for carriers; if it cannot be proven verbatim, drop the param — the
+    # member stays honestly partial rather than poking the wrong pool bytes.
+    if 'd417_tail_anim' in m.extra_params and not m.wavepos_layout:
+        pos = _wave_layout_verbatim(m, ctrl_tab, freq_tab, n_wave) \
+            if canon_geom else None
+        if pos is not None:
+            for iid, c in pos.items():
+                m.instruments[iid].wave_pool_pos = c
+            m.wavepos_layout = True
+        else:
+            del m.extra_params['d417_tail_anim']
     # wjmp chase shadow: an off-table freq read on $171F (fhi idx 120 / flo
     # idx 216) sonifies the shared effect scratch — the LAST value written to
     # it that frame. One writer is a chasing instrument's first-read hop: an

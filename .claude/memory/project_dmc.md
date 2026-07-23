@@ -5,8 +5,30 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T20:57:41.807Z
+  modified: 2026-07-23T21:14:44.266Z
 ---
+
+## ✅ ROUND 108 (2026-07-23): filter-tail stub sonifies POWER-ON pattern into player data (C19 19th occ). Go_Funk FULL
+Next f1 partial by path = `Ed/Go_Funk` (single, base $E000, CANON vectors).
+First div frame 27: $D416 orig $FF vs ours $06. The filter tail's final
+`STA $D417` (base+$AC) is re-pointed at a stub: does the store, then every
+24 plays (first after 11) pokes THREE data cells from PAST-EOF addresses =
+the POWER-ON RAM PATTERN (C29): def0.init ← page $EF walk (+1), and TWO
+WAVEFREQ-table bytes (offsets 14/29; one X2+=2 walk on page $EE feeds
+both — a poked wavefreq byte is a NOTE OFFSET; pattern $FF = -1 shifted
+V1's notes 24→23 at the 2nd divergence). TWO TRAPS: (1) `--peek-post-init`
+showed RELOCATED-psiddrv bytes at $EE00+/$EF00+ and DISAGREED with the
+play-run RAM — memwatch is ground truth, `_poweron_fill` models it
+exactly; (2) with the 11-byte instrument stride the wave-table targets
+first read as "unused instrument bytes" — map poke targets against EVERY
+table base (they were wavefreq+14/+29). FIX: `_d417_tail_anim_probe`
+(full-shape, fail-open) → `d417_tail_anim` param → composer `playgfa`
+chunk at play START, counter seeded +1 (orig pokes at play END —
+observably identical), generated power-on pages; wavefreq pokes ride the
+LAYOUT-PRESERVING pool (extract forces `wave_table_pos` for carriers,
+drops the param if not provable). Gates: dmc_smoke 6/6, full regression 0
+regressed. f1 = closeout's 5296 + Elechromania + Go_Funk (next:
+Only_Ones, ANOTHER appendix at $EB9A/$EBE0).
 
 ## ✅ ROUND 107 (2026-07-23): filter_mod generalized to MULTI-TAP (8 progs). Elechromania FULL
 Next f1 partial by path = `Ed/Elechromania` (single, base $E000). First div

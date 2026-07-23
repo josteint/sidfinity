@@ -1639,6 +1639,82 @@ def _filter_mod_multi_probe(path: str, base: int, op_filtdef: int,
     return ';'.join(out)
 
 
+def _d417_tail_anim_probe(path: str, base: int, op_filtdef: int,
+                          op_wavefreq: int,
+                          post_init_sub: 'int | None' = None):
+    """Filter-tail STA $D417 re-pointed at a POWER-ON-PATTERN cutoff
+    animator (Ed/Go_Funk; C19 19th occ). The canon filter tail's final
+    `STA $D417` (base+$AC) is patched to `JMP stub`; the stub does the
+    store, then every `reset` plays (first firing after `seed` plays)
+    pokes def N's INIT-cutoff cell from `tab_hi<<8 + (++X1)` — an address
+    PAST THE IMAGE END, i.e. libsidplayfp's power-on RAM pattern (C29
+    environment class; NB `--peek-post-init` reports RELOCATED-psiddrv
+    bytes there and disagrees with the play-run RAM — the memwatch is the
+    ground truth, `_poweron_fill` models it exactly). The stub also pokes
+    two WAVEFREQ-TABLE bytes (note offsets — pattern $FF = offset -1
+    audibly shifts every note the affected wave step plays) from a second
+    pattern page, one X2 walk (+2/firing) feeding BOTH cells. Those are
+    reproducible only when the composer's wave pool is layout-preserving,
+    so the EXTRACT forces wave_table_pos layout for carriers and drops the
+    param if it cannot be proven. Fail-open on any shape deviation.
+    Returns 'seed,reset,x1init,tabhi1,defslot,x2init,tabhi2,wf1,wf2'
+    (hex)."""
+    if base is None or op_filtdef is None or op_wavefreq is None:
+        return None
+    mem, _ = _load(path, post_init_sub)
+
+    def rd16(a):
+        return mem[a] | (mem[a + 1] << 8)
+
+    site = base + 0xA6
+    # canon: LDA shadow / ORA fres / STA $D417 — the STA replaced by JMP
+    if mem[site] != 0xAD or mem[site + 3] != 0x0D or mem[site + 6] != 0x4C:
+        return None
+    S = rd16(site + 7)
+    if bytes(mem[S:S + 3]) != b'\x8d\x17\xd4':
+        return None
+    if mem[S + 3] != 0xA2:
+        return None
+    seed = mem[S + 4]
+    if mem[S + 5] != 0xCA or mem[S + 6] != 0x8E or rd16(S + 7) != S + 4 \
+            or bytes(mem[S + 9:S + 12]) != b'\xf0\x01\x60':
+        return None
+    if mem[S + 12] != 0xA2:
+        return None
+    reset = mem[S + 13]
+    if mem[S + 14] != 0x8E or rd16(S + 15) != S + 4:
+        return None
+    if mem[S + 17] != 0xEE or rd16(S + 18) != S + 21 or mem[S + 20] != 0xA2:
+        return None
+    x1 = mem[S + 21]
+    if mem[S + 22] != 0xBD or mem[S + 23] != 0x00:
+        return None
+    tabhi = mem[S + 24]
+    fd = rd16(op_filtdef)
+    if mem[S + 25] != 0x8D:
+        return None
+    tgt = rd16(S + 26)
+    if (tgt - fd - 1) % 16 or not 0 <= (tgt - fd - 1) // 16 < 16:
+        return None
+    slot = (tgt - fd - 1) // 16
+    # secondary block: X2 walk (+2/firing) poking two WAVEFREQ-table bytes
+    if mem[S + 28] != 0xA2 or bytes(mem[S + 30:S + 32]) != b'\xe8\xe8' \
+            or mem[S + 32] != 0x8E or rd16(S + 33) != S + 29 \
+            or mem[S + 35] != 0xBD or mem[S + 36] != 0x00 \
+            or mem[S + 38] != 0x8D or mem[S + 41] != 0x8D \
+            or mem[S + 44] != 0x60:
+        return None
+    x2 = mem[S + 29]
+    tabhi2 = mem[S + 37]
+    wfb = rd16(op_wavefreq)
+    wf1 = rd16(S + 39) - wfb
+    wf2 = rd16(S + 42) - wfb
+    if not (0 <= wf1 < 0x100 and 0 <= wf2 < 0x100):
+        return None
+    return (f'{seed:02X},{reset:02X},{x1:02X},{tabhi:02X},{slot:02X},'
+            f'{x2:02X},{tabhi2:02X},{wf1:02X},{wf2:02X}')
+
+
 # The dual-effect wedge: canon `LDY $170D,x / LDA $172F,x / ... / STA $1724`
 # byte-edited into `LDY $170D,x / LDX $2F / ADC #$18 / ADC $1735,x / STA <tgt>`
 # (opcode BD->A6 turns the base-freq load into `LDX $2F`, re-indexing every
@@ -2397,6 +2473,7 @@ _WEDGE_PROBES = [
     ('route_clear_dead',                lambda p, c: _route_clear_dead_probe(p, c.base, c.post_init_sub)),
     ('v3_instr_tempo',                  lambda p, c: _v3_instr_tempo_probe(p, c.base, c.post_init_sub)),
     ('filterdef_anim',                  lambda p, c: _filterdef_anim_probe(p, c.base, c.op_filtdef, c.post_init_sub)),
+    ('d417_tail_anim',                  lambda p, c: _d417_tail_anim_probe(p, c.base, c.op_filtdef, c.op_wavefreq, c.post_init_sub)),
 ]
 
 
