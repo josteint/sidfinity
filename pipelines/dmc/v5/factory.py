@@ -220,10 +220,17 @@ _DIFF_MSG = {'opcode': 'opcode', 'reloc': 'reloc operand',
              'abs': 'abs operand', 'imm': 'immediate'}
 
 
-def _diff_play_body(mem, delta, ref):
+def _diff_play_body(mem, delta, ref, allow_unrelocated: bool = False):
     """First divergence of the PLAY-reachable body vs the relocated reference,
     or None if it matches. Returns (pc, kind, member_val, ref_val) with kind in
-    {'oob','opcode','reloc','abs','imm'}. Pure: no raise, no side effects."""
+    {'oob','opcode','reloc','abs','imm'}. Pure: no raise, no side effects.
+
+    `allow_unrelocated` admits a PARTIALLY-RELOCATED copy (a compilation's
+    re-linked sub-player, ledger C31): every reloc operand must be either the
+    relocated value OR the canon $1xxx value verbatim — the re-linker only
+    patched the paths this song reaches, leaving dead paths at canon
+    (Super_Tau-Zeta's $B400 player: 101 such sites, none executed at runtime).
+    Build+verify stays the judge of whether a left-canon site is truly dead."""
     for pc, L, rbytes, cls in ref:
         a = pc + delta
         if a + L > 0x10000:
@@ -236,7 +243,8 @@ def _diff_play_body(mem, delta, ref):
             if cls in ('patched', 'state'):
                 continue
             if cls == 'reloc':
-                if mv != (rv + delta) & 0xFFFF:
+                if mv != (rv + delta) & 0xFFFF and not (
+                        allow_unrelocated and mv == rv):
                     return (pc, 'reloc', mv, (rv + delta) & 0xFFFF)
             elif mv != rv:
                 return (pc, 'abs', mv, rv)
@@ -327,9 +335,23 @@ def _family4_config(sid_path, mem, s, jt_addr) -> DMCV5Config:
     return d
 
 
-def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV5Config:
+def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc84',
+                  base_override: 'int | None' = None,
+                  n_songs: 'int | None' = None) -> DMCV5Config:
     mem, s = _load(os.path.join(hvsc_root, sid_path))
-    base, init_target, jt_addr, layout = _detect_v5(mem, s)
+    if base_override is not None:
+        # COMPILATION sub-player (ledger C31): the caller forces the base —
+        # auto-detection can't pick it (the file also packs other players,
+        # and the scan stops at the first jump table it sees). The masked
+        # compare below still validates the player; a partially-relocated
+        # re-linked copy is admitted (see _diff_play_body).
+        base, jt_addr, layout = base_override, base_override, 'v5'
+        if not (mem[base] == 0x4C and mem[base + 3] == 0x4C):
+            raise DMCV5Unsupported('no_jumptable',
+                                   f'base_override=${base:04X}')
+        init_target = mem[base + 1] | (mem[base + 2] << 8)
+    else:
+        base, init_target, jt_addr, layout = _detect_v5(mem, s)
     if base is None and layout != 'family4':
         raise DMCV5Unsupported(
             'no_jumptable',
@@ -342,7 +364,8 @@ def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV5Config:
     #      relocated Katusha reference, then the init copy skeleton. Both use
     #      the shared diff helpers (see `v5_diagnose`); the init is validated
     #      separately (it may be relocated/wrapped). ----
-    d = _diff_play_body(mem, delta, _v5_play_ref())
+    d = _diff_play_body(mem, delta, _v5_play_ref(),
+                        allow_unrelocated=base_override is not None)
     if d is not None:
         pc, kind, _mv, _rv = d
         if kind == 'oob':
@@ -373,7 +396,7 @@ def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV5Config:
 
     d = DMCV5Config(sid_path=sid_path,
                     name=os.path.splitext(os.path.basename(sid_path))[0],
-                    base=base, cia_period=cia_period)
+                    base=base, cia_period=cia_period, n_songs=n_songs)
     # play-body operand sites relocate with the base; the orderlist site is
     # read from the (possibly relocated/wrapped) init's actual load operand.
     for f in ('op_secp_lo', 'op_secp_hi', 'op_instr', 'op_freq_lo',

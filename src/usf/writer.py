@@ -690,6 +690,9 @@ def _write_subtune(s) -> list[str]:
         if getattr(s, 'default_filter', None) is not None:
             lines.append('  ' + _write_swenv('default_filter',
                                              s.default_filter))
+        if getattr(s, 'wave_programs', None):
+            for line in _write_wave_programs(s.wave_programs):
+                lines.append('  ' + line)
         for v in s.voices:
             lines.extend(_write_voice(v))
         # one global block per chip; chip 1 is always the bare form

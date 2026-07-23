@@ -131,13 +131,20 @@ def build(rel: str, spec: dict | None = None,
 
 
 def _refs(sub) -> set:
-    """Every instrument id a music subtune references."""
+    """Every instrument id a music subtune references.
+
+    Covers both reference forms: `row.instr` (DMC V4 / MA) and the V5
+    command-per-row `set_instr=<id>` fx flag (ledger C14 form; the V5
+    engine's $FC command)."""
     out = set()
     for v in sub.voices:
         for pat in v.patterns:
             for row in pat.rows:
                 if row.instr is not None and row.instr.id is not None:
                     out.add(row.instr.id)
+                for fl in (row.fx_flags or ()):
+                    if fl.startswith('set_instr='):
+                        out.add(int(fl.split('=', 1)[1], 0))
     if sub.init is not None:
         for iv in sub.init.voices:
             if iv.instr is not None and iv.instr.id is not None:
@@ -146,16 +153,31 @@ def _refs(sub) -> set:
 
 
 def _shift_refs(sub, d: int):
-    """Offset every instrument reference in a subtune by `d`, in place."""
+    """Offset every instrument reference in a subtune by `d`, in place —
+    `row.instr` refs, `set_instr=` fx flags, and init-voice refs alike."""
     from src.usf.types import InstrumentRef
     if not d:
         return
+    seen_pats = set()
     for v in sub.voices:
         for pat in v.patterns:
+            # a deduped pattern OBJECT can be shared by several voices /
+            # orderlist positions (V5 sector pool) — shift it exactly once
+            if id(pat) in seen_pats:
+                continue
+            seen_pats.add(id(pat))
             for k, row in enumerate(pat.rows):
+                rep = {}
                 if row.instr is not None and row.instr.id is not None:
-                    pat.rows[k] = dataclasses.replace(
-                        row, instr=InstrumentRef(id=row.instr.id + d))
+                    rep['instr'] = InstrumentRef(id=row.instr.id + d)
+                if any(fl.startswith('set_instr=')
+                       for fl in (row.fx_flags or ())):
+                    rep['fx_flags'] = tuple(
+                        'set_instr=%d' % (int(fl.split('=', 1)[1], 0) + d)
+                        if fl.startswith('set_instr=') else fl
+                        for fl in row.fx_flags)
+                if rep:
+                    pat.rows[k] = dataclasses.replace(row, **rep)
     if sub.init is not None:
         for iv in sub.init.voices:
             if iv.instr is not None and iv.instr.id is not None:
@@ -183,8 +205,9 @@ def heterogeneous_to_usf(rel: str, spec: dict | None = None,
     from src.usf.types import MusicSubtune, Params, UsfFile
     if spec is None:
         spec = detect_compilation(rel, hvsc_root=hvsc_root)
-    if spec is None or 'masm' not in (spec.get('kinds') or []):
-        raise ValueError('not a DMC+Music Assembler heterogeneous member')
+    kinds = (spec.get('kinds') or []) if spec else []
+    if spec is None or not kinds or all(k == 'dmc' for k in kinds):
+        raise ValueError('not a heterogeneous compilation member')
 
     s = parse_psid(os.path.join(hvsc_root, rel))
     img = bytearray(0x10000)
@@ -192,30 +215,92 @@ def heterogeneous_to_usf(rel: str, spec: dict | None = None,
         if s['load'] + i < 0x10000:
             img[s['load'] + i] = b
 
-    bases, kinds = spec['bases'], spec['kinds']
+    bases = spec['bases']
     reloc = spec.get('reloc') or {}
     td = tempfile.mkdtemp()
 
-    per_player = {}
+    # ---- per-player (per-UNIT) extraction. The DMC V4 players form ONE
+    #      unit: with >=2 of them the proven homogeneous merge
+    #      (write_dmc_compilation_usf) builds them into one model with all
+    #      the C31 per-player machinery (idle priming, rest_effects,
+    #      d417_shadow, song_subtunes); a lone V4 player keeps the original
+    #      per-player path byte-for-byte (Freespace). V5 / MA players are
+    #      one unit each. `unit_of[pi]` maps a spec player to its unit;
+    #      'seq' units consume their subtunes in map order, 'song' units
+    #      index by the map's song number. ----
+    per_player = {}          # unit id -> (engine, UsfFile, 'seq'|'song')
+    unit_of = {}
+    dmc_idx = [i for i, k in enumerate(kinds) if k == 'dmc']
+    if len(dmc_idx) >= 2:
+        from pipelines.dmc.v4.extract.to_usf import write_dmc_compilation_usf
+        sub_bases = [bases[i] for i in dmc_idx]
+        pos = {p: n for n, p in enumerate(dmc_idx)}
+        subspec = {'bases': sub_bases,
+                   'map': [(pos[pi], song) for pi, song in spec['map']
+                           if pi in dmc_idx],
+                   'reloc': {b: sb for b, sb in reloc.items()
+                             if b in sub_bases}}
+        uid = dmc_idx[0]
+        per_player[uid] = ('dmc_v4', parse_file(write_dmc_compilation_usf(
+            rel, subspec, td, hvsc_root=hvsc_root)), 'seq')
+        for pi in dmc_idx:
+            unit_of[pi] = uid
+    elif dmc_idx:
+        pi = dmc_idx[0]
+        cfg = dmc_v4_config(rel, hvsc_root=hvsc_root, base_override=bases[pi],
+                            post_init_sub=reloc.get(bases[pi]))
+        # C31: any runtime measurement inside the extract must run the file
+        # subtune that SELECTS this player (song numbering is local).
+        smap = {}
+        for k, (pi2, song2) in enumerate(spec['map']):
+            if pi2 == pi:
+                smap.setdefault(song2, k)
+        cfg.song_subtunes = smap
+        per_player[pi] = ('dmc_v4', parse_file(
+            write_dmc_usf(cfg, td, hvsc_root=hvsc_root)), 'song')
+        unit_of[pi] = pi
     for pi, base in enumerate(bases):
         if kinds[pi] == 'dmc':
-            per_player[pi] = ('dmc_v4', parse_file(write_dmc_usf(
-                dmc_v4_config(rel, hvsc_root=hvsc_root, base_override=base,
-                              post_init_sub=reloc.get(base)),
-                td, hvsc_root=hvsc_root)))
+            continue
+        if kinds[pi] == 'dmcv5':
+            from pipelines.dmc.v5.factory import dmc_v5_config
+            from pipelines.dmc.v5.extract.engine_model import extract as v5x
+            from pipelines.dmc.v5.extract.to_usf import (
+                model_to_usf as v5_to_usf, _verify_window_frames)
+            n_songs = max(song for p, song in spec['map'] if p == pi) + 1
+            cfg5 = dmc_v5_config(rel, hvsc_root=hvsc_root, base_override=base,
+                                 n_songs=n_songs)
+            per_player[pi] = ('dmc_v5', v5_to_usf(
+                v5x(cfg5, hvsc_root=hvsc_root),
+                reach=_verify_window_frames(cfg5, hvsc_root)), 'song')
         else:
             nxt = min([b for b in bases if b > base] or [base + 0x1000])
             mem = _landing_memory(s, img, reloc.get(base, 0), base, masm=True)
             if mem is None:
                 raise ValueError('could not reach MA player at $%04X' % base)
             per_player[pi] = ('music_assembler', model_to_usf(
-                extract_mem(mem, hdr=s, lo=base, hi=min(nxt, base + 0x1000))))
+                extract_mem(mem, hdr=s, lo=base, hi=min(nxt, base + 0x1000))),
+                'song')
+        unit_of[pi] = pi
 
     merged_insts, shift, subtunes = [], {}, []
     top = 0
     for pi in sorted(per_player):
-        _eng, u = per_player[pi]
+        eng0, u, _mode = per_player[pi]
         ids = [i.id for i in u.instruments]
+        # A V5 unit idles every voice on instrument-table position 0 (its
+        # init clears instr_n) — record that as init-voice refs so the
+        # lowest id is genuinely referenced and the slice check below (and
+        # the block tiling) see the true usage. V5's own build reads only
+        # `iv.note` from init voices, so this adds content without changing
+        # its output.
+        if eng0 == 'dmc_v5' and ids:
+            from src.usf.types import InstrumentRef
+            for sub in u.subtunes:
+                if isinstance(sub, MusicSubtune) and sub.init is not None:
+                    for iv in sub.init.voices:
+                        if iv.instr is None:
+                            iv.instr = InstrumentRef(id=min(ids))
         # The projection recovers a player's slice as the id RANGE its
         # subtunes reference, so the lowest-id instrument must be referenced
         # or the slice would start too high and shift every id after it.
@@ -230,27 +315,46 @@ def heterogeneous_to_usf(rel: str, spec: dict | None = None,
                 'player %d: lowest instrument i%d is unreferenced (lowest '
                 'referenced is i%d) — the merged slice cannot be recovered'
                 % (pi, min(ids), min(used)))
-        shift[pi] = top
+        # Shift this unit's ids to start right after the pool so far. A V4/MA
+        # unit's ids are 1-based (shift == top, the original arithmetic); a
+        # V5 unit's are 0-based, which unshifted would collide with the
+        # previous unit's top id.
+        shift[pi] = (top + 1 - min(ids)) if ids else 0
         for inst in u.instruments:
-            merged_insts.append(dataclasses.replace(inst, id=inst.id + top))
-        top += (max(ids) if ids else 0)
+            merged_insts.append(dataclasses.replace(inst, id=inst.id + shift[pi]))
+        top = (shift[pi] + max(ids)) if ids else top
 
-    first = per_player[min(per_player)][1]
+    first_uid = min(per_player)
+    first = per_player[first_uid][1]
+    seq_ctr = {uid: 0 for uid in per_player}
     for k, (pi, song) in enumerate(spec['map']):
-        eng, u = per_player[pi]
+        uid = unit_of[pi]
+        eng, u, mode = per_player[uid]
         music = [x for x in u.subtunes if isinstance(x, MusicSubtune)]
-        src = music[song] if song < len(music) else music[0]
+        if mode == 'seq':
+            src = music[seq_ctr[uid]]
+            seq_ctr[uid] += 1
+        else:
+            src = music[song] if song < len(music) else music[0]
         sub = copy.deepcopy(src)
-        _shift_refs(sub, shift[pi])
+        _shift_refs(sub, shift[uid])
         sub.id = k
         sub.origin_engine = eng
         # Per-subtune overrides: whatever this player disagrees with the file
-        # on. `params`/`init` already had the idiom; freq_table and
-        # default_filter are the two this member needed.
+        # on. `params`/`init` already had the idiom; freq_table /
+        # default_filter (Freespace) and wave_programs (Super_Tau-Zeta's V5
+        # idle program) are the ones members needed so far.
         sub.params = sub.params or u.params
         sub.init = sub.init or u.init
-        sub.freq_table = list(u.freq_table) if u.freq_table else None
-        sub.default_filter = u.default_filter
+        # or-preserving: a V4-merged unit's subtunes may already carry their
+        # OWN per-subtune overrides (its packed players tune differently) —
+        # never clobber those with the unit's file-level value.
+        if sub.freq_table is None:
+            sub.freq_table = list(u.freq_table) if u.freq_table else None
+        if sub.default_filter is None:
+            sub.default_filter = u.default_filter
+        if uid != first_uid and getattr(u, 'wave_programs', None):
+            sub.wave_programs = dict(u.wave_programs)
         subtunes.append(sub)
 
     return UsfFile(
@@ -265,29 +369,61 @@ def heterogeneous_to_usf(rel: str, spec: dict | None = None,
         master_vol=first.master_vol)
 
 
-def _blocks(music) -> list:
-    """(lo, hi) instrument-id block per subtune, in subtune order.
+def _groups(music) -> list:
+    """Group subtunes that share one composer instance, with their
+    instrument-id block: returns [(indices, engine, (lo, hi))], in id order.
 
-    Blocks TILE the id space and are split at each subtune's lowest
+    Blocks TILE the id space and are split at each GROUP's lowest
     REFERENCED id — the first block starting at 1. They are emphatically NOT
-    "the ids this subtune references": ledger C31's merge trap is that a
+    "the ids a subtune references": ledger C31's merge trap is that a
     player's RECORD 0 can be referenced by no row at all, because init clears
     the note-init cache to 0 and an idle voice runs record 0's pulse/wave
     mechanism. Dropping it is inaudible until a voice idles, then wrong
     (Freespace's DMC player: instrument i1 is unreferenced by its only
     dispatched song, and losing it diverges the stream at write 28).
 
-    Tiling from the previous block's end instead of from min-referenced keeps
-    those silent-but-live records with the player that owns them.
+    Grouping: ALL 'dmc_v4' subtunes form one group (the merge builds every
+    packed V4 player into one model, so they reference one shared block —
+    per-subtune tiling would split it and truncate each view's slice);
+    any other consecutive same-engine subtunes group when their referenced
+    id intervals OVERLAP (one packed player serving several subtunes);
+    otherwise each subtune stands alone (Freespace's two MA players).
     """
-    starts = []
-    for k, sub in enumerate(music):
+    groups = []          # [{'eng', 'idx', 'lo', 'hi'}]  (lo/hi = referenced)
+    v4g = None
+    for i, sub in enumerate(music):
+        eng = sub.origin_engine or 'dmc_v4'
         used = _refs(sub)
-        starts.append(1 if k == 0 else (min(used) if used else 1))
-    out = []
-    for k in range(len(starts)):
-        hi = (starts[k + 1] - 1) if k + 1 < len(starts) else None
-        out.append((starts[k], hi))
+        lo, hi = (min(used), max(used)) if used else (None, None)
+        if eng == 'dmc_v4' and v4g is not None:
+            v4g['idx'].append(i)
+            if lo is not None:
+                v4g['lo'] = min(v4g['lo'], lo) if v4g['lo'] else lo
+                v4g['hi'] = max(v4g['hi'], hi) if v4g['hi'] else hi
+            continue
+        g = groups[-1] if groups else None
+        if (g is not None and eng != 'dmc_v4' and g['eng'] == eng
+                and g['lo'] is not None and lo is not None
+                and lo <= g['hi'] and g['lo'] <= hi):
+            g['idx'].append(i)
+            g['lo'], g['hi'] = min(g['lo'], lo), max(g['hi'], hi)
+            continue
+        groups.append({'eng': eng, 'idx': [i], 'lo': lo, 'hi': hi})
+        if eng == 'dmc_v4':
+            v4g = groups[-1]
+    # tile blocks in referenced-id order
+    order = sorted(range(len(groups)),
+                   key=lambda n: groups[n]['lo'] if groups[n]['lo'] else 0)
+    starts = []
+    for rank, n in enumerate(order):
+        starts.append(1 if rank == 0 else groups[n]['lo'])
+    if any(b is not None and a >= b for a, b in zip(starts, starts[1:])):
+        raise ValueError('heterogeneous instrument blocks are not '
+                         'monotonic: %r' % (starts,))
+    out = [None] * len(groups)
+    for rank, n in enumerate(order):
+        hi = (starts[rank + 1] - 1) if rank + 1 < len(order) else None
+        out[n] = (groups[n]['idx'], groups[n]['eng'], (starts[rank], hi))
     return out
 
 
@@ -329,7 +465,9 @@ def _project(usf, subs, block=None):
     # Getting this wrong is silent: DMC's file-level init carries the per-voice
     # note/gate_mask priming, and overwriting it with the subtune's thinner
     # per-subtune init diverges the stream at write 26 with state_match still
-    # true.
+    # true. The subtune KEEPS its init: engines split on where they read it
+    # (Music Assembler: file level; DMC V5: the subtune) — leaving both
+    # populated serves each, since neither reads the other's slot.
     if lo > 1:
         if out[0].params is not None:
             view.params = out[0].params
@@ -337,10 +475,20 @@ def _project(usf, subs, block=None):
             view.init = out[0].init
         for c in out:
             c.params = None
-            c.init = None
+    # Parked file-level wave_programs (the V5 idle program) lift back the
+    # same way freq_table does.
+    if getattr(out[0], 'wave_programs', None):
+        view.wave_programs = out[0].wave_programs
     for c in out:
-        c.freq_table = None
-        c.default_filter = None
+        # Clear only what the view-level slot now carries; a multi-subtune
+        # V4 group whose subtunes genuinely disagree (per-player tuning /
+        # idle sweep) keeps those as the per-subtune overrides the V4
+        # composer reads natively.
+        if c.freq_table == view.freq_table:
+            c.freq_table = None
+        if c.default_filter == view.default_filter:
+            c.default_filter = None
+        c.wave_programs = None
     return view
 
 
@@ -355,27 +503,35 @@ def build_from_usf(usf) -> bytes:
     from src.usf.types import MusicSubtune
     music = [s for s in usf.subtunes if isinstance(s, MusicSubtune)]
 
-    # ONE composer instance PER SUBTUNE. Grouping by `origin_engine` would be
-    # wrong: two subtunes can name the same FAMILY yet be different PLAYERS
-    # (Freespace packs two Music Assembler players, each with its own
-    # instruments, tuning and idle filter sweep), and merging them into one
-    # view silently builds one tune from another's data. A player serving
-    # several subtunes is composed once per subtune — costs image size, never
-    # correctness.
-    blocks = _blocks(music)
+    # ONE composer instance PER GROUP (see _groups). Grouping by
+    # `origin_engine` alone would be wrong: two subtunes can name the same
+    # FAMILY yet be different PLAYERS (Freespace packs two Music Assembler
+    # players, each with its own instruments, tuning and idle filter sweep),
+    # and merging them into one view silently builds one tune from another's
+    # data — those stay one instance per subtune. The V4 subtunes are the
+    # exception: the merge built every packed V4 player into ONE model, so
+    # they compose as one instance whose PSID song index is the subtune's
+    # position within the group (the dispatcher passes it in A).
+    entries = [None] * len(music)
     placed, o = [], DMC_ORIGIN
-    for n, sub in enumerate(music):
-        view = _project(usf, [sub], blocks[n])
-        eng = sub.origin_engine or 'dmc_v4'
+    for idx, eng, block in _groups(music):
+        subs = [music[i] for i in idx]
+        view = _project(usf, subs, block)
         if eng == 'music_assembler':
             blob = assemble(compose_asm(usf_to_model(view), origin=o,
-                                        prefix='e%d_' % n))
+                                        prefix='e%d_' % idx[0]))
+        elif eng == 'dmc_v5':
+            from pipelines.dmc.v5.composer_v5 import emit_v5_asm
+            from pipelines.dmc.v5.from_usf import usf_to_model as v5_model
+            blob = assemble(_sanitize_asm(emit_v5_asm(v5_model(view),
+                                                      origin=o)))
         else:
             blob = assemble(_sanitize_asm(compose_dmc_asm(view, origin=o)))
         placed.append((o, blob))
+        for song, i in enumerate(idx):
+            entries[i] = (o, o + 3, song)
         o = (o + len(blob) + 1) & ~1
 
-    entries = [(a, a + 3, 0) for a, _b in placed]
     disp = assemble(_dispatch_asm(entries))
 
     blobs = [(LOAD, disp)] + placed

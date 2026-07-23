@@ -296,6 +296,12 @@ class MusicSubtune:
     # meaningful under one unified composer.
     freq_table: Optional[list[int]] = None
     default_filter: Optional['SweepEnvelope'] = None
+    # Per-subtune wave_programs override (same class as the two above):
+    # program 0 is the IDLE (lead-in) wave program, per-player state a
+    # heterogeneous merge must not collapse to the first player's
+    # (Super_Tau-Zeta: the packed V5 player's idle program differs from the
+    # V4 players'). None = use the file-level dict.
+    wave_programs: Optional[dict] = None
     kind: str = 'music'
 
 

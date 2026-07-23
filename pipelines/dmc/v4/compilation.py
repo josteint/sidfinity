@@ -64,32 +64,13 @@ def _follow_jmps(mem, pc: int, hops: int = 8) -> int:
 # valid init/play vector jumps somewhere inside it. Used as the reloc-invariant
 # target-range validator that lets the head predicate drop to TWO JMPs (below)
 # without admitting arbitrary `4C .. .. 4C .. ..` byte pairs in data.
-_PLAYER_WIN = 0x1000
-
-
-def _is_player_head(mem, a: int) -> bool:
-    """The RELOCATION- and REASSEMBLY-invariant player-base signature (no load
-    floor): a page-aligned address whose init (+0) and play (+3) vectors are
-    both `JMP abs` into the player's own [base, base+$1000) window.
-
-    Was "three `JMP abs` at +0/+3/+6" — but a re-assembled DMC variant
-    (Bayliss's Quad_Core: init JMP base+$807 / play JMP base+$50) carries only
-    the TWO essential vectors, then data at +6, so the three-JMP form missed
-    all three of its packed players and the file fell through to the single-
-    player path (garbage for the subtunes not on the LOAD-address player). The
-    third JMP was the all-off/sfx entry, not load-bearing for identification.
-    Canonical DMC (+$1D/+$85), the family-2 layouts, and the dmc_sfx re-assembly
-    (+$1B2/+$F0) all still pass; the target-range check replaces the third JMP
-    as the false-positive guard."""
-    if a & 0xFF or not (0 < a and a + 6 < 0x10000):
-        return False
-    if mem[a] != 0x4C or mem[a + 3] != 0x4C:
-        return False
-    for off in (1, 4):
-        tgt = mem[a + off] | (mem[a + off + 1] << 8)
-        if not (a <= tgt < a + _PLAYER_WIN):
-            return False
-    return True
+# THE player-head predicate lives in engine_model (this module imports it, so
+# the shared definition sits on the importable side — round 90's generalisation
+# to the two-JMP head originally landed here and MISSED engine_model's stale
+# three-JMP duplicate, breaking `_postinit_window(stop_at_player=True)` on
+# re-assembled players). Re-exported under the old name for all callers here.
+_PLAYER_WIN = em._PLAYER_WIN
+_is_player_head = em._is_player_head
 
 
 def _is_player_base(mem, load: int, a: int) -> bool:
@@ -173,7 +154,21 @@ def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
     # is handled by the ordinary single-player path — never route it here.
     if len({pidx for pidx, _ in mp}) < 2:
         return _observe_dispatch_2pass(sid_path, hvsc_root)
-    return {'bases': ordered_bases, 'map': mp}
+    return {'bases': ordered_bases, 'map': mp,
+            # Which ENGINE each base is (mirrors the observe path's field).
+            # A compilation can pack a DMC V5 player beside V4 ones
+            # (Super_Tau-Zeta $B400) — its head is `JMP base+$40 (init) /
+            # JMP base+$A1 (play)`, distinct from every V4 layout, so the
+            # play vector is the discriminator. 'dmc' | 'dmcv5'.
+            'kinds': [_base_kind(mem, b) for b in ordered_bases]}
+
+
+def _base_kind(mem, b: int) -> str:
+    """Engine kind of a statically-detected player base: 'dmcv5' when the
+    play vector (+3) targets base+$A1 (the V5 play-body offset — V4 layouts
+    use +$85 / +$50), else 'dmc' (V4)."""
+    pt = mem[b + 4] | (mem[b + 5] << 8)
+    return 'dmcv5' if pt == b + 0xA1 else 'dmc'
 
 
 def _is_player_base_ram(mem, a: int) -> bool:

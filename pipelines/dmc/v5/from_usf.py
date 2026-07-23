@@ -51,14 +51,23 @@ _PREFIX_BYTE = {
 }
 
 
-def _encode_sector(rows) -> bytes:
+def _encode_sector(rows, ipos: 'dict | None' = None) -> bytes:
+    """`ipos` maps instrument USF id -> engine table POSITION for the $FC
+    (set_instr) operand. The engine indexes its instrument table by position;
+    `set_instr=` values are instrument IDS — for a standalone V5 file ids ARE
+    0-based positions (byte-identical), but a heterogeneous merge renumbers
+    ids into a shared pool (ledger C31/C35), where the lookup is load-bearing.
+    None = identity (ids == positions)."""
     out = bytearray()
     for row in rows:
         glide = glide_to = None
         f0_vw = f0_wc = None
         for fl in row.fx_flags:
             key = fl.split('=', 1)[0]
-            if key in _PREFIX_BYTE:
+            if key == 'set_instr' and ipos:
+                v = _flag_val(fl)
+                out += bytes([_PREFIX_BYTE[key], ipos.get(v, v) & 0xFF])
+            elif key in _PREFIX_BYTE:
                 out += bytes([_PREFIX_BYTE[key], _flag_val(fl) & 0xFF])
             elif key == 'f0_vib_width':      # family-4 $F0: the two decomposed
                 f0_vw = _flag_val(fl)        # fields recompose into one packed
@@ -366,10 +375,11 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     #      one shared global pool; remap orderlist entries to it -----------
     from pipelines.dmc.v5.extract.engine_model import V5Subtune
     pool, by_bytes, remap = [], {}, {}
+    _ipos = {inst.id: n for n, inst in enumerate(usf.instruments)}
     for usub in usf.subtunes:
         for voice in usub.voices:
             for pat in voice.patterns:
-                enc = _encode_sector(pat.rows)
+                enc = _encode_sector(pat.rows, _ipos)
                 idx = by_bytes.get(enc)
                 if idx is None:
                     idx = len(pool)

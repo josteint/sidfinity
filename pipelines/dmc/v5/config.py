@@ -41,6 +41,10 @@ class DMCV5Config:
                                  # data format, different player (2-phase $1016
                                  # timing, $D416-only filter) + $EF/$F0 sector
                                  # cmds. Operand sites overridden by the factory.
+    n_songs: 'int | None' = None  # orderlist-record count override. A packed
+                                 # COMPILATION sub-player (ledger C31) owns
+                                 # fewer songs than the FILE header declares;
+                                 # None = the PSID header count (standalone).
 
 
 KATUSHA = DMCV5Config(sid_path='DEMOS/G-L/Katusha.sid', name='katusha')

@@ -260,7 +260,10 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
 
     # per-subtune orderlist records: record N at a_order + N*8 (3 track
     # pointers + speed + master vol). The data tables above are shared.
-    n_sub = max(1, s.get('songs', 1))
+    # A COMPILATION sub-player (ledger C31) owns fewer songs than the FILE
+    # header declares — cfg.n_songs bounds the record read to what this
+    # player actually carries (past-end records are another player's data).
+    n_sub = max(1, getattr(cfg, 'n_songs', None) or s.get('songs', 1))
     for sub in range(n_sub):
         rec = a_order + sub * 8
         st = V5Subtune(speed=mem[rec + 6], master_vol=mem[rec + 7])
@@ -275,9 +278,23 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
     m.orderlist_raw = m.subtunes[0].orderlist_raw
     m.speed = m.subtunes[0].speed
     m.master_vol = m.subtunes[0].master_vol
+    # A COMPILATION sub-player's sector-pointer tail can hold UN-RELOCATED
+    # leftovers for sectors no track of its songs references (the re-linker
+    # only patched the live entries — Super_Tau-Zeta's $B400 player: sectors
+    # 14+ still point at canon $1Cxx, out of image). Tolerate a decode
+    # failure ONLY for an unreferenced sector (empty placeholder keeps the
+    # indices aligned); a referenced sector must still decode or the member
+    # is refused. Members whose sectors all decode are byte-unchanged.
+    referenced = {b for st in m.subtunes for ol in st.orderlists
+                  for ev in ol if ev[0] == 'sector' for b in [ev[1]]}
     for i in range(n_sectors):
         sp = mem[a_secp_lo + i] | (mem[a_secp_hi + i] << 8)
-        ev, raw = _decode_sector(mem, sp)
+        try:
+            ev, raw = _decode_sector(mem, sp)
+        except RuntimeError:
+            if i in referenced:
+                raise
+            ev, raw = [], b''
         m.sectors.append(ev)
         m.sector_raw.append(raw)
     # Off-table arpeggio frequencies, per instrument (the off-table-read form;
@@ -309,23 +326,43 @@ def _slice_wave(wave: list, start: int):
     so the extract's step indexing matches the USF's emitted wave_freq.)"""
     n = len(wave)
     ctrl, freq = [], []
+    # EXACT WALK SIMULATION (ledger C2: simulate and emit the resolved
+    # sequence). Two engine facts drive it, both from disassembly.s:
+    #   * wave_init ($137F) reads ctrl[start] with NO $90 check — an
+    #     instrument whose wave_ptr sits ON its own marker plays the raw
+    #     ($90, freq) bytes as its first step, then walks FORWARD from
+    #     start+1 (it never takes that marker's redirect: Super_Tau-Zeta's
+    #     $B400 player, instrument 8).
+    #   * wave_step ($165B) resolves a $90 marker by re-reading at the
+    #     redirect target WITHOUT a second check — a marker pointing at
+    #     another marker plays the second one's bytes raw.
+    # The played position determines the future, so cycle-detect on it:
+    # every previously-passing shape returns byte-identical (ctrl, freq,
+    # loop) (in-program loop -> same loop index; back-jump before start ->
+    # the same appended-tail rotation with loop 0).
     pos = start
+    first = True                             # wave_init: no marker check
+    seen = {}
     guard = 0
-    while pos < n:
+    while True:
         guard += 1
-        if guard > 256:
+        if guard > 512:
             raise RuntimeError(f'unsupported:wave_slice runaway @{start}')
+        if pos >= n:
+            raise RuntimeError(f'unsupported:wave_slice no $90 @{start}')
         c, f = wave[pos]
-        if c == 0x90:
-            target = f                       # absolute loop-target index
-            if target >= start:
-                return ctrl, freq, target - start
-            return (ctrl + [wave[k][0] for k in range(target, start)],
-                    freq + [wave[k][1] for k in range(target, start)], 0)
+        if not first and c == 0x90:
+            pos = f                          # redirect; re-read, no recheck
+            if pos >= n:
+                raise RuntimeError(f'unsupported:wave_slice no $90 @{start}')
+            c, f = wave[pos]
+        if pos in seen:
+            return ctrl, freq, seen[pos]
+        seen[pos] = len(ctrl)
         ctrl.append(c)
         freq.append(f)
         pos += 1
-    raise RuntimeError(f'unsupported:wave_slice no $90 @{start}')
+        first = False
 
 
 def _assign_offtable_freq(mem, a_flo: int, a_fhi: int, m) -> None:

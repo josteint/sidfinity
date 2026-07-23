@@ -84,8 +84,8 @@ def write_member(item) -> tuple:
             usf_path = write_dmc_compilation_usf(
                 rel, detect_compilation(rel, hvsc_root=hvsc), out_dir,
                 hvsc_root=hvsc)
-        elif build_path == 'hetero_masm':
-            # DMC + Music Assembler (ledger C31/C35): one UsfFile carrying
+        elif build_path in ('hetero_masm', 'hetero_v5'):
+            # Heterogeneous (ledger C31/C35): one UsfFile carrying
             # every packed player — merged instrument pool, per-subtune
             # freq_table / default_filter / params / init, and `origin_engine`
             # naming which composer builds each subtune.
@@ -105,7 +105,7 @@ def write_member(item) -> tuple:
             # the very inconsistency above — refuse instead.
             return (rel, False, f'hold_gateoff={hold_gateoff} did not reach '
                                 f'the stored .usf ({build_path} path)')
-        if build_path == 'hetero_masm':
+        if build_path in ('hetero_masm', 'hetero_v5'):
             from pipelines.music_assembler.heterogeneous import build_from_usf
             sid = build_from_usf(usf)
         else:

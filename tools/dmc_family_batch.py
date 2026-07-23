@@ -94,9 +94,11 @@ def run_member(rel: str) -> dict:
         # overflow — an unmergeable compilation), fall back to the single-player
         # path so a working member never regresses on detection.
         comp = None if cfgs2 is not None else detect_compilation(rel, hvsc_root=hvsc)
-        # A heterogeneous compilation packs engines of DIFFERENT families, so
-        # it cannot be merged into one DMC model (ledger C31).
-        hetero = bool(comp and 'masm' in (comp.get('kinds') or []))
+        # A heterogeneous compilation packs engines of DIFFERENT families /
+        # composers (Music Assembler, or a DMC V5 player beside V4 ones), so
+        # it cannot be merged into one DMC model (ledger C31/C35).
+        _kinds = (comp.get('kinds') or []) if comp else []
+        hetero = bool(comp and any(k != 'dmc' for k in _kinds))
         cfg = None
         if cfgs2 is None and comp is None:
             try:
@@ -263,7 +265,8 @@ def run_member(rel: str) -> dict:
             # compilation fallback below, which is triggered by a VERIFY-time
             # exception no writer can observe.
             build_path = ('multisid' if cfgs2 is not None
-                          else 'hetero_masm' if hetero
+                          else ('hetero_masm' if 'masm' in _kinds
+                                else 'hetero_v5') if hetero
                           else 'compilation' if comp is not None else 'single')
             return {'path': rel, 'status': 'full' if ok else 'partial',
                     'subs': subs, 'first_diff': first_diff,

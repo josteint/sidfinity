@@ -262,11 +262,30 @@ def _rd16(mem, addr):
     return mem[addr] | (mem[addr + 1] << 8)
 
 
+_PLAYER_WIN = 0x1000
+
+
 def _is_player_head(mem, a: int) -> bool:
-    """Page-aligned three-`JMP abs` head — the relocation-invariant DMC player
-    base signature (mirrors compilation._is_player_base_ram)."""
-    return (0 < a and a + 6 < 0x10000 and not (a & 0xFF)
-            and mem[a] == 0x4C and mem[a + 3] == 0x4C and mem[a + 6] == 0x4C)
+    """The RELOCATION- and REASSEMBLY-invariant player-base signature (no load
+    floor): a page-aligned address whose init (+0) and play (+3) vectors are
+    both `JMP abs` into the player's own [base, base+$1000) window.
+
+    THE one implementation — compilation.py re-exports it (it imports this
+    module, so the definition lives here to avoid a cycle). A stale
+    three-JMP copy lived here until 2026-07-23: round 90 generalised the
+    compilation-side predicate to the two essential vectors (re-assembled
+    players carry data at +6) but missed this duplicate, so
+    `_postinit_window(stop_at_player=True)` never recognised a two-JMP head
+    and ran to the 1M-step cap, returning None."""
+    if a & 0xFF or not (0 < a and a + 6 < 0x10000):
+        return False
+    if mem[a] != 0x4C or mem[a + 3] != 0x4C:
+        return False
+    for off in (1, 4):
+        tgt = mem[a + off] | (mem[a + off + 1] << 8)
+        if not (a <= tgt < a + _PLAYER_WIN):
+            return False
+    return True
 
 
 def _poweron_fill(memory):

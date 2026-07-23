@@ -988,7 +988,7 @@ sid_write:
 """
 
 
-def emit_v5_asm(m) -> str:
+def emit_v5_asm(m, origin: int = 0x1000) -> str:
     state = """
 ;; ===================== state block =====================
 state0:
@@ -1071,7 +1071,11 @@ state_end:
               f'LEFT_FCLO = ${m.lo_fclo:02X}\n'
               f'LEFT_SPDCTR = ${m.lo_spdctr:02X}\n'
               f'LEFT_MVOLFRAC = ${m.lo_mvolfrac:02X}\n')
-    engine = _ENGINE
+    # origin: the asm is fully label-based; the single `* = $1000` is the
+    # only origin-dependent line (a heterogeneous compilation splices this
+    # engine at an arbitrary address, ledger C31/C35 — same knob as
+    # compose_dmc_asm's `origin`).
+    engine = _ENGINE.replace('* = $1000', '* = $%04X' % origin)
     # family-4 (Jupiter41) WRITE-ORDER knob (ledger C16): family-4's note-on
     # writes ONLY SR/AD/CTRL on the TICK frame — it does NOT write FREQ=$0000
     # (the wave-step on the NEXT frame writes the real freq). The family-3

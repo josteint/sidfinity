@@ -65,19 +65,23 @@ def build(rel: str, out_sid: str, out_usf: str | None):
     cfgs2 = dmc_v4_config_2sid(rel, hvsc_root=hv)
     comp = None if cfgs2 is not None else detect_compilation(rel, hvsc_root=hv)
     builder = build_dmc_sid
-    if comp is not None and 'masm' in (comp.get('kinds') or []):
+    _kinds = (comp.get('kinds') or []) if comp else []
+    if comp is not None and any(k != 'dmc' for k in _kinds):
         # HETEROGENEOUS (ledger C31/C35): the packed players are from
-        # DIFFERENT families, so one DMC model cannot hold them. One UsfFile
-        # whose subtunes name their engine; the MA-aware builder dispatches.
-        # Same branch the family batch + the mass-write take — this tool is
-        # the localizer they are read against, so its dispatch must match.
+        # DIFFERENT families/composers (Music Assembler, or a DMC V5 player
+        # beside V4 ones), so one DMC model cannot hold them. One UsfFile
+        # whose subtunes name their engine; the engine-aware builder
+        # dispatches. Same branch the family batch + the mass-write take —
+        # this tool is the localizer they are read against, so its dispatch
+        # must match.
         from pipelines.music_assembler.heterogeneous import (
             heterogeneous_to_usf, build_from_usf)
         from src.usf.writer import write_file
         usf_src = os.path.join(td, os.path.basename(rel)[:-4] + '.usf')
         write_file(heterogeneous_to_usf(rel, comp, hvsc_root=hv), usf_src)
         builder, nch = build_from_usf, 1
-        path = _path_note('hetero_masm', comp['bases'], comp['map'])
+        path = _path_note('hetero_masm' if 'masm' in _kinds else 'hetero_v5',
+                          comp['bases'], comp['map'])
     elif cfgs2 is not None:
         usf_src = write_dmc_2sid_usf(cfgs2, td, hvsc_root=hv)
         nch = len(cfgs2)
