@@ -5,8 +5,19 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T20:13:06.624Z
+  modified: 2026-07-23T20:49:10.747Z
 ---
+
+## ✅ CLOSEOUT (2026-07-23, post-r106): fresh full batch + mass-write. **5296/5401 FULL (98.1%) + 105 partial + 0 error**
+The r106 factory change invalidated every code_hash, so the batch
+(`tmp/dmc_wide_results.jsonl`) re-verified ALL 5401 f1 members from scratch
+— fully authoritative. vs the r90 baseline (5256+145): net +40 FULL (the
+named r91-106 members plus propagation from the C29/C11-class fixes).
+Mass-write: 5296 written ok=5296 err=0, 6 orphans removed, path-stratified
+audit 9/9 from disk, `usf_corpus_check` 11959/11959 parse OK. Portfolio NOT
+re-derived (the new dims — filterdef_anim, undefined-secp — are corpus
+singletons, below the >=2x portfolio bar). Residue = 105 partials, next by
+path = Ed/Elechromania (the Ed custom-driver cluster continues).
 
 ## ✅ ROUND 106 (2026-07-23): appended FILTER-DEF ANIMATOR driver (C19 18th occ). Cliche_Beat FULL
 Next f1 partial by path = `Ed/Cliche_Beat` (single, canon $1000). First div
