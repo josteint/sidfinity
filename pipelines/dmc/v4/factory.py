@@ -1216,6 +1216,44 @@ def _glide_neutered_probe(path: str, base: int,
     return f'{store:04X}'
 
 
+def _route_clear_dead_probe(path: str, base: int,
+                            post_init_sub: 'int | None' = None):
+    """Non-filter route-bit CLEAR re-pointed off the $D417 shadow (STATIC
+    opcode probe, C19 16th occ, Daf/Classic_Mix). At note-init a filter
+    instrument ORs its route bit into the shadow (base+$18, canon
+    $1270-$1278) and a NON-filter instrument ANDs it clear ($12C0-$12C8).
+    The wedge re-points ONLY the clear's STA (canon `8D 18 10` ->
+    `8D 1C 10`, a void byte), so routing bits accumulate and never clear —
+    the work-file leftover ($07) persists through the whole song although
+    voices keep playing non-filter instruments. Anchor BOTH sites' full
+    canon shape relative to the member's base (LDA shadow / AND
+    base+$713,x / STA ... and LDA shadow / ORA base+$710,x / STA shadow);
+    fire iff the SET store hits the shadow and the CLEAR store does not.
+    Fail-open on any shape deviation. Value = the re-pointed operand."""
+    if base is None:
+        return None
+    mem, _ = _load(path, post_init_sub)
+    sh = base + 0x18
+    cl = base + 0x2C0
+    st = base + 0x270
+    if cl + 9 > 0x10000 or st + 9 > 0x10000:
+        return None
+
+    def _abs(op, a):
+        return (mem[a + 1] | (mem[a + 2] << 8)) if mem[a] == op else None
+
+    if _abs(0xAD, cl) != sh or _abs(0x3D, cl + 3) != base + 0x713 \
+            or mem[cl + 6] != 0x8D:
+        return None
+    if _abs(0xAD, st) != sh or _abs(0x1D, st + 3) != base + 0x710 \
+            or _abs(0x8D, st + 6) != sh:
+        return None
+    tgt = mem[cl + 7] | (mem[cl + 8] << 8)
+    if tgt == sh:
+        return None                         # clear hits the live shadow
+    return f'{tgt:04X}'
+
+
 def _pw_bound_shift_probe(path: str, base: int,
                           post_init_sub: 'int | None' = None):
     """PWM bound-A extraction shift (STATIC opcode probe, C19). The note-init
@@ -2089,6 +2127,7 @@ _WEDGE_PROBES = [
     ('pulsewidth_dir_persist',          lambda p, c: _pw_dir_persist_probe(p, c.base, c.post_init_sub)),
     ('switch_toggle_mask',              lambda p, c: _switch_toggle_mask_probe(p, c.base, c.gatemask_addr, c.post_init_sub)),
     ('glide_neutered',                  lambda p, c: _glide_neutered_probe(p, c.base, c.post_init_sub)),
+    ('route_clear_dead',                lambda p, c: _route_clear_dead_probe(p, c.base, c.post_init_sub)),
 ]
 
 

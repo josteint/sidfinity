@@ -2052,6 +2052,18 @@ ovrp_d:
         lda tmp
 ''' if ovr_conflict else '')
 
+    # route_clear_dead (C19 wedge, 16th occ — Classic_Mix): the note-init's
+    # NON-filter route-bit CLEAR (`STA shadow` at canon $12C6) is re-pointed
+    # at a void byte, so the $D417 routing bits only ever ACCUMULATE — the
+    # work-file leftover (init.sid res_routing) persists through non-filter
+    # note-inits. The SET site is untouched. Emit no clear for such members;
+    # everyone else keeps the canonical clear, byte-identical.
+    route_clear = ('' if str(usf.params.fields.get('route_clear_dead', '')
+                             or '') else
+                   '        lda shadow17\n'
+                   '        and fmask,x\n'
+                   '        sta shadow17\n')
+
     asm = f"""
 SLIDE_PHASE = ${slide_phase:02X}
 CIA_PERIOD = ${cia_period:04X}
@@ -2455,10 +2467,7 @@ ni_sr:
         lda iflag,y
         and #$20                     ; filter instrument?
         bne ni_f_on
-        lda shadow17
-        and fmask,x
-        sta shadow17
-        jmp ni_vib
+{route_clear}        jmp ni_vib
 ni_f_on:
         lda shadow17
         ora fbit,x

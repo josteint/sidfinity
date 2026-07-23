@@ -5,8 +5,25 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T15:45:06.738Z
+  modified: 2026-07-23T15:55:04.390Z
 ---
+
+## ✅ ROUND 101 (2026-07-23): route-clear-dead wedge (C19 16th occ). Classic_Mix FULL
+Next f1 partial by path = `Daf/Classic_Mix` (single, base $1000). First div
+frame 1: $D417 orig $07 vs ours $05 (V2's routing bit cleared). Orig
+memwatch: $1018 shadow NEVER changes although V2 note-inits non-filter
+inst 1 — because the wedge re-points ONLY the note-init clear's store
+(canon $12C6 `STA $1018` → `STA $101C` void) while the OR-set site is
+canon: routing bits accumulate, the leftover $07 (already carried as
+init.sid.filter.res_routing) persists all song. FIX:
+`factory._route_clear_dead_probe` (anchors BOTH sites' canon shape, fires
+iff set==shadow ∧ clear≠shadow, fail-open) → `extra_params` →
+composer `route_clear` f-string gate emits NO clear in ni_filter. Gates:
+probe census over stored FULLs + partials queue → exactly ONE carrier
+corpus-wide (Classic_Mix itself, a singleton wedge — zero FULL-side
+exposure, knob defaults off = everyone else byte-identical); dmc_smoke
+6/6; full regression 0 regressed. NOT closed out; f1 counts = r90's +
+r91-101 gains.
 
 ## ✅ ROUND 100 (2026-07-23): track-layer C34 (post-transpose $FF = one-row pseudo-sector). Dance FULL
 Next f1 partial by path = `Creo/Dance` (single, base $1000). First div ~95%
