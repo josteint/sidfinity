@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: dc3e8ab6-14f1-45ad-97c8-053b066d511b
-  modified: 2026-07-23T09:25:01.172Z
+  modified: 2026-07-23T09:38:50.994Z
 ---
 
 **DMC COMPILATIONS — one file, N independent DMC players, per-subtune dispatch.**
@@ -158,6 +158,17 @@ is one cycle CHEAPER than the three shifts.
 - Per-song instrument WINDOWS (the other candidate design — each subtune runs
   one packed player and uses ≤16 here) were NOT needed and are not implemented;
   revisit only if a merge exceeds 42.
+
+## ✅ RELOCATED HETEROGENEOUS (round 94, 2026-07-23) — Black_It 9/9
+`The_Syndrom/Black_It` = in-image V4 ($4200, subs 1-7, NON-identity song map)
++ RELOCATED V4 ($F200, sub 8) + RELOCATED **family-4 V5** copied to $1000
+(sub 0, head `+$40/+$95`). Commit `8f82ffc9`; detail in [[project_dmc]] r94.
+C31's relocating-wrapper rule composed with r93's heterogeneous machinery:
+`_base_kind` learned the family-4 head + the observe path classifies kinds AT
+THE LANDING on RAM; `post_init_sub` threaded through DMCV5Config and BOTH v5
+`_load`s; the V4 unit owns the merged file's file-level slot regardless of
+player index (`unit_order`). **The `base_override_not_player` residue class
+is EMPTY.** Next partial by path: re-run `dmc_next_partial`.
 
 ## ✅ HETEROGENEOUS V4 + V5 (round 93, 2026-07-23) — Super_Tau-Zeta 5/5
 `Super_Tau-Zeta` (r90's `base_override_not_player` residue) = 2 canonical V4

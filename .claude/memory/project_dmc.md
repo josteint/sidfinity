@@ -5,8 +5,23 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T09:24:28.829Z
+  modified: 2026-07-23T09:37:57.594Z
 ---
+
+## ✅ ROUND 94 (2026-07-23): RELOCATED heterogeneous sub-players. Black_It 9/9 FULL
+`The_Syndrom/Black_It` (the second `base_override_not_player` member) landed
+on the r93 machinery + relocation support. Commit `8f82ffc9`. Structure: an
+in-image V4 player ($4200, subs 1-7, NON-identity song map — subs 6/7 were
+only coincidentally FULL under the single fallback) + a RELOCATED V4 player
+($F200, sub 8) + a RELOCATED **family-4 V5** player copied to $1000 (sub 0,
+head `JMP +$40 / JMP +$95`). Pieces: `_base_kind` knows the family-4 head +
+the observe path classifies kinds AT THE LANDING on RAM; `post_init_sub`
+plumbed through DMCV5Config/both v5 `_load`s (snapshot at the landing);
+`dmc_v5_config(base_override=)` dispatches family-4 heads; the heterogeneous
+merge orders the V4 unit FIRST in id space regardless of player index (only
+V4 has file-level init the park/lift can't carry). Gates: 7 compilations +
+Jupiter41/Katusha/Space_Walk FULL, dmc_smoke 6/6, full regression 0 regressed.
+The `base_override_not_player` residue class is now EMPTY.
 
 ## ✅ ROUND 93 (2026-07-23): heterogeneous V4+V5 compilation. Super_Tau-Zeta 5/5 FULL
 Next f1 partial by path = `Super_Tau-Zeta` (r90's `base_override_not_player`
