@@ -5,8 +5,26 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T10:46:06.107Z
+  modified: 2026-07-23T13:30:51.082Z
 ---
+
+## ✅ ROUND 96 (2026-07-23): track-loop IMMEDIATE wedge (loop-to-N). They_Are_the_Best_1 + 6 more FULL
+Next f1 partial by path = `Brian/They_Are_the_Best_1` (single, base $1000,
+family-2-style `rest_effects: skip`). C19 15th occurrence: the canon $FF
+handler's `LDA #$00` immediate hand-patched to `#$02` ⇒ every voice loops to
+track pos 2 (C13 loop-to-N semantics as a 1-byte tweak; invisible to both
+the canon-shaped `loop_site` detection AND `dmc_canon_diff`'s immediate
+LIMIT). TELL: same-instant note-init with a completely different row at the
+wrap + post-wrap transpose = pre-wrap value (loop lands past the leading
+transpose command) + a small length tail. FIX: static probe in dataflow.py
+(sig `C9 FF D0 08 A9 imm 9D` + STA operand == track-pos addr) → existing
+`loop_reset_pos=N`; no extract/composer change. Census 12 carriers, 0
+baseline-FULL; **7 flipped FULL**: They_Are_the_Best_1, Cubehead ×4
+(Absolute_the_introduction / Again_and_Again / Never_Brake_Me /
+Shapeless_Dreams), 4_Simone, Quattrodance. Just_11 / Witchs_Birthday /
+Conversion still partial (other blockers); Arthur ×2 = nonstandard_vectors.
+Gates: dmc_smoke 6/6, full regression 9 families 0 regressed. NOT closed
+out; f1 counts = r90's + r91-96 gains.
 
 ## ✅ ROUND 95 (2026-07-23): glide_neutered wedge (glide dead + DATA POKE). Ice_on_Fire 1/1 FULL
 Next f1 partial by path = `Bleed_Into_One/Ice_on_Fire` (single, base $1000).

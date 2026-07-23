@@ -337,6 +337,28 @@ def locate(mem: bytearray, base: int, play: int | None = None,
                 loop_reset_pos = imms
                 break
 
+    # C19 immediate wedge on the CANON $FF handler itself (round 95,
+    # They_Are_the_Best_1): the in-player loop code `C9 FF D0 08 A9 00 9D
+    # otrk,x` has its LDA immediate hand-patched (#$00 -> #$02), so every
+    # voice's $FF loops to track position N instead of 0 — the same
+    # semantics as the reset-all-to-N SYNC hook, expressed as a 1-byte
+    # patch the canon-shaped `loop_site` detection sails past (the site
+    # matches; only the immediate differs). Anchor: the STA operand must
+    # be the fetch-anchored track-position address. Scalar per the wedge's
+    # X-indexed store (one immediate serves all voices).
+    if loop_reset_pos is None and track_pos_addr is not None:
+        sig = bytes([0xC9, 0xFF, 0xD0, 0x08, 0xA9])
+        buf = bytes(mem)
+        j = buf.find(sig)
+        while j >= 0:
+            if buf[j + 6] == 0x9D and \
+                    (buf[j + 7] | (buf[j + 8] << 8)) == track_pos_addr:
+                if buf[j + 5] != 0:
+                    track_loop_target = False
+                    loop_reset_pos = buf[j + 5]
+                break
+            j = buf.find(sig, j + 1)
+
     return {
         'op_instr': sites['instr'], 'op_wavectrl': sites['wavectrl'],
         'op_wavefreq': sites['wavefreq'], 'op_filtdef': sites['filtdef'],
