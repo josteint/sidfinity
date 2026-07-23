@@ -366,12 +366,40 @@ def _fold_stated_orderlist(v):
     S = slots[0]
     if slots != list(range(S, S + len(slots))) or S + len(slots) != B:
         return None
-    # steady decode = cycle pass; intro decode = pass0 where it differs
+    # steady decode = cycle pass; intro decode = pass0 where it differs.
+    # An intro/loop variant pair may differ ONLY in carried (unstated)
+    # instr/vol — the class the composer's stated encoding ERASES, so both
+    # passes produce the same encoded pattern and one physical slot serves
+    # them. A pair differing in STATED content or duration (the mid-sector
+    # loop re-entry that SKIPS the sector's leading command bytes: the $FF
+    # loop inherits the sector position, Creo/Dance's `...$A0 $FF` tail)
+    # encodes differently per pass — one slot cannot carry both, so refuse
+    # and let the legacy unrolled representation carry the member.
+    def _stated_equal(a, b):
+        if len(a) != len(b):
+            return False
+        for r, s in zip(a, b):
+            if (r.duration, r.note, r.soft, r.gate_toggle, r.glide_speed,
+                    r.glide_to, r.glide_slide, r.dcmd, r.icmd, r.vcmd,
+                    r.softcmd) != \
+               (s.duration, s.note, s.soft, s.gate_toggle, s.glide_speed,
+                    s.glide_to, s.glide_slide, s.dcmd, s.icmd, s.vcmd,
+                    s.softcmd):
+                return False
+            if r.icmd and r.instr != s.instr:
+                return False
+            if r.vcmd and r.vol != s.vol:
+                return False
+        return True
+
     entries = list(v.entries[:B])
     intros = [None] * B
     for j in range(B, n):
         sl = slots[j - B]
         if v.entries[j] != entries[sl]:
+            if not _stated_equal(v.patterns[entries[sl]],
+                                 v.patterns[v.entries[j]]):
+                return None
             intros[sl] = entries[sl]        # intro variant = pass-0 decode
             entries[sl] = v.entries[j]      # base = steady decode
     # verify the derived effective transposes reproduce BOTH walked passes:

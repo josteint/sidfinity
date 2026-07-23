@@ -639,9 +639,14 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
     st = _Sticky()
     transpose = 0
     pos = 0
-    wrap_states = {}        # (pos, sticky) at wrap -> entry index
+    wrap_states = {}        # (tgt, sticky, pending) at wrap -> entry index
     mod_states = {}         # (pos, sticky, transpose) after a mod-256 wrap
     wrapped = False
+    pending_off = 0         # sector position INHERITED across a $FF loop:
+                            # the $7F end handler zeros $1729,x but the $FF
+                            # LOOP handler does NOT — a loop taken mid-sector
+                            # (the post-transpose $FF quirk below) resumes
+                            # the target sector at the leftover position.
     guard = 0
     while True:
         guard += 1
@@ -665,7 +670,7 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 tgt = loop_reset_pos    # reset-all-to-N SYNC hook (ledger C13)
             else:
                 tgt = mem[(track_addr + ((pos + 1) & 0xFF)) & 0xFFFF] if loop_target else 0
-            key = (tgt, st.key())
+            key = (tgt, st.key(), pending_off)
             if key in wrap_states:
                 v.loop_to = wrap_states[key]
                 return v
@@ -684,9 +689,56 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 pos &= 0xFF
                 wrapped = True
             b = mem[(track_addr + pos) & 0xFFFF]
+            if b >= 0xFE:
+                # THE ENGINE DOES NOT RE-DISPATCH the post-transpose byte in
+                # the fetch that consumed the transpose: `INY / LDA ($f8),y /
+                # TAY` takes it as a SECTOR NUMBER unconditionally ($10FE-
+                # $1101), so a track tail `...$A0 $FF` plays ONE ROW of
+                # secp[$FF]'s pseudo-sector; the NEXT row-fetch re-reads this
+                # position as a TRACK byte ($FF -> loop / $FE -> stop). The
+                # $FF loop then INHERITS the row's consumed bytes as the
+                # target sector's start position ($1729 is only zeroed by
+                # $7F, never by the loop handler). Creo/Dance: the composer
+                # aimed secp[$FF] at a real outro phrase and loops the whole
+                # track through it. Plain post-transpose sector numbers
+                # (< $FE) are unaffected: the re-dispatch reads the same
+                # sector number and simply continues the sector.
+                ga = mem[(secp_lo + b) & 0xFFFF] | \
+                    (mem[(secp_hi + b) & 0xFFFF] << 8)
+                probe = _simulate_sector(mem, ga, st.copy(), fmt)
+                if isinstance(probe, list) and probe:
+                    r0 = probe[0]
+                    consumed = (3 if r0.glide_to is not None else
+                                2 if r0.glide_slide else 1)
+                    consumed += (int(r0.dcmd) + int(r0.icmd) + int(r0.vcmd)
+                                 + r0.softcmd)
+                    if r0.dcmd:
+                        st.dur = r0.duration
+                    if r0.icmd:
+                        st.instr = r0.instr
+                    if r0.vcmd:
+                        st.vol = r0.vol
+                    key = tuple((r.note, r.duration, r.instr, r.vol, r.soft,
+                                 r.gate_toggle, r.glide_speed, r.glide_to,
+                                 r.glide_slide, r.dcmd, r.icmd, r.vcmd,
+                                 r.softcmd) for r in [r0])
+                    pid = pat_key_to_id.get(key)
+                    if pid is None:
+                        pid = len(v.patterns)
+                        v.patterns.append([r0])
+                        pat_key_to_id[key] = pid
+                    v.entry_offsets.append(pos)
+                    v.entries.append(pid)
+                    v.transposes.append(transpose)
+                    pending_off = consumed
+                # (unsimulatable pseudo-sector: fall through, the $FE/$FF
+                # dispatch above handles the byte as before — old behavior)
+                continue
         sec = b
         v.entry_offsets.append(pos)
-        sec_addr = mem[(secp_lo + sec) & 0xFFFF] | (mem[(secp_hi + sec) & 0xFFFF] << 8)
+        sec_addr = (mem[(secp_lo + sec) & 0xFFFF] |
+                    (mem[(secp_hi + sec) & 0xFFFF] << 8)) + pending_off
+        pending_off = 0
         rows = _simulate_sector(mem, sec_addr, st, fmt)
         if isinstance(rows, tuple) and rows[0] == 'endless':
             # unterminated sector (8-bit sectpos wrap): the voice never

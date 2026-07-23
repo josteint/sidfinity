@@ -5,8 +5,40 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T15:09:27.846Z
+  modified: 2026-07-23T15:45:06.738Z
 ---
+
+## ✅ ROUND 100 (2026-07-23): track-layer C34 (post-transpose $FF = one-row pseudo-sector). Dance FULL
+Next f1 partial by path = `Creo/Dance` (single, base $1000). First div ~95%
+in at the track wrap: orig plays real content, rebuild droned a note-0
+outro. Root cause = C34 2nd occurrence AT THE TRACK LAYER (canonicalized):
+the transpose handler consumes the next byte ITSELF as a SECTOR ($10FE
+`INY/LDA/TAY`, no $FE/$FF recheck), so the tail `...$A0 $FF` plays ONE ROW
+of secp[$FF] (aimed at a real phrase at $1C1C); the track byte is
+re-dispatched per ROW-fetch (next fetch sees $FF → loop), and the $FF loop
+does NOT zero sectpos → the loop-target sector RESUMES at the consumed
+byte count, skipping its leading instr/dur commands (which then inherit
+sticky state, C32). Old `_walk_track` decoded sec=$FF as a full endless
+garbage sector (loop_to=last, the observed drone). TWO FIXES:
+- `_walk_track`: post-transpose $FE/$FF → simulate ONE row (sticky applied
+  from its stated cmds; width = row kind + stated commands, the sectpos
+  derivation), then re-dispatch as track byte with `pending_off` carried
+  into the loop-target sector's start.
+- `_fold_stated_orderlist._stated_equal` (C32 boundary): intro/loop
+  variant pairs must be ENCODING-equivalent (carried instr/vol only);
+  stated-content/duration diffs REFUSE → legacy unrolled representation
+  (the composer plays the intro variant on every pass — both its paths —
+  so a stated-differing pair was mis-emitted; also cured the Rayden
+  2SIDs' latent carried-duration collapse).
+DIAGNOSIS TRAIL: memwatch otrk ($1726-8) showed lockstep 0-22→0 vs our
+62/44/26-entry decode; pc-trace of $10D2/$10EF/$10DD gave the per-row
+re-dispatch + the one-row quirk (armchair readings of the disasm were
+wrong TWICE — trace, don't infer). Gates: census over ALL stored .usf +
+partials queue → 16 v4 carriers; 11 FULLs re-verified FULL (incl. 4
+Rayden 2SIDs + Experiment + Sans_intro), 4 partials pre-existing
+(refusal doesn't fire for them; play_match deltas = stale r90 baselines,
+exonerated); Dance + Experiment FULL; dmc_smoke 6/6; full regression 9
+families 0 regressed. NOT closed out; f1 counts = r90's + r91-100 gains.
 
 ## ✅ ROUND 99 (2026-07-23): per-SUBTUNE off-table byte via instrument value-class SPLIT. Assassins + Useless_1994 FULL
 Next f1 partial by path = `Creo/Assassins` (single, base $1000, 2 subtunes;

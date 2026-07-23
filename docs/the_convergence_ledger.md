@@ -119,7 +119,7 @@ practice, not code to factor).
 | COMPILATION · one file packs N INDEPENDENT players + a per-subtune SMC dispatch wrapper (subtune→(base,song)) · header overstates songs, sub0 FULL others silent/garbage · ≥2 jump-table bases · unified-merge (renumber+dedup instruments) · heterogeneous engines (dmc_sfx) · distinct from C27 parallel chips | C31 | logged |
 | engine STICKY STATE materialized into effective variants · orderlist state over the loop wrap (fitted pad/period/rcmd) · pattern-row sticky duration/instr/vol (FC (fc_id,init_len) variants · len=L pickup · DMC ~intro decode variants) · fold to STATED notation (value present iff the stream states the command; absent = inherit) + ONE shared resolution interpreter (src/usf/resolve.py) · re-derivation assert, fallback wholesale | C32 | canonicalized (2×) |
 | one FILE needs more than one COMPOSER · original packs players of DIFFERENT families behind a per-subtune dispatch wrapper · cannot be stored as one .usf · `origin_engine` Move-1 scaffold, boundary = "more than one COMPOSER" NOT "more than one engine" (5TT packs 5 sub-engines and needs none) | C35 | logged |
-| packed-stream byte whose meaning depends on the DECODER'S POSITION · a command handler consumes the following bytes itself with its OWN coarser rules (skipping the top-level dispatch AND the terminator test) · INVISIBLE to the write-stream verdict (re-emission round-trips through the same handler) — corrupts USF CONTENT only · find it by READING the handler | C34 | logged |
+| packed-stream byte whose meaning depends on the DECODER'S POSITION · a command handler consumes the following bytes itself with its OWN coarser rules (skipping the top-level dispatch AND the terminator test) · MA: invisible to the verdict (round-trips) — corrupts USF CONTENT · DMC track transpose handler: post-transpose $FF = a one-row pseudo-sector, then loop WITHOUT sectpos reset (visible at the wrap) · find it by READING the handler | C34 | recurring (2×) |
 | close a `Params.fields` ESCAPE-HATCH key → typed field · untyped behavior-named scalar in the generic params bag (init-phase state / mechanism scalar), borderline §7 · NOT opaque-bytes (C7) / NOT a wedge knob (C19) · it's a byte-identity CARRIER REFACTOR not a schema addition (value already in USF) · census ALL consumers (often cross-engine SHARED + dead readers) · clone an existing typed field of the same trichotomy category · type by MUSICAL category NOT a composer grouping · gate regenerates + MD5-compares every consumer family (surfaces broken extract paths behind a FULL verdict) | C33 | methodology |
 
 ---
@@ -769,7 +769,10 @@ practice, not code to factor).
   it by its own coarser rules — skipping both the top-level sub-splits and the
   end-of-pattern test. The same byte means different things at different
   positions (MA: after a preset select, `$A0+` is a REST not a HOLD, and `$FF`
-  is a rest not a terminator).
+  is a rest not a terminator; DMC track layer: after a transpose command,
+  `$FF` is a SECTOR NUMBER for one row — then re-dispatched as the loop,
+  which inherits the consumed bytes as the target sector's start position —
+  presenting as a ~95%-in wrap divergence, r100 Dance).
 - ⚠ THE WRITE-STREAM VERDICT IS BLIND TO IT: re-emitting the mis-decoded event
   yields a byte the player reinterprets identically, so the member verifies
   FULL forever while the USF carries wrong musical content (a `tie` where the
