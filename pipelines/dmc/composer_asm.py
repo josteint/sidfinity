@@ -396,24 +396,21 @@ def _row_event(row, inst_slot: dict) -> tuple:
 
 
 def _glide_target(tgt: str, note: int) -> int:
-    """Parse a `glide_to=` flag into an absolute note number."""
-    # NB the `len(tgt)==3` guard drops the '#' for a 2-digit-octave sharp
-    # (F#10 -> parsed as F-10, one semitone low). This LOOKS like a bug, but
-    # DO NOT "fix" it by `sep = tgt[1]`: glide_to octave-10+ targets are
-    # off-table "notes" (raw noteB byte $7E etc.) whose arrival check reads
-    # freqhi[126]=$1725=dtmph — a DYNAMIC scratch byte (C11 hard boundary).
-    # The parsed-125 target terminates the sweep on freqhi[125]=$1724=dtmpl,
-    # which is in a self-consistent balance with the composer's state; the
-    # "correct" 126 breaks it. Verified: `sep=tgt[1]` REGRESSED 20/104 FULL
-    # members (Calypso C-3->F#10 = a 90-semitone sweep, not a real glide),
-    # recovered 0 (Plasmachaos, the degenerate gla==125 case, has an otrk
-    # 2nd blocker). Round-22 investigation; left as-is.
-    sep = tgt[1] if len(tgt) == 3 else '-'
+    """Parse a `glide_to=` flag into an absolute note number — EXACTLY.
+
+    History: until round 97 a `len(tgt)==3` guard dropped the '#' for a
+    2-digit-octave sharp (F#10 -> parsed as F-10 = 125, one semitone low),
+    deliberately: off-table targets' arrival check reads freqhi[126] =
+    $1725 = live dtmph, and with the arrival compare reading our STATIC
+    window byte the parsed-125 target was in a self-consistent balance
+    (the exact parse alone REGRESSED 20/104, round 22). Round 97 (Cleve_24)
+    re-measured per C11: our dtmpl/dtmph shadow tracks the orig 1:1 (0
+    mismatches over 2,843 events), so the arrival compare is now served
+    through the SAME off-table redirect as the reload (gated `ga_cmp`) and
+    the target parses exactly — the true mechanism, not the balance."""
+    sep = tgt[1]
     name = tgt[0] + ('#' if sep == '#' else '')
-    target = int(tgt[2:]) * 12 + NOTE_IDX[name]
-    if target == note and len(tgt) > 3 and tgt[1] == '#':
-        target = int(tgt[2:]) * 12 + NOTE_IDX[tgt[0] + '#']
-    return target
+    return int(tgt[2:]) * 12 + NOTE_IDX[name]
 
 
 def _row_event_stated(rr, inst_slot: dict) -> tuple:
@@ -559,6 +556,33 @@ class _Model:
         self.usf = usf
         self.instruments = list(usf.instruments)
         self.inst_slot = {i.id: k for k, i in enumerate(self.instruments)}
+        # OFF-TABLE GLIDE TARGET present? (round 97, Cleve_24): a glide row
+        # whose runtime glb = (target + transpose) & $FF passes the 96-entry
+        # table makes the ARRIVAL check read the off-table window (canon:
+        # freqhi[126] = live dtmph). Such members get the redirect-served
+        # arrival compare (`ga_cmp`); everyone else keeps the plain
+        # `cmp freqhi,y` — byte-identical. Conservative over-approx (any
+        # target x any of the voice's transposes): a widely-gated member is
+        # content-identical (in-table Y takes the chunk's fast path to the
+        # same table byte).
+        self.glide_offtable = False
+        for _sub in usf.subtunes:
+            for _vb in (getattr(_sub, 'voices', None) or []):
+                _ol = _vb.orderlist
+                _trs = {0}
+                for _i in range(len(getattr(_ol, 'entries', None) or [])):
+                    try:
+                        _trs.add(_ol.transpose_at(_i))
+                    except Exception:
+                        pass
+                for _p in _vb.patterns:
+                    for _r in _p.rows:
+                        for _f in _r.fx_flags:
+                            if _f.startswith('glide_to='):
+                                _t = _glide_target(_f[9:], 0)
+                                if any(((_t + _tr) & 0xFF) > 95
+                                       for _tr in _trs):
+                                    self.glide_offtable = True
         # layout-preserving wave pool: every instrument carries its editor
         # wave-table position (only emitted for members whose off-table freq
         # reads sonify a live wave position $177A-$177C) — pack the pool at
@@ -1973,6 +1997,28 @@ fx_dual_up:
         otmap, ORIG_FLO, 192, 'lda freqlo,y', 'nf_rd_los')
     nf_hi_redirect = _gen_offtable_redirect(
         otmap, ORIG_FHI, 96, 'lda freqhi,y', 'nf_rd_his')
+    # Glide-ARRIVAL compare (round 97, Cleve_24): the orig's fx_gl_chk
+    # `CMP freqhi,y` with an off-table glb reads the live state block
+    # (canon glb=126 -> $1725 = dtmph, which the dual-slide keeps equal to
+    # the current slid freq hi -> instant arrival). Serve the compare
+    # through the SAME redirect map as the reload; gated on the member
+    # actually carrying an off-table glide target so everyone else is
+    # byte-identical (the plain `cmp freqhi,y`).
+    if m.glide_offtable:
+        ga_chunk = _gen_offtable_redirect(
+            otmap, ORIG_FHI, 96, 'lda freqhi,y', 'ga_rd_his')
+        ga_cmp = ('        jsr ga_cmp_sub               ; arrived when freq '
+                  'HI matches (live-served) target\n')
+        ga_cmp_sub = (f'ga_cmp_sub:\n'
+                      f'        sta tmp2                     ; current freq hi\n'
+                      f'{ga_chunk}\n'
+                      f'ga_rd_his:\n'
+                      f'        cmp tmp2                     ; Z survives rts\n'
+                      f'        rts\n')
+    else:
+        ga_cmp = ('        cmp freqhi,y                 ; arrived when freq '
+                  'HI matches target\n')
+        ga_cmp_sub = ''
 
     # per-subtune idle-priming addressing (see `per_sub_prime` above). When the
     # tables are 3 bytes wide the voice index IS the table index and all three
@@ -2590,8 +2636,7 @@ fx_gl_chk:
         adc fbl,x
         lda acch,x
         adc fbh,x
-        cmp freqhi,y                 ; arrived when freq HI matches target
-        bne fx_gl_out
+{ga_cmp}        bne fx_gl_out
         tya
         sta curnote,x
         jsr reload_base              ; base freq freqlo/hi[target];
@@ -2747,6 +2792,7 @@ nf_rd_his:
         sta fbh,x
         rts
 
+{ga_cmp_sub}
 ;; ===================== data (from USF) =====================
 {data_asm}
 

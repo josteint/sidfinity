@@ -294,9 +294,12 @@ practice, not code to factor).
   stable dynamic byte = event-driven capture. Diagnostic (a/b/c): wnote
   matches + var matches ⇒ add a redirect row; wnote differs ⇒ wavepos layout;
   var differs ⇒ non-tracking accumulator (hard). ALL read sites must honor a
-  redirect, sparse vars need seeding, shared scratch is shadowable by
-  mirroring all writers. Full entry has the hard boundaries (dynamic work-RAM,
-  off-table glide targets — do NOT re-attempt the glide-target fixes).
+  redirect (incl. the glide-ARRIVAL compare — served via the same map, gated,
+  r97), sparse vars need seeding, shared scratch is shadowable by mirroring
+  all writers. Full entry has the remaining hard boundaries (dynamic
+  work-RAM); the former "off-table glide target" boundary is RESOLVED (r97 —
+  the 2nd re-measure expiry: dtmph now tracks 1:1, exact parse + live-served
+  arrival landed 109/109 class FULL + Cleve_24).
 - ⚠ A RECORDED REJECTION OF A REDIRECT ROW EXPIRES. "Our var doesn't track
   theirs" was measured against ONE composer on ONE date (often on ONE family);
   the composer is re-implemented continuously. RE-MEASURE before accepting it

@@ -5,8 +5,30 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T13:30:51.082Z
+  modified: 2026-07-23T13:54:46.726Z
 ---
+
+## ✅ ROUND 97 (2026-07-23): off-table glide-target boundary DISSOLVED. Cleve_24 FULL
+Next f1 partial by path = `Cleve/Cleve_24` (single, base $1000). The r22
+"off-table glide target" HARD BOUNDARY (C11) re-measured and RESOLVED — the
+2nd expiry precedent after fclaim. Mechanism: glide_to raw byte $7E (note
+126); arrival `CMP freqhi[126]` = live dtmph, which the dual-slide keeps
+equal to the current slid hi ⇒ INSTANT arrival, curnote=126, wave offset +12
+⇒ idx-138 reads (static lo + live fbl[2] hi). Measurement: our dtmpl/dtmph
+shadow tracks orig 1:1 (0 mismatches / 2,843 events — memwatch-on-write
+D40E, orig $1724/25 vs our labels). Fix (composer only):
+- `_glide_target` parses EXACTLY (the deliberate 125-mis-parse deleted).
+- The arrival compare is served through the SAME off-table redirect map as
+  the reload: out-of-line `ga_cmp_sub` (inline blew branch range), gated on
+  `_Model.glide_offtable` = any (glide_to+transpose)&$FF>95 — everyone else
+  byte-identical.
+- The extract already enumerated glide-target reads (r.glide_to + wave
+  offsets) and to_usf already live-flags canon records — no extract change.
+- NB my earlier "no offtable records" reads were a broken dict iteration
+  (enumerate over m.instruments yields KEYS) — records existed all along.
+Gates: ALL 109 stored-FULL class members (glide_to octave ≥8 in stored
+.usf) re-verified FULL; dmc_smoke 6/6; full regression 9 families 0
+regressed. NOT closed out; f1 counts = r90's + r91-97 gains.
 
 ## ✅ ROUND 96 (2026-07-23): track-loop IMMEDIATE wedge (loop-to-N). They_Are_the_Best_1 + 6 more FULL
 Next f1 partial by path = `Brian/They_Are_the_Best_1` (single, base $1000,
