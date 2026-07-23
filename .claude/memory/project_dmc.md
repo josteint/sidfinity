@@ -5,8 +5,29 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T14:46:27.782Z
+  modified: 2026-07-23T15:09:27.846Z
 ---
+
+## ✅ ROUND 99 (2026-07-23): per-SUBTUNE off-table byte via instrument value-class SPLIT. Assassins + Useless_1994 FULL
+Next f1 partial by path = `Creo/Assassins` (single, base $1000, 2 subtunes;
+sub 0 was FULL). Sub 1 first div: V1 note freq hi $CE vs $80 = off-table fhi
+idx 98 = $1709 (V1 track-ptr slot, per-subtune init state) — the C31
+"file-level idx-keyed window can't hold a per-player fact" in its
+SINGLE-PLAYER form: both subtunes reach the record through the SAME inst 21,
+so instrument-usage attribution can't disagree and
+`_correct_offtable_postinit`'s all-agree check fell back to the start-song
+sample ($80 = sub 0's byte; sub 1 reads $CE). FIX (extract-only):
+`pick`'s loop records per-subtune sampled values on disagreement
+(`m.offtable_song_values`); new `_split_offtable_by_subtune` (end of
+extract) clones the instrument per VALUE-CLASS + remaps the non-start
+classes' rows — the composer's EXISTING `ovr_sub` per-subtune window patch
+then fires (used-instruments now disagree) with zero composer/schema change.
+Honest content: the subtunes hear different pitches there. Gates: 86
+stored-FULL multi-subtune offtable carriers extracted, only 2 fire (Rayden
+Bamse_Bert_2SID + Leprechaun_Boot_V1_2SID — both re-verified FULL through
+the multi-SID merge); partial census: Assassins 2/2 + Useless_1994 2/2
+(bonus) flip FULL; dmc_smoke 6/6; full regression 9 families 0 regressed.
+NOT closed out; f1 counts = r90's + r91-99 gains.
 
 ## ✅ ROUND 98 (2026-07-23): wavepos-layout gate relaxed to OBSERVABILITY. Object_of_Art FULL
 Next f1 partial by path = `Compod/Object_of_Art` (single, base $1000) — the

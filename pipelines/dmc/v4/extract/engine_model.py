@@ -1342,7 +1342,76 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
             if (ins.wave_loop == 0 and n and ws < _wlim
                     and ctrl_tab[ws] == 0x90 + n):
                 ins.wave_start_on_marker = True
+    _split_offtable_by_subtune(m)
     return m
+
+
+def _split_offtable_by_subtune(m: DmcModel) -> None:
+    """Serve a per-SUBTUNE off-table byte through a SHARED instrument (ledger
+    C31's "no file-level idx-keyed table can hold a per-player fact", in its
+    single-player form). A record's source byte can be per-subtune init state
+    (track-ptr slots): the reaching subtunes each read a DIFFERENT constant,
+    so one instrument record — and one static window byte — cannot serve
+    both (Assassins: inst 21 idx 98 = $1709, sub 0 $80 / sub 1 $CE; the
+    start-song fallback made every non-start subtune read the wrong pitch).
+
+    Fix with ZERO composer/schema change: clone the instrument per
+    VALUE-CLASS (subtunes grouped by their sampled record values) and remap
+    the non-start classes' rows to the clone — each subtune then USES an
+    instrument carrying its own values, which is exactly the disagreement
+    the composer's per-subtune window patch (`ovr_sub`) detects and serves
+    by re-writing the conflicting window positions at every init. The two
+    subtunes genuinely hear different pitches at that read, so two
+    instrument points is honest musical content, not duplication for
+    mechanism's sake. Gated: no disagreement (the corpus-dominant case) ->
+    no clone -> byte-identical."""
+    sv = getattr(m, 'offtable_song_values', None)
+    if not sv:
+        return
+    from collections import defaultdict
+    from dataclasses import replace
+    import copy
+    by_inst = defaultdict(dict)
+    for (iid, off, note), vals in sv.items():
+        by_inst[iid][(off, note)] = vals
+    next_id = max(m.instruments) + 1
+    start_si = max(0, (getattr(m, 'start_song', 1) or 1) - 1)
+    for iid, recs in sorted(by_inst.items()):
+        ins = m.instruments.get(iid)
+        if ins is None:
+            continue
+        songs = sorted({si for vals in recs.values() for si in vals})
+        # value-class: the tuple of this subtune's sampled record values
+        cls = {}
+        for si in songs:
+            key = tuple(sorted((k, vals[si]) for k, vals in recs.items()
+                               if si in vals))
+            cls.setdefault(key, []).append(si)
+        if len(cls) < 2:
+            continue
+        # the class holding the start song keeps the original instrument
+        # (whose records already carry the start-song fallback values)
+        keep = next((k for k, ss in cls.items() if start_si in ss),
+                    next(iter(cls)))
+        for key, ss in sorted(cls.items()):
+            if key == keep:
+                tgt, t = iid, ins
+            else:
+                t = copy.deepcopy(ins)
+                tgt = t.id = next_id
+                next_id += 1
+                m.instruments[tgt] = t
+            vals = dict(key)
+            t.offtable_freq = sorted(
+                (off, note) + vals.get((off, note), (lo, hi))
+                for off, note, lo, hi in t.offtable_freq)
+            if tgt == iid:
+                continue
+            for si in ss:
+                for v in m.songs[si].voices:
+                    v.patterns = [
+                        [replace(r, instr=tgt) if r.instr == iid else r
+                         for r in pat] for pat in v.patterns]
 
 
 def _wave_layout_verbatim(m: DmcModel, ctrl_tab, freq_tab, n_wave):
@@ -1735,6 +1804,15 @@ def _correct_offtable_postinit(m: DmcModel, sid_path: str, flo_addr: int,
             resolved.add(a)
         return v
 
+    # Per-subtune DISAGREEMENT map: a record whose reaching subtunes were all
+    # sampled (byte constant within each) but with DIFFERENT values — one
+    # file-level window byte cannot serve them (the track-ptr slots are
+    # per-subtune init state: Assassins sub 0 $1709=$80 vs sub 1 $CE). The
+    # `pick` fallback keeps the start-song value (sub 0 stays byte-identical);
+    # _split_offtable_by_subtune clones the instrument per value-class so the
+    # composer's existing per-subtune window patch (ledger C31, `ovr_sub`)
+    # serves each subtune its own byte.  {(iid, off, note): {si: (lo, hi)}}
+    song_values = {}
     for iid, ins in m.instruments.items():
         new = []
         for off, note, lo, hi in ins.offtable_freq:
@@ -1742,9 +1820,23 @@ def _correct_offtable_postinit(m: DmcModel, sid_path: str, flo_addr: int,
             songs = songmap.get((iid, off, note), ())
             plo = pick(flo_addr + idx, songs)
             phi = pick(fhi_addr + idx, songs)
+            if songs and len(songs) > 1:
+                la = {si: post_by_song.get(si, {}).get((flo_addr + idx)
+                                                       & 0xFFFF)
+                      for si in songs}
+                ha = {si: post_by_song.get(si, {}).get((fhi_addr + idx)
+                                                       & 0xFFFF)
+                      for si in songs}
+                if (all(v is not None for v in la.values())
+                        and all(v is not None for v in ha.values())
+                        and (len(set(la.values())) > 1
+                             or len(set(ha.values())) > 1)):
+                    song_values[(iid, off, note)] = {
+                        si: (la[si], ha[si]) for si in sorted(songs)}
             new.append((off, note, lo if plo is None else plo,
                         hi if phi is None else phi))
         ins.offtable_freq = sorted(set(new))
+    m.offtable_song_values = song_values
     vd = {}
     for n, d in m.offtable_vibdepth.items():
         v = pick(vibdepth_addr + n, vibsongs.get(n, ()))

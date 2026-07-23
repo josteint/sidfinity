@@ -710,7 +710,11 @@ practice, not code to factor).
   well-formed, WRONG byte). And no FILE-LEVEL idx-keyed composer table (the
   off-table window) can hold a per-player fact: attribute records to subtunes
   by the instruments their ROWS play, patch the disagreeing positions at init
-  (gated ⇒ conflict-free members byte-identical).
+  (gated ⇒ conflict-free members byte-identical). SINGLE-PLAYER FORM (r99):
+  the window fact can be per-SUBTUNE through ONE SHARED instrument (track-ptr
+  slots are per-subtune init state) — instrument-usage attribution can't
+  disagree, so the extract SPLITS the instrument per sampled VALUE-CLASS
+  (clone + remap the disagreeing subtune's rows; `ovr_sub` then serves each).
 - IDENTIFYING an unfamiliar packed player: build the opcode skeleton from
   REACHABLE CODE ONLY. A window spanning the player's SMC/scratch bytes is
   member-specific and reports "1 carrier in HVSC" for a player that actually
