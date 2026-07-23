@@ -114,7 +114,7 @@ practice, not code to factor).
 | song data ABSENT from file image · init generates/unpacks tables in RAM · operands point outside the loaded image · extract from POST-INIT RAM (py65), all-or-nothing signature · banking-wrapper JT-less base from the wrapper JSR target | C26 | logged |
 | multi-SID (2SID/3SID) · N chips, one player each behind a dispatch wrapper · players run sequentially -> merged log = [chip1][chip2] · extract/compose/verify each with single-chip machinery, chip-TAGGED (reg=chip*$20+reg) · voices number through chips, addresses are pipeline constants not USF | C27 | logged |
 | multi-SID VERDICT · rebuild is per-chip correct but the merged chip-tagged stream diverges on a CROSS-CHIP adjacency (chip1 vs chip2 write order) · cross-chip order is physically UNobservable (independent hardware, Trap-B analogue) · split by reg//0x20, require each chip's substream to pass · compare_instruction_stream(n_chips=N) · do NOT chase cycle precision / straddle-free capture | C28 | logged |
-| PLAYED sector reads the EMULATOR ENVIRONMENT · $FF loop → $0000 live zp sonified · truncated-copy wrapper → power-on-RAM secp byte → KERNAL-tail window + patched psiddrv vectors + 16-bit wrap · gate = any played sector leaving defined RAM (`_offimage_sectors`) · CPU-EYE capture `siddump --peek-post-init` (`_cpu_peek`) · py65 pattern-seed (`_poweron_fill`) · overlay ONLY undefined bytes | C29 | recurring (2×) |
+| PLAYED sector reads the EMULATOR ENVIRONMENT · $FF loop → $0000 live zp sonified · truncated-copy wrapper → power-on-RAM secp byte → KERNAL-tail window + patched psiddrv vectors + 16-bit wrap · sector-POINTER fetch itself off-image (track byte indexes past the pointer tables → power-on $FF hi-byte mislocates the sector, `_undefined_secp_reads` pre-pass) · gate = any played sector leaving defined RAM (`_offimage_sectors`) · CPU-EYE capture `siddump --peek-post-init` (`_cpu_peek`) · py65 pattern-seed (`_poweron_fill`) · overlay ONLY undefined bytes | C29 | recurring (3×) |
 | LOSSY ENUM over independently-toggleable flag bits · USF enum assumed two editor flags mutually exclusive (gate hold $10 / never-release $08) · engine gives one priority so the co-set bit is MECHANICALLY DEAD · but the raw flags byte is OBSERVABLE via a state-as-data read (off-table fxf) → reconstruction misses the dead bit · carry the masked flag as an elidable boolean CO-FIELD, keep the enum = the EFFECTIVE articulation | C30 | logged |
 | COMPILATION · one file packs N INDEPENDENT players + a per-subtune SMC dispatch wrapper (subtune→(base,song)) · header overstates songs, sub0 FULL others silent/garbage · ≥2 jump-table bases · unified-merge (renumber+dedup instruments) · heterogeneous engines (dmc_sfx) · distinct from C27 parallel chips | C31 | logged |
 | engine STICKY STATE materialized into effective variants · orderlist state over the loop wrap (fitted pad/period/rcmd) · pattern-row sticky duration/instr/vol (FC (fc_id,init_len) variants · len=L pickup · DMC ~intro decode variants) · fold to STATED notation (value present iff the stream states the command; absent = inherit) + ONE shared resolution interpreter (src/usf/resolve.py) · re-derivation assert, fallback wholesale | C32 | canonicalized (2×) |
@@ -623,11 +623,18 @@ practice, not code to factor).
   static zp), OR a truncated-copy wrapper leaves a secp byte at POWER-ON RAM
   ($FF stripe) sending the sector into banked-in KERNAL ROM with a 16-bit
   wrap (Super_Seven $FFEF: the jump table's $4C opcodes ARE "note 76", plus
-  psiddrv's PATCHED reset vector). File image/py65 reads zeros there.
+  psiddrv's PATCHED reset vector). File image/py65 reads zeros there. OR the
+  SECTOR-POINTER FETCH itself is off-image (track byte indexes past the
+  pointer tables; secp_hi[n] past EOF reads power-on $FF → the sector is at
+  $FFxx, not the image-zero $00xx — Trailways_A: KERNAL's `JMP ($0320)`
+  operand IS the audible note 32). TELL: every voice's note = ours + K with
+  otrk/sectpos/transp in lockstep — the walk agrees, the CONTENT differs.
 - CANONICAL: `_offimage_sectors` gate (ANY played sector leaving defined
   RAM) + `siddump --peek-post-init` CPU-EYE window capture (banked ROM incl.
   patched vectors + port + RAM pattern in one mechanism) + `_poweron_fill`
-  pattern-seeded py65. ⚠ overlay ONLY undefined bytes (≠ image,
+  pattern-seeded py65 + `_undefined_secp_reads` pre-pass (serve off-image
+  POINTER bytes the CPU-eye value BEFORE resolving sector windows).
+  ⚠ overlay ONLY undefined bytes (≠ image,
   ≠ init-written) — spurious garbage-record windows clobber real data.
 - FULL ENTRY: [`ledger/C29.md`](ledger/C29.md) — read it before applying.
 

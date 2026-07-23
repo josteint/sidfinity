@@ -5,8 +5,31 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T19:34:30.963Z
+  modified: 2026-07-23T19:50:50.153Z
 ---
+
+## ✅ ROUND 105 (2026-07-23): off-image SECTOR-POINTER fetch (C29 3rd occ). Trailways_A FULL
+Next f1 partial by path = `Dunkel_Nilsen_and_Elektrond/Trailways_A` (single,
+relocated base $C000, no wedges). First div 91.7% in, AT the track wrap
+(otrk 13→14): every voice note = ours + 32 with otrk/sectpos/transp in
+LOCKSTEP — content differs, walk agrees. Root cause: the final track
+entries select sector $11 (17) but the file has 10 sectors; secp_lo[$11]
+lands inside the secp_hi table ($CA, in-image) while secp_hi[$11] sits at
+$CB48, PAST the image end ($CB42). The engine reads power-on $FF there →
+orig plays the sector at $FFCA (KERNAL tail — the CHKOUT `JMP ($0320)`
+operand $20 IS note 32); our zero-filled image view mislocated it at $00CA,
+so the EXISTING C29 window machinery peeked the wrong address (live-zp
+zeros → note-0 rows). FIX: `_undefined_secp_reads` pre-pass in extract()
+(mirrors the `_offimage_sectors` walk; collects pointer-fetch addresses
+outside the image; `_cpu_peek` serves them BEFORE sector resolution;
+post-init mem exempt — already `_poweron_fill`-seeded). DIAGNOSIS: the
+V3 note-init freq census (74 hits, 8 stable values, the diverging $002C a
+ONE-OFF at the wrap) + `dmc_offtable_probe` bowing out ("no off-table read
+of that value") discriminated content-divergence from serving-divergence in
+two commands; memwatch otrk/sectpos/transp then pinned the lockstep walk.
+Gates: dmc_smoke 6/6, full regression 0 regressed (regression-safe by
+construction — only mislocated sector decodes change). NOT closed out; f1
+counts = r90's + r91-105.
 
 ## ✅ ROUND 104 (2026-07-23): the Doxx TEMPO MAILBOX (C14 3rd family). Two_Channels FULL
 Blocker 2 resolved: the r103 "duration decode" suspicion was WRONG — the

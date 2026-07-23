@@ -823,6 +823,51 @@ def _offimage_sectors(mem, secp_lo: int, secp_hi: int, tunetab: int,
     return sorted(out)
 
 
+def _undefined_secp_reads(mem, secp_lo: int, secp_hi: int, tunetab: int,
+                          n_sub: int, load: int, img_end: int,
+                          loop_target: bool, forced: int | None = None) -> list:
+    """Sector-POINTER table reads (`secp_lo/hi + sector#`) that land OUTSIDE
+    the loaded image — a track byte can select a sector number past the
+    pointer tables, pushing the pointer fetch itself off the image end. The
+    engine reads the emulator ENVIRONMENT there (power-on RAM pattern /
+    relocated psiddrv), so the image's zero MISLOCATES the sector base
+    entirely (C29 3rd occurrence, Trailways_A: track byte $11 indexes 10-entry
+    tables; secp_hi[$11] sits past EOF and reads power-on $FF -> the sector is
+    at $FFCA = KERNAL tail, not $00CA). These bytes must be served the CPU-eye
+    value BEFORE _offimage_sectors resolves sector windows. Mirrors the
+    _offimage_sectors track walk."""
+    out = set()
+    for sub in range(n_sub):
+        rec = tunetab + (sub if forced is None else forced) * 8
+        for vi in range(3):
+            tp = _rd16(mem, rec + vi * 2)
+            pos = 0
+            guard = 0
+            seen_loop = set()
+            while guard < 1024:
+                guard += 1
+                pos &= 0xFF
+                b = mem[(tp + pos) & 0xFFFF]
+                if b == 0xFE:
+                    break
+                if b == 0xFF:
+                    tgt = mem[(tp + ((pos + 1) & 0xFF)) & 0xFFFF] if loop_target \
+                        else 0
+                    if tgt in seen_loop:
+                        break
+                    seen_loop.add(tgt)
+                    pos = tgt
+                    continue
+                if b >= 0x80:              # transpose byte, not a sector number
+                    pos += 1
+                    continue
+                for a in ((secp_lo + b) & 0xFFFF, (secp_hi + b) & 0xFFFF):
+                    if not (load <= a < img_end):
+                        out.add(a)
+                pos += 1
+    return sorted(out)
+
+
 # ---------------------------------------------------------------------------
 # Instruments / wave / filter
 # ---------------------------------------------------------------------------
@@ -1124,6 +1169,20 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # forced_subtune, factory C19 probe: Sans_intro's `LDA #$01` prefix forces
     # record 1 — record 0 is a $FE-stop dummy). Walk the played record then.
     forced = getattr(cfg, 'forced_subtune', None)
+    # C29 pointer-byte class: a sector-POINTER fetch itself can leave the
+    # image (track byte selects a sector # past the pointer tables). Serve
+    # those bytes the CPU-eye value FIRST, or the zero-filled image view
+    # mislocates the sector base and the window overlay below peeks the
+    # wrong address ($00CA instead of $FFCA — Trailways_A). Skipped for
+    # post-init memory: _postinit_window already seeds the power-on pattern.
+    if not (getattr(cfg, 'data_post_init', False) or post_sub is not None):
+        _updef = _undefined_secp_reads(
+            mem, secp_lo, secp_hi, tunetab, s.get('songs', 1), s['load'],
+            s['load'] + len(s['payload']), cfg.track_loop_target,
+            forced=forced)
+        for _a, _v in _cpu_peek(path, [(a, a) for a in _updef],
+                                subtune=post_sub).items():
+            mem[_a] = _v
     oob = _offimage_sectors(mem, secp_lo, secp_hi, tunetab, s.get('songs', 1),
                             s['load'], cfg.track_loop_target, forced=forced)
     if oob:
