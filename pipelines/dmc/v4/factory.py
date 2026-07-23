@@ -1165,6 +1165,57 @@ def _forced_subtune_probe(path: str, base: int,
     return mem[init + 1] if reaches else None
 
 
+def _glide_neutered_probe(path: str, base: int,
+                          post_init_sub: 'int | None' = None):
+    """Glide-speed store re-pointed away from glsp (STATIC opcode probe, C19).
+    The canon $Cx/$Dx dispatch stores the command's speed nibble with
+    `AND #$1F / PHA / AND #$0F / STA glsp,x` ($1136: `9D 41 17`); a wedge
+    variant re-points that STA into dead data (Ice_on_Fire: `9D 41 1F`), so
+    glsp is NEVER written and no glide/slide ever moves — every $Cx plays its
+    note A verbatim and every $Dx is a soft hold. Musically that IS the
+    engine's speed-0 glide-cancel, so the extractor forces the decoded speed
+    nibble to 0 (byte consumption + note/target unchanged) and the composer
+    needs no knob.
+
+    Anchor: the truth for where glsp LIVES is the fx_glide READ site (the
+    runtime consumer), and store/read must be paired WITHIN ONE PLAYER
+    COPY — so both sites are anchored at fixed canon offsets from the
+    member's base (store `29 1F 48 29 0F 9D <op>` at base+$131, read
+    `BD <op> F0` at base+$41C). The wedge fires iff store != read. Two
+    rejected cuts: comparing against the gla store minus 3 flagged
+    Rocket_n_Roll (FULL; player relocated to $5000, glsp store/read
+    correctly at $5741, gla operand a STALE dead-path canon $1744 — the
+    r93 partial-relocation pattern); a whole-image regex pair mis-paired
+    compilation members (first dispatch from one packed player, reads from
+    another). Fail-open: either anchor absent -> None (extract unchanged).
+
+    The value is the re-pointed store's OPERAND (hex) — the wedge's second
+    effect needs it: `STA operand,X` can land INSIDE THE SONG DATA, so each
+    voice's executed glide-speed nibble is POKED over the byte at operand+X
+    (Ice_on_Fire: V1's $C4 rows write $04 over sector 20's pos-37 note
+    byte, audibly a played note 4). The extract simulates that poke
+    (`_glide_poke_overlay`) so the walk reads the engine's effective data."""
+    if base is None:
+        return None
+    mem, _ = _load(path, post_init_sub)
+    st = base + 0x131
+    if st + 8 > 0x10000 or \
+            bytes(mem[st:st + 6]) != b'\x29\x1F\x48\x29\x0F\x9D':
+        return None
+    store = mem[st + 6] | (mem[st + 7] << 8)
+    rd = base + 0x41C
+    if rd + 4 > 0x10000 or mem[rd] != 0xBD or mem[rd + 3] != 0xF0:
+        return None
+    read = mem[rd + 1] | (mem[rd + 2] << 8)
+    if read != base + 0x741:
+        # the READ site itself deviates from canon geometry relative to the
+        # detected base: no trustworthy live-glsp anchor — fail open.
+        return None
+    if store == read:
+        return None                         # store hits the live glsp
+    return f'{store:04X}'
+
+
 def _pw_bound_shift_probe(path: str, base: int,
                           post_init_sub: 'int | None' = None):
     """PWM bound-A extraction shift (STATIC opcode probe, C19). The note-init
@@ -2037,6 +2088,7 @@ _WEDGE_PROBES = [
     ('pw_bound_shift',                  lambda p, c: _pw_bound_shift_probe(p, c.base, c.post_init_sub)),
     ('pulsewidth_dir_persist',          lambda p, c: _pw_dir_persist_probe(p, c.base, c.post_init_sub)),
     ('switch_toggle_mask',              lambda p, c: _switch_toggle_mask_probe(p, c.base, c.gatemask_addr, c.post_init_sub)),
+    ('glide_neutered',                  lambda p, c: _glide_neutered_probe(p, c.base, c.post_init_sub)),
 ]
 
 

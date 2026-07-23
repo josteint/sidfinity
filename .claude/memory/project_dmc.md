@@ -5,8 +5,37 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T09:37:57.594Z
+  modified: 2026-07-23T10:46:06.107Z
 ---
+
+## ✅ ROUND 95 (2026-07-23): glide_neutered wedge (glide dead + DATA POKE). Ice_on_Fire 1/1 FULL
+Next f1 partial by path = `Bleed_Into_One/Ice_on_Fire` (single, base $1000).
+C19 14th occurrence — the canon glide dispatch's speed store re-pointed
+(`$1136: STA $1741,X` → `STA $1F41,X`), TWO effects (full analysis in
+[ledger C19](../../docs/ledger/C19.md), 14th occ):
+- glsp never written ⇒ NO glide/slide ever moves. Extract: probe
+  `factory._glide_neutered_probe` (store vs fx_glide-read operands at canon
+  offsets base+$131 / base+$41C, read must be canon-consistent base+$741,
+  fail-open) → `extra_params['glide_neutered']=<store hex>` →
+  `_SecFmt.glide_dead` forces the decoded speed nibble to 0 (the engine's
+  glide-cancel semantics; byte consumption + `glide_to` target kept, composer
+  untouched). First div 21743 → 137486.
+- `$1F41` is INSIDE the song data (sector 20 pos-37 note byte): each voice's
+  executed speed nibble is POKED over `target+X`. V1's `$C4` → note byte $04;
+  V3 audibly plays note 4 there (its wave offset −12 then reads freq[248] =
+  live durrel — the surfaced divergence value). Extract:
+  `engine_model._glide_poke_overlay` simulates the poke on a per-song mem
+  copy when the voice's speed nibbles are a singleton. 137486 → FULL 170095.
+- DIAGNOSTIC TELL: "our note exactly 2 below orig's at a note-init, and only
+  on the pattern's SECOND occurrence" — first playthrough predates the poke.
+  Also: `dmc_offtable_probe`'s by-value read attribution mis-fired twice here
+  (idx-180/idx-115 static stories); the real reads were in-table — trust the
+  pc-trace of the producing store over the by-value scan when they disagree.
+- Gates: probe census ~16 firing members, all 11 baseline-FULL carriers
+  re-verified FULL (2 probe cuts rejected for regressing Rocket_n_Roll /
+  mis-pairing compilations — see C19); dmc_smoke 6/6; full regression 9
+  families 0 regressed. NOT closed out (no 5401 batch); f1 counts = r90's +
+  r91-95 gains.
 
 ## ✅ ROUND 94 (2026-07-23): RELOCATED heterogeneous sub-players. Black_It 9/9 FULL
 `The_Syndrom/Black_It` (the second `base_override_not_player` member) landed

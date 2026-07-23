@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import os
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace as _dc_replace
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'tools'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'tools', 'py65_lib'))
@@ -404,6 +404,12 @@ class _SecFmt:
     instr_lo: int = 0x60
     glide_min: int = 0xC0
     dur_min: int = 0x80
+    glide_dead: bool = False         # C19 glide_neutered wedge: the player's
+                                     # glsp store is re-pointed into dead data,
+                                     # so no glide/slide ever moves — decode
+                                     # every $Cx/$Dx speed nibble as 0 (the
+                                     # engine's glide-cancel semantics); byte
+                                     # consumption and note/target unchanged
 
 
 _SECFMT = {
@@ -510,7 +516,7 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
             continue
         # glide / slide
         if b >= fmt.glide_min:
-            speed = b & 0x0F
+            speed = 0 if fmt.glide_dead else (b & 0x0F)
             if b & 0x10:             # mode 1: slide current note to target
                 target = rd(pos + 1)
                 pos += 2
@@ -551,6 +557,56 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
         pos += 1
         if peek_end():
             return rows
+
+
+def _glide_poke_overlay(mem, rec, secp_lo: int, secp_hi: int,
+                        fmt: _SecFmt, target: int) -> dict:
+    """glide_neutered wedge (C19), second effect: the re-pointed speed store
+    is `STA target,X` and `target` can sit INSIDE THE SONG DATA — every
+    glide/slide command voice X executes pokes its speed nibble over the
+    byte at target+X, i.e. runtime-generated musical content (Ice_on_Fire:
+    V1's $C4 rows poke $04 over sector 20's pos-37 note byte; V3 later
+    audibly plays note 4 there). When a voice uses exactly ONE speed nibble
+    the effective byte is static — return {addr: value} so the walk reads
+    what the engine reads. A voice with no glides pokes nothing; a
+    multi-speed voice has no static effective byte, so its slot is left at
+    the file value (the verify verdict judges). Byte-POSITION scan only —
+    consumption widths match _simulate_sector's dispatch and need no sticky
+    state."""
+    pokes = {}
+    for vi in range(3):
+        tp = _rd16(mem, rec + vi * 2)
+        secs = set()
+        for i in range(256):
+            b = mem[(tp + i) & 0xFFFF]
+            if b in (0xFE, 0xFF):
+                break
+            if b < 0x80:
+                secs.add(b)
+        speeds = set()
+        for sn in secs:
+            base = mem[(secp_lo + sn) & 0xFFFF] | \
+                (mem[(secp_hi + sn) & 0xFFFF] << 8)
+            pos = 0
+            for _ in range(300):
+                b = mem[(base + (pos & 0xFF)) & 0xFFFF]
+                if b == fmt.term:
+                    break
+                if fmt.vol_min is not None and b >= fmt.vol_min:
+                    pos += 1
+                    continue
+                if b in (fmt.rest, fmt.switch) or \
+                        (fmt.soft is not None and b == fmt.soft):
+                    pos += 1
+                    continue
+                if b >= fmt.glide_min:
+                    speeds.add(b & 0x0F)
+                    pos += 2 if (b & 0x10) else 3
+                    continue
+                pos += 1
+        if len(speeds) == 1:
+            pokes[(target + vi) & 0xFFFF] = speeds.pop()
+    return pokes
 
 
 def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
@@ -1079,6 +1135,20 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     used_instr = set()
     for sub in range(m.n_subtunes):
         rec = tunetab + (sub if forced is None else forced) * 8
+        # glide_neutered wedge: simulate the re-pointed store's data poke on
+        # a per-song copy so the walk reads the engine's EFFECTIVE bytes
+        # (each subtune plays standalone — no cross-song poke leakage).
+        smem = mem
+        _gn = cfg.extra_params.get('glide_neutered')
+        if _gn:
+            _pokes = _glide_poke_overlay(mem, rec, secp_lo, secp_hi,
+                                         _SECFMT[cfg.sector_format],
+                                         int(_gn, 16))
+            _pokes = {a: v for a, v in _pokes.items() if mem[a] != v}
+            if _pokes:
+                smem = list(mem)
+                for _a, _v in _pokes.items():
+                    smem[_a] = _v
         voices = []
         for vi in range(3):
             tp = _rd16(mem, rec + vi * 2)
@@ -1088,10 +1158,13 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
             lrp = cfg.loop_reset_pos
             if isinstance(lrp, tuple):
                 lrp = lrp[vi]
-            voices.append(_walk_track(mem, tp, secp_lo, secp_hi,
+            fmt = _SECFMT[cfg.sector_format]
+            if cfg.extra_params.get('glide_neutered'):
+                fmt = _dc_replace(fmt, glide_dead=True)
+            voices.append(_walk_track(smem, tp, secp_lo, secp_hi,
                                       loop_target=cfg.track_loop_target,
                                       loop_reset_pos=lrp,
-                                      fmt=_SECFMT[cfg.sector_format]))
+                                      fmt=fmt))
         song = DmcSong(id=sub + 1, speed=mem[rec + 6],
                        master_vol=mem[rec + 7], voices=voices)
         m.songs.append(song)
