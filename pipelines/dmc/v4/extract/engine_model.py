@@ -718,6 +718,14 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 ga = mem[(secp_lo + b) & 0xFFFF] | \
                     (mem[(secp_hi + b) & 0xFFFF] << 8)
                 probe = _simulate_sector(mem, ga, st.copy(), fmt)
+                if isinstance(probe, tuple) and probe[0] == 'endless':
+                    # A garbage pseudo-sector (e.g. secp[$FF] = $0000 live zp,
+                    # Rock_Tec_Tec) has no $7F terminator, so the simulation
+                    # reports 'endless' — but the engine only ever plays ROW 0
+                    # before the next fetch re-dispatches the track byte, so
+                    # the first simulated row is all that matters.
+                    _rows = (probe[1] or []) + probe[2]
+                    probe = _rows[:1]
                 if isinstance(probe, list) and probe:
                     r0 = probe[0]
                     consumed = (3 if r0.glide_to is not None else
@@ -818,6 +826,23 @@ def _offimage_sectors(mem, secp_lo: int, secp_hi: int, tunetab: int,
                     pos = tgt
                     continue
                 if b >= 0x80:              # transpose byte, not a sector number
+                    # Post-transpose consumption (C34, the r100 quirk): the
+                    # transpose handler takes the NEXT byte as a sector number
+                    # UNCONDITIONALLY — a $FE/$FF there plays ONE ROW of its
+                    # pseudo-sector before the next fetch re-dispatches it, so
+                    # that sector's window must pass this gate too
+                    # (Rock_Tec_Tec: `a0 ff` track tail → secp[$FF] = $0000 =
+                    # live zeropage; the gate skipping it left _walk_track's
+                    # probe reading image zeros and dropping the row).
+                    nb = mem[(tp + ((pos + 1) & 0xFF)) & 0xFFFF]
+                    if nb >= 0xFE:
+                        sec_addr = mem[(secp_lo + nb) & 0xFFFF] | \
+                            (mem[(secp_hi + nb) & 0xFFFF] << 8)
+                        if (sec_addr < load or sec_addr + 0xFF > 0xFFFF
+                                or (0xA000 <= sec_addr + 0xFF
+                                    and sec_addr <= 0xBFFF)
+                                or sec_addr + 0xFF >= 0xE000):
+                            out.add(sec_addr)
                     pos += 1
                     continue
                 sec_addr = mem[(secp_lo + b) & 0xFFFF] | \
@@ -866,6 +891,15 @@ def _undefined_secp_reads(mem, secp_lo: int, secp_hi: int, tunetab: int,
                     pos = tgt
                     continue
                 if b >= 0x80:              # transpose byte, not a sector number
+                    # Post-transpose consumption (C34): the next byte is a
+                    # sector number even when $FE/$FF — its POINTER fetch can
+                    # leave the image too (mirrors _offimage_sectors).
+                    nb = mem[(tp + ((pos + 1) & 0xFF)) & 0xFFFF]
+                    if nb >= 0xFE:
+                        for a in ((secp_lo + nb) & 0xFFFF,
+                                  (secp_hi + nb) & 0xFFFF):
+                            if not (load <= a < img_end):
+                                out.add(a)
                     pos += 1
                     continue
                 for a in ((secp_lo + b) & 0xFFFF, (secp_hi + b) & 0xFFFF):
