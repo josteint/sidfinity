@@ -8,6 +8,45 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 119 (2026-07-24): Hank $FF-loop reads a NULL zero-page pointer → loop target is a sonified zp byte (C29 class). Roots FULL (+1)
+Next f1 partial by path = `Hank/Roots` (single, canon $1000, vblank,
+REASSEMBLED — `dmc_canon_diff` can't linear-align it; canon state geom).
+First div flat 102787 f6358: V2 SR $F9 vs $FC at a SYNCHRONIZED track loop
+(~98%). The 11 Hank/* members share a $FF-loop variant `A9 00 / 4C <handler>`
+where <handler> = `LDY otrk,X / INY / LDA ($f8),Y / STA otrk,X / JMP refetch`
+— the loop target is read through zp pointer $f8. In the buggy majority $f8
+is a valid track ptr so the read == `track[otrk+1]` == the canon-path default
+(loop-to-start, handled). On Roots **$f8 = $0000** (never set on this path),
+so the handler reads ZERO PAGE at `$0000+otrk+1`: voice 1 `otrk+1=$31` reads a
+player scratch byte, voice 2 `otrk+1=$58` collides with the $0057/$0058
+track-pointer slot (live track-ptr-hi). Each voice loops to a DIFFERENT,
+runtime-dependent target (0 / $87 / $1A).
+- ⚠⚠ **GROUND-TRUTH LESSON (the whole point — [[feedback_ground_truth]]):** I
+  first derived the targets with a **py65** sim — WRONG. py65's zero page has
+  $00 at $0031 where libsidplayfp has $87 (a player-written / uninitialized
+  byte that DIFFERS between emulators). py65 said voice 1 loops to $00 and even
+  plays NOISE post-loop where libsidplayfp/siddump (the verdict engine) plays
+  SILENT — py65 and libsidplayfp genuinely DIVERGE on a null-pointer player.
+  Only voice 2 happened to work under py65 because its source ($0058 = the
+  track-ptr-hi) is a DEFINED byte identical in both. **Measure C29 environment
+  reads from libsidplayfp (siddump), never py65.** This cost the most time this
+  session; the user's "did you forget the core tenet / ground truth?" nudge is
+  what turned it.
+- **FIX:** `_hank_ff_loop_targets` (factory, dataflow path) — static-detect the
+  $FF-loop variant, then siddump `--memwatch-on-write D417` snapshots the 3
+  otrk bytes + each voice's track base; find each voice's first otrk JUMP
+  (the loop) and override `loop_reset_pos[v]` = landed−1 ONLY where the landing
+  is UNRELATED to the canon default `track[otrk_before+1]` (`(landed−deflt)&$FF
+  > 8`) — i.e. only the zero-page read. Valid-pointer voices read the track and
+  stay byte-identical (None).
+- **CENSUS TRAP (amend):** an early "override any voice landing ≥2" heuristic
+  REGRESSED 3 valid-$f8 Hank members (Crystal_Dream/Moonlight/Old_School
+  full→partial — their real loops legitimately land ≥2 via the correct
+  track-read). The track-default comparison gate fixes it: only Roots overrides
+  `(None,$87,$1A)`, the 10 others get None → byte-identical FULL. Gates:
+  dmc_smoke 6/6, full regression. f1 = 5319 + 1 = **5320 FULL / 81 partial**
+  (corpus not yet re-synced). Ledger C29 (occurrence + card).
+
 ## ✅ ROUND 118 (2026-07-24): track_ff_reinit SHAPE B + ghost-unit tail (C19 23rd occ). For_Party_V_95 FULL (+1)
 Next f1 partial by path = `Hallen/For_Party_V_95` (single, canon $1000,
 vblank, 1 song, master_vol=$FF). The hard form of r117's $FF-reinit: wedge

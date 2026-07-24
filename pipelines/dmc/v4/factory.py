@@ -1585,6 +1585,115 @@ def _track_ff_reinit_ghost_probe(path: str, base: int,
     return _simulate_reinit_ghosts(path, base, post_init_sub)
 
 
+def _hank_ff_loop_targets(path: str, base: int,
+                          post_init_sub: 'int | None' = None):
+    """Per-voice $FF loop targets for the HANK $FF-loop variant (Hank/Roots).
+
+    The canon $FF handler `A9 00 / 9D 26 17 (otrk=0) / 4C D2 10` is patched to
+    `A9 00 / 4C <handler>` where <handler> = `LDY otrk,X / INY / LDA ($zp),Y /
+    STA otrk,X / JMP <re-fetch>` — the loop target is the byte read through a
+    zero-page pointer `$zp`. In the buggy majority `$zp` holds a pointer whose
+    `[otrk+1]` byte is $00, so every voice loops to start (== the canon-path
+    default, handled). But on Roots `$zp` = $0000 (never set on this path), so
+    the handler reads ZERO PAGE at `$0000+otrk+1`: voice 1's `otrk+1=$31` reads a
+    player scratch byte ($87) and voice 2's `otrk+1=$58` collides with the
+    $0057/$0058 track-pointer slot (the live track-pointer-hi byte, $1A). Those
+    are sonified emulator-environment bytes (C29 class).
+
+    ⚠ GROUND TRUTH IS LIBSIDPLAYFP, NOT py65 (feedback_ground_truth). The read
+    sources are uninitialized/player-written zero page whose value DIFFERS
+    between emulators — py65 read $00 (wrong) where libsidplayfp reads $87. So
+    measure the post-loop track offset each voice actually reaches from siddump
+    (the verdict engine): run `--memwatch-on-write D417` (a per-frame filter-tail
+    write) snapshotting the three otrk bytes, find the frame where a voice's
+    otrk JUMPS (loop), and take the value it lands on. The walk's `loop_reset_pos`
+    is the pre-fetch target = landed-otrk − 1 (the loop lands one row before its
+    first note-init, past a leading transpose); a voice whose landing is ≤ 1 is
+    an ordinary loop-to-start and is left on the canon path (None).
+
+    Returns a 3-tuple for `loop_reset_pos`, or None when no voice loops to a
+    non-start target (the whole Hank family except Roots) so nothing changes."""
+    if base is None:
+        return None
+    mem, _ = _load(path, post_init_sub)
+    site = base + 0xDD
+    if site + 5 > 0x10000 or mem[site] != 0xA9 or mem[site + 1] != 0x00 \
+            or mem[site + 2] != 0x4C:
+        return None
+    h = mem[site + 3] | (mem[site + 4] << 8)
+    # handler shape: LDY otrk,X (BC) / INY (C8) / LDA (zp),Y (B1) / STA otrk,X
+    # (9D), the LDY and STA targeting the SAME address (= otrk); anything else
+    # is a different $FF variant (For_Party's JMP-init, canon, reset-all-to-N).
+    if h + 9 > 0x10000 or mem[h] != 0xBC or mem[h + 3] != 0xC8 \
+            or mem[h + 4] != 0xB1 or mem[h + 6] != 0x9D:
+        return None
+    otrk = mem[h + 1] | (mem[h + 2] << 8)
+    if (mem[h + 7] | (mem[h + 8] << 8)) != otrk:
+        return None
+
+    import subprocess
+    sd = os.path.join(os.path.dirname(__file__), '..', '..', '..',
+                      'tools', 'siddump')
+    try:
+        from pipelines.dmc.v4.extract.engine_model import _verify_window
+        window = _verify_window(path)
+    except Exception:
+        window = 200.0
+    # watch the 3 otrk bytes + each voice's track base (trkpl $1707,x / trkph
+    # $170A,x), so the loop TARGET can be compared to the canon-path default
+    # `track[otrk+1]` — override ONLY where the buggy zero-page read yields a
+    # target the track-read would NOT (valid-pointer members read the track and
+    # are already correct, must stay byte-identical).
+    trkpl, trkph = base + 0x707, base + 0x70A
+    snap = [otrk, otrk + 1, otrk + 2, trkpl, trkpl + 1, trkpl + 2,
+            trkph, trkph + 1, trkph + 2]
+    addrs = ','.join(f'{a:04X}' for a in snap)
+    try:
+        out = subprocess.run(
+            [sd, path, '--memwatch-on-write', 'D417', addrs,
+             '--duration', str(window), '--subtune', '1'],
+            capture_output=True, text=True, timeout=180).stdout
+    except Exception:
+        return None
+    keys = [f'{a:04X}'.lstrip('0').upper() for a in snap]
+    seq = []
+    for ln in out.splitlines():
+        if 'D417' not in ln:
+            continue
+        d = {}
+        for kv in ln.split('|')[-1].split(':'):
+            if '=' in kv:
+                k, v = kv.split('=')
+                try:
+                    d[k.upper()] = int(v, 16)
+                except ValueError:
+                    pass
+        row = tuple(d.get(k) for k in keys)
+        if None not in row:
+            seq.append(row)
+    # per voice: the FIRST otrk JUMP (decrease, or +>2) is its loop. Compare the
+    # landed offset to the CANON-PATH default `track[otrk_before+1]`: a valid
+    # pointer lands within a few transposes of it (the walk only INCs), so the
+    # default is already right — leave it (None). Only a zero-page read lands
+    # UNRELATED to the track byte (Roots): override with landed−1 (the loop lands
+    # one row past its target). Ordinary advance is +0/+1 per frame.
+    out_t = []
+    for v in range(3):
+        found = None
+        for i in range(1, len(seq)):
+            if seq[i][v] < seq[i - 1][v] or seq[i][v] > seq[i - 1][v] + 2:
+                pos_b = seq[i - 1][v]                    # otrk before the loop
+                tbase = seq[i][3 + v] | (seq[i][6 + v] << 8)   # trkpl/trkph
+                deflt = mem[(tbase + ((pos_b + 1) & 0xFF)) & 0xFFFF]
+                lv = seq[i][v]
+                # landed reachable from the track default (a few transposes)?
+                if lv >= 2 and (lv - deflt) & 0xFF > 8:
+                    found = (lv - 1) & 0xFF             # zero-page read override
+                break
+        out_t.append(found)
+    return tuple(out_t) if any(t is not None for t in out_t) else None
+
+
 def _fclaim_clear_dead_probe(path: str, base: int,
                              post_init_sub: 'int | None' = None):
     """Per-play fclaim CLEAR re-pointed off the state block (STATIC opcode
@@ -3242,6 +3351,18 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str,
             'durrel_init': (ram[base + 0x73E], ram[base + 0x73F],
                             ram[base + 0x740]),
         }
+    # HANK $FF-loop variant (Hank/Roots): the patched $FF handler reads its
+    # loop target through a zero-page pointer; when that pointer is null the
+    # target is a sonified zero-page byte (the live track-pointer hi) that a
+    # static walk cannot see. Measure the per-voice targets under py65 and
+    # override loop_reset_pos (only for a voice whose target is a non-zero
+    # constant; $00/unobserved voices stay on the canon path, byte-identical),
+    # only when the dataflow found no explicit loop hook.
+    if cfg.loop_reset_pos is None:
+        _hlt = _hank_ff_loop_targets(os.path.join(hvsc_root, sid_path), base,
+                                     post_init_sub)
+        if _hlt is not None:
+            cfg.loop_reset_pos = _hlt
     return cfg
 
 

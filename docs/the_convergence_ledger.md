@@ -114,7 +114,7 @@ practice, not code to factor).
 | song data ABSENT from file image · init generates/unpacks tables in RAM · operands point outside the loaded image · extract from POST-INIT RAM (py65), all-or-nothing signature · banking-wrapper JT-less base from the wrapper JSR target | C26 | logged |
 | multi-SID (2SID/3SID) · N chips, one player each behind a dispatch wrapper · players run sequentially -> merged log = [chip1][chip2] · extract/compose/verify each with single-chip machinery, chip-TAGGED (reg=chip*$20+reg) · voices number through chips, addresses are pipeline constants not USF | C27 | logged |
 | multi-SID VERDICT · rebuild is per-chip correct but the merged chip-tagged stream diverges on a CROSS-CHIP adjacency (chip1 vs chip2 write order) · cross-chip order is physically UNobservable (independent hardware, Trap-B analogue) · split by reg//0x20, require each chip's substream to pass · compare_instruction_stream(n_chips=N) · do NOT chase cycle precision / straddle-free capture | C28 | logged |
-| PLAYED sector reads the EMULATOR ENVIRONMENT · $FF loop → $0000 live zp sonified · truncated-copy wrapper → power-on-RAM secp byte → KERNAL-tail window + patched psiddrv vectors + 16-bit wrap · sector-POINTER fetch itself off-image (track byte indexes past the pointer tables → power-on $FF hi-byte mislocates the sector, `_undefined_secp_reads` pre-pass) · gate = any played sector leaving defined RAM (`_offimage_sectors`) · CPU-EYE capture `siddump --peek-post-init` (`_cpu_peek`) · py65 pattern-seed (`_poweron_fill`) · overlay ONLY undefined bytes | C29 | recurring (3×) |
+| PLAYED sector reads the EMULATOR ENVIRONMENT · $FF loop → $0000 live zp sonified · truncated-copy wrapper → power-on-RAM secp byte → KERNAL-tail window + patched psiddrv vectors + 16-bit wrap · sector-POINTER fetch itself off-image (track byte indexes past the pointer tables → power-on $FF hi-byte mislocates the sector, `_undefined_secp_reads` pre-pass) · gate = any played sector leaving defined RAM (`_offimage_sectors`) · CPU-EYE capture `siddump --peek-post-init` (`_cpu_peek`) · py65 pattern-seed (`_poweron_fill`) · overlay ONLY undefined bytes · NULL-POINTER LOOP TARGET: patched $FF handler reads loop-otrk via a zp pointer that is $0000 → reads ZERO PAGE (measure from LIBSIDPLAYFP not py65 — they differ) | C29 | recurring (4×) |
 | LOSSY ENUM over independently-toggleable flag bits · USF enum assumed two editor flags mutually exclusive (gate hold $10 / never-release $08) · engine gives one priority so the co-set bit is MECHANICALLY DEAD · but the raw flags byte is OBSERVABLE via a state-as-data read (off-table fxf) → reconstruction misses the dead bit · carry the masked flag as an elidable boolean CO-FIELD, keep the enum = the EFFECTIVE articulation | C30 | logged |
 | COMPILATION · one file packs N INDEPENDENT players + a per-subtune SMC dispatch wrapper (subtune→(base,song)) · header overstates songs, sub0 FULL others silent/garbage · ≥2 jump-table bases · unified-merge (renumber+dedup instruments) · heterogeneous engines (dmc_sfx) · distinct from C27 parallel chips | C31 | logged |
 | engine STICKY STATE materialized into effective variants · orderlist state over the loop wrap (fitted pad/period/rcmd) · pattern-row sticky duration/instr/vol (FC (fc_id,init_len) variants · len=L pickup · DMC ~intro decode variants) · fold to STATED notation (value present iff the stream states the command; absent = inherit) + ONE shared resolution interpreter (src/usf/resolve.py) · re-derivation assert, fallback wholesale | C32 | canonicalized (2×) |
@@ -646,6 +646,17 @@ practice, not code to factor).
   POINTER bytes the CPU-eye value BEFORE resolving sector windows).
   ⚠ overlay ONLY undefined bytes (≠ image,
   ≠ init-written) — spurious garbage-record windows clobber real data.
+- NULL-POINTER LOOP TARGET (Hank/Roots): a patched $FF-loop handler reads the
+  loop-to otrk through a zp pointer that is $0000 on this member, so it reads
+  ZERO PAGE `$0000+otrk+1` instead of the track — each voice loops to a live zp
+  byte (a player scratch / the track-ptr-hi slot). ⚠⚠ **MEASURE FROM
+  LIBSIDPLAYFP, NOT py65** ([[feedback_ground_truth]]): the read sources are
+  uninitialized/player-written zp whose value DIFFERS between emulators (py65
+  read $00 where siddump reads $87, and the two even play different NOTES
+  post-loop). Gate the override to the null read only — compare the measured
+  landing to the canon default `track[otrk+1]`; a valid pointer lands within a
+  few transposes of it and is already correct, so LEAVE IT (an "override any
+  non-start landing" heuristic regressed 3 valid-pointer siblings).
 - FULL ENTRY: [`ledger/C29.md`](ledger/C29.md) — read it before applying.
 
 ### C30 — lossy enum over independently-toggleable editor flag bits
