@@ -8,6 +8,23 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 115 (2026-07-24): per-play fclaim clear re-pointed at a void (C19 21st occ). Jezuseczek FULL (+1)
+Next f1 partial by path = `Gomez/Jezuseczek` (single, canon $1000,
+vblank). First div flat 34759 f2154: $D416 orig $2F vs ours $7D — right
+after a $F1 filterset row. `dmc_canon_diff` on the single member showed
+it in ONE shot: NEW wedge at canon $1092, the play body's `STX $1720`
+(per-play fclaim clear) re-pointed at void $3F20. Claim persists after
+the first filter voice sets it → the filter program NEVER steps; all
+cutoff motion comes from $F1 commands (orig freezes at each command's
+init cutoff; canon rebuild ramps — hence thousands of matching frames
+then a fork at the filterset). Route_clear_dead's sibling ("a CLEAR
+store re-pointed at a void ⇒ state persists"), one variable over. FIX:
+`_fclaim_clear_dead_probe` (uniform _WEDGE_PROBES row; anchors
+LDX #$00+STX, fires only on an out-of-image target) → composer drops
+its per-play `stx fclaim`. Probe census: corpus SINGLETON. Gates:
+dmc_smoke 6/6, full regression 0 regressed. f1 = 5315 + 1 = **5316
+FULL / 85 partial**. Ledger C19 21st occ recorded (entry + card).
+
 ## ✅ ROUND 114 (2026-07-24): JSR-first whole-play wrapper AT base+3 (C24 3rd form). Insinuanity + Long_Way_tune_7 FULL (+2)
 Next f1 partial by path = `Gillies_Ewen/Insinuanity` (single, canon
 $1000, vblank). TELL was textbook C24 sibling: aligned play stream

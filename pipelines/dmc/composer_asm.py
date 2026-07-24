@@ -1931,7 +1931,15 @@ fx_dual_up:
         play_unit_repeat = [1, 1, 1, 1]
     play_unit_repeat = (play_unit_repeat + [1, 1, 1, 1])[:4]
     play_unit_repeat[3] = max(1, play_unit_repeat[3])
-    _vc = ['        ldx #$00', '        stx fclaim']
+    # fclaim_clear_dead wedge (C19, Jezuseczek): the orig's per-play fclaim
+    # clear is re-pointed at a void — the claim persists forever after the
+    # first filter voice sets it, freezing the filter program (cutoff then
+    # moves only on $F1 filterset commands). Reproduce by dropping OUR
+    # per-play clear; fclaim starts 0 (fresh var) exactly like the orig's
+    # init-cleared state.
+    _vc = ['        ldx #$00'] + (
+        [] if usf.params.fields.get('fclaim_clear_dead')
+        else ['        stx fclaim'])
     for _vi in range(3):
         if _vi:
             _vc.append('        inx')

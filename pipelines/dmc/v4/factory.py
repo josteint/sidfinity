@@ -1333,6 +1333,38 @@ def _route_clear_dead_probe(path: str, base: int,
     return f'{tgt:04X}'
 
 
+def _fclaim_clear_dead_probe(path: str, base: int,
+                             post_init_sub: 'int | None' = None):
+    """Per-play fclaim CLEAR re-pointed off the state block (STATIC opcode
+    probe, C19, Gomez/Jezuseczek r115). The canon play body opens
+    `LDX #$00 / STX $1720` (base+$90/$92) — clearing the filter claim so
+    the FIRST filter voice each play() steps the filter program once. The
+    wedge re-points the STX at a VOID address ($3F20, past the image), so
+    the claim persists forever after the first filter voice sets it: the
+    filter program NEVER steps again and every later cutoff change comes
+    solely from $F1 filterset commands (the orig freezes at each command's
+    init cutoff). Anchor the full canon shape (LDX #$00 imm + STX abs);
+    fire iff the store misses base+$720 AND lands outside the loaded image
+    (an in-image repoint would poke data — a different wedge, refuse).
+    Fail-open on any shape deviation. Value = the re-pointed operand."""
+    if base is None:
+        return None
+    mem, s = _load(path, post_init_sub)
+    site = base + 0x90
+    if site + 5 > 0x10000:
+        return None
+    if mem[site] != 0xA2 or mem[site + 1] != 0x00 or mem[site + 2] != 0x8E:
+        return None
+    tgt = mem[site + 3] | (mem[site + 4] << 8)
+    if tgt == base + 0x720:
+        return None                         # canonical clear
+    lo, hi = s['load'], s['load'] + len(s['payload'])
+    if lo <= tgt < hi:
+        return None                         # in-image repoint = data poke,
+                                            # not this wedge
+    return f'{tgt:04X}'
+
+
 def _filterdef_anim_probe(path: str, base: int, op_filtdef: int,
                           post_init_sub: 'int | None' = None):
     """Appended filter-def ANIMATOR driver (Ed/Wrath Designs, Cliche_Beat;
@@ -2643,6 +2675,7 @@ _WEDGE_PROBES = [
     ('switch_toggle_mask',              lambda p, c: _switch_toggle_mask_probe(p, c.base, c.gatemask_addr, c.post_init_sub)),
     ('glide_neutered',                  lambda p, c: _glide_neutered_probe(p, c.base, c.post_init_sub)),
     ('route_clear_dead',                lambda p, c: _route_clear_dead_probe(p, c.base, c.post_init_sub)),
+    ('fclaim_clear_dead',               lambda p, c: _fclaim_clear_dead_probe(p, c.base, c.post_init_sub)),
     ('v3_instr_tempo',                  lambda p, c: _v3_instr_tempo_probe(p, c.base, c.post_init_sub)),
     ('filterdef_anim',                  lambda p, c: _filterdef_anim_probe(p, c.base, c.op_filtdef, c.post_init_sub)),
     ('d417_tail_anim',                  lambda p, c: _d417_tail_anim_probe(p, c.base, c.op_filtdef, c.op_wavefreq, c.post_init_sub)),
