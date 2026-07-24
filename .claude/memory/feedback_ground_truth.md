@@ -124,4 +124,12 @@ a byte BOTH emulators define identically.
 memory that records every written address and flags reads of never-written
 (uninitialized) memory. A py65 extraction that reads a tainted byte is reading
 emulator fill, not the player's data; measure it from siddump instead. See its
-docstring for the safe (`read`) vs must-verify (`read_or_taint`) split.
+docstring for the safe (`__getitem__`) vs must-verify (`read_trusted`) split.
+
+**The STRUCTURAL fix (beyond the tripwire):** stop using py65 for
+divergence-prone / slow observation at all — add the hook to native siddump
+(libsidplayfp = ground truth by construction, ~100-1000× faster). Plan +
+inventory + feature specs + phased path:
+[`docs/siddump_native_capture_plan.md`](../../../docs/siddump_native_capture_plan.md)
+(also linked from `tools/INVESTIGATION_BACKLOG.md`). Standing default: prefer
+extending siddump over py65 for OBSERVATION.

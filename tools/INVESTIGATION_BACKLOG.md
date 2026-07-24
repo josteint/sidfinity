@@ -39,8 +39,18 @@ roadmap.
 
 ## Backlog (not built yet)
 
+**Standing default (2026-07-24): prefer extending siddump over py65 for
+OBSERVATION.** siddump is native libsidplayfp = ground-truth by construction and
+~100-1000× faster; py65 is a reimplementation that DIVERGES on
+uninitialized/environment reads (cost a session on DMC Roots — see
+`feedback_ground_truth.md`). When a py65-shaped observation recurs, add a
+declarative siddump hook. Full initiative + inventory + feature specs + phased
+path: [`docs/siddump_native_capture_plan.md`](../docs/siddump_native_capture_plan.md).
+
 | Idea | Use case | Rough ROI | Build estimate |
 |---|---|---|---|
+| **siddump PC-triggered capture** (`--capture-at-pc PC[:A] ADDR,...`) — Feature 1 of the plan above | Snapshot RAM + CPU regs A/X/Y each time PC hits X: `--memwatch-on-write` with a PC trigger + reg output (the `engine.debug` hook already sees every PC). Absorbs the Class-D deep-playback py65 sims (DMC ghost sim first) — the biggest robustness + speed win. | High — kills the py65-divergence bug class on the highest-value sites. | ~2-4 h C++ + migrate ghost sim (Phase 0 of the plan) |
+| **siddump init-landing / reachable-PC report** — Feature 2 of the plan above | `run init(A=sub)`, report the player-head PC it lands on / which watched entry PCs ran. Absorbs Class-C py65 (DMC compilation dispatch, C18/C27 play-phase + base observers). | Medium — correctness + modest speed. | ~2-3 h C++ (Phase 1) |
 | ~~**`dmc_offtable_probe` divergence-proximity gate**~~ **DONE (r116, 2026-07-24).** | The probe now pc-traces only a ±3-frame window around the divergence (per-irq play index converted for CIA tunes) and reports every proximate candidate; a value found only outside the window is reported as "NOT an off-table read at the divergence" with the far matches labeled by-value coincidences. Validated: Fantastic_Dreams (3 near candidates incl. the wavepos class), Long_Time (correct bow-out where the old scan would have blamed idx 140). Historical mis-fires: 6 (wavepos 3×, Real_Hardcore idx 150, r111 Rock_Tec_Tec idx 150, Psycho_One $172A). | — | done |
 | **Ledger-discipline hook** (process, not diagnostic) | A `UserPromptSubmit`/`PostToolUse` hook that nudges the CONSULT/RECORD reflex structurally (e.g. remind to check the in-context ledger before a fix lands, or flag a commit that solved a non-trivial problem with no ledger delta). Today the whole ledger discipline is manual (CLAUDE.md + feedback_convergence_ledger). The full-import (2026-07-14) attacks the CONSULT side; RECORD-on-commit remains unenforced. | Medium — the discipline mostly holds; this closes the tail. | 1-2 hours hook scripting |
 | **`siddump --memwatch` at IRQ boundaries** (the unbuilt half of play-aligned) | The writelog half is BUILT (`--writelog-per-irq`, see Built section). Remaining: let `--memwatch` snapshot at PSID `play()` entry instead of siddump frame boundaries, so `state_diff.py` sheds its Trap C caveat and becomes a verdict-grade tool (see Hurt list). `--memwatch-on-write TRIG` already covers engines with a once-per-play write — this closes the general case. | Medium-high — state_diff stays hint-only until then. | 1-2 hours libsidplayfp overlay |

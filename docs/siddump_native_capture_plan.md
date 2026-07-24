@@ -1,0 +1,163 @@
+# Plan: migrate py65 observation into native siddump
+
+**Status:** proposed 2026-07-24, not started. Pick this up in a fresh session.
+**Owner doc.** Motivation + inventory + feature specs + incremental path. Read
+`feedback_ground_truth.md` (the py65-divergence lesson that motivates this) and
+`tools/INVESTIGATION_BACKLOG.md` first.
+
+## Why
+
+The extract uses **py65** (a pure-Python 6502 emulator) to OBSERVE a member's
+own execution — run its init/play, watch PCs, read RAM/CPU state — to derive
+USF content. py65 is:
+
+1. **A reimplementation, so not ground truth.** For any value that depends on
+   memory the file image did not load or the code did not provably write
+   (uninitialized RAM; deep playback of a C29-class player with null / off-image
+   / environment reads), py65's result can DIFFER from libsidplayfp — the verdict
+   engine. This ate most of a session (DMC `Hank/Roots`: py65 read a loop target
+   of `$00` and played noise where libsidplayfp read `$87` and played silent).
+   See `feedback_ground_truth.md` §"third failure mode".
+2. **~100-1000× slower** than native libsidplayfp (Python interpreter vs C++).
+   Fine for short init runs; painful for deep playback (the DMC ghost sim plays
+   ~9000 frames = 30-60 s).
+
+**`tools/siddump.cpp` is ours** (702 lines) and already wraps libsidplayfp with
+the exact hooks these observations need — `engine.debug(bool, FILE*)` for a
+per-instruction CPU hook (that's how `--pc-trace` works) and `engine.cpuPeek(a)`
+for MMU-aware reads. So the fix is INCREMENTAL siddump features, not a new
+emulator.
+
+**The win is correctness first, speed second.** A value siddump produces is
+ground-truth **by construction** — it eliminates the whole py65-divergence bug
+class, of which the interim guardrails (`_TaintMemory`, the "verify against
+siddump" discipline) are only a fallback. Speed is a bonus, concentrated on the
+deep-playback cases.
+
+## The practice this establishes
+
+**Prefer extending siddump (the ground-truth engine) over py65 for OBSERVATION.**
+When a py65-shaped or ad-hoc observation recurs, add a declarative siddump hook
+instead. This is the existing CLAUDE.md "tooling reflex" ("what tool would have
+collapsed this to <5 min? build it") narrowed to a default. Record new hooks in
+`tools/INVESTIGATION_BACKLOG.md`; the C++ change is scoped on its own, never
+folded into an unrelated fix.
+
+## Current py65 footprint (~30 sites) — classify before touching
+
+Do a real inventory first (`grep -rlnE "from py65|MPU\(\)" pipelines/ src/ tools/`
+minus `deprecated/` and `tools/py65_lib/`). Four classes, prioritized by
+(divergence-risk × speed-cost):
+
+- **Class D — deep-playback state capture. HIGH priority.** Plays many frames
+  then reads arbitrary state. SLOW *and* divergence-prone. Members:
+  `dmc/v4/factory._simulate_reinit_ghosts` (the ghost sim), plus any full-song
+  py65 register trace (audit these). **Migrate first** — biggest robustness +
+  speed win.
+- **Class C — run init, observe LANDING / reachable PCs. MEDIUM.** Needs
+  PC-level observation siddump lacks today. Members:
+  `dmc/v4/compilation.py` (relocating-compilation dispatch — run init(A=sub),
+  where does it JMP?), `dmc/v4/factory` play-phase / base observers (C18/C27),
+  `_postinit_window(stop_at_player=…)`. Correctness + modest speed.
+- **Class B — run init(+play), read post-init/post-play RAM. LOW.** Reads
+  file-image / init-written bytes; low divergence risk. Largely already coverable
+  by `--peek-post-init` / `--memwatch`. Members: `_postinit_window`,
+  `_post_init_ram`, `_cia_period_from_init`, commando freq-table extension.
+  Migrate opportunistically; not urgent.
+- **Class A — call a SPECIFIC subroutine with chosen registers, capture its SID
+  writes. LEAVE (for now).** The dominant Hubbard/companion use
+  (`inst_program.py`: run an instrument program with A=n, capture its
+  `$D4xx` writes to derive the USF instrument). DETERMINISTIC (reads program
+  data, no environment reads) → **not divergence-risky**, and short → fast in
+  py65. siddump is PSID-init/play-oriented, so "invoke arbitrary routine" is the
+  HARDEST to add and buys speed only. Skip unless a concrete win appears.
+
+Rule of thumb: **migrate a py65 site iff it is divergence-prone OR slow.** A
+deterministic short routine run that only reads loaded/written bytes can stay.
+
+## siddump features to add
+
+Design constraint on ALL of them: **declarative, not interactive.** py65 runs
+in-process so the extract interleaves "step, decide in Python, step". siddump is
+a subprocess, so each feature states "capture X when condition Y" and computes it
+in ONE run. Model every new flag on the existing `--memwatch-on-write` /
+`--writelog` / `--peek-post-init` — parse a spec, run once, emit one result
+block. Reuse those implementations as templates.
+
+### Feature 1 — PC-triggered capture (unlocks Class D, part of C)
+
+`--capture-at-pc PC[:A] ADDR[,ADDR...]` (name TBD): while running, each time the
+CPU's PC equals `PC` (optionally with A==`A`), emit a snapshot of the requested
+RAM addresses **and the CPU registers A/X/Y/SP**. This is `--memwatch-on-write`
+with a PC trigger instead of a register-write trigger, plus CPU-reg output. The
+`engine.debug` hook already sees every PC; add the compare + snapshot + one
+output line per hit. Absorbs: the ghost sim's "stop at the wedge, read the SID
+burst + the poked state block", and any "at instruction X, what were the
+registers / memory" observation.
+
+### Feature 2 — init landing / reachable-PC report (unlocks Class C)
+
+`--init-landing SUB` (name TBD): run `init(A=SUB)` and report (a) the first
+"player head" PC control reaches (a page-aligned three-JMP head — see
+`_is_player_head`), and/or (b) the set of entry-point PCs from a caller-supplied
+watch list that executed. Absorbs: compilation dispatch detection, C18 play-phase
+classification, C27 multi-SID base discovery. `_is_player_head` logic ports from
+Python to C++ (small) or the watch-list variant keeps it caller-side.
+
+### Feature 3 (optional, later) — call-routine capture (Class A)
+
+Only if Class A ever justifies it: `--call ADDR:A [ADDR:A ...]` that JSRs a
+routine with chosen registers (RTS-sentinel like the py65 harness) and captures
+its `$D4xx` writes. Lower priority (deterministic, not a robustness win, hardest
+to fit siddump's PSID model). Note here so it isn't rediscovered from scratch.
+
+## Execution path (incremental — never big-bang)
+
+Each phase is its own scoped commit; keep the py65 path as a per-site fallback
+until that site's migration is verified, then delete it.
+
+1. **Phase 0 — prove the pattern.** Add Feature 1. Migrate `_simulate_reinit_ghosts`
+   (Class D) to it. GATE: For_Party still verifies FULL, the extracted burst +
+   pokes are IDENTICAL to the py65 version (golden diff of the `.usf` /
+   `track_ff_reinit_ghost` param), and it's faster. This validates the C++ hook
+   design AND the interactive→declarative reformulation on the highest-value
+   site.
+2. **Phase 1 — Feature 2 + Class C.** Migrate the compilation dispatch detector
+   and the play-phase / base observers. GATE: `dmc_smoke` + the C31/C18/C27
+   members re-verify unchanged (build path + verdict identical).
+3. **Phase 2 — sweep remaining Class D / divergence-prone sites** across families
+   (audit the Hubbard/FC/companion py65 uses for any that play deep or read
+   environment memory).
+4. **Leave Class A/B** unless a concrete win. Class B can migrate opportunistically
+   to `--peek-post-init` / `--memwatch` where it simplifies code.
+
+## Verification / gating (per migration)
+
+- The migration must reproduce the extract's output **byte-identical** (or
+  provably equivalent) to the py65 path — golden-diff the affected `.usf` (and
+  `.sid`) over the touched members before deleting the py65 code. This is the
+  same carrier-refactor discipline as CLAUDE.md's byte-identity gate.
+- Re-run the family's verify (and `tools/regression.py` before commit, since a
+  shared extract helper is touched).
+- Only after green: delete the py65 code path for that site. Do NOT leave both
+  live (dual paths rot; C20).
+
+## Risks / notes
+
+- **C++ build cost per feature.** `bash tools/build.sh` rebuilds libsidplayfp +
+  siddump; note the two-host wall-clock (X230 ~16× the EPYC). Keep features small.
+- **Don't break existing siddump consumers.** `verify_cycle.writelog_capture`,
+  the DMC verify, `find_first_divergence`, `dmc_offtable_probe`, etc. all shell
+  out to siddump — new flags must be additive, and siddump already HARD-ERRORS on
+  unrecognised args (a deliberate guard, keep it).
+- **ROMs.** siddump needs `tools/c64roms/` (env.sh sets `SIDFINITY_ROMS_DIR`);
+  the new hooks run the full environment, which is the point (ground truth).
+- **Keep the guardrails** (`_TaintMemory`, the ground-truth discipline) until the
+  migration is complete — they cover whatever py65 remains.
+
+## Definition of done
+
+Every divergence-prone or slow py65 observation is served by a native siddump
+hook; the remaining py65 (if any) is only deterministic short routine runs that
+read loaded/written bytes. The "prefer siddump over py65 for observation" default
+is recorded in `INVESTIGATION_BACKLOG.md` and future sessions follow it.
