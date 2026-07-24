@@ -5,8 +5,20 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-24T09:48:21.524Z
+  modified: 2026-07-24T10:32:42.921Z
 ---
+
+## ✅ CLOSEOUT (2026-07-24, post-r112): fresh full batch + mass-write. **5309/5401 FULL (98.3%) + 92 partial + 0 error**
+The r111/r112 changes invalidated every code_hash; the batch
+(`tmp/dmc_wide_results.jsonl`) re-verified ALL 5401 f1 members from
+scratch — fully authoritative, 0 stale-hash rows. vs the post-r106
+closeout (5296+105): net +13 FULL (r107-112 named members + the
+a0ff-tail cluster). Mass-write: 5309 ok=5309 err=0, 0 orphans,
+path-stratified audit 9/9 from disk, `usf_corpus_check` 11972/11972
+parse OK (this refreshed the two Sane members' stale F-token .usf from
+r111). Residue = 92 partials; next by path =
+Gero/Christmas_Aches_tune_2 (early V2 SR $CB vs $CA + a skipped $D418
+write at flat 5803).
 
 ## ✅ ROUND 112 (2026-07-24): post-transpose pseudo-sector reaches the C29 gates (C34 3rd occ). Rock_Tec_Tec +6 more FULL
 Next f1 partial by path = `Flyt/Rock_Tec_Tec` (single, canon $1000,
