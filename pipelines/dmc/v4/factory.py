@@ -895,12 +895,16 @@ def _detect_play_repeat(mem, play: int, base: int, load: int) -> int:
     # (the body starts with a DEC speed-counter — the loop follows the JMP and
     # returns 1). But a few members redirect base+3 into a JSR-chain/JMP-tail
     # double-play WRAPPER (Scan_Collection_end: $1003 = JMP $2000, and $2000 =
-    # `JSR $1050 : JMP $1050` = the engine twice per frame). So only
-    # short-circuit when base+3 is NOT a JMP; otherwise fall through and let the
-    # wrapper analysis follow the indirection (returns 1 for a plain body,
-    # N for a genuine repeat). Regression-safe: a plain body's first opcode is
-    # not JSR/JMP-to-target, so the loop returns 1 (byte-identical build).
-    if play == base + 3 and mem[play] != 0x4C:
+    # `JSR $1050 : JMP $1050` = the engine twice per frame) — and the wrapper
+    # can also sit AT base+3 itself, JSR-first (Insinuanity/Long_Way_tune_7:
+    # $1003 = `JSR $1085 : JMP $1085`, r114). So only short-circuit when
+    # base+3 starts with neither JMP nor JSR; otherwise fall through and let
+    # the wrapper analysis decide (returns 1 for a plain body, N for a
+    # genuine repeat). Regression-safe: a plain canon body's first opcode is
+    # DEC, and the r114 census over all 5401 f1 members found exactly 3 with
+    # JSR-first at base+3 — the two wrapper carriers above plus one whose
+    # loop-analysis still returns 1.
+    if play == base + 3 and mem[play] not in (0x4C, 0x20):
         return 1
     pc = play
     target = None

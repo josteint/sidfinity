@@ -8,6 +8,21 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 114 (2026-07-24): JSR-first whole-play wrapper AT base+3 (C24 3rd form). Insinuanity + Long_Way_tune_7 FULL (+2)
+Next f1 partial by path = `Gillies_Ewen/Insinuanity` (single, canon
+$1000, vblank). TELL was textbook C24 sibling: aligned play stream
+matches fully, len_a = exactly 2× len_b (right notes, half rate). Play
+vector base+3 = `JSR $1085 : JMP $1085` — the whole-play ×2 wrapper
+sitting AT base+3 itself, JSR-FIRST, which `_detect_play_repeat`'s
+guard (`mem[play] != 0x4C`) still short-circuited (the r52 fix only
+admitted JMP-first). FIX: guard → `not in (0x4C, 0x20)`. Census all
+5401 f1: exactly 3 JSR-first-at-base+3 members — Insinuanity ×2 +
+Odysseus/Long_Way_tune_7 ×2 (identical wrapper, both partial→FULL) + 1
+loop-returns-1 (byte-identical); Speed_It_Up (JSR×4:RTS) was ALREADY
+detected =4 via play≠base+3 and stays FULL. Gates: dmc_smoke 6/6, full
+regression 0 regressed. f1 = 5313 + 2 = **5315 FULL / 86 partial**.
+Ledger C24 updated (3rd form + card).
+
 ## ✅ ROUND 113 (2026-07-24): sticky-instrument INIT SEED = the $1015,x work-file leftover (C32 refinement). Christmas_Aches_tune_2 + Chopin_2 + Nir_2 + Szat FULL (+4)
 Next f1 partial by path = `Gero/Christmas_Aches_tune_2` (single, RELOCATED
 base $B645, vblank). First div flat 5803 f356: V2 SR $CB vs $CA at the
