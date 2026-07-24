@@ -1333,6 +1333,45 @@ def _route_clear_dead_probe(path: str, base: int,
     return f'{tgt:04X}'
 
 
+def _track_ff_reinit_probe(path: str, base: int,
+                           post_init_sub: 'int | None' = None):
+    """$FF track-loop handler re-pointed at the INIT routine (STATIC opcode
+    probe, C19, Greenhorn/Second r117). Canon handler (base+$DD):
+    `A9 00 / 9D 26 17 (otrk,x = 0) / 4C D2 10 (re-fetch)` — loop the track.
+    The wedge: `A9 00 / 20 <rts> (neutered) / 4C <init-body>` — the FIRST
+    track end RESTARTS the whole song via init (A=0): the init's $D418 +
+    ascending SID clear land mid-stream, then the song plays from the top
+    with init-cleared state. Anchor the full patched shape: LDA #$00, a JSR
+    whose target is an RTS byte, and a JMP whose target is the member's real
+    init body (the jump-table init JMP's operand) — fail-open on anything
+    else. Value = the JMP target."""
+    if base is None:
+        return None
+    mem, _ = _load(path, post_init_sub)
+    site = base + 0xDD
+    if site + 8 > 0x10000:
+        return None
+    if mem[site] != 0xA9 or mem[site + 1] != 0x00:
+        return None
+    if mem[site + 2] != 0x20:                       # JSR (canon: STA $9D)
+        return None
+    jsr_tgt = mem[site + 3] | (mem[site + 4] << 8)
+    if jsr_tgt >= 0x10000 or mem[jsr_tgt] != 0x60:  # must be a neutered call
+        return None
+    if mem[site + 5] != 0x4C:
+        return None
+    jmp_tgt = mem[site + 6] | (mem[site + 7] << 8)
+    if jmp_tgt == base + 0xD2:                      # canonical re-fetch loop
+        return None
+    # The full anchor (LDA #$00 + a byte-preserving neutered JSR-to-RTS where
+    # canon has the otrk store + a JMP away from the re-fetch) is the
+    # hand-patch signature; the JMP target is the member's init body — which
+    # need NOT equal the jump-table operand (Second: JT init -> a $101D stub,
+    # the wedge jumps the $1807 body directly). Verify-gated: a false fire
+    # yields a partial, never a silent wrong FULL.
+    return f'{jmp_tgt:04X}'
+
+
 def _fclaim_clear_dead_probe(path: str, base: int,
                              post_init_sub: 'int | None' = None):
     """Per-play fclaim CLEAR re-pointed off the state block (STATIC opcode
@@ -2676,6 +2715,7 @@ _WEDGE_PROBES = [
     ('glide_neutered',                  lambda p, c: _glide_neutered_probe(p, c.base, c.post_init_sub)),
     ('route_clear_dead',                lambda p, c: _route_clear_dead_probe(p, c.base, c.post_init_sub)),
     ('fclaim_clear_dead',               lambda p, c: _fclaim_clear_dead_probe(p, c.base, c.post_init_sub)),
+    ('track_ff_reinit',                 lambda p, c: _track_ff_reinit_probe(p, c.base, c.post_init_sub)),
     ('v3_instr_tempo',                  lambda p, c: _v3_instr_tempo_probe(p, c.base, c.post_init_sub)),
     ('filterdef_anim',                  lambda p, c: _filterdef_anim_probe(p, c.base, c.op_filtdef, c.post_init_sub)),
     ('d417_tail_anim',                  lambda p, c: _d417_tail_anim_probe(p, c.base, c.op_filtdef, c.op_wavefreq, c.post_init_sub)),

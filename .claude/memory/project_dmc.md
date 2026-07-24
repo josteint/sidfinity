@@ -8,6 +8,28 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 117 (2026-07-24): $FF track-loop handler re-pointed at INIT (C19 22nd occ). Second FULL (+1)
+Next f1 partial by path = `Greenhorn/Second` (single, canon $1000,
+vblank). 99.08% prefix ending exactly at songlength: orig writes
+$D418=$0F + a full ascending $D400-$D417 clear at f2776 while ours
+plays on — the INIT re-running mid-stream. `dmc_canon_diff` (1 member)
+showed it in one shot: the $FF handler patched to `A9 00 / 20 <rts> /
+4C 1807` — first track end RESTARTS the song via init (A=0); init's
+RTS pops the voice call so the same frame finishes with the filter
+tail on fresh state; the restart plays from the top with init-cleared
+(NOT loop-carried) state. FIX: `_track_ff_reinit_probe` (full-shape
+anchor; the JMP target ≠ the JT init operand here — Second's JT init
+is a $101D stub, the wedge jumps the $1807 body directly, so the probe
+must NOT require equality) → `track_ff_reinit` param → composer's $FF
+fetch tail-calls its own init (`lda cursong / jmp init`; cursong
+outside the cleared state block); our init's SID writes ($D418 then
+the ascending clear) already byte-match canon. Census: 2 carriers —
+Second FULL first try (45383/45383, incl. the mid-stream re-init +
+restarted tail); My_Firsty (FULL, wrap past its verify window — the
+C32 past-window-latent class) re-verifies FULL with the param. Gates:
+dmc_smoke 6/6, full regression 0 regressed. f1 = 5317 + 1 = **5318
+FULL / 83 partial**. Ledger C19 22nd occ (entry + card).
+
 ## ✅ ROUND 116 (2026-07-24): glide-ARRIVAL off-table reach + event-driven record CREATION (C6 refinement). Psycho_One FULL (+1)
 Next f1 partial by path = `Gomez/Psycho_One` (single, canon $1000,
 vblank). First div flat 26636 f1654: V1 freq $2A00 vs ours $0000.

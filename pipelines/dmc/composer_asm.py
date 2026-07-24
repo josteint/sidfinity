@@ -2406,6 +2406,35 @@ ovrp_d:
     # work-file leftover (init.sid res_routing) persists through non-filter
     # note-inits. The SET site is untouched. Emit no clear for such members;
     # everyone else keeps the canonical clear, byte-identical.
+    # track_ff_reinit (C19 wedge, Greenhorn/Second): the orig's $FF track-loop
+    # handler is re-pointed at the INIT routine — the FIRST track end restarts
+    # the whole song from scratch, landing the init's $D418 + ascending SID
+    # clear mid-stream, then playing from the top with init state. Reproduce
+    # with the same mechanism: the $FF fetch TAIL-CALLS our init (its RTS pops
+    # the voice call, so the play body's remaining units + filter tail run
+    # with fresh state — exactly the orig's `JMP <init>` flow). `cursong`
+    # keeps the subtune for the restart; it lives OUTSIDE state0..state_end
+    # so the init's state clear cannot wipe it. Default: the canonical 16-bit
+    # loop redirect, byte-identical.
+    if usf.params.fields.get('track_ff_reinit'):
+        trk_ff = ('        lda cursong                  ; $FF = restart the '
+                  'song via init\n'
+                  '        jmp init                     ; (track_ff_reinit '
+                  'wedge - init RTS pops the voice call)\n')
+        cursong_save = ('        sta cursong                  ; subtune for '
+                        'the $FF restart\n')
+        cursong_var = 'cursong:  .dsb 1, 0\n'
+    else:
+        trk_ff = ('        iny\n'
+                  '        lda ($f8),y                  ; $FF loop: 16-bit '
+                  'BYTE address of the entry\n'
+                  '        sta trkpl,x\n'
+                  '        iny\n'
+                  '        lda ($f8),y\n'
+                  '        sta trkph,x\n'
+                  '        jmp f_newpat\n')
+        cursong_save = ''
+        cursong_var = ''
     route_clear = ('' if str(usf.params.fields.get('route_clear_dead', '')
                              or '') else
                    '        lda shadow17\n'
@@ -2421,7 +2450,7 @@ CIA_PERIOD = ${cia_period:04X}
 
 ;; ===================== init (A = subtune) =====================
 init:
-{ovr_patch}        pha                          ; save subtune
+{cursong_save}{ovr_patch}        pha                          ; save subtune
         lda #$00
         tax
 ini_st:
@@ -2525,14 +2554,7 @@ trkrd:
 trk1:
         cmp #$FF
         bne trk1b
-        iny
-        lda ($f8),y                  ; $FF loop: 16-bit BYTE address of the entry
-        sta trkpl,x
-        iny
-        lda ($f8),y
-        sta trkph,x
-        jmp f_newpat
-trk1b:
+{trk_ff}trk1b:
         cmp #$FD
         bne trk2
         iny                          ; $FD transpose command: STICKY like the orig
@@ -3220,7 +3242,7 @@ wnote:    .dsb 3, 0                  ; orig arp-note shadow (= $1783)
 durrel:   .dsb 3, 0                  ; orig duration-reload shadow (= $173E)
 ioff:     .dsb 3, 0                  ; orig instrument-offset shadow (= $174D)
 {rest_var}{d418_var}{sectpos_bss}state_end:
-{hr_test_var}{dual_vars}        .byt $00
+{cursong_var}{hr_test_var}{dual_vars}        .byt $00
 """
     return _reloc_sid_regs(asm, reg_delta, keep_regs)
 
