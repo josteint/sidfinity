@@ -8,6 +8,49 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ⚠️ INVESTIGATION (2026-07-24, NO GAIN — REVERTED): track_ff_reinit shape B + ghost units (For_Party_V_95 / Roots)
+Next f1 partial after Second was `Hallen/For_Party_V_95`. Turned out to
+be the HARD form of C19-22 (track_ff_reinit) and the machinery I built
+REGRESSED the cluster, so it was reverted to r117. Findings preserved
+for a future focused session:
+- **Shape B of the $FF wedge:** `A9 00 / 4C <init>` (JMP straight to
+  init, canon re-fetch tail left as dead code) vs r117's shape A
+  (`A9 00 / 20 <rts> / 4C <init>`). Both restart the song at the first
+  track end. A probe branch on `mem[base+$DF]` (0x4C=B, 0x20=A) detects it.
+- **Census (14 track_ff_reinit carriers f1):** 2 shape-A (My_Firsty,
+  Second) + 12 shape-B (mostly Hank/*). **12/14 verify FULL at r117** —
+  because MOST carriers' $FF wrap falls PAST their verify window, so the
+  normal loop-target build never reaches the re-init and verifies FULL
+  as an ordinary looping tune. Only For_Party + Roots have an IN-WINDOW
+  wrap AND wrapv≠last, so they need real handling.
+- **THE REGRESSION TRAP (why it reverted):** naively detecting shape B
+  and applying re-init handling BREAKS the 12 past-window-wrap FULLs
+  (6 full→partial + 2 xa65 errors: the ghost-poke path referenced a
+  `sectpos` label not emitted for non-sectpos members). Shape-B handling
+  MUST be gated on "the $FF wrap is reached within songlength×1.1" — a
+  build-time property the extract must establish BEFORE emitting any
+  re-init, else it corrupts the majority whose wrap is unreached.
+- **The ghost-unit mechanism (For_Party):** wrap voice = V0, so init's
+  RTS pops V0's JSR and the play body's `inx` chain runs V1/V2 as GHOST
+  UNITS with X=$19/$1A (past the 3-voice range) — aliased per-voice
+  `LDA/STA base+$718,X` reads code bytes / writes other arrays' slots.
+  Ghosts emit a member-constant SID burst (D400-D404 ×2, via Y=otrk=0 →
+  V1) AND poke the state block. Both are py65-simulatable (ran init(A=0)
+  then each ghost unit; ghost writes matched the wrap frame exactly).
+- **THE UNSOLVED RESIDUAL:** after the wrap, the restart is NOT a clean
+  cold replay — `orig_restart[wrap+k] ≠ cold[k-1]` for k≥3. V3 plays a
+  different note ($25A3 vs a clean-replay value) because the ghost run
+  PREEMPTED V3's frame-9538 update, shifting V3's playback phase in the
+  restart. Per-voice state pokes ($1718-$179D diff vs no-ghost baseline)
+  advanced 152611→152692 (98.44%) but did NOT close it — the phase shift
+  isn't a state-block value, it's a missed-update timing effect. Modeling
+  it needs the ghost run to also advance V3's tick/duration the way the
+  preempted real V3 update would have. Deferred.
+- Tooling note: Trap-C frame drift (siddump frame ≠ play() index) made
+  pc-tracing the divergent V3 store expensive; the reliable signal was
+  per-frame writelog `seq()` comparison (orig wrap vs rebuild wrap: both
+  37 writes, matched; desync begins at restart frame k=3).
+
 ## ✅ ROUND 117 (2026-07-24): $FF track-loop handler re-pointed at INIT (C19 22nd occ). Second FULL (+1)
 Next f1 partial by path = `Greenhorn/Second` (single, canon $1000,
 vblank). 99.08% prefix ending exactly at songlength: orig writes
