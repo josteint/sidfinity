@@ -62,6 +62,44 @@ for a future focused session:
   per-frame writelog `seq()` comparison (orig wrap vs rebuild wrap: both
   37 writes, matched; desync begins at restart frame k=3).
 
+### TO GET For_Party_V_95 FULL (next-session plan — user wants it CLOSED)
+The member: `MUSICIANS/H/Hallen/For_Party_V_95.sid` (single, canon $1000,
+vblank, 1 song, master_vol=$FF, wedge shape-B `A9 00 / 4C 07 18` at
+base+$DD → JMP init body $1807; wrap voice = V0 → 2 ghost units).
+1. **Rebuild the 3 pieces regression-safe** (all reverted at r117; the
+   diagnosis above has each): (a) shape-B detect in
+   `_track_ff_reinit_probe` (`mem[base+$DF]==0x4C`), GATED on the
+   in-window re-init discriminator so ONLY For_Party (+ Second) is
+   touched — census-verify the other 12 carriers stay byte-identical
+   FULL (they were what regressed). (b) `_simulate_reinit_ghosts` (py65:
+   run init(A=0) from the wedge target, derive ghost X from post-init X,
+   run each ghost unit; the wrap-frame SID burst already matched 37/37).
+   (c) composer `reinit_stub` — FIX the `sectpos`/`wavepos` label bug
+   (`_state_var_at` must only reference labels the composer actually
+   emitted for this member, else xa65 fails).
+2. **Then attack the ONLY open blocker — the restart phase.** The wrap
+   frame + first 2 restart frames match; desync is voice-2 (V3) at
+   restart k=3 (orig freq $25A3 vs ours). ESTABLISHED: restart ≈ cold
+   delayed ~1 frame; the ghost at X=$1A writes voice-2's (+2) slots
+   ($1749=glb+2 etc.), but voice-2's note-init OVERWRITES most before
+   read — so the surviving divergence is ONE poked slot note-init does
+   NOT reset, read on a wave-STEP before that voice's first note-init.
+   NOTE: excluding the wavepos poke changed nothing (152692 either way),
+   so it is NOT wavepos. METHOD: at restart k=3, `siddump --pc-trace`
+   the ORIG's voice-2 (X=2) freq computation, list every `$17xx` it
+   reads, and diff each against the composer's value at the same event
+   (`return_labels=True` + `--memwatch-on-write` on the diverging reg).
+   The one that differs is the missed poke. Prime suspects: a ghost
+   store landing ABOVE $179D (past the init-cleared block — I only
+   scanned $1718-$179D, so widen the poke scan), or a slot below $1718
+   (curnote/$100C region I explicitly skipped). Reliable signal =
+   per-frame writelog `seq()` compare (NOT pc-trace frame numbers,
+   Trap C). Core-tenet reframe if stuck: don't reproduce the aliased-X
+   mechanism, reproduce the write stream — the restart IS cold delayed
+   one frame + a fixed set of surviving poked slots.
+3. Gate: For_Party FULL + the 14-carrier cluster still 12-others-FULL
+   (0 regr, `tmp/ffreinit_members.json` exists) + dmc_smoke + regression.
+
 ## ✅ ROUND 117 (2026-07-24): $FF track-loop handler re-pointed at INIT (C19 22nd occ). Second FULL (+1)
 Next f1 partial by path = `Greenhorn/Second` (single, canon $1000,
 vblank). 99.08% prefix ending exactly at songlength: orig writes
