@@ -5,8 +5,29 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-24T09:22:53.431Z
+  modified: 2026-07-24T09:48:21.524Z
 ---
+
+## ✅ ROUND 112 (2026-07-24): post-transpose pseudo-sector reaches the C29 gates (C34 3rd occ). Rock_Tec_Tec +6 more FULL
+Next f1 partial by path = `Flyt/Rock_Tec_Tec` (single, canon $1000,
+vblank). ~95%-in wrap divergence: V3 track tail `a0 ff` (the r100/C34
+Dance shape) — but here secp[$FF] = **$0000, the live zeropage** (C29
+first class). The C29 GATE walks (`_offimage_sectors` +
+`_undefined_secp_reads`) skipped every post-transpose byte, so the zp
+overlay never engaged; `_walk_track`'s pseudo-sector probe then read
+image zeros → `('endless',…)` (no $7F in garbage) → row dropped → the
+rebuild droned the held note at the wrap while the orig sonifies the
+6510 port ($2F = note 47). FIX: both gate walks consume the
+post-transpose byte + window-check secp[$FE/$FF]; the probe accepts
+the 'endless' sim and takes ROW 0. Census: 16 f1 carriers of the
+tail shape — 9 FULL unchanged, ALL 7 partials FULL (Rock_Tec_Tec,
+Leming/Before_Promises, Mephisto/Lemons, Mermaid/So_Hard,
+Rap/Tekkno_of_Doom, Yuro/Eyes, Yuro/Flake). NB `dmc_offtable_probe`
+mis-attributed this one too (5th by-value mis-fire — divergence was
+V3 ctrl, tool bows out correctly, but r111's idx-150 hit was the 4th;
+backlog has the proximity-gate idea). Gates: dmc_smoke 6/6, full
+regression 0 regressed. f1 = closeout's 5296 + Ed×4 + Chwat +
+Real_Hardcore + 7 = 5309.
 
 ## ✅ ROUND 111 (2026-07-24): phase-observer R-positive rule (C18 refinement). Real_Hardcore FULL
 Next f1 partial by path = `Finn/Real_Hardcore` (single, canon $1000,
