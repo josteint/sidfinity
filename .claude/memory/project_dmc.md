@@ -5,8 +5,29 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-24T08:57:21.531Z
+  modified: 2026-07-24T09:22:53.431Z
 ---
+
+## ✅ ROUND 111 (2026-07-24): phase-observer R-positive rule (C18 refinement). Real_Hardcore FULL
+Next f1 partial by path = `Finn/Real_Hardcore` (single, canon $1000,
+CIA 4x, wrapper `LDX/JSR $141C ×3`). First div flat 79 (frame 6): V1
+freq lo orig $18 vs $00 — the per-note vibrato ($1888[note 40]=$18,
+table byte-identical to canon) stepped every wrapper CALL in the orig,
+never in ours. NOT the off-table read `dmc_offtable_probe` reported
+(idx 150 was a later by-value coincidence — the C11 mis-fire warning
+again; pc-trace the ACTUAL diverging write first). Cause: py65 observer
+→ S (CIA-armed), pctrace fallback classified the $141C calls F via
+chip-advance (vib advances!) → wavestep arm entry → vib frozen per
+call. FIX (classification only, composer untouched — the R body
+`jsr fx_glide` IS the mechanism): `_effects_tail_candidates`
+(`bd ?? ?? f0 7e`) + R-positive precedence P→fe→et→advance in both
+offset-blind observers; `pctrace_per_play_capture` dict watch_pcs.
+Census 117 stored play_phases carriers: 115 identical, 2 flips
+(Sane/2_Speed + Voices_in_My_Head, same wrapper) re-verify FULL as R
+(their stored .usf now carry the stale F token — refresh at next
+mass-write). Gates: dmc_smoke 6/6, full regression 0 regressed.
+f1 = closeout's 5296 + Ed×4 + Chwat + Real_Hardcore. Fixed
+tools/dmc_state_addr.py label-build unpack (build() returns 3-tuple).
 
 ## ✅ ROUND 110 (2026-07-23): Chwat compilation — per-subtune slide_phase + state-addr sanity (C31). ALL 7 subs FULL
 Next f1 partial by path = `Eye/Chwat` (compilation, players $1000 + $2000;

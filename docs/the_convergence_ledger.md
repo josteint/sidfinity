@@ -389,8 +389,10 @@ practice, not code to factor).
   repeating period = a schedule string (`P_F123`...); composer emits a
   phase-counter dispatcher JSR-ing its OWN entry points. Traps: a "silent"
   phase may hide a register refresh; F-vs-R needs the CHIP-STATE rule + frame-
-  entry reachability (a held note's F looks like R); variant F/R entry points
-  exist (vib_half, pulse_tail) — full entry lists them.
+  entry reachability BOTH WAYS (a held note's F looks like R; an R whose
+  vibrato runs ADVANCES and looks like F — effects-tail-entry reachability is
+  R-positive, Real_Hardcore); variant F/R entry points exist (vib_half,
+  pulse_tail) — full entry lists them.
 - FULL ENTRY: [`ledger/C18.md`](ledger/C18.md) — read it before applying.
 
 ### C19 — hand-patched player WEDGE inside the canon body
