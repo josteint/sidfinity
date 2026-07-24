@@ -320,6 +320,41 @@ def heterogeneous_to_usf(rel: str, spec: dict | None = None,
         for sub in u.subtunes:
             if isinstance(sub, MusicSubtune):
                 used |= _refs(sub)
+        if eng0 == 'dmc_v4' and ids and used and min(used) != min(ids):
+            # V4's record 0 (i1) is ALWAYS live — init clears the note-init
+            # cache to 0, so an idle voice runs record 0's pulse/wave
+            # mechanism (the C31 merge trap named in `_groups`). The old
+            # resolver seeds (`instr: i1` hardcoded) referenced it by
+            # accident; the true leftover seeds (C32 r113) need not. Record
+            # the idle anchor as an init-voice ref so the slice check and
+            # block tiling see the true usage — a slot-0 ref keeps the V4
+            # composer's gated constant init form, so its output is
+            # unchanged.
+            from src.usf.types import InitState, InitVoice, InstrumentRef
+            anchor = InstrumentRef(id=min(ids))
+            injected = False
+            for sub in u.subtunes:
+                if not isinstance(sub, MusicSubtune):
+                    continue
+                if sub.init is not None:
+                    for iv in sub.init.voices:
+                        if iv.instr is None:
+                            iv.instr = InstrumentRef(id=anchor.id)
+                            injected = True
+                    if injected:
+                        break
+            if not injected:
+                for sub in u.subtunes:
+                    if isinstance(sub, MusicSubtune):
+                        if sub.init is None:
+                            sub.init = InitState(voices=[])
+                        sub.init.voices.append(
+                            InitVoice(id=1, instr=InstrumentRef(id=anchor.id)))
+                        break
+            used = set()
+            for sub in u.subtunes:
+                if isinstance(sub, MusicSubtune):
+                    used |= _refs(sub)
         if ids and used and min(used) != min(ids):
             raise ValueError(
                 'player %d: lowest instrument i%d is unreferenced (lowest '

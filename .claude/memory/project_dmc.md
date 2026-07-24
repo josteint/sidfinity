@@ -8,6 +8,47 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 113 (2026-07-24): sticky-instrument INIT SEED = the $1015,x work-file leftover (C32 refinement). Christmas_Aches_tune_2 + Chopin_2 + Nir_2 + Szat FULL (+4)
+Next f1 partial by path = `Gero/Christmas_Aches_tune_2` (single, RELOCATED
+base $B645, vblank). First div flat 5803 f356: V2 SR $CB vs $CA at the
+voice's FIRST note-init — orig plays instr 1 (hard-restart noise drum,
+fires the filter program + $D418), ours instr 0. NOT a wedge
+(dmc_canon_diff clean) and NOT instrument content: the note-init computes
+`ioff = $1015,x * 11` and canon init clears $1718-$179D but NEVER
+$1015-$1017 — the per-voice current-instrument number is a WORK-FILE
+LEFTOVER (this member: 08 01 0C), same family as idle_notes/durrel_init/
+slide_phase. The walk seeded sticky instr 0 and the composer hardcoded
+`curinst,x`=0. FIX (3 legs): (1) extract re-walks with `instr_seed` =
+the leftover read at `_eventdriven_addrs(cfg)` INS — CONSUMPTION-GATED
+(only when a note row precedes the first $6x cmd; seed <$20 else refuse)
+so non-carriers churn zero; (2) `_stated_voice_form` resolver check
+`dr.instr == v.instr_seed`, seed emitted as `init { voice N { instr:
+i<seed+1> } }`; (3) composer `icinst` slot table primes `curinst,x`,
+GATED to the historical `lda #$00` form when all slots 0 (byte identity —
+10/10 clean-member sample byte-identical vs stored corpus, 1 finding:
+see WARNING below). Census (tmp/seed_census.py, walk-level approx over
+the whole jsonl): 44 carriers (34 full + 10 partial). Re-verify all 44:
+33 full→full, 4 partial→full, 6 partial unchanged-first-divergence
+(Flash Itinerant/Kan-Kan/Wind_of_Dead + Rio Calf_Love ×2 + Mothafucka —
+their blockers are elsewhere), 1 full→error = **Freespace_2075**: the
+hetero merge's slice check needed i1 REFERENCED and the old hardcoded i1
+seeds provided that by accident — fixed in heterogeneous.py by recording
+V4's always-live record 0 (idle mechanism, the C31 trap `_groups`
+already documents) as an init-voice ref when unreferenced; Freespace
+re-verifies FULL 3/3. Canyon (also a carrier, subtune-4+ seeds) FULL,
+bytes changed as expected. Gates: dmc_smoke 6/6 ×2, full regression.
+f1 = 5309 + 4 = **5313 FULL / 88 partial** (stored corpus NOT yet
+re-synced for the 4 gains + changed carriers — next mass-write picks
+them up). Ledger: C32 refinement recorded (seed VALUE must be observed,
+never assumed cleared).
+
+⚠ WARNING (out of scope, found by the byte-identity sample):
+`Nilsen_Ronny/Violation_6_tune_3` (family-2, NOT f1) stored artifacts
+are July-7 stale — stored .usf carries pre-C32 otrk_pad params, fresh
+extract differs (HEAD == working tree, so pre-existing). Family-2 has
+had no recent mass-write; expect this corpus-wide there when family-2
+work resumes (C20).
+
 ## ✅ CLOSEOUT (2026-07-24, post-r112): fresh full batch + mass-write. **5309/5401 FULL (98.3%) + 92 partial + 0 error**
 The r111/r112 changes invalidated every code_hash; the batch
 (`tmp/dmc_wide_results.jsonl`) re-verified ALL 5401 f1 members from

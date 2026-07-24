@@ -176,6 +176,13 @@ class DmcVoice:
                                                      # truth for otrk_pad)
     loop_to: int | None = None
     stop: bool = False
+    # Initial sticky-instrument seed the walk ran with: the engine's per-voice
+    # current-instrument number ($1015,x) is a work-file LEFTOVER the canon
+    # init never clears — a note reached before any $6x command note-inits
+    # with it (same leftover family as idle_notes/durrel_init/slide_phase).
+    # 0 = the pre-fix assumption (and the common case: most voices state an
+    # instrument before their first note, so the seed is dead).
+    instr_seed: int = 0
 
 
 @dataclass
@@ -624,7 +631,8 @@ def _glide_poke_overlay(mem, rec, secp_lo: int, secp_hi: int,
 def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 loop_target: bool = False,
                 loop_reset_pos: int | None = None,
-                fmt: _SecFmt = _SECFMT['v4']) -> DmcVoice:
+                fmt: _SecFmt = _SECFMT['v4'],
+                instr_seed: int = 0) -> DmcVoice:
     """Walk one voice's track (orderlist), path-resolving every sector
     instance. Unrolls $FF loops until (wrap position, sticky state)
     repeats. `loop_target`: the JSR-$1042 player variant reads the byte
@@ -648,7 +656,8 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
     after an actual wrap, so terminated tracks take the exact old path."""
     v = DmcVoice()
     pat_key_to_id = {}
-    st = _Sticky()
+    st = _Sticky(instr=instr_seed)
+    v.instr_seed = instr_seed
     transpose = 0
     pos = 0
     wrap_states = {}        # (tgt, sticky, pending) at wrap -> entry index
@@ -782,6 +791,23 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
         v.entries.append(pid)
         v.transposes.append(transpose)
         pos += 1
+
+
+def _seed_consumed(v: DmcVoice) -> bool:
+    """Does this walked voice note-init BEFORE any $6x instrument command?
+
+    If yes, the engine's first note reads the per-voice current-instrument
+    LEFTOVER at $1015,x (canon init never clears it) — the walk must be
+    re-run seeded with it. Scan rows in play order (pass-0 entry order):
+    the first icmd row kills the seed; a note/glide row before one consumes
+    it. Rest/switch rows neither read nor state the instrument."""
+    for pi in v.entries:
+        for r in v.patterns[pi]:
+            if r.icmd:
+                return False
+            if r.note is not None:
+                return True
+    return False
 
 
 def _offimage_sectors(mem, secp_lo: int, secp_hi: int, tunetab: int,
@@ -1318,10 +1344,24 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
             fmt = _SECFMT[cfg.sector_format]
             if cfg.extra_params.get('glide_neutered'):
                 fmt = _dc_replace(fmt, glide_dead=True)
-            voices.append(_walk_track(smem, tp, secp_lo, secp_hi,
-                                      loop_target=cfg.track_loop_target,
-                                      loop_reset_pos=lrp,
-                                      fmt=fmt))
+            v = _walk_track(smem, tp, secp_lo, secp_hi,
+                            loop_target=cfg.track_loop_target,
+                            loop_reset_pos=lrp,
+                            fmt=fmt)
+            # Initial sticky-instrument LEFTOVER ($1015,x — canon init never
+            # clears it): a voice that note-inits before any $6x command
+            # plays the leftover instrument, not 0. Re-walk seeded ONLY when
+            # consumed (zero churn otherwise) and plausibly an instrument
+            # number (the $6x command domain is &$1F; a wilder leftover would
+            # need the note-init's exact ADC-chain wrap emulated — refuse by
+            # keeping today's decode, the member stays partial as before).
+            _seedl = smem[(_eventdriven_addrs(cfg)[2][vi]) & 0xFFFF]
+            if _seedl and _seedl < 0x20 and _seed_consumed(v):
+                v = _walk_track(smem, tp, secp_lo, secp_hi,
+                                loop_target=cfg.track_loop_target,
+                                loop_reset_pos=lrp,
+                                fmt=fmt, instr_seed=_seedl)
+            voices.append(v)
         song = DmcSong(id=sub + 1, speed=mem[rec + 6],
                        master_vol=mem[rec + 7], voices=voices)
         m.songs.append(song)

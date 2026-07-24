@@ -668,7 +668,9 @@ practice, not code to factor).
 - CANONICAL: fold to STATED notation by DIRECT OBSERVATION (never fitting):
   a value is written only where the source stream states the command
   (presence = the byte fact), absent = inherit — over wraps and pattern
-  boundaries; leading runs resolve from init.voice_state seeds. ONE shared
+  boundaries; leading runs resolve from init.voice_state seeds whose VALUE
+  is the engine's init state OBSERVED (the $1015,x work-file leftover —
+  canon init does NOT clear it; never assume 0). ONE shared
   resolution interpreter (`src/usf/resolve.py`) serves both composers
   (compose-time materialization → byte-identity gate) + Layer-3. The
   extract RE-RUNS the resolver against the walk's ground truth (both

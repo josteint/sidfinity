@@ -166,8 +166,9 @@ def _stated_voice_form(v, ents, intros, loop_slot, soft_flags):
     Returns (patterns_rows, entries, needs_instr_seed) — the deduped
     stated pattern pool (list of row-lists, ids = list index), the
     remapped physical entries, and whether a leading note row consumes
-    the engine's init instrument (sticky 0 = USF i1, emitted as
-    per-subtune `init { voice N { instr: i1 } }` priming so the USF stays
+    the engine's init instrument (the walk's `v.instr_seed` — the $1015,x
+    work-file leftover, 0 when cleared/dead; emitted as per-subtune
+    `init { voice N { instr: i<seed+1> } }` priming so the USF stays
     the complete spec) — or None when the stated form fails to reproduce
     the walk's effective decode (caller keeps the effective representation
     wholesale; no member downgrades).
@@ -224,7 +225,7 @@ def _stated_voice_form(v, ents, intros, loop_slot, soft_flags):
                                       for f in rr.row.fx_flags):
                     vol_inherit_active = True
                 if rr.instr_id is None:
-                    if dr.instr != 0:
+                    if dr.instr != v.instr_seed:
                         return False
                     needs_instr_seed = True
                 elif rr.instr_id != dr.instr + 1:
@@ -579,8 +580,12 @@ def model_to_usf(m: DmcModel) -> UsfFile:
                 # the composer's resolution interpreter, not stored.
                 pool, entries, instr_seed = stated_form
                 if instr_seed:
+                    # the engine's init sticky instrument: the $1015,x
+                    # work-file leftover the walk was seeded with (0 for
+                    # the common cleared/dead-seed case -> i1)
                     seed_voices.append(InitVoice(
-                        id=vi + 1, instr=InstrumentRef(id=1)))
+                        id=vi + 1,
+                        instr=InstrumentRef(id=v.instr_seed + 1)))
                 pats = []
                 for i, rows in enumerate(pool):
                     full = all(r.duration is not None for r in rows)

@@ -1969,6 +1969,12 @@ fx_dual_up:
     imask = [0, 0, 0]
     iguard = [0, 0, 0]
     idurl = [0, 0, 0]
+    # sticky-instrument seed SLOTS (curinst,x priming): the engine's $1015,x
+    # work-file leftover, carried as `init { voice N { instr: iK } }` — the
+    # resolver seed a leading inherited note resolves to. Slot 0 (i1) is the
+    # cleared/dead-seed common case and keeps the historical `lda #$00` init
+    # form (byte identity); any nonzero slot switches to an icinst table.
+    icinst = [0, 0, 0]
     for v in usf.init.voices:
         if v.note is not None:
             idle[v.id - 1] = v.note
@@ -1978,6 +1984,8 @@ fx_dual_up:
             iguard[v.id - 1] = v.guard
         if getattr(v, 'dur_reload', None) is not None:
             idurl[v.id - 1] = v.dur_reload
+        if getattr(v, 'instr', None) is not None:
+            icinst[v.id - 1] = m.inst_slot[v.instr.id]
     # PER-SUBTUNE idle priming (trichotomy §4.5 voice_state). The file-level
     # block above serves the ordinary case — one engine, one set of uncleared
     # work-file leftovers for the whole file. A COMPILATION packs several
@@ -1989,7 +1997,8 @@ fx_dual_up:
     # byte-identical.
     sub_prime = []
     for sub in usf.subtunes:
-        row = [list(idle), list(imask), list(iguard), list(idurl)]
+        row = [list(idle), list(imask), list(iguard), list(idurl),
+               list(icinst)]
         for v in ((sub.init.voices if sub.init else []) or []):
             if not 1 <= v.id <= 3:
                 continue
@@ -1997,13 +2006,17 @@ fx_dual_up:
                            (3, getattr(v, 'dur_reload', None))):
                 if val is not None:
                     row[k][v.id - 1] = val
+            if getattr(v, 'instr', None) is not None:
+                row[4][v.id - 1] = m.inst_slot[v.instr.id]
         sub_prime.append(row)
-    per_sub_prime = any(r != [idle, imask, iguard, idurl] for r in sub_prime)
+    per_sub_prime = any(r != [idle, imask, iguard, idurl, icinst]
+                        for r in sub_prime)
     if per_sub_prime:
         idle = [b for r in sub_prime for b in r[0]]
         imask = [b for r in sub_prime for b in r[1]]
         iguard = [b for r in sub_prime for b in r[2]]
         idurl = [b for r in sub_prime for b in r[3]]
+        icinst = [b for r in sub_prime for b in r[4]]
     if usf.freq_table:
         assert len(usf.freq_table) == 192, len(usf.freq_table)
         flo, fhi = usf.freq_table[:96], usf.freq_table[96:]
@@ -2106,6 +2119,11 @@ fx_dual_up:
     data.append('imask:\n' + _byt(imask))
     data.append('iguard:\n' + _byt(iguard))
     data.append('idurl:\n' + _byt(idurl))
+    if any(icinst):
+        # sticky-instrument seed slots — emitted only when some seed is
+        # nonzero (the all-zero case keeps the constant init form, so every
+        # existing member's image is byte-identical)
+        data.append('icinst:\n' + _byt(icinst))
     data.append('igla:\n' + _byt(igla))
     data.append('iglb:\n' + _byt(iglb))
     data.append('freqlo:\n' + _byt(flo))
@@ -2334,6 +2352,28 @@ fx_dual_up:
                    '        adc tmp\n'
                    '        tay\n' if per_sub_prime else '')
     prime_step = '        iny\n' if per_sub_prime else ''
+    # sticky-instrument seed init (see `icinst` above): all-zero slots keep
+    # the historical constant form byte-for-byte; a nonzero seed switches to
+    # the icinst table (emitted below only in that case).
+    if any(icinst):
+        cinst_seed = (f'        lda icinst,{ps}               ; sticky-'
+                      'emission seeds (C32): a leading\n'
+                      '        sta curinst,x                ; inherited slot '
+                      'resolves to the engine\n'
+                      '        lda #$00                     ; sticky ($1015,x '
+                      'leftover) / vol 0 -\n'
+                      '        sta volovr,x                 ; matches the '
+                      "resolver's StickyState seed\n")
+    else:
+        cinst_seed = (
+            '        lda #$00                     ; sticky-emission seeds '
+            '(D6 piece 3): a\n'
+            '        sta curinst,x                ; leading inherited slot '
+            'resolves to the\n'
+            '        sta volovr,x                 ; engine sticky (i1 = slot '
+            '0) / vol 0 -\n'
+            '                                     ; matches the resolver\'s '
+            'StickyState seed\n')
     # per-subtune off-table window patch (see `ovr_conflict` above). Runs on
     # entry, before the state clear, so `tmp` is free to hold the subtune.
     ovr_patch = ('''        sta tmp                      ; per-subtune off-table window
@@ -2422,11 +2462,7 @@ ini_v:
         sta gla,x                    ; read tracks orig from init; glsp=0 so
         lda iglb,x                   ; fx_glide stays gated off until an arm)
         sta glb,x
-        lda #$00                     ; sticky-emission seeds (D6 piece 3): a
-        sta curinst,x                ; leading inherited slot resolves to the
-        sta volovr,x                 ; engine sticky (i1 = slot 0) / vol 0 —
-                                     ; matches the resolver's StickyState seed
-{prime_step}        inx
+{cinst_seed}{prime_step}        inx
         cpx #$03
         bne ini_v
         ; ---- universal reset: silence-clear (ascending, as the family) ----
