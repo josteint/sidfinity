@@ -2719,6 +2719,21 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str,
     from pipelines.dmc.v4 import dataflow
     mem, s = _load(os.path.join(hvsc_root, sid_path), post_init_sub)
     load = s['load']
+
+    def _state_addr_sanity(loc):
+        # The signature locator can FALSE-MATCH a state site and deref an
+        # address OUTSIDE the loaded image (Chwat player 2: curnote $EA12,
+        # image ends $35BE). There is no file byte there, so the leftover
+        # priming it feeds is fiction (idle notes read as zeros). None =
+        # the documented canon base-offset fallback, which reads the real
+        # file leftover. Data/table addrs are verify-gated; only the three
+        # priming addrs feed the stream unverified.
+        img_end = load + len(s['payload'])
+        for _k in ('curnote_addr', 'gatemask_addr', 'dual_parity_addr'):
+            _v = loc.get(_k)
+            if _v is not None and not load <= _v < img_end:
+                loc[_k] = None
+        return loc
     if base_override is not None:
         # A co-packed compilation player can carry dead-code JMPs into a sibling
         # player's canonical code (ledger C31); bound the locate to this
@@ -2729,6 +2744,7 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str,
                               region=(base_override, base_override + 0x900))
         if loc is None:
             return None
+        loc = _state_addr_sanity(loc)
         # A compilation player is a plain canonical DMC dispatched by the
         # wrapper: its own play is base+3, so skip the CIA/play-phase/post-init
         # probes (all keyed on the PSID play vector = the shared wrapper). The
@@ -2829,7 +2845,8 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str,
         sid_path=sid_path,
         name=os.path.splitext(os.path.basename(sid_path))[0],
         base=base, cia_period=cia_period, play_repeat=play_repeat,
-        extra_params=_dataflow_knob_probes(mem, load), **loc)
+        extra_params=_dataflow_knob_probes(mem, load),
+        **_state_addr_sanity(loc))
     # PLAY-PHASE wrapper on the RE-ASSEMBLED route (C18): canon entry-point
     # offsets don't hold here, so observe by SID-write footprint instead of
     # PCs (P = the $D416 global-filter tail; F/R = per-voice writes without

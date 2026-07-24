@@ -5,8 +5,31 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-23T21:22:13.444Z
+  modified: 2026-07-24T08:57:21.531Z
 ---
+
+## ✅ ROUND 110 (2026-07-23): Chwat compilation — per-subtune slide_phase + state-addr sanity (C31). ALL 7 subs FULL
+Next f1 partial by path = `Eye/Chwat` (compilation, players $1000 + $2000;
+player 2 re-assembled → dataflow route). TWO defects, both C31 per-player
+facts the merge collapsed:
+- **Idle priming poisoned**: the dataflow curnote signature FALSE-MATCHED,
+  deref'ing $EA12 (outside the image) → player-2 idle notes read as zeros
+  → sub 6's whole-song-idle V2/V3 froze on player-1's notes. FIX:
+  `factory._state_addr_sanity` — state addrs (curnote/gatemask/dual_parity)
+  outside the loaded image → None (canon base-offset fallback). Flipped
+  sub 6 FULL.
+- **Dual parity flipped**: p1 $1019 leftover = 1, p2 = 0; file-level
+  `init.slide_phase` served all subtunes → p2's dual instruments swapped
+  wavestep/slide per-play interleave (ours 61,58,58 vs orig 61,61,58; the
+  pc-trace shows writers $160D/$14DD ALTERNATING). FIX: `DmcSong.dual_phase`
+  (merge sets it only when players disagree) → per-subtune
+  `init { slide_phase: N }` — InitState.slide_phase became Optional[int]
+  (None = unstated/inherit; explicit 0 now expressible; writer emits on
+  not-None so existing corpus text unchanged) → composer gated `sphase`
+  per-song table. Flipped subs 1-4 FULL.
+Gates: dmc_smoke, usf_corpus_check 11959/11959, full regression 0
+regressed. f1 = closeout's 5296 + Ed×4 + Chwat; next by path =
+Finn/Real_Hardcore.
 
 ## ✅ ROUND 109 (2026-07-23): third Ed filter-def driver (C19 20th occ). Only_Ones FULL
 Next f1 partial by path = `Ed/Only_Ones` (single, base $E000, both vectors

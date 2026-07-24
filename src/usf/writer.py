@@ -203,7 +203,7 @@ def _write_environment(env) -> list[str]:
 
 def _write_init(state: InitState) -> list[str]:
     lines = ['init {']
-    if getattr(state, 'slide_phase', 0):
+    if getattr(state, 'slide_phase', None) is not None:
         lines.append(f'  slide_phase: {state.slide_phase}')
     if getattr(state, 'speed_ctr_init', 0):
         lines.append(f'  speed_ctr_init: {state.speed_ctr_init}')

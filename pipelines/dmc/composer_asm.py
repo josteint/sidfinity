@@ -1155,6 +1155,21 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     pat_hi = _ptr_tab('>')
 
     slide_phase = int(getattr(usf.init, 'slide_phase', 0) or 0) & 1
+    # Per-subtune half-rate slide-clock phase (compilation players with
+    # DISAGREEING $1019 leftovers — Chwat). Gated: single-phase members emit
+    # the constant-immediate form byte-identically.
+    _ssp = [(getattr(sub.init, 'slide_phase', None) if sub.init else None)
+            for sub in usf.subtunes]
+    per_sub_sphase = any(v is not None and (v & 1) != slide_phase
+                         for v in _ssp)
+    sphase_vals = [slide_phase if v is None else v & 1 for v in _ssp]
+    sphase_load = ('        tax                          ; per-subtune slide phase\n'
+                   '        lda sphase,x\n'
+                   '        sta dualpar\n'
+                   '        txa\n') if per_sub_sphase else ''
+    sphase_const = ('' if per_sub_sphase else
+                    '        lda #SLIDE_PHASE             ; half-rate slide clock phase\n'
+                    '        sta dualpar\n')
     # noise-attack (cymbal) onset: 0 = the burst fires at note-init
     # (canon — frame 1); 1 = one frame later (family 2 — frame 2, gated
     # by the post-note guard). A musical timing parameter of the effect.
@@ -2168,6 +2183,8 @@ fx_dual_up:
     data.append('fdrec:\n' + _byt(fdrec or [0] * 16))
     data.append('fdstep = fdrec+4\nfddur = fdrec+10')
     data.append('wctab:\n' + _byt(m.wctrl))
+    if per_sub_sphase:
+        data.append('sphase:\n' + _byt(sphase_vals))
     data.append('wftab:\n' + _byt(m.wfreq))
     data.append('tunetab:\n' + '\n'.join(tune_lines))
     data.append('patlo:\n' + pat_lo)
@@ -2365,7 +2382,7 @@ ini_st:
         cpx #(state_end - state0)
         bne ini_st
         pla
-{prime_save}        asl
+{prime_save}{sphase_load}        asl
         asl
         asl
         asl                          ; subtune * 16
@@ -2388,9 +2405,7 @@ ini_ptr:
         sta $d418                    ; priming (matches the family init)
         lda tunetab+2,y              ; +8 = $D417 routing-shadow priming
         sta shadow17
-{rest_load}{d418_prime}        lda #SLIDE_PHASE             ; half-rate slide clock phase
-        sta dualpar
-{prime_setup}        ldx #$00
+{rest_load}{d418_prime}{sphase_const}{prime_setup}        ldx #$00
 ini_v:
         lda #$01
         sta vactive,x

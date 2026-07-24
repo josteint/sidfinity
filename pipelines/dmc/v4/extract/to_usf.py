@@ -659,6 +659,9 @@ def model_to_usf(m: DmcModel) -> UsfFile:
                   else m.d417_shadow)
         sub_init = InitState(
             voices=seed_voices,
+            # per-subtune slide-clock phase (compilation players disagreeing
+            # on the $1019 leftover); None = inherit the file-level value
+            slide_phase=getattr(song, 'dual_phase', None),
             sid=InitSid(
                 master_vol=song.master_vol,
                 filter=InitFilter(res_routing=shadow) if shadow else None))
@@ -709,7 +712,7 @@ def model_to_usf(m: DmcModel) -> UsfFile:
                       dur_reload=durrel[v] or None)
             for v in range(3)
             if m.idle_notes[v] or m.idle_masks[v] or durrel[v]],
-            slide_phase=m.dual_phase or 0),
+            slide_phase=(m.dual_phase or 0) or None),
         # environment (trichotomy §4.3): CIA multispeed latch /
         # whole-play() per-VBI repeats. None = single-speed vblank.
         environment=(Environment(cia_period=m.cia_period or 0,

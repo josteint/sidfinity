@@ -717,6 +717,11 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
         song.durrel_init = tuple(models[pidx].durrel_init)
         # ...and on its own player's $D417 routing leftover (§4.2 priming).
         song.d417_shadow = models[pidx].d417_shadow
+        # ...and its own player's half-rate slide-clock phase ($1019
+        # leftover; None when it matches the merged file-level value so
+        # single-phase members emit nothing).
+        if (models[pidx].dual_phase or 0) != (models[0].dual_phase or 0):
+            song.dual_phase = models[pidx].dual_phase or 0
         rm = remap[pidx]
         for v in song.voices:
             for rows in v.patterns:

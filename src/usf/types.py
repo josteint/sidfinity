@@ -881,8 +881,9 @@ class InitState:
     # Global engine-state priming (trichotomy §4.5): the initial phase bit
     # of the engine's half-rate slide clock — shifts WHICH frames the
     # dual-effect voices update on (audible interleave phase). Scalar, not
-    # per-voice (one clock shared by all sliding voices). 0 = default.
-    slide_phase: int = 0
+    # per-voice (one clock shared by all sliding voices). 0 = default;
+    # None = unstated (a SUBTUNE init inherits the file-level value).
+    slide_phase: Optional[int] = None
     # Engine-state priming (trichotomy §4.5), same class as slide_phase:
     # scalar init state the engine's init routine does NOT clear. Shared
     # by Hubbard '85, 5-Title-Tunes, and DMC v5 (same concept, one field).

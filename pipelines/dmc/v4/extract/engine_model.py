@@ -148,6 +148,13 @@ class DmcSong:
     # START player's shadow, which handed Pour_le_merite's sub 0 the other
     # player's $01 where its own player primes $02.
     d417_shadow: int | None = None
+    # Per-subtune half-rate slide-clock phase (trichotomy §4.5, the
+    # file-level `init.slide_phase`). Same per-player-fact split: each packed
+    # player's $1019 leftover seeds ITS subtunes' dual-effect interleave
+    # (Chwat: player 1 leftover 1, player 2 leftover 0 — the merge used to
+    # hand every subtune the start player's phase, flipping player 2's
+    # wavestep/slide alternation). None = the file-level value serves.
+    dual_phase: int | None = None
     # Per-subtune composer-param overrides (MusicSubtune.params). Same
     # per-player-fact split as the priming above: a COMPILATION's packed
     # players can disagree on a factory-probed wedge knob (Super_Seven:

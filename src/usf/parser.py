@@ -228,7 +228,7 @@ class _T(Transformer):
 
     def init_block(self, items):
         voices = [it for it in items if isinstance(it, InitVoice)]
-        slide_phase = 0
+        slide_phase = None
         speed_ctr_init = 0
         fade_frac_init = 0
         filter_arm_cutoff = 0
