@@ -23,13 +23,24 @@ for a future focused session:
   normal loop-target build never reaches the re-init and verifies FULL
   as an ordinary looping tune. Only For_Party + Roots have an IN-WINDOW
   wrap AND wrapv≠last, so they need real handling.
-- **THE REGRESSION TRAP (why it reverted):** naively detecting shape B
-  and applying re-init handling BREAKS the 12 past-window-wrap FULLs
-  (6 full→partial + 2 xa65 errors: the ghost-poke path referenced a
-  `sectpos` label not emitted for non-sectpos members). Shape-B handling
-  MUST be gated on "the $FF wrap is reached within songlength×1.1" — a
-  build-time property the extract must establish BEFORE emitting any
-  re-init, else it corrupts the majority whose wrap is unreached.
+- **THE REGRESSION TRAP + the amend discriminator (Step 3.1, measured
+  2026-07-24):** naively detecting shape B and applying re-init handling
+  BREAKS the 12 past-window-wrap FULLs (6 full→partial + 2 xa65 errors:
+  the ghost-poke path referenced a `sectpos` label not emitted for
+  non-sectpos members). The DISCRIMINATOR that makes it regression-safe:
+  **does the ORIG re-init IN-WINDOW** (an in-window $D418+ascending-clear
+  burst at a non-cold frame)? Measured across the whole cluster: ONLY
+  `For_Party_V_95` has an in-window burst (frame 9538). All 11 other
+  shape-B carriers + Roots are PAST-WINDOW — their $FF handler is never
+  executed in-window, so a CORRECTLY-gated fix leaves them BYTE-IDENTICAL
+  and FULL by construction (the regression was my un-gated detection +
+  the sectpos compile bug, NOT a fundamental conflict — the ordinary
+  amend "new fix is just wrong" case). CORRECTION: my first writeup said
+  "For_Party + Roots need handling" — WRONG. Roots does NOT re-init
+  in-window; its partiality is an UNRELATED blocker. Only For_Party needs
+  the shape-B + ghost machinery, gated on the in-window-burst
+  discriminator (Second, the shape-A in-window carrier, also passes it and
+  keeps its r117 handling).
 - **The ghost-unit mechanism (For_Party):** wrap voice = V0, so init's
   RTS pops V0's JSR and the play body's `inx` chain runs V1/V2 as GHOST
   UNITS with X=$19/$1A (past the 3-voice range) — aliased per-voice
