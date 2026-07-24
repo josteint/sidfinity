@@ -1,9 +1,67 @@
-# Plan: migrate py65 observation into native siddump
+# Plan: replace py65 observation with a native, ground-truth mechanism
 
 **Status:** proposed 2026-07-24, not started. Pick this up in a fresh session.
-**Owner doc.** Motivation + inventory + feature specs + incremental path. Read
+**The GOAL is settled; the ARCHITECTURE is NOT.** The goal: stop deriving
+extract values from py65 where that is divergence-prone or slow, and observe from
+the ground-truth engine (libsidplayfp) instead. The mechanism — declarative
+siddump flags vs a record-and-query trace vs a native Python binding vs a
+compiled observe-only probe vs something from the prior art — is deliberately
+LEFT OPEN and must be decided by **Phase 0 (research) below, which gates all
+implementation.** The "Candidate architecture" section later is a STRAWMAN to
+give the research concrete things to compare, NOT a decision. Read
 `feedback_ground_truth.md` (the py65-divergence lesson that motivates this) and
 `tools/INVESTIGATION_BACKLOG.md` first.
+
+## Phase 0 — survey the design space FIRST (gates everything; do not build until done)
+
+This is a well-studied problem — program observability / dynamic instrumentation
+/ emulator introspection — so learn from the prior art before committing to an
+architecture. The initial sketch below (patch libsidplayfp's overlay → add
+siddump CLI flags → maybe a Python binding) is ONE point in a large space and
+should be evaluated against, not assumed.
+
+**Questions the research must answer:**
+- How do mature emulators / VMs expose execution introspection to host tooling
+  WITHOUT (a) perturbing behaviour (the observer effect — our non-negotiable
+  ground-truth constraint) and (b) paying per-event IPC? Prior art to study:
+  **VICE's binary monitor protocol** (same C64 domain — start here), **QEMU**'s
+  TCG plugin API + gdbstub, **Bochs** instrumentation hooks, **DTrace / eBPF**
+  (the canonical "safe, compiled, observe-only probe running at native speed with
+  no IPC-per-event" model).
+- **Live-observe vs record-then-query.** Is capturing ONE native execution trace
+  and querying it offline (rr / time-travel debugging, trace databases) a better
+  fit for our "many small queries per member" pattern than live callbacks? It may
+  beat both the CLI-flags and the binding.
+- **Interactive boundary.** When is a command protocol (gdb Remote Serial
+  Protocol, DAP — interaction at breakpoints, not per instruction) sufficient vs
+  a native in-process binding? (Recall: interactive PER-STEP across a subprocess
+  = IPC-per-instruction = the real trap, not "interactive" as such.)
+- **Native-binding tradeoffs** (pybind11 / cffi / ctypes) and the maintenance
+  cost of a native extension vs a CLI.
+- **Domain prior art** — does the C64/SID ecosystem (VICE monitor, the sidplayfp
+  tooling, existing RE frameworks) already provide something to adopt instead of
+  building?
+- **Probe-effect / non-perturbing-instrumentation** literature — how to
+  *guarantee* observe-only.
+
+**Facts the research must design around (constraints/assets, not decisions):**
+- We ALREADY patch libsidplayfp cleanly via `tools/libsidplayfp-overlay/`
+  (`build.sh` step 2 copies it over pristine upstream `tools/libsidplayfp/`), and
+  `--writelog` — the project's core ground-truth tap — IS such an overlay patch.
+  So an observe-only overlay tap is a proven, available mechanism (an asset), and
+  keeping the base pristine bounds the fork cost.
+- **Ground truth is non-negotiable:** any instrumentation must be observe-only —
+  never change emulation timing/values — or it poisons the verdict for the WHOLE
+  project (the py65 trap one level up).
+- The real access pattern is mostly "run to a condition, capture," plus occasional
+  data-dependent exploration.
+
+**Deliverable (Phase 0):** a short decision doc — the mapped design space, 2-3
+viable architectures with tradeoffs (probe effect, speed, IPC, maintenance, fit
+to our access pattern), and a recommendation. That doc REPLACES the strawman
+below and drives the implementation phases. Only then proceed.
+
+(A `deep-research` skill run is a natural way to do Phase 0.)
 
 ## Why
 
@@ -75,7 +133,29 @@ minus `deprecated/` and `tools/py65_lib/`). Four classes, prioritized by
 Rule of thumb: **migrate a py65 site iff it is divergence-prone OR slow.** A
 deterministic short routine run that only reads loaded/written bytes can stay.
 
-## siddump features to add
+## Candidate architecture (STRAWMAN — evaluate in Phase 0; do NOT treat as decided)
+
+Everything in this section is one candidate — "add declarative flags to siddump,
+backed by observe-only overlay taps where needed." It is written concretely so
+Phase 0 has a baseline to compare the prior-art options against (record-and-query,
+a native binding, a compiled probe, a command protocol). Phase 0's decision doc
+supersedes it. The three-layer shape of THIS candidate:
+
+```
+libsidplayfp-overlay   observe-only taps (--writelog today; a CPU/PC hook next)
+      ↓
+siddump (CLI)          declarative features on top of the taps
+      ↓ (optional)
+Python binding          interactive in-process on the same taps → replaces py65
+```
+
+Note that even this candidate likely needs an overlay CPU-state tap (Feature 1
+wants A/X/Y at a PC; `debug()` today only dumps PC text to a FILE), and a
+concrete overlay win independent of the py65 goal is a **PC-attributed writelog**
+(tag each write with its store PC natively, obsoleting the `effect_chain_profiler`
+pc-trace-and-align dance).
+
+### siddump features (this candidate)
 
 Design constraint on ALL of them: **declarative, not interactive.** py65 runs
 in-process so the extract interleaves "step, decide in Python, step". siddump is
@@ -113,19 +193,24 @@ to fit siddump's PSID model). Note here so it isn't rediscovered from scratch.
 
 ## Execution path (incremental — never big-bang)
 
+**Phase 0 (research + decision doc) gates all of the below.** The phases here
+assume the strawman candidate; if Phase 0 picks a different architecture
+(record-and-query, a binding, etc.), rewrite these to fit — but keep the same
+disciplines: incremental, per-site fallback, byte-identity gating.
+
 Each phase is its own scoped commit; keep the py65 path as a per-site fallback
 until that site's migration is verified, then delete it.
 
-1. **Phase 0 — prove the pattern.** Add Feature 1. Migrate `_simulate_reinit_ghosts`
+1. **Phase 1 — prove the pattern.** (After Phase 0.) Add Feature 1. Migrate `_simulate_reinit_ghosts`
    (Class D) to it. GATE: For_Party still verifies FULL, the extracted burst +
    pokes are IDENTICAL to the py65 version (golden diff of the `.usf` /
    `track_ff_reinit_ghost` param), and it's faster. This validates the C++ hook
    design AND the interactive→declarative reformulation on the highest-value
    site.
-2. **Phase 1 — Feature 2 + Class C.** Migrate the compilation dispatch detector
+2. **Phase 2 — Feature 2 + Class C.** Migrate the compilation dispatch detector
    and the play-phase / base observers. GATE: `dmc_smoke` + the C31/C18/C27
    members re-verify unchanged (build path + verdict identical).
-3. **Phase 2 — sweep remaining Class D / divergence-prone sites** across families
+3. **Phase 3 — sweep remaining Class D / divergence-prone sites** across families
    (audit the Hubbard/FC/companion py65 uses for any that play deep or read
    environment memory).
 4. **Leave Class A/B** unless a concrete win. Class B can migrate opportunistically

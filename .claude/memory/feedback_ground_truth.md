@@ -127,9 +127,11 @@ emulator fill, not the player's data; measure it from siddump instead. See its
 docstring for the safe (`__getitem__`) vs must-verify (`read_trusted`) split.
 
 **The STRUCTURAL fix (beyond the tripwire):** stop using py65 for
-divergence-prone / slow observation at all — add the hook to native siddump
-(libsidplayfp = ground truth by construction, ~100-1000× faster). Plan +
-inventory + feature specs + phased path:
+divergence-prone / slow observation at all — observe from the ground-truth engine
+(libsidplayfp) instead. The GOAL is settled; the ARCHITECTURE is deliberately
+OPEN — the initiative starts with a research phase (survey emulator-introspection
+prior art before choosing a mechanism), not a commitment to siddump flags. Plan +
+inventory + design-space-survey Phase 0 + strawman + phased path:
 [`docs/siddump_native_capture_plan.md`](../../../docs/siddump_native_capture_plan.md)
-(also linked from `tools/INVESTIGATION_BACKLOG.md`). Standing default: prefer
-extending siddump over py65 for OBSERVATION.
+(also linked from `tools/INVESTIGATION_BACKLOG.md`). Standing default: observe
+from libsidplayfp, not py65.
