@@ -295,7 +295,9 @@ practice, not code to factor).
   verbatim gate admits NON-verbatim programs that are UNOBSERVABLE (every
   wavepos read self-referential to a verbatim instrument → free-slot
   placement, r98). ⚠ `dmc_offtable_probe`'s by-value attribution has
-  mis-fired 3× here — check idx 211-213 against instrument offsets FIRST.
+  mis-fired 3× here (6× overall) — r116 added the PROXIMITY GATE (only
+  ±3-frame-window matches are trusted; far matches labeled coincidences),
+  but still check idx 211-213 against instrument offsets FIRST.
 - PRESENTS (live-redirect): an off-table read sonifies ENGINE STATE — the
   first-divergence value equals a live counter / position / scratch var, not
   a static byte. TELLs: a cluster whose (orig,mine) values are EOR-$0F

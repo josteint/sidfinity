@@ -14,12 +14,17 @@ it came up (Rogue_Ninja, round 91). This tool does the whole chain:
      verdict -> the FAILING subtune(s).
   2. Localize the first divergence -> the diverging register + orig/our value
      (reusing the verify capture; no re-run).
-  3. If the diverging register is a voice freq lo/hi, pc-trace the ORIGINAL and
-     find the indexed load from THIS subtune's freq table whose result is the
-     diverging value AND whose index is off-table (>=96) — reported by VALUE,
-     never by a guessed frame (siddump frame != play() index — the Trap-C
-     confusion this tool removes). Reports the index, the effective address,
-     and which table byte it lands on.
+  3. If the diverging register is a voice freq lo/hi, pc-trace the ORIGINAL
+     over a +/-3-frame window AROUND THE DIVERGENCE and find the indexed load
+     from THIS subtune's freq table whose result is the diverging value AND
+     whose index is off-table (>=96). The window is derived from the capture's
+     own frame bucketing (per-irq play index converted for CIA tunes), never
+     hand-reconstructed cycles (Trap C). PROXIMITY IS THE GATE: the tool's 6
+     historical mis-fires were whole-song by-value scans matching a COINCIDENT
+     load far from the divergence (wavepos 3x, Real_Hardcore idx 150,
+     Psycho_One $172A); a value found only outside the window is reported as
+     an explicitly-untrusted coincidence, with a pointer at the divergence
+     recipe instead.
   4. Classify the source address STATIC (constant across the song -> a
      representable window byte) vs LIVE (varies -> hard residue) via memwatch.
   5. For a COMPILATION, sample the SAME off-table index in EVERY packed player
@@ -92,22 +97,25 @@ def _memwatch_series(sid_path, addr, subtune, dur=45):
     return vals
 
 
-def _pctrace_offtable_read(orig, subtune, flo, fhi, want_lo, orig_val, dur):
-    """Scan the ORIGINAL's pc-trace for the indexed freq-table load whose result
-    is `orig_val` and whose index is OFF-TABLE (>=96). Returns
-    (idx, eff_addr, base) or None. Value-based, not frame-based."""
-    base = flo if want_lo else fhi
+def _pctrace_scan(orig, subtune, base, orig_val, f_start, f_end):
+    """Distinct (idx, eff) of every off-table load from `base`'s table whose
+    result is `orig_val`, within pc-trace frames f_start..f_end."""
     lo_reg, hi_reg = base + 96, base + 256          # off-table window of the table
-    frames = min(6000, max(200, int(dur * 50)))
     with tempfile.NamedTemporaryFile(suffix='.pct', delete=False) as f:
         pct = f.name
     try:
-        subprocess.run(
-            [SIDDUMP, orig, '--subtune', str(subtune + 1),
-             '--duration', str(frames / 50.0 + 1),
-             '--pc-trace', pct, '1', str(frames)],
-            capture_output=True, text=True, timeout=frames / 50 + 180)
-        best = None
+        try:
+            subprocess.run(
+                [SIDDUMP, orig, '--subtune', str(subtune + 1),
+                 '--duration', str(f_end / 50.0 + 1),
+                 '--pc-trace', pct, str(f_start), str(f_end)],
+                capture_output=True, text=True, timeout=f_end / 50 * 5 + 120)
+        except subprocess.TimeoutExpired:
+            # pc-trace emulation is slow on small hosts; the partial trace
+            # written before the kill is still scannable — use what we have
+            # (an incomplete FAR scan only under-reports untrusted hints).
+            pass
+        hits = set()
         with open(pct) as fh:
             for line in fh:
                 m = _LD_LINE.search(line)
@@ -116,13 +124,33 @@ def _pctrace_offtable_read(orig, subtune, flo, fhi, want_lo, orig_val, dur):
                 eff = int(m.group(2), 16)
                 val = int(m.group(3), 16)
                 if lo_reg <= eff < hi_reg and val == orig_val:
-                    idx = eff - base
-                    # earliest reachable off-table read of this value
-                    if best is None or idx < best[0]:
-                        best = (idx, eff, base)
-        return best
+                    hits.add((eff - base, eff))
+        return sorted(hits)
     finally:
         os.unlink(pct)
+
+
+def _pctrace_offtable_read(orig, subtune, flo, fhi, want_lo, orig_val, dur,
+                           div_frame):
+    """Find the indexed freq-table load whose result is `orig_val` and whose
+    index is OFF-TABLE (>=96) — NEAR THE DIVERGENCE. The tool's history of
+    by-value mis-fires (6x: wavepos idx 211-213, Real_Hardcore's late idx-150
+    read blamed for a frame-6 divergence, Psycho_One's $172A coincidence for
+    a glide-arrival idx-255 read) is exactly a whole-song value scan matching
+    a COINCIDENT load; the diverging write's load happens in its own play()
+    (or the 1-2 preceding, for deferred note-init), so trace only a +/-3-frame
+    window around the divergence — proximity by construction, and ~30x less
+    trace to scan. Returns (near_hits, far_hits): near = trusted candidates;
+    far = whole-song matches reported ONLY when near is empty, explicitly
+    untrusted (a by-value coincidence until proven otherwise)."""
+    base = flo if want_lo else fhi
+    f0, f1 = max(1, div_frame - 3), div_frame + 3
+    near = _pctrace_scan(orig, subtune, base, orig_val, f0, f1)
+    if near:
+        return near, []
+    far_end = min(3000, max(200, int(dur * 50)))
+    far = _pctrace_scan(orig, subtune, base, orig_val, 1, far_end)
+    return [], far
 
 
 def main():
@@ -195,28 +223,48 @@ def main():
         want_lo = (r % 7 == 0)
         flo, fhi, pdesc, players = _freq_addrs_for_subtune(rel, hv, comp, sub)
         print(f'  freq tables: lo ${flo:04X}  hi ${fhi:04X}  [{pdesc}]')
-        hit = _pctrace_offtable_read(orig, sub, flo, fhi, want_lo, o_val, dur)
-        if hit is None:
-            print('  no off-table freq read of that value found in the pc-trace '
-                  '— the divergence may be an on-table note, a slide, or a '
-                  'non-freq effect. (Widen songlength or inspect manually.)')
+        # the diverging write's siddump frame: _flatten carries it directly
+        # for the flat (vblank) capture; the per-irq (CIA) capture buckets
+        # per play(), so convert with the measured plays-per-frame factor.
+        div_frame = fo[div][2]
+        if cia:
+            factor = max(1.0, len(a) / max(1.0, dur * 50))
+            div_frame = int(div_frame / factor)
+        near, far = _pctrace_offtable_read(orig, sub, flo, fhi, want_lo,
+                                           o_val, dur, div_frame)
+        if not near:
+            print(f'  no off-table freq read of ${o_val:02X} within +/-3 '
+                  f'frames of the divergence (frame ~{div_frame}) — NOT an '
+                  'off-table read at the divergence. Follow the divergence '
+                  'recipe: dmc_build_one --localize + effect_chain_profiler '
+                  '--find-write.')
+            if far:
+                print('     (whole-song scan DOES find the value at '
+                      + ', '.join(f'idx {i} -> ${e:04X}' for i, e in far)
+                      + ' — by-value coincidences elsewhere in the song; '
+                        'do not chase these.)')
             continue
-        idx, eff, base = hit
         tbl = 'freq lo' if want_lo else 'freq hi'
-        print(f'  >> OFF-TABLE {tbl} read: index {idx} (>=96) '
-              f'-> ${eff:04X} = ${o_val:02X}')
-        # static vs live (ledger C6): sample the source addr on THIS subtune's
-        # selecting file subtune
+        if len(near) > 1:
+            print(f'  {len(near)} off-table {tbl} reads of ${o_val:02X} within '
+                  f'+/-3 frames of the divergence — candidates:')
+        # static vs live (ledger C6): sample each source addr on THIS
+        # subtune's selecting file subtune
         this_fsub = None
         if comp is not None:
             this_fsub = players[comp['map'][sub][0]][4]
-        vals = _memwatch_series(orig, eff, this_fsub if comp else sub)
-        if len(vals) == 1:
-            print(f'     source ${eff:04X} is STATIC ({vals.pop()}) across the '
-                  f'song -> REPRESENTABLE (capture the value).')
-        elif vals:
-            print(f'     source ${eff:04X} is LIVE ({len(vals)} distinct values) '
-                  f'-> dynamic residue (C11: needs a live redirect/shadow).')
+        for idx, eff in near:
+            print(f'  >> OFF-TABLE {tbl} read: index {idx} (>=96) '
+                  f'-> ${eff:04X} = ${o_val:02X}')
+            vals = _memwatch_series(orig, eff, this_fsub if comp else sub)
+            if len(vals) == 1:
+                print(f'     source ${eff:04X} is STATIC ({vals.pop()}) across '
+                      f'the song -> REPRESENTABLE (capture the value).')
+            elif vals:
+                print(f'     source ${eff:04X} is LIVE ({len(vals)} distinct '
+                      f'values) -> dynamic residue (C11: needs a live '
+                      f'redirect/shadow).')
+        idx, eff = near[0]
         # per-player window fact (ledger C31)
         if comp is not None and len(players) > 1:
             print('     per-player value at off-table idx '
