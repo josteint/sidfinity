@@ -307,6 +307,67 @@ def _is_player_head(mem, a: int) -> bool:
     return True
 
 
+class _TaintMemory:
+    """A py65 memory that flags reads of bytes only the EMULATOR ENVIRONMENT
+    set — the power-on fill / psiddrv zero — never the file image or the
+    running player.
+
+    Such a byte is emulator-dependent: py65's fill can DIFFER from
+    libsidplayfp's, and once a null-pointer / off-image player reads one the two
+    emulators' whole playback states diverge — so a py65-EXTRACTED value that
+    reads it is NOT ground truth (feedback_ground_truth, third failure mode; DMC
+    Roots read $0031 = $00 under py65 where libsidplayfp had $87). This is the
+    tripwire for that class: build it, `seed()` the environment (NOT tracked),
+    then load the file image and run with tracking ON so the load + every CPU
+    write mark bytes DEFINED. Read extracted values through `read_trusted()`;
+    any address in `.tainted` afterward was environment-only in py65 and its
+    value must be re-measured from siddump (`--memwatch-on-write` / `--writelog`)
+    rather than trusted.
+
+    Drop-in for `mpu.memory` (int/slice get/set, `len`); the plain `[]` path the
+    CPU uses does NOT taint (only the explicit `read_trusted` value reads do)."""
+
+    __slots__ = ('_m', '_defined', '_track', 'tainted')
+
+    def __init__(self):
+        self._m = bytearray(0x10000)
+        self._defined = bytearray(0x10000)
+        self._track = True
+        self.tainted = set()
+
+    def __len__(self):
+        return 0x10000
+
+    def __getitem__(self, k):
+        return self._m[k]
+
+    def __setitem__(self, k, v):
+        self._m[k] = v
+        if self._track:
+            if isinstance(k, slice):
+                for i in range(*k.indices(0x10000)):
+                    self._defined[i] = 1
+            else:
+                self._defined[k] = 1
+
+    def seed(self, data):
+        """Install the emulator environment (64K power-on + psiddrv zero)
+        WITHOUT marking any byte defined."""
+        self._track = False
+        try:
+            self._m[:] = bytes(data)
+        finally:
+            self._track = True
+
+    def read_trusted(self, addr):
+        """Read `addr`, recording it in `.tainted` if only the environment (not
+        the file image or a CPU write) ever set it — i.e. a value py65 cannot be
+        trusted for; verify it against siddump."""
+        if not self._defined[addr & 0xFFFF]:
+            self.tainted.add(addr & 0xFFFF)
+        return self._m[addr & 0xFFFF]
+
+
 def _poweron_fill(memory):
     """libsidplayfp's power-on RAM pattern (SystemRAMBank::reset()): 16K
     blocks with alternating base byte $00/$FF, and offsets 2-5 of every

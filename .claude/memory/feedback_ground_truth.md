@@ -81,3 +81,47 @@ a verdict anywhere in the project; the two exposed members are recorded as
 This is the same disease as the 2026-06-07 removal of the py65-snapshot
 verdict (which had false-passed 25 Hubbard subtunes) — that cleanup simply
 did not reach this corner. See [[feedback_no_snapshot_verdict]].
+
+## The third failure mode: py65 for EXTRACTION reads DIVERGENT memory (2026-07-24, DMC Roots)
+
+The two sections above are about py65 as a VERDICT/capture. This one is about
+py65 used legitimately for EXTRACTION — running a member's own code to read a
+value the pipeline needs (post-init RAM leftovers, an off-table byte, a loop
+target). That is a real, sanctioned use (`_postinit_window`, the ghost sim,
+`_offtable_eventdriven`). The trap: **the value py65 reads can DIFFER from
+libsidplayfp whenever it depends on memory the file image did not load and the
+player's own execution did not deterministically write** — i.e. uninitialized
+RAM, or any byte reached only after py65's execution has DIVERGED from
+libsidplayfp's.
+
+DMC `Hank/Roots` cost most of a session to this. Its patched `$FF`-loop handler
+reads the loop-to offset through a null zero-page pointer, so it reads ZERO
+PAGE at `$0000+otrk+1`. I ran py65 to the loop and read those bytes: py65 said
+voice 1 loops to `$00` and even plays NOISE post-loop. **siddump/libsidplayfp —
+the verdict engine — plays SILENT, voice 1 loops to `$87`.** py65's `$0031` was
+`$00` (its power-on fill) where libsidplayfp's was `$87` (player-written), and
+because the whole player is riddled with null-pointer / environment reads, the
+two emulators' *entire playback state* had diverged by the loop. Only voice 2
+happened to agree, because its source (`$0058` = the track-pointer-hi slot) is
+a byte BOTH emulators define identically.
+
+**The rule:**
+- py65 is trustworthy ONLY for reads of memory that the file image LOADED or
+  the code just RAN provably wrote. A value that depends on an UNINITIALIZED
+  byte, or on DEEP PLAYBACK of a player that does null-pointer / off-image /
+  environment reads (the C29 class), is emulator-dependent and py65 is NOT
+  ground truth for it.
+- **Before shipping any py65-DERIVED value that reaches the write stream, VERIFY
+  it against the SAME quantity measured from siddump/libsidplayfp.** For the
+  loop targets: `siddump --memwatch-on-write`; for a captured burst: compare
+  py65's SID writes at that frame to `siddump --writelog`. If they diverge, py65
+  has diverged — use the siddump number.
+- The tell you're in danger: the member does anything C29-flavoured (null/stale
+  pointers, off-image sectors, reads of `$00xx` / power-on RAM), OR the py65
+  value comes from playback far past init rather than from init itself.
+
+**Code tripwire:** `pipelines/dmc/v4/extract/engine_model._TaintMemory` — a py65
+memory that records every written address and flags reads of never-written
+(uninitialized) memory. A py65 extraction that reads a tainted byte is reading
+emulator fill, not the player's data; measure it from siddump instead. See its
+docstring for the safe (`read`) vs must-verify (`read_or_taint`) split.
