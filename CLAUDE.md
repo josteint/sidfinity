@@ -475,13 +475,18 @@ sid_db.query("SELECT path, exclusion_reason FROM sids WHERE excluded=1")
 
 ## Build environment
 
-**Current host: the 64-core EPYC (128 threads), 512 GB RAM, dual 3090 GPUs.**
-(The Lenovo X230 8-core interlude ended 2026-07-21, when the repo was copied
-over.) **Never hardcode a worker count** — every parallel site calls
-`src.jobs.default_jobs()`, which reads the CPU count (affinity-aware, so it
-is still correct on a small host) and is capped by the work available.
-Override with `SIDFINITY_JOBS=N` for everything at once, or a per-tool var
-(`REGRESSION_JOBS=1` forces sequential for debugging).
+**The repo hops between two hosts** — the 64-core EPYC (128 threads, 512 GB
+RAM, dual 3090s) and the Lenovo X230 laptop (8 cores). **Current host (since
+2026-07-24, for ~a month): the X230.** No per-host config exists or is
+needed: **never hardcode a worker count** — every parallel site calls
+`src.jobs.default_jobs()`, which reads the CPU count (affinity-aware) and is
+capped by the work available, so pools auto-size to 8 here and 128 on the
+EPYC. Override with `SIDFINITY_JOBS=N` for everything at once, or a per-tool
+var (`REGRESSION_JOBS=1` forces sequential for debugging). NB wall-clock
+guidance elsewhere (full DMC batch ~1 hr, regression ~10 min) was calibrated
+on the EPYC — multiply by ~16 on the X230; lean even harder on stratified
+subsets and incremental closeouts, and treat a full family batch as an
+overnight background job.
 
 **pytest** runs here, but only via the vendored lib — `PYTHONPATH=tools/py_test_lib`
 (`env.sh` does NOT add it). `tools/regression.py` is still the gate; note
