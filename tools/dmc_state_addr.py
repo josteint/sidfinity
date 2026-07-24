@@ -84,7 +84,7 @@ def _our_labels(rel: str):
     td = tempfile.mkdtemp(dir=scratch)
     out_sid = os.path.join(td, 'reb.sid')
     out_usf = os.path.join(td, 'reb.usf')
-    n_chips, _ = build(rel, out_sid, out_usf)
+    n_chips, _, _path = build(rel, out_sid, out_usf)
     usf = parse_file(out_usf)
     if getattr(usf, 'dmc_sfx', None) is not None:
         return None, out_sid, 'heterogeneous compilation build — labels N/A'

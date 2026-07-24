@@ -448,6 +448,21 @@ def _frame_entry_candidates(payload, load: int) -> set:
             and b[i + 4] == 0x03 and b[i + 5] == 0x4c}
 
 
+def _effects_tail_candidates(payload, load: int) -> set:
+    """Locate the per-voice glide/write EFFECTS-TAIL head (canon $141C — the R
+    body's entry) by shape: `LDA glsp,X / BEQ +$7E` = bytes `bd ?? ?? f0 7e`.
+    Used by the offset-blind phase observers to classify R POSITIVELY by entry
+    reachability: a wrapper that JSRs the effects tail directly (Real_Hardcore
+    `LDX/JSR $141C x3`) legitimately ADVANCES the chip while a vibrato/glide
+    runs, so the chip-state rule alone false-reads it as F — and the F arm
+    entry (wavestep, past the vib update) then loses the per-call vib step.
+    A frame-entry (F) call FALLS THROUGH into $141C, so this signal is only
+    meaningful when frame-entry candidates are also locatable and NOT hit."""
+    b = bytes(payload)
+    return {load + i for i in range(len(b) - 5)
+            if b[i] == 0xbd and b[i + 3] == 0xf0 and b[i + 4] == 0x7e}
+
+
 def _observe_play_phases_writes(sid_path: str, subtune: int,
                                 n_calls: int = 12,
                                 max_steps: int = 200_000):
@@ -481,7 +496,9 @@ def _observe_play_phases_writes(sid_path: str, subtune: int,
     mpu.memory = mem
 
     fe_cands = _frame_entry_candidates(s['payload'], s['load'])
+    et_cands = _effects_tail_candidates(s['payload'], s['load'])
     fe_hit = [False]
+    et_hit = [False]
 
     def run(pc, acc):
         mpu.stPush(0x00)
@@ -490,11 +507,14 @@ def _observe_play_phases_writes(sid_path: str, subtune: int,
         mpu.a = acc
         del writes[:]
         fe_hit[0] = False
+        et_hit[0] = False
         for _ in range(max_steps):
             if mpu.pc == 0x0001:
                 return list(writes)
             if mpu.pc in fe_cands:
                 fe_hit[0] = True
+            if mpu.pc in et_cands:
+                et_hit[0] = True
             try:
                 mpu.step()
             except Exception:
@@ -529,10 +549,21 @@ def _observe_play_phases_writes(sid_path: str, subtune: int,
             continue
         regs = {a & 0x1F for a, _ in w}
         advancing = fe_hit[0]
+        adv_chip = False
         for a, v in w:
             if (a & 0x1F) in chip and chip[a & 0x1F] != v:
-                advancing = True
+                adv_chip = True
             chip[a & 0x1F] = v
+        # Chip-state advance stays the fallback — EXCEPT when the call
+        # POSITIVELY entered the effects tail ($141C, the R body) without
+        # passing a locatable frame entry: that entry legitimately ADVANCES
+        # the chip while a vibrato/glide runs (Real_Hardcore: wrapper JSRs
+        # $141C x3, vib steps every call — advance-read-as-F picked the
+        # wavestep arm entry and lost the per-call vib step). Arm F entries
+        # (wavestep $1591 / vib_half $1567) sit PAST $141C and never reach
+        # it, so they keep classifying F via the advance fallback.
+        if adv_chip and not (et_hit[0] and fe_cands):
+            advancing = True
         if 0x16 in regs:
             seq.append('P')
         else:
@@ -585,11 +616,12 @@ def _observe_play_phases_pctrace(sid_path: str, subtune: int, play_addr: int,
         from seed_disassembly import parse_psid
         s = parse_psid(sid_path)
         fe_cands = _frame_entry_candidates(s['payload'], s['load'])
+        et_cands = _effects_tail_candidates(s['payload'], s['load'])
         # ~2 invocations per 50 Hz frame under 2x CIA; capture enough for a
         # period<=n_calls//2 fit plus headroom.
-        plays, fe_hits = pctrace_per_play_capture(sid_path, subtune, play_addr,
-                                                  n_frames=max(10, n_calls),
-                                                  watch_pcs=fe_cands)
+        plays, wp_hits = pctrace_per_play_capture(
+            sid_path, subtune, play_addr, n_frames=max(10, n_calls),
+            watch_pcs={'fe': fe_cands, 'et': et_cands})
     except Exception:
         return None
     if len(plays) < 8:
@@ -612,11 +644,22 @@ def _observe_play_phases_pctrace(sid_path: str, subtune: int, play_addr: int,
         # frame entry — the advance heuristic alone false-reads a HELD note's
         # idempotent frame entry as R (My_Rusty_Love; see
         # _observe_play_phases_writes).
-        advancing = bool(fe_hits[i]) if i < len(fe_hits) else False
+        h = wp_hits[i] if i < len(wp_hits) else set()
+        advancing = 'fe' in h
+        adv_chip = False
         for r, v in w:
             if r in chip and chip[r] != v:
-                advancing = True
+                adv_chip = True
             chip[r] = v
+        # Same rule as _observe_play_phases_writes: chip-state advance is the
+        # fallback, EXCEPT for a call that positively entered the effects tail
+        # ($141C = the R body) without passing a locatable frame entry — that
+        # entry advances the chip whenever a vibrato/glide runs
+        # (Real_Hardcore's wrapper JSRs $141C x3; advance-as-F lost the
+        # per-call vib step behind the wavestep arm entry). Arm F entries
+        # ($1591/$1567) sit past $141C and keep classifying F via advance.
+        if adv_chip and not ('et' in h and fe_cands):
+            advancing = True
         if not w:
             seq.append('S')
         elif 0x16 in regs:

@@ -172,7 +172,9 @@ def pctrace_per_play_capture(sid_path: str, subtune: int, play_addr: int,
     play() invocations each under 2× CIA). `watch_pcs` (optional set of code
     addresses): when given, returns `(plays, hits)` where `hits[i]` is True
     iff invocation i executed any watched PC — used by the DMC play-phase
-    observer to classify F by frame-entry reachability."""
+    observer to classify F by frame-entry reachability. May also be a dict
+    {name: set}; `hits[i]` is then the SET of names whose PCs invocation i
+    executed (several entry points watched in one trace)."""
     fd, tmp = tempfile.mkstemp(suffix='.pctrace')
     os.close(fd)
     try:
@@ -191,11 +193,17 @@ def pctrace_per_play_capture(sid_path: str, subtune: int, play_addr: int,
                 if pc == play_addr:
                     cur = []
                     plays.append(cur)
-                    hits.append(False)
+                    hits.append(set() if isinstance(watch_pcs, dict)
+                                else False)
                 if cur is None:
                     continue
-                if watch_pcs and pc in watch_pcs:
-                    hits[-1] = True
+                if watch_pcs:
+                    if isinstance(watch_pcs, dict):
+                        for wk, wset in watch_pcs.items():
+                            if pc in wset:
+                                hits[-1].add(wk)
+                    elif pc in watch_pcs:
+                        hits[-1] = True
                 st = _PCT_STORE.search(line)
                 if not st:
                     continue
