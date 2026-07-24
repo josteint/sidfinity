@@ -8,97 +8,44 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
-## ⚠️ INVESTIGATION (2026-07-24, NO GAIN — REVERTED): track_ff_reinit shape B + ghost units (For_Party_V_95 / Roots)
-Next f1 partial after Second was `Hallen/For_Party_V_95`. Turned out to
-be the HARD form of C19-22 (track_ff_reinit) and the machinery I built
-REGRESSED the cluster, so it was reverted to r117. Findings preserved
-for a future focused session:
-- **Shape B of the $FF wedge:** `A9 00 / 4C <init>` (JMP straight to
-  init, canon re-fetch tail left as dead code) vs r117's shape A
-  (`A9 00 / 20 <rts> / 4C <init>`). Both restart the song at the first
-  track end. A probe branch on `mem[base+$DF]` (0x4C=B, 0x20=A) detects it.
-- **Census (14 track_ff_reinit carriers f1):** 2 shape-A (My_Firsty,
-  Second) + 12 shape-B (mostly Hank/*). **12/14 verify FULL at r117** —
-  because MOST carriers' $FF wrap falls PAST their verify window, so the
-  normal loop-target build never reaches the re-init and verifies FULL
-  as an ordinary looping tune. Only For_Party + Roots have an IN-WINDOW
-  wrap AND wrapv≠last, so they need real handling.
-- **THE REGRESSION TRAP + the amend discriminator (Step 3.1, measured
-  2026-07-24):** naively detecting shape B and applying re-init handling
-  BREAKS the 12 past-window-wrap FULLs (6 full→partial + 2 xa65 errors:
-  the ghost-poke path referenced a `sectpos` label not emitted for
-  non-sectpos members). The DISCRIMINATOR that makes it regression-safe:
-  **does the ORIG re-init IN-WINDOW** (an in-window $D418+ascending-clear
-  burst at a non-cold frame)? Measured across the whole cluster: ONLY
-  `For_Party_V_95` has an in-window burst (frame 9538). All 11 other
-  shape-B carriers + Roots are PAST-WINDOW — their $FF handler is never
-  executed in-window, so a CORRECTLY-gated fix leaves them BYTE-IDENTICAL
-  and FULL by construction (the regression was my un-gated detection +
-  the sectpos compile bug, NOT a fundamental conflict — the ordinary
-  amend "new fix is just wrong" case). CORRECTION: my first writeup said
-  "For_Party + Roots need handling" — WRONG. Roots does NOT re-init
-  in-window; its partiality is an UNRELATED blocker. Only For_Party needs
-  the shape-B + ghost machinery, gated on the in-window-burst
-  discriminator (Second, the shape-A in-window carrier, also passes it and
-  keeps its r117 handling).
-- **The ghost-unit mechanism (For_Party):** wrap voice = V0, so init's
-  RTS pops V0's JSR and the play body's `inx` chain runs V1/V2 as GHOST
-  UNITS with X=$19/$1A (past the 3-voice range) — aliased per-voice
-  `LDA/STA base+$718,X` reads code bytes / writes other arrays' slots.
-  Ghosts emit a member-constant SID burst (D400-D404 ×2, via Y=otrk=0 →
-  V1) AND poke the state block. Both are py65-simulatable (ran init(A=0)
-  then each ghost unit; ghost writes matched the wrap frame exactly).
-- **THE UNSOLVED RESIDUAL:** after the wrap, the restart is NOT a clean
-  cold replay — `orig_restart[wrap+k] ≠ cold[k-1]` for k≥3. V3 plays a
-  different note ($25A3 vs a clean-replay value) because the ghost run
-  PREEMPTED V3's frame-9538 update, shifting V3's playback phase in the
-  restart. Per-voice state pokes ($1718-$179D diff vs no-ghost baseline)
-  advanced 152611→152692 (98.44%) but did NOT close it — the phase shift
-  isn't a state-block value, it's a missed-update timing effect. Modeling
-  it needs the ghost run to also advance V3's tick/duration the way the
-  preempted real V3 update would have. Deferred.
-- Tooling note: Trap-C frame drift (siddump frame ≠ play() index) made
-  pc-tracing the divergent V3 store expensive; the reliable signal was
-  per-frame writelog `seq()` comparison (orig wrap vs rebuild wrap: both
-  37 writes, matched; desync begins at restart frame k=3).
-
-### TO GET For_Party_V_95 FULL (next-session plan — user wants it CLOSED)
-The member: `MUSICIANS/H/Hallen/For_Party_V_95.sid` (single, canon $1000,
-vblank, 1 song, master_vol=$FF, wedge shape-B `A9 00 / 4C 07 18` at
-base+$DD → JMP init body $1807; wrap voice = V0 → 2 ghost units).
-1. **Rebuild the 3 pieces regression-safe** (all reverted at r117; the
-   diagnosis above has each): (a) shape-B detect in
-   `_track_ff_reinit_probe` (`mem[base+$DF]==0x4C`), GATED on the
-   in-window re-init discriminator so ONLY For_Party (+ Second) is
-   touched — census-verify the other 12 carriers stay byte-identical
-   FULL (they were what regressed). (b) `_simulate_reinit_ghosts` (py65:
-   run init(A=0) from the wedge target, derive ghost X from post-init X,
-   run each ghost unit; the wrap-frame SID burst already matched 37/37).
-   (c) composer `reinit_stub` — FIX the `sectpos`/`wavepos` label bug
-   (`_state_var_at` must only reference labels the composer actually
-   emitted for this member, else xa65 fails).
-2. **Then attack the ONLY open blocker — the restart phase.** The wrap
-   frame + first 2 restart frames match; desync is voice-2 (V3) at
-   restart k=3 (orig freq $25A3 vs ours). ESTABLISHED: restart ≈ cold
-   delayed ~1 frame; the ghost at X=$1A writes voice-2's (+2) slots
-   ($1749=glb+2 etc.), but voice-2's note-init OVERWRITES most before
-   read — so the surviving divergence is ONE poked slot note-init does
-   NOT reset, read on a wave-STEP before that voice's first note-init.
-   NOTE: excluding the wavepos poke changed nothing (152692 either way),
-   so it is NOT wavepos. METHOD: at restart k=3, `siddump --pc-trace`
-   the ORIG's voice-2 (X=2) freq computation, list every `$17xx` it
-   reads, and diff each against the composer's value at the same event
-   (`return_labels=True` + `--memwatch-on-write` on the diverging reg).
-   The one that differs is the missed poke. Prime suspects: a ghost
-   store landing ABOVE $179D (past the init-cleared block — I only
-   scanned $1718-$179D, so widen the poke scan), or a slot below $1718
-   (curnote/$100C region I explicitly skipped). Reliable signal =
-   per-frame writelog `seq()` compare (NOT pc-trace frame numbers,
-   Trap C). Core-tenet reframe if stuck: don't reproduce the aliased-X
-   mechanism, reproduce the write stream — the restart IS cold delayed
-   one frame + a fixed set of surviving poked slots.
-3. Gate: For_Party FULL + the 14-carrier cluster still 12-others-FULL
-   (0 regr, `tmp/ffreinit_members.json` exists) + dmc_smoke + regression.
+## ✅ ROUND 118 (2026-07-24): track_ff_reinit SHAPE B + ghost-unit tail (C19 23rd occ). For_Party_V_95 FULL (+1)
+Next f1 partial by path = `Hallen/For_Party_V_95` (single, canon $1000,
+vblank, 1 song, master_vol=$FF). The hard form of r117's $FF-reinit: wedge
+`A9 00 / 4C 00 10` at base+$DD → JMP the init VECTOR ($1000→$101D body), so
+the FIRST track end (voice V0) restarts the song. Because V0 is NOT the last
+play unit, init's RTS pops V0's call and the play body's `inx : jsr voice`
+chain runs V1/V2 as GHOST units (X past $18): on the ORIG map they emit a
+member-constant V1-reg SID burst (D400-D404 ×2 = $7A9F/$40, $999B/$40) AND
+poke the surviving idle voice's (V3) state so it plays a real held note
+($25A3 + PWM sweep) in the restart instead of idling like cold. **FIX (C19
+23rd occ — full technique in the ledger):** composer `reinit_ghost`
+out-of-line routine (`jsr init` → captured burst verbatim → surviving-voice
+pokes → `pla:pla:jmp ptail` skipping our own wrong ghost voices);
+`_simulate_reinit_ghosts` captures burst from the orig siddump writelog (the
+in-window init burst = the in-window gate too) + pokes from a py65
+play-to-wrap RAM-diff vs clean init(A=0), each per-voice slot → composer
+label. `track_ff_reinit_ghost` param.
+- **THE LAST MILE the reverted pass missed:** the freq-determining poke is
+  `curnote+2 = $3E` at $1014 — BELOW $1718. init clears only $1718-$179D, so
+  the surviving voice's curnote/gatemask (uncleared $1012/$100F) carry the
+  ghost's note. The reverted pass scanned only $1718-$179D and stalled at
+  98.4%; the $1000-$17FF RAM-diff finds it automatically → 100.00% FULL first
+  try (154374/154374).
+- **THE DISCRIMINATOR is the JMP TARGET, not (only) in-window.** The 11
+  "shape-B" Hank/* siblings that regressed the reverted pass do NOT re-init:
+  their `A9 00 / 4C 1E 10` jumps the re-fetch LOOP ($101E `LDY otrk,x`), not
+  init — loop-redirects the ordinary path already handles. Probe requires the
+  target to LEAD TO INIT (== base or `_rd16(base+1)`); loop targets rejected.
+  Reverted pass's regression was loose `A9 00 / 4C`-only detection catching
+  those loops + a compile bug — NOT a fundamental conflict.
+- **Census (amend gate, `tmp/ffreinit_members.json`, 14 carriers):** For_Party
+  partial→FULL (GHOST); My_Firsty/Second (shape-A) FULL unchanged; 10 Hank/*
+  FULL unchanged; **Roots PARTIAL — pre-existing unrelated blocker**
+  (`hold_gateoff` member, gets NO param, composer asm byte-identical to r117,
+  confirmed no reinit_ghost/ptail markers). Static shape-B scan over all 5833
+  f1 = exactly these 12 → 0 other exposure. Gates: dmc_smoke 6/6, full
+  regression (see head). f1 = 5318 + 1 = **5319 FULL / 82 partial** (stored
+  corpus NOT yet re-synced — next mass-write picks up For_Party).
 
 ## ✅ ROUND 117 (2026-07-24): $FF track-loop handler re-pointed at INIT (C19 22nd occ). Second FULL (+1)
 Next f1 partial by path = `Greenhorn/Second` (single, canon $1000,

@@ -2416,7 +2416,59 @@ ovrp_d:
     # keeps the subtune for the restart; it lives OUTSIDE state0..state_end
     # so the init's state clear cannot wipe it. Default: the canonical 16-bit
     # loop redirect, byte-identical.
-    if usf.params.fields.get('track_ff_reinit'):
+    # track_ff_reinit_ghost (C19 wedge SHAPE B, Hallen/For_Party_V_95): the same
+    # $FF-re-points-at-init restart, but the wrap voice is NOT the last unit, so
+    # after init's RTS pops the wrap voice's call the play body's `inx : jsr
+    # voice` chain runs the REMAINING voices as GHOST UNITS with X past the
+    # 3-voice range ($19/$1A). On the ORIG memory map those aliased reads/writes
+    # emit a member-constant SID burst on V1's registers AND poke the surviving
+    # (idle) voice's state so it plays a real part in the restart instead of
+    # idling like a cold start. We do NOT reproduce the aliasing (a different
+    # memory map ⇒ different ghost writes — CORE TENET: reproduce the write
+    # stream, not the mechanism): the $FF handler runs init, emits the captured
+    # ghost burst verbatim, pokes the surviving voice's state to the captured
+    # values, then DISCARDS the wrap voice's return and jmps the filter tail —
+    # skipping our own (wrong) ghost voices. The burst + pokes are extract-
+    # captured by a py65 ghost simulation (`_simulate_reinit_ghosts`); the wrap
+    # falls once inside the verify window so one capture suffices.
+    ghost_spec = usf.params.fields.get('track_ff_reinit_ghost')
+    need_ptail = False
+    reinit_ghost_routine = ''
+    if ghost_spec:
+        _burst_s, _pokes_s = (str(ghost_spec).split('|') + [''])[:2]
+        gl = ['reinit_ghost:',
+              '        jsr init                     ; re-prime + SID burst; '
+              'returns here (X=$18)']
+        for _w in _burst_s.split(';'):
+            if not _w:
+                continue
+            _r, _v = _w.split('=')
+            gl.append(f'        lda #${_v}')
+            gl.append(f'        sta $d4{_r.lower()}              '
+                      '; ghost unit V1-reg burst')
+        for _pk in _pokes_s.split(';'):
+            if not _pk:
+                continue
+            _lab, _vc, _val = _pk.split(',')
+            gl.append(f'        lda #${_val}')
+            gl.append(f'        sta {_lab}+{_vc}'.ljust(37)
+                      + '; ghost state poke')
+        gl += ['        pla',
+               '        pla                          ; drop the wrap voice '
+               'call return',
+               '        jmp ptail                    ; skip our ghost voices '
+               '-> filter tail']
+        # emitted OUT OF LINE (a $FF handler inlining ~50 instructions blows a
+        # nearby branch's ±128 range); trk_ff just tail-jumps into it.
+        reinit_ghost_routine = '\n'.join(gl) + '\n'
+        trk_ff = ('        lda cursong                  ; $FF SHAPE-B ghost '
+                  'restart\n'
+                  '        jmp reinit_ghost\n')
+        cursong_save = ('        sta cursong                  ; subtune for '
+                        'the $FF restart\n')
+        cursong_var = 'cursong:  .dsb 1, 0\n'
+        need_ptail = True
+    elif usf.params.fields.get('track_ff_reinit'):
         trk_ff = ('        lda cursong                  ; $FF = restart the '
                   'song via init\n'
                   '        jmp init                     ; (track_ff_reinit '
@@ -2440,6 +2492,11 @@ ovrp_d:
                    '        lda shadow17\n'
                    '        and fmask,x\n'
                    '        sta shadow17\n')
+    # ptail: label marks the filter tail so the shape-B ghost handler can skip
+    # our own (wrong) ghost voice calls and complete the frame. Label-only —
+    # byte-neutral — and emitted ONLY for the ghost member so no other build
+    # carries an unused label.
+    ptail_label = 'ptail:\n' if need_ptail else ''
 
     asm = f"""
 SLIDE_PHASE = ${slide_phase:02X}
@@ -2519,8 +2576,9 @@ ini_sid:
         lda spd
         sta spdctr
 pf_notick:
-{voice_calls}{filter_tail}        rts
+{voice_calls}{ptail_label}{filter_tail}        rts
 
+{reinit_ghost_routine}
 ;; ===================== per-voice tick/fetch =====================
 voice:
         lda vactive,x

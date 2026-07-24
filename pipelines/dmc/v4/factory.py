@@ -1372,6 +1372,219 @@ def _track_ff_reinit_probe(path: str, base: int,
     return f'{jmp_tgt:04X}'
 
 
+def _reinit_ghost_state_map(base: int) -> dict:
+    """canon_addr -> (composer_label, voice_index) for every per-voice state
+    slot a ghost unit can poke, relocated for `base`. The $1718-$179D block is
+    the composer's DMC_OFFTABLE_STATE (+ the gated wavepos row, always a real
+    label); the three arrays BELOW $1718 that init does NOT clear — gate masks
+    ($100F), current notes ($1012), current instruments ($1015) — are added
+    explicitly (they carry the surviving voice's note/wave state and are the
+    below-$1718 slots the first shape-B investigation skipped)."""
+    from pipelines.dmc.composer_asm import DMC_OFFTABLE_STATE, DMC_WAVEPOS_ROW
+    shift = base - 0x1000
+    m = {}
+    rows = list(DMC_OFFTABLE_STATE) + [DMC_WAVEPOS_ROW]
+    rows += [(0x100F, 'gatemask', 3), (0x1012, 'curnote', 3),
+             (0x1015, 'curinst', 3)]
+    for a, lbl, nb in rows:
+        for i in range(nb):
+            m[a + shift + i] = (lbl, i)
+    return m
+
+
+def _extract_reinit_burst(frames) -> 'list | None':
+    """Given the orig's per-frame writelog, find a MID-STREAM init burst (the
+    $FF re-init firing in-window) and return the ghost SID burst it carries, or
+    None if no such burst exists in the window (the wrap is past-window, so the
+    re-init never fires and the member must stay byte-identical).
+
+    An init burst = `$D418=x` then the ascending `$D400..$D417 = 0` clear. The
+    ghost burst is the writes AFTER that clear and BEFORE the filter tail
+    ($D415+), i.e. the voice-register writes the aliased ghost units emit."""
+    for f in frames[5:]:                          # skip the frame-0 cold init
+        w = [(r, v) for (_c, r, v) in f]
+        n = len(w)
+        for i in range(n):
+            if w[i][0] != 0x18:
+                continue
+            j, exp = i + 1, 0
+            while j < n and w[j][0] == exp and w[j][1] == 0 and exp < 0x18:
+                j += 1
+                exp += 1
+            if exp < 0x18:
+                continue                          # not the full ascending clear
+            ghost = []
+            for r, v in w[j:]:
+                if r >= 0x15:                     # filter tail begins
+                    break
+                ghost.append((r, v))
+            if ghost:
+                return ghost
+    return None
+
+
+def _simulate_reinit_ghosts(path: str, base: int,
+                            post_init_sub: 'int | None' = None):
+    """GHOST reproduction data for the shape-B $FF-reinit wedge (C19, For_Party).
+
+    When the wrap voice is NOT the last unit, init's RTS pops the wrap voice's
+    call and the play body runs the REMAINING voices as ghost units (X past the
+    3-voice range). On the ORIG memory map those aliased reads/writes emit a
+    member-constant SID burst on V1's registers AND poke the surviving (idle)
+    voice's state so it plays a real part in the restart instead of idling.
+
+    We reproduce the WRITE STREAM, not the aliasing (CORE TENET). Two ground
+    truths, cheap gate first:
+
+      * ghost burst — from the orig's siddump writelog over the verify window
+        (`_extract_reinit_burst`); this ALSO gates in-window (None past-window,
+        so every non-For_Party shape-B carrier stays byte-identical without ever
+        touching py65);
+      * pokes — the surviving voice's state slots. Play the orig to the wrap
+        under py65, diff the post-wrap RAM against a clean init(A=0), map each
+        differing per-voice slot to its composer label. (The below-$1718 slots
+        curnote/gatemask are the freq-determining state the first shape-B pass
+        skipped.)
+
+    Returns 'burst|pokes' (the track_ff_reinit_ghost param) or None."""
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
+                                    '..', '..', '..', 'tools'))
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
+                                    '..', '..', '..', 'tools', 'py65_lib'))
+    try:
+        from pipelines.hubbard.verify_cycle import writelog_capture
+        from pipelines.dmc.v4.extract.engine_model import (_poweron_fill,
+                                                           _verify_window)
+    except Exception:
+        return None
+
+    window_s = _verify_window(path)
+    # (1) cheap siddump gate + ghost burst (in-window ground truth)
+    try:
+        frames = writelog_capture(path, subtune=0, duration=window_s)
+    except Exception:
+        return None
+    ghost = _extract_reinit_burst(frames)
+    if not ghost:
+        return None                               # wrap past-window / no ghost
+
+    # (2) py65 to the wrap for the surviving voice's state pokes
+    try:
+        from py65.devices.mpu6502 import MPU
+        from py65.memory import ObservableMemory
+        from seed_disassembly import parse_psid
+    except Exception:
+        return None
+    s = parse_psid(path)
+    max_plays = int(window_s * 55) + 400
+    wedge = base + 0xDD
+
+    def _fresh():
+        mpu = MPU()
+        mem = ObservableMemory()
+        pat = bytearray(0x10000)
+        _poweron_fill(pat)
+        mem[:] = bytes(pat)
+        for a in range(0x400):
+            mem[a] = 0
+        for i, b in enumerate(s['payload']):
+            if s['load'] + i < 0x10000:
+                mem[s['load'] + i] = b
+        mpu.memory = mem
+        return mpu, mem
+
+    def _run_init(mpu):
+        mpu.stPush(0)
+        mpu.stPush(0)
+        mpu.pc = s['init']
+        mpu.a = 0
+        mpu.x = mpu.y = 0
+        for _ in range(2_000_000):
+            if mpu.pc == 0x0001:
+                return True
+            mpu.step()
+        return False
+
+    try:
+        mc, memc = _fresh()
+        if not _run_init(mc):
+            return None
+        cold = bytes(memc[a] for a in range(0x1000, 0x1800))
+
+        mw, memw = _fresh()
+        if not _run_init(mw):
+            return None
+        found = False
+        for _p in range(max_plays):
+            mw.pc = s['play']
+            mw.stPush(0)
+            mw.stPush(0)
+            hit = False
+            for _ in range(400_000):
+                if mw.pc == wedge:
+                    hit = True
+                if mw.pc == 0x0001:
+                    break
+                mw.step()
+            if hit:
+                found = True
+                break
+        if not found:
+            return None
+        warm = bytes(memw[a] for a in range(0x1000, 0x1800))
+
+        smap = _reinit_ghost_state_map(base)
+        pokes = []
+        for off in range(0x1000, 0x1800):
+            if cold[off - 0x1000] == warm[off - 0x1000]:
+                continue
+            ent = smap.get(off)
+            if ent is None:
+                continue                          # scratch / copyright, not state
+            lbl, vi = ent
+            pokes.append((lbl, vi, warm[off - 0x1000]))
+    except Exception:
+        return None
+
+    burst_s = ';'.join(f'{r:02X}={v:02X}' for r, v in ghost)
+    poke_s = ';'.join(f'{lbl},{vi},{val:02X}' for lbl, vi, val in pokes)
+    return f'{burst_s}|{poke_s}'
+
+
+def _track_ff_reinit_ghost_probe(path: str, base: int,
+                                 post_init_sub: 'int | None' = None):
+    """Shape-B $FF-track-reinit WITH a ghost-unit tail (C19, 22nd occ shape B —
+    Hallen/For_Party_V_95). The canon $FF handler `A9 00 / 9D 26 17 / 4C D2 10`
+    is patched to `A9 00 / 4C <init>` (JMP straight to init; the canon re-fetch
+    tail left as dead code) — vs shape A's byte-preserving neutered-JSR form.
+    Because the wrap voice is not the last play unit, the restart also runs the
+    remaining voices as GHOST units (see `_simulate_reinit_ghosts`).
+
+    STATIC anchor for the shape (LDA #$00 + JMP away from the canon re-fetch),
+    then the ghost sim GATES on the wrap being in the verify window (its burst
+    capture returns None past-window) and captures the burst + pokes. Returns
+    the `track_ff_reinit_ghost` spec, or None (not shape B / past window / no
+    ghost tail — every non-For_Party carrier stays byte-identical)."""
+    if base is None:
+        return None
+    mem, _ = _load(path, post_init_sub)
+    site = base + 0xDD
+    if site + 5 > 0x10000:
+        return None
+    if mem[site] != 0xA9 or mem[site + 1] != 0x00 or mem[site + 2] != 0x4C:
+        return None
+    jmp_tgt = mem[site + 3] | (mem[site + 4] << 8)
+    if jmp_tgt == base + 0xD2:                    # canonical re-fetch loop
+        return None
+    # the JMP must lead to init: the member's init vector (base = `JMP body`)
+    # or that body itself. A false lead yields a partial, never a wrong FULL.
+    init_body = mem[base + 1] | (mem[base + 2] << 8) if mem[base] == 0x4C else None
+    if jmp_tgt != base and jmp_tgt != init_body:
+        return None
+    return _simulate_reinit_ghosts(path, base, post_init_sub)
+
+
 def _fclaim_clear_dead_probe(path: str, base: int,
                              post_init_sub: 'int | None' = None):
     """Per-play fclaim CLEAR re-pointed off the state block (STATIC opcode
@@ -2716,6 +2929,7 @@ _WEDGE_PROBES = [
     ('route_clear_dead',                lambda p, c: _route_clear_dead_probe(p, c.base, c.post_init_sub)),
     ('fclaim_clear_dead',               lambda p, c: _fclaim_clear_dead_probe(p, c.base, c.post_init_sub)),
     ('track_ff_reinit',                 lambda p, c: _track_ff_reinit_probe(p, c.base, c.post_init_sub)),
+    ('track_ff_reinit_ghost',           lambda p, c: _track_ff_reinit_ghost_probe(p, c.base, c.post_init_sub)),
     ('v3_instr_tempo',                  lambda p, c: _v3_instr_tempo_probe(p, c.base, c.post_init_sub)),
     ('filterdef_anim',                  lambda p, c: _filterdef_anim_probe(p, c.base, c.op_filtdef, c.post_init_sub)),
     ('d417_tail_anim',                  lambda p, c: _d417_tail_anim_probe(p, c.base, c.op_filtdef, c.op_wavefreq, c.post_init_sub)),
