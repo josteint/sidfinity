@@ -1482,10 +1482,36 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # the file subtune(s) that SELECT it (song_subtunes.values()), else it reads
     # the START player's off-table results and overwrites correct records
     # (Rogue_Ninja player-1 idx 97 = $B7 clobbered by player-0's $1708 = $D6).
-    if varying and canon_geom:
+    # GLIDE-ARRIVAL reach (r116, Psycho_One): a slow glide's ARRIVAL reloads
+    # curnote = target ($1481 TYA/STA $1012,x) — and the arrival can land
+    # frames later, under a LATER instrument's still-running wave (glsp
+    # survives the intervening rows). A low target (the glide-to-0 dive
+    # idiom) then sends that wave's negative offsets off-table (idx 255..)
+    # — reads the static row walk cannot enumerate (the target note never
+    # appears on the reading instrument's rows). Gate: any glide target
+    # that, combined with any shipped instrument's wave offset, indexes
+    # past the table; the event-driven capture then observes the actual
+    # reads and CREATES the missing records (keyed to glide-target notes
+    # only — surgical).
+    glide_notes = set()
+    for song in m.songs:
+        for v in song.voices:
+            for ei, e in enumerate(v.entries):
+                tr = v.transposes[ei] if v.transposes else 0
+                for r in v.patterns[e]:
+                    if r.glide_to is not None:
+                        glide_notes.add((r.glide_to + tr) & 0xFF)
+                    elif r.glide_slide and r.note is not None:
+                        glide_notes.add((r.note + tr) & 0xFF)
+    _all_offs = {o & 0xFF for ins in m.instruments.values()
+                 for o in ins.wave_freq} | {0}
+    glide_risk = any(((t + o) & 0xFF) > 95
+                     for t in glide_notes for o in _all_offs)
+    if (varying or glide_risk) and canon_geom:
         _ss = getattr(cfg, 'song_subtunes', None)
         _fsubs = sorted(set(_ss.values())) if _ss else None
-        _correct_offtable_eventdriven(m, path, cfg=cfg, file_subtunes=_fsubs)
+        _correct_offtable_eventdriven(m, path, cfg=cfg, file_subtunes=_fsubs,
+                                      create_notes=glide_notes)
     # sectpos shadow gating: an off-table freq read landing on $1729-$172B
     # (per-voice sector position — INC per consumed sector byte, reset at the
     # $7F end check) cannot be served statically (the value cycles) nor by the
@@ -2210,7 +2236,8 @@ def _redirect_mapped_idx() -> set:
 
 
 def _correct_offtable_eventdriven(m: DmcModel, sid_path: str, cfg=None,
-                                  file_subtunes=None) -> None:
+                                  file_subtunes=None,
+                                  create_notes=frozenset()) -> None:
     """Override off-table records with the event-driven read-moment value where
     it is STABLE per `(inst, off, note)`, EXCEPT positions the composer serves
     from a live redirect var (those are live-tracked + seeded from the leftover,
@@ -2250,5 +2277,21 @@ def _correct_offtable_eventdriven(m: DmcModel, sid_path: str, cfg=None,
                 new.append((off, note, rv[0], rv[1])); changed = True
             else:
                 new.append((off, note, lo, hi))
+        # CREATION (r116, glide-arrival reach — see the extract() gate): a
+        # stable observed key the static model missed becomes a record,
+        # restricted to glide-target notes and to offsets this instrument
+        # actually steps (its wave_freq offsets, or 0 = the base read) —
+        # snapshot-skew keys (y/cn sampled across a reload) fail the offset
+        # test. Wavepos reads (idx 211-213) stay with the layout machinery.
+        if create_notes:
+            offs = {o & 0xFF for o in ins.wave_freq} | {0}
+            have = {(o & 0xFF, n & 0xFF) for o, n, *_r in ins.offtable_freq}
+            for (ki, ko, kn), (lo, hi) in ev.items():
+                idx = (ko + kn) & 0xFF
+                if (ki != iid or kn not in create_notes or ko not in offs
+                        or (ko, kn) in have or idx < 96
+                        or 211 <= idx <= 213):
+                    continue
+                new.append((ko, kn, lo, hi)); changed = True
         if changed:
             ins.offtable_freq = sorted(set(new))

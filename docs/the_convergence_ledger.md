@@ -187,8 +187,11 @@ practice, not code to factor).
   to (instrument, offset, note): per-instrument `offtable_freq` records with
   `at(...)`/`live(...)` read flags; the composer rebuilds its window from the
   records. ❌ never a contiguous `freq_overrun` window. Reach model must
-  include deferred note-init / soft-note TRANSITION reads and per-subtune
-  post-init state; non-canon state geometry must be probed before any live
+  include deferred note-init / soft-note TRANSITION reads, per-subtune
+  post-init state, AND glide-ARRIVAL curnote reloads landing under a LATER
+  instrument's wave (glide-to-0 dive → idx 255..; statically un-walkable —
+  the event capture CREATES those records, gated to glide-target keys);
+  non-canon state geometry must be probed before any live
   serving. Full entry has the hard-boundary list (dynamic work-RAM residue).
 - FULL ENTRY: [`ledger/C6.md`](ledger/C6.md) — read it before applying.
 

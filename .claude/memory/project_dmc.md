@@ -8,6 +8,28 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 116 (2026-07-24): glide-ARRIVAL off-table reach + event-driven record CREATION (C6 refinement). Psycho_One FULL (+1)
+Next f1 partial by path = `Gomez/Psycho_One` (single, canon $1000,
+vblank). First div flat 26636 f1654: V1 freq $2A00 vs ours $0000.
+`dmc_offtable_probe` mis-fired AGAIN (6th — reported idx 131/$172A
+sectpos by value; backlog row bumped, proximity gate overdue). Truth
+via memwatch at the diverging write: wnote=$FF, curnote=0, instr 5 —
+an off-table read at idx 255 the static reach can't see: a SLOW GLIDE
+(sector 01: play 48, glide→0, speed 15; glsp survives rows) ARRIVES
+frames later under instr 5's running wave ($1481 TYA/STA curnote=0),
+whose -1..-8 offsets then read idx 255..247 (fhi[255]=$17A6=$2A
+static; flo side = live gla/durrel, redirect-served). FIX: the
+event-driven capture gains a CREATION path (records for observed keys
+whose note is a walked glide target + offset ∈ the instrument's wave
+offsets — snapshot-skew keys filtered; idx 211-213 excluded), capture
+gated on a static risk test (glide targets × wave offsets → nonzero
+non-redirect byte). Census: risk gate fires on 758/5401 (+1 siddump
+each at extract); 12/12 sampled FULLs create nothing → USF
+byte-identical; the 20 risk partials re-verified — all identical first
+divergences (blockers elsewhere). Gates: dmc_smoke 6/6, full
+regression 0 regressed. f1 = 5316 + 1 = **5317 FULL / 84 partial**.
+Ledger C6 refinement recorded (entry + card).
+
 ## ✅ ROUND 115 (2026-07-24): per-play fclaim clear re-pointed at a void (C19 21st occ). Jezuseczek FULL (+1)
 Next f1 partial by path = `Gomez/Jezuseczek` (single, canon $1000,
 vblank). First div flat 34759 f2154: $D416 orig $2F vs ours $7D — right
