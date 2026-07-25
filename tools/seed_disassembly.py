@@ -61,6 +61,10 @@ def parse_psid(path):
         'songs': songs, 'start': start,
         'name': name, 'author': author, 'released': released,
         'payload': payload,
+        # The source file, so downstream ground-truth observers (siddump
+        # subprocess runs, e.g. _postinit_window) can re-run the member
+        # without threading a path parameter through every caller.
+        'path': path,
     }
 
 

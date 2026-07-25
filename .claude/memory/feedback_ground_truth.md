@@ -140,3 +140,14 @@ byte-identity. Plan + inventory + phased path:
 [`docs/siddump_native_capture_plan.md`](../../../docs/siddump_native_capture_plan.md)
 (also linked from `tools/INVESTIGATION_BACKLOG.md`). Standing default: observe
 from libsidplayfp, not py65.
+
+**⚠ The boundary of that default (2026-07-25, Super_Seven):** a py65 site
+whose PURPOSE is an IDEALIZED / counterfactual environment is a **simulation,
+not an observation — do not migrate it.** `_postinit_window` wants "RAM as if
+only the image + init existed"; the real machine cannot produce that
+counterfactual (psiddrv is always resident — its bytes landed in the
+extraction's base memory and Super_Seven sub 1 went partial; reverted). Such
+sites read image-loaded / init-written bytes (trustworthy py65 per this
+file's own rule), and their genuine environment reads are served separately
+by the C29 `--peek-post-init` path. Ask of every candidate: does it observe
+the real machine, or simulate an idealized one?

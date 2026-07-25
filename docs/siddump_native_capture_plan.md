@@ -127,6 +127,17 @@ minus `deprecated/` and `tools/py65_lib/`). Four classes, prioritized by
   by `--peek-post-init` / `--memwatch`. Members: `_postinit_window`,
   `_post_init_ram`, `_cia_period_from_init`, commando freq-table extension.
   Migrate opportunistically; not urgent.
+  ⚠ **BOUNDARY (found the hard way, 2026-07-25): a py65 site whose PURPOSE is
+  an IDEALIZED/counterfactual environment is a SIMULATION, not an observation
+  — do not migrate it.** `_postinit_window` wants "the memory as if only the
+  image + init existed"; the real machine cannot produce that (psiddrv is
+  always resident — at $48xx on Super_Seven — plus real zp/vector/stack
+  state), so a libsidplayfp RAM snapshot fed driver bytes into the
+  extraction's base memory and Super_Seven sub 1 went partial (caught by the
+  end-to-end verify behind a wrongly-"inert" golden diff; migration
+  reverted). Genuine environment reads are already served by the C29
+  `--peek-post-init` path. Ask of every candidate site: does it observe the
+  real machine, or simulate an idealized one?
 - **Class A — call a SPECIFIC subroutine with chosen registers, capture its SID
   writes. LEAVE (for now).** The dominant Hubbard/companion use
   (`inst_program.py`: run an instrument program with A=n, capture its

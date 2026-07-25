@@ -38,7 +38,15 @@ py65 (2×2048), For_Party FULL (154374/154374), dmc_smoke 6/6, full regression.
   an init-time data read of the play vector shifts every play index (+1 on
   27/204 carriers) — classification anchors at the first index with events.
   Remaining Class C: `_observe_play_phases_writes`/`_chip`,
-  `_observe_player_bases`, `_postinit_window(stop_at_player)`.
+  `_observe_player_bases`.
+- PHASE 2c FINDING (migration REVERTED): `_postinit_window` is OUT of the
+  initiative's scope — it is an IDEALIZED SIMULATION (image + init writes +
+  power-on pattern, no driver), which the real machine cannot produce
+  (psiddrv resident at $48xx fed driver bytes into the extract base mem;
+  Super_Seven sub 1 partial; the golden diff mis-called it "inert" — the
+  end-to-end verify caught it). Boundary recorded in the plan Class B + the
+  function docstring. Keeper side-products: golden_sid_diff arity fix
+  (build() 3-tuple), parse_psid records s['path'].
 
 ## ✅ ROUND 119 (2026-07-24): Hank $FF-loop reads a NULL zero-page pointer → loop target is a sonified zp byte (C29 class). Roots FULL (+1)
 Next f1 partial by path = `Hank/Roots` (single, canon $1000, vblank,

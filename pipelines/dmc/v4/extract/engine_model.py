@@ -404,7 +404,20 @@ def _postinit_window(s, lo: int, n: int, sub: 'int | None' = None,
     state the extract reads as PRIMING (the $D417 routing shadow, idle notes /
     gate masks) is precisely what a player's init overwrites, so running to
     completion silently substitutes post-init values for the leftovers
-    (Pour_le_merite sub 0 then wrote $D417=$01 for the orig's $02)."""
+    (Pour_le_merite sub 0 then wrote $D417=$01 for the orig's $02).
+
+    ⚠ DO NOT migrate this to siddump (attempted + reverted 2026-07-25,
+    native-capture Phase 2): this function is NOT an observation of the real
+    machine — it is an IDEALIZED SIMULATION (image + init's own writes +
+    power-on pattern, WITHOUT the PSID driver), and the real machine cannot
+    produce that counterfactual: psiddrv is always resident somewhere (it sat
+    at $48xx on Super_Seven, so a libsidplayfp RAM snapshot fed DRIVER BYTES
+    into the extraction's base memory and sub 1 went partial), its location
+    differs between orig and rebuild, and real zp/vector/stack state rides
+    along. The pipeline is calibrated on the idealized view; GENUINE
+    environment reads are served separately by the C29 `--peek-post-init`
+    machinery. py65 is the right tool here per feedback_ground_truth's own
+    rule — it reads image-loaded / init-written bytes."""
     try:
         from py65.devices.mpu6502 import MPU
         mpu = MPU()

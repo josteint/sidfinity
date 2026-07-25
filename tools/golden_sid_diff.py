@@ -78,7 +78,10 @@ def _build_one(rel: str):
     out_sid = os.path.join(td, 'o.sid')
     out_usf = os.path.join(td, 'o.usf')
     try:
-        nch, _ = build(rel, out_sid, out_usf)
+        # build() returns (n_chips, usf_src_path, build_path_description) —
+        # it grew the third element 2026-07 (corpus_sync build-path recording);
+        # unpack by index so another addition can't silently break this again.
+        nch = build(rel, out_sid, out_usf)[0]
         sid = open(out_sid, 'rb').read()
         usf_txt = open(out_usf).read()
         feats = sorted(k for k, m in _FEATURE_MARKERS.items() if m in usf_txt)
