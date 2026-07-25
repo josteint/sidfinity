@@ -9,8 +9,10 @@ in-process binding over the same taps is a deferred escalation; VICE-monitor /
 DBI / record-then-query rejected. Phase 1 shipped `--reinit-snapshot` and
 migrated the DMC ghost sim (`_reinit_windows_via_siddump`; py65 path deleted;
 gates: byte-identical windows + For_Party FULL; false-fire lesson = ledger
-C36). NEXT = Phase 2 (init-landing flag + Class-C migrations — see the
-decision doc §7). The sections below are kept for the inventory, the phased
+C36). Phase 2 STARTED: `--pc-watch` (executed-PC events with A/X/Y +
+play-index + RAM windows) shipped and `_observe_dispatch` (C31 compilation
+dispatch) migrated, py65 loop deleted — spec-identical on all 5 observe-path
+members; remaining: the C18 play-phase observers + `_postinit_window`. The sections below are kept for the inventory, the phased
 path, and the gating disciplines. Read `feedback_ground_truth.md` first.
 
 ## Phase 0 — survey the design space FIRST (gates everything; do not build until done)

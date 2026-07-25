@@ -141,7 +141,16 @@ int main(int argc, char* argv[])
             "                             entry and (WARM) the first play-vector entry after PC\n"
             "                             (a reinit wedge) executes, then exit. One\n"
             "                             SNAP:COLD=<hex>|WARM=<hex> line (WARM omitted if PC never\n"
-            "                             hit). Ground-truth C19 shape-B $FF-reinit ghost capture.\n",
+            "                             hit). Ground-truth C19 shape-B $FF-reinit ghost capture.\n"
+            "  --pc-watch LIST BEFORE-AFTER  Record an event whenever a watched PC EXECUTES\n"
+            "                             (data reads rejected — C36 bus signature). LIST is ONE\n"
+            "                             comma-list of hex PCs and/or *XX low-byte patterns;\n"
+            "                             BEFORE-AFTER sizes the RAM window [pc-BEFORE, pc+AFTER]\n"
+            "                             captured per event. Emits per frame:\n"
+            "                             |PW:<pc>:<a>:<x>:<y>:<playidx>:<relwin>:<abswin>\n"
+            "                             (playidx 0 = during init). Options: --pc-watch-first\n"
+            "                             (dedupe per PC), --pc-watch-abs LO-HI (also capture an\n"
+            "                             absolute RAM window per event).\n",
             argv[0]);
         return 1;
     }
@@ -169,6 +178,12 @@ int main(int argc, char* argv[])
     bool reinit_on = false;                  // --reinit-snapshot
     uint16_t reinit_trig = 0;
     uint16_t reinit_lo = 0, reinit_hi = 0;
+    bool pcwatch_on = false;                 // --pc-watch
+    bool pcwatch_first = false;              // --pc-watch-first
+    std::vector<uint16_t> pcwatch_exact;
+    std::vector<uint8_t> pcwatch_low;
+    uint16_t pcwatch_before = 0, pcwatch_after = 0;
+    uint32_t pcwatch_abs_lo = 1, pcwatch_abs_hi = 0;   // lo>hi = off
 
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--raw") == 0) {
@@ -251,6 +266,45 @@ int main(int argc, char* argv[])
                 reinit_hi = static_cast<uint16_t>(strtoul(end + 1, nullptr, 16));
             else
                 reinit_hi = reinit_lo;
+        } else if (strcmp(argv[i], "--pc-watch") == 0 && i + 2 < argc) {
+            // ONE comma-list of watch items (hex PC, or *XX = low-byte
+            // pattern) + ONE BEFORE-AFTER hex pair for the relative RAM
+            // window captured per event.
+            pcwatch_on = true;
+            const char* p = argv[++i];
+            while (*p) {
+                if (*p == '*') {
+                    ++p;
+                    char* end = nullptr;
+                    unsigned long lb = strtoul(p, &end, 16);
+                    if (end == p) break;
+                    pcwatch_low.push_back(static_cast<uint8_t>(lb));
+                    p = end;
+                } else {
+                    char* end = nullptr;
+                    unsigned long pc = strtoul(p, &end, 16);
+                    if (end == p) break;
+                    pcwatch_exact.push_back(static_cast<uint16_t>(pc));
+                    p = end;
+                }
+                if (*p == ',') ++p;
+            }
+            const char* w = argv[++i];
+            char* end = nullptr;
+            pcwatch_before = static_cast<uint16_t>(strtoul(w, &end, 16));
+            if (end != w && *end == '-')
+                pcwatch_after = static_cast<uint16_t>(strtoul(end + 1, nullptr, 16));
+        } else if (strcmp(argv[i], "--pc-watch-first") == 0) {
+            pcwatch_first = true;
+        } else if (strcmp(argv[i], "--pc-watch-abs") == 0 && i + 1 < argc) {
+            // Optional absolute RAM window captured with every event.
+            const char* p = argv[++i];
+            char* end = nullptr;
+            pcwatch_abs_lo = strtoul(p, &end, 16);
+            if (end != p && *end == '-')
+                pcwatch_abs_hi = strtoul(end + 1, nullptr, 16);
+            else
+                pcwatch_abs_hi = pcwatch_abs_lo;
         } else if (strcmp(argv[i], "--subtune") == 0 && i + 1 < argc) {
             subtune = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--duration") == 0 && i + 1 < argc) {
@@ -484,6 +538,15 @@ int main(int argc, char* argv[])
         engine.setMemWatchOnWrite(memwatch_event_trigger, memwatch_event_ram);
     }
 
+    // Wire the PC-watch (executed-PC events with A/X/Y + RAM windows).
+    // setPlayAddr gives each event its play-invocation index (0 = init).
+    if (pcwatch_on) {
+        engine.setPlayAddr(info->playAddr());
+        engine.setPcWatch(pcwatch_exact, pcwatch_low,
+                          pcwatch_before, pcwatch_after, pcwatch_first,
+                          pcwatch_abs_lo, pcwatch_abs_hi);
+    }
+
     // Initialize mixer (needed for play() to work)
     engine.initMixer(false); // mono
 
@@ -643,6 +706,23 @@ int main(int argc, char* argv[])
             printf("|P:%llu", (unsigned long long) engine.getPlayCount());
             engine.clearPlayCount();
             anyNonZero = true;  // memwatch alone counts as "doing something"
+        }
+
+        // Append per-frame PC-watch events:
+        //   |PW:<pc>:<a>:<x>:<y>:<playidx>:<relwin hex>:<abswin hex>
+        if (pcwatch_on) {
+            size_t n = engine.getPcWatchEventCount();
+            for (size_t e = 0; e < n; e++) {
+                auto ev = engine.getPcWatchEvent(e);
+                printf("|PW:%04X:%02X:%02X:%02X:%llu:",
+                       (unsigned) ev.pc, ev.a, ev.x, ev.y,
+                       (unsigned long long) ev.playIdx);
+                for (uint8_t b : ev.relWin) printf("%02X", b);
+                printf(":");
+                for (uint8_t b : ev.absWin) printf("%02X", b);
+            }
+            engine.clearPcWatchEvents();
+            if (n > 0) anyNonZero = true;
         }
 
         // Append per-frame memwatch-on-write events

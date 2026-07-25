@@ -200,6 +200,18 @@ public:
     { return m_c64.getCpuBus().getEventLog(); }
     void clearEventLog() { m_c64.getCpuBus().clearEventLog(); }
 
+    // PC-watch: see c64cpubus::setPcWatch.
+    void setPcWatch(const std::vector<uint16_t>& exactPCs,
+                    const std::vector<uint8_t>& lowBytes,
+                    uint16_t before, uint16_t after, bool firstOnly,
+                    uint32_t absLo = 1, uint32_t absHi = 0)
+    { m_c64.getCpuBus().setPcWatch(exactPCs, lowBytes, before, after,
+                                   firstOnly, absLo, absHi); }
+    const std::vector<libsidplayfp::c64cpubus::PcWatchEvent>&
+    getPcWatchEvents() const
+    { return m_c64.getCpuBus().getPcWatchEvents(); }
+    void clearPcWatchEvents() { m_c64.getCpuBus().clearPcWatchEvents(); }
+
     // Reinit-ghost snapshot: see c64cpubus::setReinitSnapshot.
     void setReinitSnapshot(uint16_t trigPC, uint16_t lo, uint16_t hi)
     { m_c64.getCpuBus().setReinitSnapshot(trigPC, lo, hi); }

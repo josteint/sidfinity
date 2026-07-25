@@ -247,6 +247,39 @@ const std::vector<uint8_t>& sidplayfp::reinitWarm() const
     return sidplayer.reinitWarm();
 }
 
+void sidplayfp::setPcWatch(const std::vector<uint16_t>& exactPCs,
+                           const std::vector<uint8_t>& lowBytes,
+                           uint16_t before, uint16_t after, bool firstOnly,
+                           uint32_t absLo, uint32_t absHi)
+{
+    sidplayer.setPcWatch(exactPCs, lowBytes, before, after, firstOnly,
+                         absLo, absHi);
+}
+
+size_t sidplayfp::getPcWatchEventCount() const
+{
+    return sidplayer.getPcWatchEvents().size();
+}
+
+sidplayfp::PcWatchEvent sidplayfp::getPcWatchEvent(size_t i) const
+{
+    const auto& src = sidplayer.getPcWatchEvents()[i];
+    PcWatchEvent ev;
+    ev.pc = src.pc;
+    ev.a = src.a;
+    ev.x = src.x;
+    ev.y = src.y;
+    ev.playIdx = src.playIdx;
+    ev.relWin = src.relWin;
+    ev.absWin = src.absWin;
+    return ev;
+}
+
+void sidplayfp::clearPcWatchEvents()
+{
+    sidplayer.clearPcWatchEvents();
+}
+
 unsigned int sidplayfp::installedSIDs() const
 {
     return sidplayer.installedSIDs();

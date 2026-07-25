@@ -206,86 +206,125 @@ def _is_masm_base_ram(mem, a: int) -> bool:
                for i, b in enumerate(_MASM_INIT_PREFIX))
 
 
-def _observe_dispatch_2pass(sid_path: str, hvsc_root: str = 'hvsc84'):
-    """Observe with DMC landings only, then RETRY admitting Music Assembler
-    landings if that found nothing.
+# --- ground-truth landing observation (siddump --pc-watch) -----------------
+# Phase 2 of docs/siddump_native_capture_plan.md: the dispatch observation
+# runs under libsidplayfp instead of py65 (feedback_ground_truth.md). The
+# relative window [pc-$48, pc+$58] covers every predicate read: DMC head
+# (pc..pc+5), MA prefix (b+$48..b+$51 = pc..pc+9 with b = pc-$48), _base_kind
+# (b+1..b+5).
 
-    A LATER PASS, exactly like the JSR-only/JMP-inclusive retry this module
-    already does (ledger C31): a member that resolves on the first pass keeps
-    its existing spec byte-for-byte, so broadening the landing predicate is
-    zero-regression by construction. Only members that currently detect as
-    NOTHING can change — which is what a heterogeneous DMC+MA compilation
-    (Freespace_2075) does today, since its two MA sub-players carry no
-    three-JMP head and the observation loop never accepts a landing on them.
-    """
-    return (_observe_dispatch(sid_path, hvsc_root)
-            or _observe_dispatch(sid_path, hvsc_root, allow_masm=True))
+_PCW_BEFORE = 0x48
+_PCW_AFTER = 0x58
+
+
+class _WinView:
+    """mem-like view over one --pc-watch event's pc-relative RAM window.
+    Out-of-window reads return 0 — safe for the landing predicates, which
+    all require specific nonzero bytes ($4C heads / the MA prefix)."""
+
+    def __init__(self, pc: int, win: bytes):
+        self.base = pc - _PCW_BEFORE
+        self.win = win
+
+    def __getitem__(self, a: int) -> int:
+        i = a - self.base
+        return self.win[i] if 0 <= i < len(self.win) else 0
+
+
+def _pc_watch_landings(abs_path: str, sub: int):
+    """Ordered executed-PC events for one subtune from `siddump --pc-watch`:
+    [(pc, a, relwin bytes)] for every first-time PC with low byte $00 or $48
+    (the two landing shapes), in execution order. Events are NOT filtered to
+    init: the true landing is chronologically first, and filtering by
+    play-index would mis-drop it on a member whose init copy-loop READS the
+    play vector address as data (the play counter is a cpuRead proxy).
+    Returns None when siddump fails."""
+    import subprocess
+    repo = os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                        '..', '..', '..'))
+    siddump = os.path.join(repo, 'tools', 'siddump')
+    try:
+        out = subprocess.run(
+            [siddump, abs_path, '--pc-watch', '*00,*48',
+             '%X-%X' % (_PCW_BEFORE, _PCW_AFTER), '--pc-watch-first',
+             '--subtune', str(sub + 1), '--duration', '2'],
+            capture_output=True, text=True, timeout=120)
+    except Exception:
+        return None
+    events = []
+    for line in out.stdout.splitlines():
+        pos = 0
+        while True:
+            pos = line.find('|PW:', pos)
+            if pos < 0:
+                break
+            fields = line[pos + 4:].split(':', 6)
+            if len(fields) < 7:
+                break
+            pc, a = int(fields[0], 16), int(fields[1], 16)
+            rel = bytes.fromhex(fields[5].split('|', 1)[0])
+            events.append((pc, a, rel))
+            pos += 4
+    return events
 
 
 def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
-                      max_steps: int = 400000, allow_masm: bool = False):
-    """Discover the per-subtune (player, song) map by RUNNING the wrapper.
+                      allow_masm: bool = False):
+    """Discover the per-subtune (player, song) map by RUNNING the wrapper —
+    under libsidplayfp (`siddump --pc-watch`), the GROUND-TRUTH engine.
 
     The static decode above reads the wrapper's `LDA abs,X` tables assuming
     X *is* the subtune number and that the base table holds page HI-bytes
-    only (the JMP lo-bytes being fixed at $00, since players are page
-    aligned). Wrapper shapes vary: Bayliss's Defuzion_3 SCALES the index
-    (`ASL A; TAX` -> X = subtune*2) and patches full lo/hi VECTOR PAIRS, so
-    every candidate table decodes to interleaved garbage ($5000, $0000,
-    $6000, ...) and the static pass gives up.
+    only. Wrapper shapes vary (Defuzion_3 SCALES the index and patches full
+    lo/hi VECTOR PAIRS), so per C18/C27 the cure is to OBSERVE rather than
+    teach the parser one more shape: run the member's own init with
+    A = subtune (one siddump invocation per subtune — the dispatch is SMC,
+    and a fresh process is a fresh image) and replay the landing predicates
+    over the executed-PC event stream, in execution order. The landing is
+    the selected player base and the event's A is the song number that
+    player is initialised with. Events are execution-discriminated (a data
+    read of a page-aligned address cannot fire one — ledger C36) and carry
+    the RAM window the predicates need, captured AT the landing — a
+    relocated player exists only in RAM (Black_It materialises $1000).
 
-    Per C18/C27 the cure is to OBSERVE rather than teach the parser one more
-    shape: run the member's own init with A = subtune under py65 and record
-    where it lands and what A it carries when it gets there. The landing is
-    the selected player base and A is the song number that player is
-    initialised with — exactly the (player, song) pair the spec needs,
-    whatever arithmetic the wrapper used to compute it. The image is reloaded
-    per subtune because the dispatch is SMC.
+    Runs only as a LATER pass (the static decode wins whenever it
+    resolves), pre-gated so an ordinary single-player member never pays for
+    the observation. Two gates, either of which admits a member:
 
-    Runs only as a LATER pass (the static decode wins whenever it resolves),
-    pre-gated so an ordinary single-player member never pays for the
-    emulation. Two gates, either of which admits a member:
-
-      (a) the file image already carries >=2 page-aligned player bases — the
-          co-packed compilation (Defuzion_3, Canyon);
-      (b) it carries >=1, and the PSID init vector does NOT lead into any of
-          them — a WRAPPER runs before any player. That is the RELOCATING
-          compilation: the wrapper COPIES a player into RAM per subtune, so
-          the second player is not in the file image at ALL and gate (a) can
-          never see it (Super_Seven $2000->$3800, Pour_le_merite $9409->$1000,
-          Black_It, Freespace_2075). An ordinary member's init vector is the
-          player's own jump table, so it fails (b) immediately.
+      (a) the file image already carries >=2 page-aligned player bases —
+          the co-packed compilation (Defuzion_3, Canyon);
+      (b) it carries >=1, and the PSID init vector does NOT lead into any
+          of them — the RELOCATING compilation, whose wrapper COPIES a
+          player into RAM per subtune (Super_Seven, Pour_le_merite,
+          Black_It, Freespace_2075).
 
     A base the file image does not carry is recorded in the returned spec's
-    `reloc` map as {base: subtune}, naming the subtune whose init materialises
-    it — every later memory read for that player must use that subtune's
-    post-init RAM instead of the image (ledger C31 + C26).
+    `reloc` map as {base: subtune}, naming the subtune whose init
+    materialises it — every later memory read for that player must use that
+    subtune's post-init RAM instead of the image (ledger C31 + C26).
+
+    Migrated from py65 2026-07-25 (Phase 2 of
+    docs/siddump_native_capture_plan.md); gate = spec-identity on the five
+    observe-path members + dmc_smoke + regression.
     """
     import sys
     sys.path.insert(0, os.path.join(os.path.dirname(__file__),
-                                    '..', '..', '..', 'tools', 'py65_lib'))
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
                                     '..', '..', '..', 'tools'))
     try:
-        from py65.devices.mpu6502 import MPU
-        from py65.memory import ObservableMemory
         from seed_disassembly import parse_psid
     except ImportError:
         return None
+    abs_path = os.path.join(hvsc_root, sid_path)
     try:
-        s = parse_psid(os.path.join(hvsc_root, sid_path))
+        s = parse_psid(abs_path)
     except Exception:
         return None
 
-    # Never speak for a MULTI-SID member (C27), whose wrapper also selects
-    # among several player bases — but in PARALLEL, one per chip every frame,
-    # not one per subtune. Observation alone cannot tell the two apart: a
-    # 2SID wrapper that gates its per-chip calls on the subtune (Rayden ships
-    # sub 0 = both chips, 1 = chip 1, 2 = chip 2) makes different subtunes
-    # LAND on different players, which reads exactly like a compilation. The
-    # PSID header's chip count is the authoritative discriminator.
+    # Never speak for a MULTI-SID member (C27) — observation alone cannot
+    # tell a per-subtune chip gate from a compilation; the PSID header's
+    # chip count is the authoritative discriminator.
     from pipelines.dmc.v4.factory import _sid_header_multi
-    if _sid_header_multi(os.path.join(hvsc_root, sid_path))[0] > 1:
+    if _sid_header_multi(abs_path)[0] > 1:
         return None
 
     load, songs = s['load'], s.get('songs', 1)
@@ -296,7 +335,7 @@ def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
 
     # Pre-gate (see the docstring): >=2 packed players, or >=1 plus an init
     # vector that runs a wrapper first. Cheap page-aligned scan of the file
-    # image; bail before touching py65 when the member can't be either.
+    # image; bail before observing when the member can't be either.
     hi = min(0x10000, load + len(s['payload']))
     in_image = [a for a in range((load + 0xFF) & ~0xFF, hi, 0x100)
                 if _is_player_base(img, load, a)]
@@ -311,47 +350,36 @@ def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
 
     obs, reloc, kinds = [], {}, {}
     for sub in range(songs):
-        mem = ObservableMemory()
-        for a in range(load, hi):
-            mem[a] = img[a]
-        mpu = MPU()
-        mpu.memory = mem
-        mpu.pc, mpu.a = s['init'], sub
+        events = _pc_watch_landings(abs_path, sub)
+        if not events:
+            return None
         landed = None
-        for _ in range(max_steps):
-            pc = mpu.pc
+        for pc, a, rel in events:
             # The wrapper's own entry can itself be page-aligned, so never
             # accept the address we started from as the landing.
-            if pc != s['init']:
-                if not (pc & 0xFF) and _is_player_base_ram(mem, pc):
-                    landed = (pc, mpu.a)
-                    # classify at the LANDING, on the RAM view — a relocated
-                    # player is not in the image (Black_It's family-4 V5
-                    # player materialises at $1000).
-                    kinds[pc] = _base_kind(mem, pc)
-                    break
-                # Music Assembler is entered at its INIT (base+$48), never at
-                # the page-aligned base — the DMC convention of "execution
-                # arrives at the jump table" simply does not hold for it, so
-                # the alignment test has to be applied to the derived base.
-                # It also carries no song number in A (the accumulator here is
-                # leftover from the wrapper's copy loop): each packed MA
-                # player is one tune, so the song is always 0.
-                if allow_masm:
-                    b = pc - _MASM_INIT_OFS
-                    if b > 0 and not (b & 0xFF) and _is_masm_base_ram(mem, b):
-                        landed = (b, 0)
-                        kinds[b] = 'masm'
-                        break
-            try:
-                mpu.step()
-            except Exception:
+            if pc == s['init']:
+                continue
+            view = _WinView(pc, rel)
+            if not (pc & 0xFF) and _is_player_base_ram(view, pc):
+                landed = (pc, a)
+                # classify at the LANDING, on the RAM view captured there.
+                kinds[pc] = _base_kind(view, pc)
                 break
+            # Music Assembler is entered at its INIT (base+$48), never at
+            # the page-aligned base. It carries no song number in A (the
+            # accumulator is leftover from the wrapper's copy loop): each
+            # packed MA player is one tune, so the song is always 0.
+            if allow_masm:
+                b = pc - _MASM_INIT_OFS
+                if b > 0 and not (b & 0xFF) and _is_masm_base_ram(view, b):
+                    landed = (b, 0)
+                    kinds[b] = 'masm'
+                    break
         if landed is None:
             return None
         obs.append(landed)
-        # A base absent from the file image was COPIED there by this subtune's
-        # init; remember which subtune materialises it.
+        # A base absent from the file image was COPIED there by this
+        # subtune's init; remember which subtune materialises it.
         if not _is_player_base(img, load, landed[0]):
             reloc.setdefault(landed[0], sub)
 
@@ -366,9 +394,24 @@ def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
             'map': [(idx[b], song) for b, song in obs],
             'reloc': reloc,
             # Which ENGINE each base is, recorded where it is actually known
-            # (at the landing) rather than re-derived later from an image that
-            # may not even contain a relocated player. 'dmc' | 'masm'.
+            # (at the landing). 'dmc' | 'dmcv5' | 'masm'.
             'kinds': [kinds.get(b, 'dmc') for b in ordered_bases]}
+
+
+def _observe_dispatch_2pass(sid_path: str, hvsc_root: str = 'hvsc84'):
+    """Observe with DMC landings only, then RETRY admitting Music Assembler
+    landings if that found nothing.
+
+    A LATER PASS, exactly like the JSR-only/JMP-inclusive retry this module
+    already does (ledger C31): a member that resolves on the first pass keeps
+    its existing spec byte-for-byte, so broadening the landing predicate is
+    zero-regression by construction. Only members that currently detect as
+    NOTHING can change — which is what a heterogeneous DMC+MA compilation
+    (Freespace_2075) does today, since its two MA sub-players carry no
+    three-JMP head and the observation loop never accepts a landing on them.
+    """
+    return (_observe_dispatch(sid_path, hvsc_root)
+            or _observe_dispatch(sid_path, hvsc_root, allow_masm=True))
 
 
 # ---------------------------------------------------------------------------

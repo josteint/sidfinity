@@ -322,6 +322,31 @@ public:
     const std::vector<uint8_t>& reinitWarm() const;
 
     /**
+     * PC-watch: record an event whenever a watched PC (exact address, or a
+     * low-byte pattern) is EXECUTED — data reads of the same address are
+     * rejected by the C36 consecutive-read bus signature. Each event carries
+     * A/X/Y, the play-invocation index (0 = during init; needs setPlayAddr),
+     * RAM[pc-before .. pc+after] and optionally RAM[absLo .. absHi] (RAM
+     * view). firstOnly dedupes per PC. siddump drives this via --pc-watch.
+     * Serves the C31 compilation-dispatch landing observation and the C18
+     * play-phase classification (docs/siddump_native_capture_plan.md Phase 2).
+     */
+    struct PcWatchEvent {
+        uint16_t pc;
+        uint8_t a, x, y;
+        uint64_t playIdx;
+        std::vector<uint8_t> relWin;
+        std::vector<uint8_t> absWin;
+    };
+    void setPcWatch(const std::vector<uint16_t>& exactPCs,
+                    const std::vector<uint8_t>& lowBytes,
+                    uint16_t before, uint16_t after, bool firstOnly,
+                    uint32_t absLo = 1, uint32_t absHi = 0);
+    size_t getPcWatchEventCount() const;
+    PcWatchEvent getPcWatchEvent(size_t i) const;
+    void clearPcWatchEvents();
+
+    /**
      * Get the required size of the buffer for the number of cycles to run,
      * approximate value by excess.
      * The mixer must have been initialized before with #initMixer

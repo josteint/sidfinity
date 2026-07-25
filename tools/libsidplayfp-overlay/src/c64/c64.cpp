@@ -91,6 +91,9 @@ c64::c64() :
     // Wire the scheduler so c64cpubus can record PHI1 cycles at each
     // PSID play vector entry (siddump --writelog-per-irq / Trap C kill).
     cpubus.setScheduler(&eventScheduler);
+    // Wire the CPU so the PC-watch tap can sample A/X/Y at a hit
+    // (siddump --pc-watch; observe-only register getters).
+    cpubus.setCpu(&cpu);
     resetIoBank();
 }
 

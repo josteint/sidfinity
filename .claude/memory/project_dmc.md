@@ -25,8 +25,14 @@ py65 (2×2048), For_Party FULL (154374/154374), dmc_smoke 6/6, full regression.
 - Localization gotcha (in C36): `writelog_capture` frame indices are COMPACTED
   (writes-only frames) — burst "frame 9538" = raw siddump frame 9845; my first
   pc-traces searched the wrong window.
-- NEXT for this initiative (not DMC-specific): Phase 2 = init-landing flag +
-  Class-C migrations (`_observe_dispatch`, play-phase/base observers).
+- PHASE 2 (same day): `siddump --pc-watch` (executed-PC events, C36-
+  discriminated, A/X/Y via overlay MOS6510 getters + play-index + RAM
+  windows) + `_observe_dispatch` migrated py65->siddump, py65 loop DELETED.
+  A/B gate: spec-identical on all 5 observe-path members (Super_Seven /
+  Pour_le_merite / Black_It / Freespace_2075 / Defuzion_3, both masm modes);
+  Super_Seven verifies FULL 2/2 subs; dmc_smoke 6/6; full regression clean.
+  Remaining Class C: `_observe_play_phases*` + `_postinit_window` (the tap
+  already carries what they need).
 
 ## ✅ ROUND 119 (2026-07-24): Hank $FF-loop reads a NULL zero-page pointer → loop target is a sonified zp byte (C29 class). Roots FULL (+1)
 Next f1 partial by path = `Hank/Roots` (single, canon $1000, vblank,

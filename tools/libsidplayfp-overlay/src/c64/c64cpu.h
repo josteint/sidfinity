@@ -88,6 +88,35 @@ private:
             out.push_back(m_mmu.readMemByte(static_cast<uint16_t>(a)));
     }
 
+    // PC-watch state (SIDfinity, siddump --pc-watch). See setPcWatch().
+    // Separate run tracker from the reinit one so the two features cannot
+    // interfere (each is only pennies per read).
+    MOS6510 *m_cpu = nullptr;           // wired by c64.cpp (register access)
+    bool m_pcWatchOn = false;
+    bool m_pcWatchFirstOnly = false;
+    std::vector<uint16_t> m_pcWatchExact;
+    bool m_pcWatchLow[256] = {};        // low-byte patterns ("*XX")
+    bool m_pcWatchAnyLow = false;
+    uint16_t m_pcWatchBefore = 0;       // relative window [pc-before, pc+after]
+    uint16_t m_pcWatchAfter = 0;
+    uint32_t m_pcWatchAbsLo = 1;        // optional absolute window; lo>hi = off
+    uint32_t m_pcWatchAbsHi = 0;
+    uint16_t m_pcwLastRead = 0;
+    uint8_t m_pcwRun = 0;
+    std::vector<bool> m_pcWatchSeen;    // per-PC dedupe (firstOnly)
+
+public:
+    struct PcWatchEvent {
+        uint16_t pc;
+        uint8_t a, x, y;
+        uint64_t playIdx;               // m_playCount at the hit (0 = init)
+        std::vector<uint8_t> relWin;    // RAM[pc-before .. pc+after]
+        std::vector<uint8_t> absWin;    // RAM[absLo .. absHi] (may be empty)
+    };
+private:
+    std::vector<PcWatchEvent> m_pcWatchEvents;
+    static const size_t PCWATCH_MAX_EVENTS = 4096;
+
 public:
     // EventRecord declared early so m_eventLog (private) can reference it.
     struct EventRecord {
@@ -170,6 +199,47 @@ public:
     const std::vector<uint8_t>& reinitCold() const { return m_reinitCold; }
     const std::vector<uint8_t>& reinitWarm() const { return m_reinitWarm; }
 
+    // CPU wiring for the PC-watch's register capture (c64.cpp calls this
+    // once after construction; observe-only — only getRegA/X/Y are used).
+    void setCpu(MOS6510 *cpu) { m_cpu = cpu; }
+
+    // PC-watch (SIDfinity, siddump --pc-watch): record an event whenever a
+    // watched PC (exact address, or any PC whose LOW BYTE matches a "*XX"
+    // pattern) is EXECUTED. Execution is discriminated from a data read of
+    // the same address by the C36 bus signature — >=3 consecutive ascending
+    // reads (opcode @PC, byte @PC+1, byte @PC+2); no data-access pattern
+    // produces that run. The event fires at the PC+2 read, so registers are
+    // sampled BEFORE the instruction at PC completes when it is >=3 bytes
+    // (JMP abs, LDA abs,X ...), and after it for a 2-byte instruction (the
+    // PC+2 read is then the next opcode fetch) — callers watching 2-byte
+    // sites must not rely on pre-instruction register values.
+    // Each event carries A/X/Y, the play-invocation index (0 = during init;
+    // requires setPlayAddr), RAM[pc-before .. pc+after] and optionally an
+    // absolute RAM window — all read via the RAM view (readMemByte).
+    // firstOnly dedupes per PC (the landing use); otherwise every hit is
+    // recorded up to PCWATCH_MAX_EVENTS.
+    void setPcWatch(const std::vector<uint16_t>& exactPCs,
+                    const std::vector<uint8_t>& lowBytes,
+                    uint16_t before, uint16_t after,
+                    bool firstOnly,
+                    uint32_t absLo = 1, uint32_t absHi = 0)
+    {
+        m_pcWatchExact = exactPCs;
+        for (int i = 0; i < 256; ++i) m_pcWatchLow[i] = false;
+        m_pcWatchAnyLow = !lowBytes.empty();
+        for (uint8_t lb : lowBytes) m_pcWatchLow[lb] = true;
+        m_pcWatchBefore = before;
+        m_pcWatchAfter = after;
+        m_pcWatchFirstOnly = firstOnly;
+        m_pcWatchAbsLo = absLo;
+        m_pcWatchAbsHi = absHi;
+        m_pcWatchSeen.assign(0x10000, false);
+        m_pcWatchOn = true;
+    }
+    const std::vector<PcWatchEvent>& getPcWatchEvents() const
+    { return m_pcWatchEvents; }
+    void clearPcWatchEvents() { m_pcWatchEvents.clear(); }
+
     // Side-effect-free CPU-eye read (through the MMU: banked ROM + 6510
     // port visible; no trace/play-counter bookkeeping).
     uint8_t peek(uint_least16_t addr) { return m_mmu.cpuRead(addr); }
@@ -238,6 +308,57 @@ protected:
                 addr == static_cast<uint16_t>(m_reinitTrigPC + 2))
             {
                 m_reinitTrigSeen = true;
+            }
+        }
+        // PC-watch: same C36 execution-signature discrimination, own tracker.
+        if (m_pcWatchOn)
+        {
+            if (addr == static_cast<uint16_t>(m_pcwLastRead + 1))
+            {
+                if (m_pcwRun < 0xFF) ++m_pcwRun;
+            }
+            else
+            {
+                m_pcwRun = 1;
+            }
+            m_pcwLastRead = static_cast<uint16_t>(addr);
+            if (m_pcwRun >= 3 && m_pcWatchEvents.size() < PCWATCH_MAX_EVENTS)
+            {
+                const uint16_t cand = static_cast<uint16_t>(addr - 2);
+                bool hit = m_pcWatchAnyLow && m_pcWatchLow[cand & 0xFF];
+                if (!hit)
+                {
+                    for (uint16_t p : m_pcWatchExact)
+                        if (p == cand) { hit = true; break; }
+                }
+                if (hit && m_pcWatchFirstOnly)
+                {
+                    if (m_pcWatchSeen[cand]) hit = false;
+                    else m_pcWatchSeen[cand] = true;
+                }
+                if (hit)
+                {
+                    PcWatchEvent ev;
+                    ev.pc = cand;
+                    ev.a = m_cpu ? m_cpu->getRegA() : 0;
+                    ev.x = m_cpu ? m_cpu->getRegX() : 0;
+                    ev.y = m_cpu ? m_cpu->getRegY() : 0;
+                    ev.playIdx = m_playCount;
+                    ev.relWin.reserve(m_pcWatchBefore + m_pcWatchAfter + 1);
+                    for (int32_t o = -static_cast<int32_t>(m_pcWatchBefore);
+                         o <= static_cast<int32_t>(m_pcWatchAfter); ++o)
+                        ev.relWin.push_back(m_mmu.readMemByte(
+                            static_cast<uint16_t>(cand + o)));
+                    if (m_pcWatchAbsLo <= m_pcWatchAbsHi)
+                    {
+                        ev.absWin.reserve(m_pcWatchAbsHi - m_pcWatchAbsLo + 1);
+                        for (uint32_t a2 = m_pcWatchAbsLo;
+                             a2 <= m_pcWatchAbsHi; ++a2)
+                            ev.absWin.push_back(m_mmu.readMemByte(
+                                static_cast<uint16_t>(a2)));
+                    }
+                    m_pcWatchEvents.push_back(std::move(ev));
+                }
             }
         }
         return val;
