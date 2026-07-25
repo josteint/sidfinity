@@ -141,13 +141,19 @@ byte-identity. Plan + inventory + phased path:
 (also linked from `tools/INVESTIGATION_BACKLOG.md`). Standing default: observe
 from libsidplayfp, not py65.
 
-**⚠ The boundary of that default (2026-07-25, Super_Seven):** a py65 site
-whose PURPOSE is an IDEALIZED / counterfactual environment is a **simulation,
-not an observation — do not migrate it.** `_postinit_window` wants "RAM as if
-only the image + init existed"; the real machine cannot produce that
-counterfactual (psiddrv is always resident — its bytes landed in the
-extraction's base memory and Super_Seven sub 1 went partial; reverted). Such
-sites read image-loaded / init-written bytes (trustworthy py65 per this
-file's own rule), and their genuine environment reads are served separately
-by the C29 `--peek-post-init` path. Ask of every candidate: does it observe
-the real machine, or simulate an idealized one?
+**⚠ The boundary of that default (2026-07-25) — a CLASS, ≥2 known instances:**
+a py65 site whose PURPOSE is an IDEALIZED / counterfactual environment is a
+**simulation, not an observation — do not migrate it.** The shape: zero-fill
+(or power-on) + file image, run init, snapshot AT A LANDING or post-init
+WITHOUT the PSID driver / real zp / stack — reading work-file leftovers as
+priming. The real machine cannot produce that counterfactual (psiddrv is
+always resident, and running past the landing overwrites the leftovers), so a
+libsidplayfp RAM snapshot injects driver/environment bytes and corrupts the
+result. Known instances: DMC `_postinit_window(stop_at_player=True)` (migration
+attempted, Super_Seven sub 1 went partial, reverted — Phase 2c) and MA
+`heterogeneous._landing_memory` (guarded by docstring; found in the Phase-3
+audit before anyone tried). Such sites read image-loaded / init-written /
+init-copied bytes (trustworthy py65 per this file's own rule), and genuine
+environment reads are served separately by the C29 `--peek-post-init` path.
+**Ask of every candidate: does it OBSERVE the real machine, or SIMULATE an
+idealized one the real machine can't produce?**

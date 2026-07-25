@@ -18,9 +18,30 @@ simulation, 2c), and the DMC MULTI-SID trio (`_observe_play_phases_chip` /
 `multisid_active_chips` / `_observe_player_bases`, 2d — not divergence-prone
 or slow, and the per-chip --pc-watch anchor breaks cross-chip phase
 alignment for complementary schedules: Cow_Anus_Fucked FULL->PARTIAL,
-reverted). Remaining genuine candidate: `_observe_play_phases_writes`
-(fallback-order swap onto its existing pctrace twin). Phase 3 = audit the
-non-DMC families for divergence-prone / slow sites. The sections below are kept for the inventory, the phased
+reverted). Remaining DMC candidate: `_observe_play_phases_writes`
+(fallback-order swap onto its existing pctrace twin).
+
+**Phase 3 DONE (audit, 2026-07-25): the CORRECTNESS goal is MET — no
+divergence-driven migration remains anywhere.** A full classification of the
+~32 non-DMC py65 sites (their verdicts recorded per-site) found: every
+divergence-prone (C29-class) site is in `pipelines/dmc/` and is already
+handled; every non-DMC site is either (a) an init-only read of image /
+init-written / init-copied bytes on a clean engine (not divergence-prone,
+correctly on py65 per the ground-truth rule), (b) a standalone dev/analysis
+tool, or (c) a SIMULATION that must NOT migrate — the audit surfaced the
+second known instance, MA `heterogeneous._landing_memory` (the twin of
+`_postinit_window`), and it is now docstring-guarded BEFORE anyone tried.
+The ONLY sites tripping the rule do so on the **slow** axis alone — three
+clean-engine, low-volume, non-batched sims (`jay_derrett._run_play_capture`
+~2000 frames, `jay_derrett/type_b` ~1000, `hubbard/inst_program.capture`
+~1500) — all zero-correctness-benefit, low-ROI; deferred (do only if a speed
+need appears). Tooling-hygiene follow-ups the audit noted (not part of this
+initiative): `src/usf/audit.py` duplicates `tools/voice_writelog.py`,
+`src/hubbard_emu.verify_against_py65` validates a proxy against a proxy, and
+`jay_derrett/build.capture_writes_via_py65` is now test-only dead weight —
+candidates for deletion/consolidation.
+
+The sections below are kept for the inventory, the phased
 path, and the gating disciplines. Read `feedback_ground_truth.md` first.
 
 ## Phase 0 — survey the design space FIRST (gates everything; do not build until done)

@@ -96,6 +96,16 @@ def _landing_memory(s, img, sub: int, base: int, masm: bool,
     the file image and must be read from the post-copy memory. Snapshot AT THE
     LANDING, not after init completes — running init to the end overwrites the
     very work-file leftovers that are read as priming (ledger C31/C26).
+
+    ⚠ DO NOT migrate this to siddump/libsidplayfp — it is a SIMULATION, not an
+    observation (the exact class + reason as DMC `_postinit_window`, native-
+    capture Phase 2c; see feedback_ground_truth.md). It deliberately reads an
+    IDEALIZED machine (zero-fill + image, no PSID driver, stopped at the
+    landing); the real machine cannot produce that counterfactual (psiddrv is
+    always resident, and running past the landing overwrites the leftovers),
+    so a libsidplayfp RAM snapshot injects driver/environment bytes and
+    corrupts the priming. py65 reads image + init-copied bytes here, which is
+    correct per the ground-truth rule.
     """
     import sys as _sys
     _sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
