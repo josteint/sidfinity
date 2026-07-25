@@ -222,6 +222,29 @@ def _detect_wrong_value_freq(r) -> 'Signal | None':
                   f'{hint}; orig ${oval:02X} vs rebuild ${rval:02X}')
 
 
+def _detect_wrong_value_pulse(r) -> 'Signal | None':
+    """WRONG VALUE on a pulse-width register (PW lo/hi) -> a pulse-program /
+    PWM sweep the composer runs but the orig doesn't (or a different contour):
+    the swept-value class (C1), often a 'no program' mis-detection (C3) or a
+    wrong instrument's PWM. Very common as an EARLY divergence (first note)."""
+    if _div_kind(r) != 'wrong_value':
+        return None
+    reg, oval, *_ = r['orig_flat'][r['first_div']]
+    rval = r['rebuild_flat'][r['first_div']][1]
+    role = describe_reg(reg)
+    if 'PW' not in role:
+        return None
+    flat = (oval == 0)                      # orig PW held at 0 = no sweep at all
+    return Signal('C1/C3', 'MED',
+                  f'wrong VALUE on {role} -> pulse-width contour differs '
+                  + ('(orig holds PW=$00 = NO sweep; composer runs a PWM '
+                     'that should be absent/flat -> check "no program" '
+                     'detection C3 + the voice\'s instrument)'
+                     if flat else '(PWM sweep contour C1 or wrong instrument)'),
+                  f'orig ${oval:02X} vs rebuild ${rval:02X}'
+                  + ('; orig PW flat at 0' if flat else ''))
+
+
 def _detect_wrong_value_global(r) -> 'Signal | None':
     """WRONG VALUE on a chip-global register ($D415-$D418) -> filter /
     master-vol AUTOMATION (C10), not a per-voice effect."""
@@ -241,6 +264,7 @@ BLIND_DETECTORS = [
     _detect_length_tail,
     _detect_cross_chip,
     _detect_wrong_value_freq,
+    _detect_wrong_value_pulse,
     _detect_write_order,
     _detect_wrong_value_global,
 ]
