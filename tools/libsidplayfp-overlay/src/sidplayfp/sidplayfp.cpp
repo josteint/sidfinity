@@ -229,6 +229,24 @@ void sidplayfp::clearMemWatchEvents()
     sidplayer.clearEventLog();
 }
 
+void sidplayfp::setReinitSnapshot(uint16_t trigPC, uint16_t lo, uint16_t hi)
+{
+    sidplayer.setReinitSnapshot(trigPC, lo, hi);
+}
+
+bool sidplayfp::reinitColdDone() const { return sidplayer.reinitColdDone(); }
+bool sidplayfp::reinitWarmDone() const { return sidplayer.reinitWarmDone(); }
+
+const std::vector<uint8_t>& sidplayfp::reinitCold() const
+{
+    return sidplayer.reinitCold();
+}
+
+const std::vector<uint8_t>& sidplayfp::reinitWarm() const
+{
+    return sidplayer.reinitWarm();
+}
+
 unsigned int sidplayfp::installedSIDs() const
 {
     return sidplayer.installedSIDs();

@@ -200,6 +200,16 @@ public:
     { return m_c64.getCpuBus().getEventLog(); }
     void clearEventLog() { m_c64.getCpuBus().clearEventLog(); }
 
+    // Reinit-ghost snapshot: see c64cpubus::setReinitSnapshot.
+    void setReinitSnapshot(uint16_t trigPC, uint16_t lo, uint16_t hi)
+    { m_c64.getCpuBus().setReinitSnapshot(trigPC, lo, hi); }
+    bool reinitColdDone() const { return m_c64.getCpuBus().reinitColdDone(); }
+    bool reinitWarmDone() const { return m_c64.getCpuBus().reinitWarmDone(); }
+    const std::vector<uint8_t>& reinitCold() const
+    { return m_c64.getCpuBus().reinitCold(); }
+    const std::vector<uint8_t>& reinitWarm() const
+    { return m_c64.getCpuBus().reinitWarm(); }
+
     unsigned int installedSIDs() const { return m_chips.size(); }
 
     void initMixer(bool stereo);

@@ -121,6 +121,7 @@ practice, not code to factor).
 | one FILE needs more than one COMPOSER · original packs players of DIFFERENT families behind a per-subtune dispatch wrapper · cannot be stored as one .usf · `origin_engine` Move-1 scaffold, boundary = "more than one COMPOSER" NOT "more than one engine" (5TT packs 5 sub-engines and needs none) | C35 | logged |
 | packed-stream byte whose meaning depends on the DECODER'S POSITION · a command handler consumes the following bytes itself with its OWN coarser rules (skipping the top-level dispatch AND the terminator test) · MA: invisible to the verdict (round-trips) — corrupts USF CONTENT · DMC track transpose handler: post-transpose $FF = a one-row pseudo-sector, then loop WITHOUT sectpos reset (visible at the wrap) · the quirk must reach EVERY walk that mirrors the dispatch — the C29 GATE walks skipped it, silently disabling the zp overlay (pseudo-sector $0000; probe the 'endless' sim's ROW 0) · find it by READING the handler | C34 | recurring (3×) |
 | close a `Params.fields` ESCAPE-HATCH key → typed field · untyped behavior-named scalar in the generic params bag (init-phase state / mechanism scalar), borderline §7 · NOT opaque-bytes (C7) / NOT a wedge knob (C19) · it's a byte-identity CARRIER REFACTOR not a schema addition (value already in USF) · census ALL consumers (often cross-engine SHARED + dead readers) · clone an existing typed field of the same trichotomy category · type by MUSICAL category NOT a composer grouping · gate regenerates + MD5-compares every consumer family (surfaces broken extract paths behind a FULL verdict) | C33 | methodology |
+| PC-triggered bus tap false-fires on DATA reads of the trigger address · "capture at PC X" watches cpuRead, bus can't tell fetch from data · plausible WRONG snapshot · discriminate EXECUTION by the ≥3-consecutive-ascending-reads bus signature · validate any new tap by CROSS-EMULATOR byte-identity (also proves non-perturbation) · writelog_capture frame indices are COMPACTED (writes-only frames) vs raw siddump frames | C36 | logged |
 
 ---
 
@@ -836,3 +837,19 @@ practice, not code to factor).
   from a STORED .usf, not from regeneration) — regenerating to gate surfaces
   it (the C20 relative at the extract layer).
 - FULL ENTRY: [`ledger/C33.md`](ledger/C33.md) — read it before applying.
+
+### C36 — a PC-triggered bus tap false-fires on DATA reads of the trigger address
+- PRESENTS: an observation hook fires when "the CPU reaches PC X" by watching
+  cpuRead — but code and data share the bus, so a table walk / off-table read
+  touching X as DATA fires it early, and the capture reports a coherent-looking
+  WRONG snapshot (For_Party: wedge $10DD read as data at frame 200, ~9600
+  frames before it executes; WARM off by 79/2048 bytes). The play-vector
+  counter's bare check is safe ONLY because a play vector is never read as
+  data — that does not generalize.
+- CANONICAL: discriminate EXECUTION by the 6502 bus signature — ≥3 consecutive
+  ascending reads (opcode @PC, operand @PC+1, fetch @PC+2); no data pattern
+  produces that run. Validate any new tap by CROSS-EMULATOR byte-identity of
+  the captured state (also subsumes the non-perturbation gate). NB
+  `writelog_capture` frame indices are COMPACTED (writes-only frames) vs raw
+  siddump frames — localize with same-process captures.
+- FULL ENTRY: [`ledger/C36.md`](ledger/C36.md) — read it before applying.

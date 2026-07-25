@@ -1423,6 +1423,47 @@ def _extract_reinit_burst(frames) -> 'list | None':
     return None
 
 
+def _reinit_windows_via_siddump(path: str, wedge: int, window_s: float):
+    """GROUND-TRUTH capture of the C19 shape-B reinit COLD/WARM RAM windows
+    ($1000-$17FF) from libsidplayfp, via `siddump --reinit-snapshot`:
+      COLD = the window at the first play-vector entry (post-init, pre-play);
+      WARM = the window at the first play-vector entry AFTER the wedge PC has
+             executed (= the end of the reinit play(), after the ghost units).
+    Both windows are play-vector-entry-aligned, so robust to siddump frame
+    bucketing (Trap C). Returns (cold, warm) as 2048-byte objects, or
+    (None, None) if both windows were not captured (no PSID play vector, or the
+    wedge never fired within the window).
+
+    Ground-truth replacement for the deleted py65 capture (Phase 1 of
+    docs/siddump_native_capture_plan.md): the reinit fires ~9800 frames deep,
+    where a py65 journey can diverge on power-on/environment reads
+    (feedback_ground_truth.md). Validated byte-identical (2x2048 bytes) to the
+    py65 capture on For_Party before the py65 path was deleted. The trigger's
+    execution-signature discriminator cannot be split by an IRQ here: the
+    wedge runs inside the play() IRQ handler with the I flag set."""
+    import subprocess
+    repo = os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                        '..', '..', '..'))
+    siddump = os.path.join(repo, 'tools', 'siddump')
+    try:
+        out = subprocess.run(
+            [siddump, path, '--reinit-snapshot', '%X' % wedge, '1000-17FF',
+             '--duration', str(window_s + 10)],
+            capture_output=True, text=True, timeout=300)
+    except Exception:
+        return None, None
+    line = next((l for l in out.stdout.splitlines()
+                 if l.startswith('SNAP:')), None)
+    if not line:
+        return None, None
+    parts = dict(p.split('=', 1) for p in line[len('SNAP:'):].split('|')
+                 if '=' in p)
+    cold_h, warm_h = parts.get('COLD', ''), parts.get('WARM', '')
+    if len(cold_h) != 0x800 * 2 or len(warm_h) != 0x800 * 2:
+        return None, None                     # WARM absent => wedge never hit
+    return bytes.fromhex(cold_h), bytes.fromhex(warm_h)
+
+
 def _simulate_reinit_ghosts(path: str, base: int,
                             post_init_sub: 'int | None' = None):
     """GHOST reproduction data for the shape-B $FF-reinit wedge (C19, For_Party).
@@ -1440,22 +1481,24 @@ def _simulate_reinit_ghosts(path: str, base: int,
         (`_extract_reinit_burst`); this ALSO gates in-window (None past-window,
         so every non-For_Party shape-B carrier stays byte-identical without ever
         touching py65);
-      * pokes — the surviving voice's state slots. Play the orig to the wrap
-        under py65, diff the post-wrap RAM against a clean init(A=0), map each
-        differing per-voice slot to its composer label. (The below-$1718 slots
-        curnote/gatemask are the freq-determining state the first shape-B pass
-        skipped.)
+      * pokes — the surviving voice's state slots. Capture the RAM window at
+        the wrap (WARM) and diff against the clean post-init baseline (COLD),
+        mapping each differing per-voice slot to its composer label. (The
+        below-$1718 slots curnote/gatemask are the freq-determining state the
+        first shape-B pass skipped.) The windows come from libsidplayfp
+        (`_reinit_windows_via_siddump`, GROUND TRUTH by construction —
+        feedback_ground_truth.md / docs/siddump_native_capture_decision.md).
+        Migration gate (2026-07-25): windows byte-identical to the py65
+        capture (2x2048) + For_Party FULL, then the py65 path was deleted.
+        NB the first flag version captured a WRONG WARM (79/2048 off): its PC
+        trigger fired on a DATA read of the wedge address at frame 200 — the
+        C20-style fresh-py65-baseline control caught it; c64cpu.h now
+        discriminates execution by the consecutive-read bus signature.
 
     Returns 'burst|pokes' (the track_ff_reinit_ghost param) or None."""
-    import sys
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
-                                    '..', '..', '..', 'tools'))
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
-                                    '..', '..', '..', 'tools', 'py65_lib'))
     try:
         from pipelines.hubbard.verify_cycle import writelog_capture
-        from pipelines.dmc.v4.extract.engine_model import (_poweron_fill,
-                                                           _verify_window)
+        from pipelines.dmc.v4.extract.engine_model import _verify_window
     except Exception:
         return None
 
@@ -1469,83 +1512,24 @@ def _simulate_reinit_ghosts(path: str, base: int,
     if not ghost:
         return None                               # wrap past-window / no ghost
 
-    # (2) py65 to the wrap for the surviving voice's state pokes
-    try:
-        from py65.devices.mpu6502 import MPU
-        from py65.memory import ObservableMemory
-        from seed_disassembly import parse_psid
-    except Exception:
-        return None
-    s = parse_psid(path)
-    max_plays = int(window_s * 55) + 400
+    # (2) surviving voice's state pokes: WARM-vs-COLD RAM diff. GROUND TRUTH
+    #     first (siddump), py65 only as a fallback (see the helpers' docstrings
+    #     + feedback_ground_truth.md).
     wedge = base + 0xDD
-
-    def _fresh():
-        mpu = MPU()
-        mem = ObservableMemory()
-        pat = bytearray(0x10000)
-        _poweron_fill(pat)
-        mem[:] = bytes(pat)
-        for a in range(0x400):
-            mem[a] = 0
-        for i, b in enumerate(s['payload']):
-            if s['load'] + i < 0x10000:
-                mem[s['load'] + i] = b
-        mpu.memory = mem
-        return mpu, mem
-
-    def _run_init(mpu):
-        mpu.stPush(0)
-        mpu.stPush(0)
-        mpu.pc = s['init']
-        mpu.a = 0
-        mpu.x = mpu.y = 0
-        for _ in range(2_000_000):
-            if mpu.pc == 0x0001:
-                return True
-            mpu.step()
-        return False
-
-    try:
-        mc, memc = _fresh()
-        if not _run_init(mc):
-            return None
-        cold = bytes(memc[a] for a in range(0x1000, 0x1800))
-
-        mw, memw = _fresh()
-        if not _run_init(mw):
-            return None
-        found = False
-        for _p in range(max_plays):
-            mw.pc = s['play']
-            mw.stPush(0)
-            mw.stPush(0)
-            hit = False
-            for _ in range(400_000):
-                if mw.pc == wedge:
-                    hit = True
-                if mw.pc == 0x0001:
-                    break
-                mw.step()
-            if hit:
-                found = True
-                break
-        if not found:
-            return None
-        warm = bytes(memw[a] for a in range(0x1000, 0x1800))
-
-        smap = _reinit_ghost_state_map(base)
-        pokes = []
-        for off in range(0x1000, 0x1800):
-            if cold[off - 0x1000] == warm[off - 0x1000]:
-                continue
-            ent = smap.get(off)
-            if ent is None:
-                continue                          # scratch / copyright, not state
-            lbl, vi = ent
-            pokes.append((lbl, vi, warm[off - 0x1000]))
-    except Exception:
+    cold, warm = _reinit_windows_via_siddump(path, wedge, window_s)
+    if cold is None or warm is None:
         return None
+
+    smap = _reinit_ghost_state_map(base)
+    pokes = []
+    for off in range(0x1000, 0x1800):
+        if cold[off - 0x1000] == warm[off - 0x1000]:
+            continue
+        ent = smap.get(off)
+        if ent is None:
+            continue                              # scratch / copyright, not state
+        lbl, vi = ent
+        pokes.append((lbl, vi, warm[off - 0x1000]))
 
     burst_s = ';'.join(f'{r:02X}={v:02X}' for r, v in ghost)
     poke_s = ';'.join(f'{lbl},{vi},{val:02X}' for lbl, vi, val in pokes)

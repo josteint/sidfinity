@@ -63,6 +63,31 @@ private:
     uint16_t m_eventWriteAddr = 0;
     std::vector<uint16_t> m_eventRamAddrs;
 
+    // Reinit-ghost snapshot state (SIDfinity). See setReinitSnapshot().
+    // Captures a RAM window at two play()-vector-entry-aligned moments so a
+    // C19 shape-B $FF-reinit ghost extraction reads from ground truth
+    // (libsidplayfp) instead of py65 (whose power-on / environment fill can
+    // diverge — see feedback_ground_truth.md). Both snapshots align to play
+    // vector ENTRIES (not siddump frames), so they are robust to Trap C.
+    uint16_t m_reinitTrigPC = 0;        // wedge PC; 0 = disabled
+    uint16_t m_reinitLo = 0;
+    uint16_t m_reinitHi = 0;
+    bool m_reinitTrigSeen = false;      // wedge PC has been EXECUTED
+    uint16_t m_reinitLastRead = 0;      // consecutive-read run tracker
+    uint8_t m_reinitRun = 0;            //   (execution-vs-data discriminator)
+    bool m_reinitColdDone = false;      // COLD window captured
+    bool m_reinitWarmDone = false;      // WARM window captured
+    std::vector<uint8_t> m_reinitCold;
+    std::vector<uint8_t> m_reinitWarm;
+
+    void snapshotReinitWindow(std::vector<uint8_t>& out)
+    {
+        out.clear();
+        out.reserve(static_cast<size_t>(m_reinitHi - m_reinitLo) + 1);
+        for (uint32_t a = m_reinitLo; a <= m_reinitHi; ++a)
+            out.push_back(m_mmu.readMemByte(static_cast<uint16_t>(a)));
+    }
+
 public:
     // EventRecord declared early so m_eventLog (private) can reference it.
     struct EventRecord {
@@ -122,6 +147,29 @@ public:
     const std::vector<EventRecord>& getEventLog() const { return m_eventLog; }
     void clearEventLog() { m_eventLog.clear(); }
 
+    // Reinit-ghost snapshot: capture RAM[lo..hi] at two play()-vector-entry-
+    // aligned moments, to reproduce the C19 shape-B $FF-reinit ghost pokes
+    // from ground truth instead of py65:
+    //   COLD = the window at the FIRST play-vector entry (post-init, before
+    //          any play body runs) — the clean baseline.
+    //   WARM = the window at the first play-vector entry AFTER trigPC (the
+    //          reinit wedge) has executed — i.e. at the END of the play()
+    //          that ran the ghost reinit (matching py65's play()-end capture).
+    // Aligning both to play-vector entries (reusing the play counter's
+    // opcode-fetch proxy) makes them independent of siddump frame bucketing
+    // (Trap C). Observe-only: only READS RAM, never writes emulated state.
+    // Requires setPlayAddr() to have been called (the play-entry proxy).
+    void setReinitSnapshot(uint16_t trigPC, uint16_t lo, uint16_t hi)
+    {
+        m_reinitTrigPC = trigPC;
+        m_reinitLo = lo;
+        m_reinitHi = hi;
+    }
+    bool reinitColdDone() const { return m_reinitColdDone; }
+    bool reinitWarmDone() const { return m_reinitWarmDone; }
+    const std::vector<uint8_t>& reinitCold() const { return m_reinitCold; }
+    const std::vector<uint8_t>& reinitWarm() const { return m_reinitWarm; }
+
     // Side-effect-free CPU-eye read (through the MMU: banked ROM + 6510
     // port visible; no trace/play-counter bookkeeping).
     uint8_t peek(uint_least16_t addr) { return m_mmu.cpuRead(addr); }
@@ -145,6 +193,51 @@ protected:
             {
                 m_playEntryCycles.push_back(
                     m_scheduler->getTime(EVENT_CLOCK_PHI1));
+            }
+            // Reinit-ghost snapshots are aligned to play-vector entries.
+            if (m_reinitTrigPC != 0)
+            {
+                if (!m_reinitColdDone)
+                {
+                    snapshotReinitWindow(m_reinitCold);   // first entry = COLD
+                    m_reinitColdDone = true;
+                }
+                else if (m_reinitTrigSeen && !m_reinitWarmDone)
+                {
+                    // First entry after the wedge fired = end of the reinit
+                    // play() = WARM.
+                    snapshotReinitWindow(m_reinitWarm);
+                    m_reinitWarmDone = true;
+                }
+            }
+        }
+        // Reinit wedge detection. The bus cannot tell an opcode fetch from a
+        // data read, and the wedge PC IS read as data during normal play
+        // (For_Party: a table walk reads $10DD at frame 200, ~9600 frames
+        // before the reinit executes it) — so a bare addr==trigPC check
+        // false-fires. Discriminate EXECUTION by its bus signature: executing
+        // the wedge (`LDA #imm / JMP abs`) produces >=3 consecutive ascending
+        // reads (opcode, operand, next opcode) with no intervening read,
+        // while a data walk always interleaves its own instruction fetches
+        // (an indirect-pointer read yields only a 2-run; an RMW dummy re-read
+        // repeats the same address and resets the run). Known miss window:
+        // an IRQ landing exactly between the wedge's two instructions breaks
+        // the run — the extract's py65 fallback covers that (rare) case.
+        if (m_reinitTrigPC != 0 && !m_reinitTrigSeen)
+        {
+            if (addr == static_cast<uint16_t>(m_reinitLastRead + 1))
+            {
+                if (m_reinitRun < 0xFF) ++m_reinitRun;
+            }
+            else
+            {
+                m_reinitRun = 1;
+            }
+            m_reinitLastRead = static_cast<uint16_t>(addr);
+            if (m_reinitRun >= 3 &&
+                addr == static_cast<uint16_t>(m_reinitTrigPC + 2))
+            {
+                m_reinitTrigSeen = true;
             }
         }
         return val;

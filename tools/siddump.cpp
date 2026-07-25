@@ -136,7 +136,12 @@ int main(int argc, char* argv[])
             "                             COMMA-separated list (NO spaces) of the RAM addresses to\n"
             "                             snapshot every time the CPU writes to the trigger.\n"
             "                             Emits one E<idx>:<trigger=val>:<addr=val>... line per\n"
-            "                             event. Use for SMC / conditional-update traces.\n",
+            "                             event. Use for SMC / conditional-update traces.\n"
+            "  --reinit-snapshot PC LO-HI  Capture RAM[LO..HI] at (COLD) the first play-vector\n"
+            "                             entry and (WARM) the first play-vector entry after PC\n"
+            "                             (a reinit wedge) executes, then exit. One\n"
+            "                             SNAP:COLD=<hex>|WARM=<hex> line (WARM omitted if PC never\n"
+            "                             hit). Ground-truth C19 shape-B $FF-reinit ghost capture.\n",
             argv[0]);
         return 1;
     }
@@ -161,6 +166,9 @@ int main(int argc, char* argv[])
     uint16_t memwatch_event_trigger = 0;     // 0 = disabled
     std::vector<uint16_t> memwatch_event_ram;
     std::vector<std::pair<uint16_t, uint16_t>> peek_ranges;
+    bool reinit_on = false;                  // --reinit-snapshot
+    uint16_t reinit_trig = 0;
+    uint16_t reinit_lo = 0, reinit_hi = 0;
 
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--raw") == 0) {
@@ -230,6 +238,19 @@ int main(int argc, char* argv[])
                                          static_cast<uint16_t>(hi));
                 if (*p == ',') ++p;
             }
+        } else if (strcmp(argv[i], "--reinit-snapshot") == 0 && i + 2 < argc) {
+            // PC (hex) + one AAAA-BBBB hex RAM range (inclusive). Captures the
+            // window at (COLD) the first play-vector entry and (WARM) the first
+            // play-vector entry after PC executes; see the run block below.
+            reinit_on = true;
+            reinit_trig = static_cast<uint16_t>(strtoul(argv[++i], nullptr, 16));
+            const char* p = argv[++i];
+            char* end = nullptr;
+            reinit_lo = static_cast<uint16_t>(strtoul(p, &end, 16));
+            if (end != p && *end == '-')
+                reinit_hi = static_cast<uint16_t>(strtoul(end + 1, nullptr, 16));
+            else
+                reinit_hi = reinit_lo;
         } else if (strcmp(argv[i], "--subtune") == 0 && i + 1 < argc) {
             subtune = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--duration") == 0 && i + 1 < argc) {
@@ -485,6 +506,31 @@ int main(int argc, char* argv[])
                 if (a == 0xFFFF) break;   // unsigned wrap guard
             }
         }
+        printf("\n");
+        return 0;
+    }
+
+    // --reinit-snapshot: capture RAM[lo..hi] at (COLD) the first play-vector
+    // entry (post-init, before any play body) and (WARM) the first play-vector
+    // entry AFTER the wedge PC has executed (= end of the reinit play()), then
+    // exit. Reproduces the C19 shape-B $FF-reinit ghost cold/warm windows from
+    // ground truth (libsidplayfp) instead of py65 — see
+    // docs/siddump_native_capture_plan.md. Both moments align to play-vector
+    // entries, so the capture is robust to siddump frame bucketing (Trap C).
+    if (reinit_on) {
+        engine.setPlayAddr(info->playAddr());   // the play-entry proxy
+        engine.setReinitSnapshot(reinit_trig, reinit_lo, reinit_hi);
+        for (int frame = 0; frame < totalFrames; frame++) {
+            if (engine.play(cyclesPerFrame) < 0) break;
+            if (engine.reinitWarmDone()) break; // both windows captured
+        }
+        auto emitWindow = [](const char* tag, const std::vector<uint8_t>& w) {
+            printf("%s=", tag);
+            for (uint8_t b : w) printf("%02X", b);
+        };
+        printf("SNAP:");
+        if (engine.reinitColdDone()) emitWindow("COLD", engine.reinitCold());
+        if (engine.reinitWarmDone()) { printf("|"); emitWindow("WARM", engine.reinitWarm()); }
         printf("\n");
         return 0;
     }

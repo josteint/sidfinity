@@ -8,6 +8,26 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ NATIVE-CAPTURE PHASE 1 (2026-07-25): ghost sim migrated py65 → siddump `--reinit-snapshot`. For_Party stays FULL; counts unchanged
+Phase 0 of `docs/siddump_native_capture_plan.md` produced the decision doc
+(`docs/siddump_native_capture_decision.md`: declarative siddump flags A-first,
+binding deferred); Phase 1 migrated the r118 ghost sim's COLD/WARM RAM capture
+(`_simulate_reinit_ghosts` step 2) to the new `siddump --reinit-snapshot PC
+LO-HI` overlay tap and **deleted the py65 window capture**
+(`_reinit_windows_via_siddump` in factory.py). Gates: windows byte-identical to
+py65 (2×2048), For_Party FULL (154374/154374), dmc_smoke 6/6, full regression.
+- ⚠ **C36 (new ledger entry):** the first flag version false-fired — the wedge
+  address $10DD is read as DATA at frame 200 (~9600 frames before it executes),
+  so a bare `addr==PC` bus check captured a plausible WRONG WARM (79/2048 off,
+  For_Party partial at the reinit). The C20-style control (fresh py65 baseline
+  = genuinely FULL) unmasked it. Fix = execution-signature discriminator
+  (≥3 consecutive ascending reads) in c64cpu.h.
+- Localization gotcha (in C36): `writelog_capture` frame indices are COMPACTED
+  (writes-only frames) — burst "frame 9538" = raw siddump frame 9845; my first
+  pc-traces searched the wrong window.
+- NEXT for this initiative (not DMC-specific): Phase 2 = init-landing flag +
+  Class-C migrations (`_observe_dispatch`, play-phase/base observers).
+
 ## ✅ ROUND 119 (2026-07-24): Hank $FF-loop reads a NULL zero-page pointer → loop target is a sonified zp byte (C29 class). Roots FULL (+1)
 Next f1 partial by path = `Hank/Roots` (single, canon $1000, vblank,
 REASSEMBLED — `dmc_canon_diff` can't linear-align it; canon state geom).

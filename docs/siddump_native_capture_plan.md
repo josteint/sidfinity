@@ -1,16 +1,17 @@
 # Plan: replace py65 observation with a native, ground-truth mechanism
 
-**Status:** proposed 2026-07-24, not started. Pick this up in a fresh session.
-**The GOAL is settled; the ARCHITECTURE is NOT.** The goal: stop deriving
-extract values from py65 where that is divergence-prone or slow, and observe from
-the ground-truth engine (libsidplayfp) instead. The mechanism — declarative
-siddump flags vs a record-and-query trace vs a native Python binding vs a
-compiled observe-only probe vs something from the prior art — is deliberately
-LEFT OPEN and must be decided by **Phase 0 (research) below, which gates all
-implementation.** The "Candidate architecture" section later is a STRAWMAN to
-give the research concrete things to compare, NOT a decision. Read
-`feedback_ground_truth.md` (the py65-divergence lesson that motivates this) and
-`tools/INVESTIGATION_BACKLOG.md` first.
+**Status (2026-07-25): Phase 0 DONE — architecture DECIDED; Phase 1 DONE.**
+The Phase-0 design-space survey + decision live in
+[`siddump_native_capture_decision.md`](siddump_native_capture_decision.md),
+which SUPERSEDES this file's "Candidate architecture (STRAWMAN)" section:
+declarative siddump flags over observe-only overlay taps (A-first); a thin
+in-process binding over the same taps is a deferred escalation; VICE-monitor /
+DBI / record-then-query rejected. Phase 1 shipped `--reinit-snapshot` and
+migrated the DMC ghost sim (`_reinit_windows_via_siddump`; py65 path deleted;
+gates: byte-identical windows + For_Party FULL; false-fire lesson = ledger
+C36). NEXT = Phase 2 (init-landing flag + Class-C migrations — see the
+decision doc §7). The sections below are kept for the inventory, the phased
+path, and the gating disciplines. Read `feedback_ground_truth.md` first.
 
 ## Phase 0 — survey the design space FIRST (gates everything; do not build until done)
 

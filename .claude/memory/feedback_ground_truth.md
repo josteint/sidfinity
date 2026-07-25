@@ -128,10 +128,15 @@ docstring for the safe (`__getitem__`) vs must-verify (`read_trusted`) split.
 
 **The STRUCTURAL fix (beyond the tripwire):** stop using py65 for
 divergence-prone / slow observation at all — observe from the ground-truth engine
-(libsidplayfp) instead. The GOAL is settled; the ARCHITECTURE is deliberately
-OPEN — the initiative starts with a research phase (survey emulator-introspection
-prior art before choosing a mechanism), not a commitment to siddump flags. Plan +
-inventory + design-space-survey Phase 0 + strawman + phased path:
+(libsidplayfp) instead. **Architecture DECIDED 2026-07-25** (Phase-0 survey →
+[`docs/siddump_native_capture_decision.md`](../../../docs/siddump_native_capture_decision.md)):
+declarative siddump flags over observe-only overlay taps; an in-process binding
+over the same taps only as a deferred escalation. Phase 1 shipped
+`--reinit-snapshot` (the DMC ghost sim's py65 path deleted; gate = byte-identical
+windows + FULL). ⚠ New-tap discipline: a bare `addr==PC` bus check false-fires
+on DATA reads of the trigger address (ledger C36) — discriminate execution by
+the consecutive-read signature, and validate every new tap by cross-emulator
+byte-identity. Plan + inventory + phased path:
 [`docs/siddump_native_capture_plan.md`](../../../docs/siddump_native_capture_plan.md)
 (also linked from `tools/INVESTIGATION_BACKLOG.md`). Standing default: observe
 from libsidplayfp, not py65.

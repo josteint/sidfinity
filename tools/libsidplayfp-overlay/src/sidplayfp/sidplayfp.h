@@ -305,6 +305,23 @@ public:
     void clearMemWatchEvents();
 
     /**
+     * Reinit-ghost snapshot: capture RAM[lo..hi] at two play()-vector-entry-
+     * aligned moments, to reproduce a C19 shape-B $FF-reinit ghost extraction
+     * from ground truth (libsidplayfp) instead of py65:
+     *   COLD = the window at the FIRST play-vector entry (post-init, pre-play).
+     *   WARM = the window at the first play-vector entry AFTER trigPC (the
+     *          reinit wedge) has executed (= end of the reinit play()).
+     * Both are play-entry-aligned, so robust to siddump frame bucketing
+     * (Trap C). Observe-only. Requires setPlayAddr() first (the play proxy).
+     * siddump drives this via --reinit-snapshot.
+     */
+    void setReinitSnapshot(uint16_t trigPC, uint16_t lo, uint16_t hi);
+    bool reinitColdDone() const;
+    bool reinitWarmDone() const;
+    const std::vector<uint8_t>& reinitCold() const;
+    const std::vector<uint8_t>& reinitWarm() const;
+
+    /**
      * Get the required size of the buffer for the number of cycles to run,
      * approximate value by excess.
      * The mixer must have been initialized before with #initMixer
