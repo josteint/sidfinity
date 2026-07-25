@@ -8,6 +8,30 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ NATIVE-CAPTURE COMPLETENESS VERIFICATION (2026-07-25): all 4 shipped phases proven ZERO-REGRESSION by enumeration
+Prompted by a "are we 100% sure this is sound?" challenge. Every member whose
+extraction path any phase could touch was enumerated and verified (not argued):
+- **Phase 1** (ghost sim): blast radius = {For_Party} ONLY — of the 14 shape-B
+  carriers (`tmp/ffreinit_members.json`), only For_Party reaches the changed
+  `_reinit_windows_via_siddump` (the other 13 gate out via the unchanged
+  `_extract_reinit_burst`). For_Party = byte-identical windows to py65 + FULL.
+- **2a** (compilation dispatch): all 24 f1 compilation members build+verify →
+  0 FULL→non-FULL vs the Jul-23 pre-initiative baseline; 6 GAINED (partial→full:
+  Rogue_Ninja / Super_Seven / Super_Tau-Zeta / Chwat / Wiz_Max / Black_It).
+- **2b** (canon play-phase): 204/204 canon-JT play-wrapper carriers,
+  effective schedule identical (done at 2b time).
+- **2e** (dataflow play-phase): differ-set = {writes-with-P: 129 → 3 changed,
+  all already PARTIAL} ∪ {inverse: 0 candidates over all 5272 writes-no-P}.
+  Complete by the derivation "play_phases changes ⟺ observer output changes".
+- ⚠ HONEST NET ASSESSMENT: correctness = PROVEN clean. But NOT "zero
+  disadvantages": Phase 1 is a pure win (divergence-prone + slow → ground truth
+  + faster); 2a/2b/2e are ground-truth-PURITY plays — no verdict flip, no speed
+  win (short observers: siddump subprocess overhead ≈ py65), + new C++ tap
+  surface (the C36 interrupt-split miss window) + more subprocess spawns in
+  extract. Residual meta-risk (census completeness) is small — each census is a
+  corpus-wide scan; the full f1 batch vs the Jul-23 baseline would eliminate
+  even that (offered, not yet run).
+
 ## ✅ NATIVE-CAPTURE PHASE 2e (2026-07-25): re-assembled play-phase observer migrated py65 → siddump pctrace (py65 `_observe_play_phases_writes` DELETED)
 The last clean DMC observation-observer on py65. `_build_via_dataflow` now
 calls the ground-truth `_observe_play_phases_pctrace` (which was already its
