@@ -18,8 +18,12 @@ simulation, 2c), and the DMC MULTI-SID trio (`_observe_play_phases_chip` /
 `multisid_active_chips` / `_observe_player_bases`, 2d — not divergence-prone
 or slow, and the per-chip --pc-watch anchor breaks cross-chip phase
 alignment for complementary schedules: Cow_Anus_Fucked FULL->PARTIAL,
-reverted). Remaining DMC candidate: `_observe_play_phases_writes`
-(fallback-order swap onto its existing pctrace twin).
+reverted). DMC candidate DONE (Phase 2e): `_observe_play_phases_writes` migrated →
+`_observe_play_phases_pctrace` (ground truth) promoted to primary, py65
+observer deleted; A/B over all 129 writes-with-P carriers, 3 changed members
+all already PARTIAL, 3 FULL P_S carriers stay FULL. NB no speed win (short
+observers: subprocess overhead offsets native speed) — value is
+correctness/consistency.
 
 **Phase 3 DONE (audit, 2026-07-25): the CORRECTNESS goal is MET — no
 divergence-driven migration remains anywhere.** A full classification of the

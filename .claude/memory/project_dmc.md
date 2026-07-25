@@ -8,6 +8,29 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ NATIVE-CAPTURE PHASE 2e (2026-07-25): re-assembled play-phase observer migrated py65 → siddump pctrace (py65 `_observe_play_phases_writes` DELETED)
+The last clean DMC observation-observer on py65. `_build_via_dataflow` now
+calls the ground-truth `_observe_play_phases_pctrace` (which was already its
+designed fallback) as PRIMARY; the py65 write-footprint observer is deleted.
+Gate: full A/B over all 129 f1 writes-with-P carriers → pctrace gives the
+IDENTICAL schedule on every S-phase slow-tempo carrier (P_S...), so the final
+gate keeps ALLOWING S (a ground-truth 'S' = a genuine play-body SKIP; the body
+always writes $D416→P, so a plain member is never spuriously S). Only 3
+effective changes, ALL already PARTIAL at HEAD (Hexzakk / Mathematika_II F↔R
+re-classifications where ground truth wins; Mothafucka_2SID). Verified: the 3
+FULL P_S carriers (Computerized / Postcard_from_Ibiza / Twilight_Worker) stay
+FULL; the 3 changed stay PARTIAL; dmc_smoke + full regression clean. The
+full-5401 census was killed as disproportionate (~70 min: it runs BOTH
+observers per member); the inverse set (writes-None/no-P, pctrace-S-with-P) is
+closed by the $D416 mechanism (can only add a correct knob to an
+already-partial slow-tempo member, never regress a FULL).
+- ⚠ HONEST VALUE: this phase bought NO speed and flipped NO verdict — for a
+  SHORT (~12-16 frame) observation, siddump's subprocess spawn + emulator/ROM
+  startup OFFSETS py65's interpretation cost (native speed only wins on DEEP
+  playback, e.g. Phase 1's ghost sim 15s→5s). Value = correctness/consistency:
+  ground truth + one fewer py65 site. DMC play/dispatch observation is now
+  uniformly ground-truth (canon `_observe_play_phases` 2b + this).
+
 ## ✅ NATIVE-CAPTURE PHASE 1 (2026-07-25): ghost sim migrated py65 → siddump `--reinit-snapshot`. For_Party stays FULL; counts unchanged
 Phase 0 of `docs/siddump_native_capture_plan.md` produced the decision doc
 (`docs/siddump_native_capture_decision.md`: declarative siddump flags A-first,

@@ -470,136 +470,6 @@ def _effects_tail_candidates(payload, load: int) -> set:
             if b[i] == 0xbd and b[i + 3] == 0xf0 and b[i + 4] == 0x7e}
 
 
-def _observe_play_phases_writes(sid_path: str, subtune: int,
-                                n_calls: int = 12,
-                                max_steps: int = 200_000):
-    """OFFSET-BLIND play-phase observation for RE-ASSEMBLED (dataflow-route)
-    members, where the canon entry-point offsets don't hold. Classify each
-    play() call by its SID-WRITE FOOTPRINT instead of PCs:
-      P = writes $D416 (the canon play body's unconditional global-filter
-          tail — the per-voice frame entry and the refresh stub never reach it)
-      F<voices> = per-voice writes without the $D416 tail, values ADVANCING
-          vs the previous call (effects ran)
-      R<voices> = per-voice writes identical in value to the previous call's
-          per-voice writes (pure register refresh, no state advance)
-      S = no SID writes.
-    Same 'P_F123...' output as _observe_play_phases; the verify gate is the
-    net for any misclassification (C18: observe, don't parse)."""
-    import sys
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
-                                    '..', '..', '..', 'tools', 'py65_lib'))
-    from py65.devices.mpu6502 import MPU
-    from py65.memory import ObservableMemory
-    from seed_disassembly import parse_psid
-    s = parse_psid(sid_path)
-    mpu = MPU()
-    mem = ObservableMemory()
-    writes = []
-    mem.subscribe_to_write(range(0xD400, 0xD419),
-                           lambda addr, val: writes.append((addr, val)))
-    for i, b in enumerate(s['payload']):
-        if s['load'] + i < 0x10000:
-            mem[s['load'] + i] = b
-    mpu.memory = mem
-
-    fe_cands = _frame_entry_candidates(s['payload'], s['load'])
-    et_cands = _effects_tail_candidates(s['payload'], s['load'])
-    fe_hit = [False]
-    et_hit = [False]
-
-    def run(pc, acc):
-        mpu.stPush(0x00)
-        mpu.stPush(0x00)           # RTS sentinel -> PC = $0001
-        mpu.pc = pc
-        mpu.a = acc
-        del writes[:]
-        fe_hit[0] = False
-        et_hit[0] = False
-        for _ in range(max_steps):
-            if mpu.pc == 0x0001:
-                return list(writes)
-            if mpu.pc in fe_cands:
-                fe_hit[0] = True
-            if mpu.pc in et_cands:
-                et_hit[0] = True
-            try:
-                mpu.step()
-            except Exception:
-                return None
-        return None
-
-    init_writes = run(s['init'], subtune)
-    if init_writes is None:
-        return None
-    # R vs F: F POSITIVELY when the call REACHES the frame entry (signature-
-    # located; entry reachability is the C18 canonical form) OR when the chip
-    # state ADVANCES (a pure register refresh can only re-emit values already
-    # on the chip, so advance ⟹ effects ran — kept as the fallback for members
-    # whose frame entry doesn't match the shape). The advance heuristic ALONE
-    # is not enough: a HELD note's frame entry emits idempotent writes for the
-    # whole observation window (My_Rusty_Love), false-reading as R and losing
-    # the holding AD/SR=$00 re-assert. Chip-state (not previous-call) baseline:
-    # comparing against the previous call misreads a wave-step whose early
-    # steps repeat values (chord [0,0,0,3,...]) as R — Bladeswede played its
-    # arpeggio's first tone forever. A true refresh can never be misread as F
-    # under either signal (it reaches no frame entry and cannot advance).
-    chip = {}
-    for a, v in init_writes:
-        chip[a & 0x1F] = v
-    seq = []
-    for _ in range(n_calls):
-        w = run(s['play'], 0)
-        if w is None:
-            return None
-        if not w:
-            seq.append('S')
-            continue
-        regs = {a & 0x1F for a, _ in w}
-        advancing = fe_hit[0]
-        adv_chip = False
-        for a, v in w:
-            if (a & 0x1F) in chip and chip[a & 0x1F] != v:
-                adv_chip = True
-            chip[a & 0x1F] = v
-        # Chip-state advance stays the fallback — EXCEPT when the call
-        # POSITIVELY entered the effects tail ($141C, the R body) without
-        # passing a locatable frame entry: that entry legitimately ADVANCES
-        # the chip while a vibrato/glide runs (Real_Hardcore: wrapper JSRs
-        # $141C x3, vib steps every call — advance-read-as-F picked the
-        # wavestep arm entry and lost the per-call vib step). Arm F entries
-        # (wavestep $1591 / vib_half $1567) sit PAST $141C and never reach
-        # it, so they keep classifying F via the advance fallback.
-        if adv_chip and not (et_hit[0] and fe_cands):
-            advancing = True
-        if 0x16 in regs:
-            seq.append('P')
-        else:
-            voices = sorted({r // 7 for r, _ in
-                             ((a & 0x1F, v) for a, v in w) if r < 21})
-            vs = ''.join(str(v + 1) for v in voices)
-            seq.append(('F' if advancing else 'R') + vs)
-    # Period fit on a COLLAPSED key (F<v>/R<v> both -> 'x<v>'): an effects
-    # phase reads R on occurrences where its program happens to repeat values,
-    # which would spuriously break the raw-token period. Once fit, a position
-    # is F if ANY occurrence advanced (a refresh can never advance), else R.
-    def _key(t):
-        return t if t in ('P', 'S') else 'x' + t[1:]
-    keys = [_key(t) for t in seq]
-    for p in range(1, n_calls // 2 + 1):
-        if not all(keys[i] == keys[i % p] for i in range(n_calls)):
-            continue
-        out = []
-        for k in range(p):
-            toks = [seq[i] for i in range(k, n_calls, p)]
-            if toks[0] in ('P', 'S'):
-                out.append(toks[0])
-            else:
-                anyF = any(t[0] == 'F' for t in toks)
-                out.append(('F' if anyF else 'R') + toks[0][1:])
-        return '_'.join(out)
-    return None
-
-
 def _observe_play_phases_pctrace(sid_path: str, subtune: int, play_addr: int,
                                  n_calls: int = 16):
     """Ground-truth play-phase observation from the STRADDLE-FREE libsidplayfp
@@ -614,7 +484,7 @@ def _observe_play_phases_pctrace(sid_path: str, subtune: int, play_addr: int,
     straddles — verified on F.A.K.E-Intro: the writelog view showed a spurious
     'F P P' warm-up, the pc-trace view is a clean 'P F123 P F123' from call 0.
 
-    Same 'P_F123'-style output + minimal-period fit as _observe_play_phases_writes
+    Same 'P_F123'-style output + minimal-period fit as the canon observer
     (P = the $D416 filter tail; F<voices>/R<voices>/S). The verify gate is the
     net for any misclassification (C18: observe, don't parse). Returns None when
     the sequence doesn't settle into a clean period from call 0."""
@@ -633,7 +503,7 @@ def _observe_play_phases_pctrace(sid_path: str, subtune: int, play_addr: int,
         return None
     if len(plays) < 8:
         return None
-    # R vs F by CHIP STATE (same rule as _observe_play_phases_writes): a pure
+    # R vs F by CHIP STATE (the former py65 write-footprint observer's rule): a pure
     # refresh can only re-emit values already on the chip; an effects call
     # eventually writes a value that DIFFERS from the current register content.
     # The capture drops the init prefix, so the chip starts unknown — a reg's
@@ -650,7 +520,7 @@ def _observe_play_phases_pctrace(sid_path: str, subtune: int, play_addr: int,
         # F POSITIVELY when the invocation reached the (signature-located)
         # frame entry — the advance heuristic alone false-reads a HELD note's
         # idempotent frame entry as R (My_Rusty_Love; see
-        # _observe_play_phases_writes).
+        # the deleted py65 write-footprint observer).
         h = wp_hits[i] if i < len(wp_hits) else set()
         advancing = 'fe' in h
         adv_chip = False
@@ -658,7 +528,7 @@ def _observe_play_phases_pctrace(sid_path: str, subtune: int, play_addr: int,
             if r in chip and chip[r] != v:
                 adv_chip = True
             chip[r] = v
-        # Same rule as _observe_play_phases_writes: chip-state advance is the
+        # Same rule the deleted write-footprint observer used: chip-state advance is the
         # fallback, EXCEPT for a call that positively entered the effects tail
         # ($141C = the R body) without passing a locatable frame entry — that
         # entry advances the chip whenever a vibrato/glide runs
@@ -3287,19 +3157,22 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str,
     # it). E.g. Arrive: CIA 6x with full play every 6th call, effects-only
     # between — without the knob the rebuild ticks 6x too fast.
     if cfg.play_repeat == 1:
-        ph = _observe_play_phases_writes(os.path.join(hvsc_root, sid_path),
-                                         s['start'] - 1)
-        # py65 couldn't observe (None) OR observed an 'S' (silent) frame — under
-        # py65 a CIA/IRQ-armed member's effect frames don't run, so they read as
-        # S; the ground-truth pc-trace shows they actually run effects (F/R). In
-        # both cases fall back to the straddle-free pc-trace observer and adopt
-        # its clean, S-free P-cycle. Verify-gated; a clean non-S py65 answer is
-        # left untouched.
-        if ph is None or 'S' in (ph or ''):
-            pf = _observe_play_phases_pctrace(
-                os.path.join(hvsc_root, sid_path), s['start'] - 1, s['play'])
-            if pf and '_' in pf and 'P' in pf.split('_') and 'S' not in pf:
-                ph = pf
+        # PLAY-PHASE wrapper on the RE-ASSEMBLED route (C18): observe under
+        # libsidplayfp — the straddle-free per-play pc-trace (GROUND TRUTH,
+        # native-capture Phase 2e; feedback_ground_truth.md). Classifies each
+        # play() P/F/R/S by the $D416 filter tail + signature-located frame-
+        # entry / effects-tail reachability. This REPLACES the py65 write-
+        # footprint observer `_observe_play_phases_writes` (deleted), for which
+        # the pc-trace was already the designed ground-truth fallback. An A/B
+        # over all 129 writes-with-P f1 carriers found pctrace gives the
+        # IDENTICAL schedule on every S-phase slow-tempo carrier (P_S, ...) —
+        # so the gate keeps allowing S (an 'S' from the ground-truth engine is
+        # a genuine play-body SKIP; the body always writes $D416 -> P, so a
+        # plain member is never spuriously S) — and the only three effective
+        # changes are F/R re-classifications on members already PARTIAL, where
+        # ground truth is the correct call.
+        ph = _observe_play_phases_pctrace(
+            os.path.join(hvsc_root, sid_path), s['start'] - 1, s['play'])
         if (ph and '_' in ph and 'P' in ph.split('_')):
             cfg.extra_params['play_phases'] = ph
             # Per-member: does the F phase DEFER note-init (the 2-frame arm)?
