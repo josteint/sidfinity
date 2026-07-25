@@ -13,8 +13,14 @@ C36). Phase 2 STARTED: `--pc-watch` (executed-PC events with A/X/Y +
 play-index + RAM windows) shipped and `_observe_dispatch` (C31 compilation
 dispatch) migrated, py65 loop deleted — spec-identical on all 5 observe-path
 members; `_observe_play_phases` (canon C18) migrated (204-carrier A/B,
-py65 twin deleted); remaining: `_observe_play_phases_writes`/`_chip` +
-`_observe_player_bases` + `_postinit_window`. The sections below are kept for the inventory, the phased
+py65 twin deleted). ASSESSED + LEFT ON py65: `_postinit_window` (a
+simulation, 2c), and the DMC MULTI-SID trio (`_observe_play_phases_chip` /
+`multisid_active_chips` / `_observe_player_bases`, 2d — not divergence-prone
+or slow, and the per-chip --pc-watch anchor breaks cross-chip phase
+alignment for complementary schedules: Cow_Anus_Fucked FULL->PARTIAL,
+reverted). Remaining genuine candidate: `_observe_play_phases_writes`
+(fallback-order swap onto its existing pctrace twin). Phase 3 = audit the
+non-DMC families for divergence-prone / slow sites. The sections below are kept for the inventory, the phased
 path, and the gating disciplines. Read `feedback_ground_truth.md` first.
 
 ## Phase 0 — survey the design space FIRST (gates everything; do not build until done)

@@ -37,8 +37,23 @@ py65 (2×2048), For_Party FULL (154374/154374), dmc_smoke 6/6, full regression.
   LESSON in the observer docstring: the play counter is a bus-READ proxy, so
   an init-time data read of the play vector shifts every play index (+1 on
   27/204 carriers) — classification anchors at the first index with events.
-  Remaining Class C: `_observe_play_phases_writes`/`_chip`,
-  `_observe_player_bases`.
+  Remaining Class C: `_observe_play_phases_writes` (re-assembled route;
+  needs the WRITE footprint per play(), not just PCs — its ground-truth twin
+  `_observe_play_phases_pctrace` already exists, so this is a fallback-order
+  swap, its own round).
+- PHASE 2d ASSESSMENT (no migration — the DMC MULTI-SID observers STAY on
+  py65): `_observe_play_phases_chip` / `multisid_active_chips` /
+  `_observe_player_bases` are NOT migration targets by the plan's own rule
+  (they read init-COPIED bytes -> not divergence-prone; init + a few plays
+  -> not slow). AND `_observe_play_phases_chip` has a hard blocker: it is
+  called PER-CHIP, so a --pc-watch anchor at the chip's first event loses
+  CROSS-CHIP phase alignment for COMPLEMENTARY schedules (one chip per call)
+  — Cow_Anus_Fucked went FULL->PARTIAL (both chips ran every call, len_b
+  ~2x; A/B over all 19 carriers, caught by end-to-end verify, reverted). A
+  correct migration would observe ALL chips in ONE run on a global play
+  index (a call-site refactor) — not worth it for 19 rare, non-divergent
+  members. Fixed-anchor-vs-first-event is the multi-chip twin of 2b's
+  phantom-S anchor problem.
 - PHASE 2c FINDING (migration REVERTED): `_postinit_window` is OUT of the
   initiative's scope — it is an IDEALIZED SIMULATION (image + init writes +
   power-on pattern, no driver), which the real machine cannot produce
