@@ -31,8 +31,14 @@ py65 (2×2048), For_Party FULL (154374/154374), dmc_smoke 6/6, full regression.
   A/B gate: spec-identical on all 5 observe-path members (Super_Seven /
   Pour_le_merite / Black_It / Freespace_2075 / Defuzion_3, both masm modes);
   Super_Seven verifies FULL 2/2 subs; dmc_smoke 6/6; full regression clean.
-  Remaining Class C: `_observe_play_phases*` + `_postinit_window` (the tap
-  already carries what they need).
+  PHASE 2b: `_observe_play_phases` (canon C18) migrated the same way —
+  204-carrier A/B (every canon-JT member with a play wrapper), effective
+  schedule identical 204/204, py65 twin deleted; Fuck_Off (P_F123) FULL.
+  LESSON in the observer docstring: the play counter is a bus-READ proxy, so
+  an init-time data read of the play vector shifts every play index (+1 on
+  27/204 carriers) — classification anchors at the first index with events.
+  Remaining Class C: `_observe_play_phases_writes`/`_chip`,
+  `_observe_player_bases`, `_postinit_window(stop_at_player)`.
 
 ## ✅ ROUND 119 (2026-07-24): Hank $FF-loop reads a NULL zero-page pointer → loop target is a sonified zp byte (C29 class). Roots FULL (+1)
 Next f1 partial by path = `Hank/Roots` (single, canon $1000, vblank,

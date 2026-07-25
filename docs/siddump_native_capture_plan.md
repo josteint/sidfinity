@@ -12,7 +12,9 @@ gates: byte-identical windows + For_Party FULL; false-fire lesson = ledger
 C36). Phase 2 STARTED: `--pc-watch` (executed-PC events with A/X/Y +
 play-index + RAM windows) shipped and `_observe_dispatch` (C31 compilation
 dispatch) migrated, py65 loop deleted — spec-identical on all 5 observe-path
-members; remaining: the C18 play-phase observers + `_postinit_window`. The sections below are kept for the inventory, the phased
+members; `_observe_play_phases` (canon C18) migrated (204-carrier A/B,
+py65 twin deleted); remaining: `_observe_play_phases_writes`/`_chip` +
+`_observe_player_bases` + `_postinit_window`. The sections below are kept for the inventory, the phased
 path, and the gating disciplines. Read `feedback_ground_truth.md` first.
 
 ## Phase 0 — survey the design space FIRST (gates everything; do not build until done)

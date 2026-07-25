@@ -355,79 +355,86 @@ def _post_init_ram(sid_path: str, subtune: int,
 
 
 def _observe_play_phases(sid_path: str, subtune: int, base: int,
-                         n_calls: int = 12,
-                         max_steps: int = 200_000):
-    """OBSERVE a play-vector wrapper's phase behaviour (C9: measure, don't
-    parse). Some canon members ship a PLAY WRAPPER (play != base+3) that
-    cycles a counter and runs the FULL canon play only every Nth call,
-    dispatching the other calls to a per-voice frame-entry stub (effects
-    only, no tick, no $D416/$D417 tail) hidden in a compare-masked region
-    (the copyright string, the re-authored all-off slot) — the DMC
-    'multispeed effects / slow tempo' editing trick. Wrapper SHAPES vary
-    (SMC JSR-operand table, DEC counter + dual JMP, INC+AND) so parsing is
-    fragile; instead run init then call play() n times under py65 and
-    classify each call by the engine entry it reaches:
+                         n_calls: int = 12):
+    """OBSERVE a play-vector wrapper's phase behaviour under libsidplayfp
+    (`siddump --pc-watch`, the GROUND-TRUTH engine — Phase 2 of
+    docs/siddump_native_capture_plan.md; the py65 twin was deleted after an
+    A/B gate over the C18 carriers). Semantics unchanged: watch the three
+    canon entry points and classify each play() invocation by which it
+    reached —
         P = the full play body (base+$85)
-        F = the per-voice frame entry (base+$1F9) without the play body
-        S = neither (silent no-op)
-    Returns the minimal repeating period as a 'PFFF'-style string, or None
-    when observation fails / the sequence doesn't settle into a period.
-    """
-    import sys
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
-                                    '..', '..', '..', 'tools', 'py65_lib'))
-    from py65.devices.mpu6502 import MPU
-    from py65.memory import ObservableMemory
-    from seed_disassembly import parse_psid
-    s = parse_psid(sid_path)
-    mpu = MPU()
-    mem = ObservableMemory()
-    for i, b in enumerate(s['payload']):
-        if s['load'] + i < 0x10000:
-            mem[s['load'] + i] = b
-    mpu.memory = mem
-
-    def run(pc, acc):
-        mpu.stPush(0x00)
-        mpu.stPush(0x00)           # RTS sentinel -> PC = $0001
-        mpu.pc = pc
-        mpu.a = acc
-        hit_play = False
-        fx_voices = set()          # X values seen at the frame entry
-        rf_voices = set()          # X values seen at the glide/write tail
-        for _ in range(max_steps):
-            if mpu.pc == 0x0001:
-                return hit_play, fx_voices, rf_voices
-            if mpu.pc == base + 0x85:
-                hit_play = True
-            elif mpu.pc == base + 0x1F9:
-                fx_voices.add(mpu.x & 0x03)
-            elif mpu.pc == base + 0x41C:
-                rf_voices.add(mpu.x & 0x03)
-            try:
-                mpu.step()
-            except Exception:
-                return None
+        F<voices> = the per-voice frame entry (base+$1F9) without the play
+            body (voices = the X&3 values seen there)
+        R<voices> = the per-voice glide/write tail (base+$41C) only
+        S = none of them (silent no-op)
+    then return the minimal repeating period as a 'P_F123'-style string, or
+    None when observation fails / the sequence doesn't settle. All three
+    watch PCs hold 3-byte instructions (DEC abs / LDA abs,X), so the C36
+    execution signature fires within the instruction and X samples
+    pre-instruction — identical to the py65 twin's pc==entry check. Events
+    with play-index 0 (during init) are dropped, as the twin discarded its
+    init run's hits; a play() with no watched hit classifies S via the
+    play-index GAP, which is sound for every call below the highest index
+    seen. Classification anchors at the FIRST index carrying events, not
+    index 1: the play counter is a bus-read proxy, so an init-time DATA read
+    of the play vector address bumps it once and every real call shifts +1
+    (27/204 A/B carriers) — the phantom leading index would read as S and
+    break the fit. That anchor equals the py65 twin's call 1 (its first
+    play() after init); a phantom bump LATER in the window still inserts a
+    false S and fails the fit -> None -> the pctrace fallback (safe), and a
+    genuine leading-S schedule is S-containing, which the call site replaces
+    with the pctrace answer anyway."""
+    import subprocess
+    p_play, p_fe, p_et = base + 0x85, base + 0x1F9, base + 0x41C
+    repo = os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                        '..', '..', '..'))
+    siddump = os.path.join(repo, 'tools', 'siddump')
+    try:
+        out = subprocess.run(
+            [siddump, sid_path, '--pc-watch',
+             '%X,%X,%X' % (p_play, p_fe, p_et), '0-0',
+             '--subtune', str(subtune + 1), '--duration', '2'],
+            capture_output=True, text=True, timeout=120)
+    except Exception:
         return None
-
-    if run(s['init'], subtune) is None:
+    per = {}
+    max_idx = 0
+    for line in out.stdout.splitlines():
+        pos = 0
+        while True:
+            pos = line.find('|PW:', pos)
+            if pos < 0:
+                break
+            f = line[pos + 4:].split(':', 6)
+            if len(f) < 7:
+                break
+            pc, x, idx = int(f[0], 16), int(f[2], 16), int(f[4], 10)
+            if idx > 0:
+                max_idx = max(max_idx, idx)
+                rec = per.setdefault(idx, [False, set(), set()])
+                if pc == p_play:
+                    rec[0] = True
+                elif pc == p_fe:
+                    rec[1].add(x & 0x03)
+                elif pc == p_et:
+                    rec[2].add(x & 0x03)
+            pos += 4
+    if not per:
+        return None
+    i0 = min(per)                     # first play with events = py65's call 1
+    if max_idx < i0 + n_calls:        # too few observed plays to classify 12
         return None
     seq = []
-    for _ in range(n_calls):
-        r = run(s['play'], 0)
-        if r is None:
-            return None
-        hp, fv, rv = r
+    for i in range(i0, i0 + n_calls):
+        hp, fv, rv = per.get(i, (False, set(), set()))
         if hp:
             seq.append('P')
-        elif fv:                   # F + the voice set it ran (stubs vary:
-            seq.append('F' + ''.join(str(v + 1)  # some NOP out a voice)
-                              for v in sorted(fv)))
-        elif rv:                   # R = register REFRESH: the wrapper calls
-            seq.append('R' + ''.join(str(v + 1)  # the per-voice glide/write
-                              for v in sorted(rv)))  # tail ($141C) directly —
-        else:                      # re-emits current freq/PW/ctrl (Toccata's
-            seq.append('S')        # re-authored all-off slot: LDX/JSR $141C x3)
+        elif fv:
+            seq.append('F' + ''.join(str(v + 1) for v in sorted(fv)))
+        elif rv:
+            seq.append('R' + ''.join(str(v + 1) for v in sorted(rv)))
+        else:
+            seq.append('S')
     for p in range(1, n_calls // 2 + 1):
         if all(seq[i] == seq[i % p] for i in range(n_calls)):
             return '_'.join(seq[:p])
