@@ -8,6 +8,30 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ⏸ OPEN (2026-07-27, r125 investigation): Imaic/Fantastic_Dreams — wavepos-read carrier whose READER PROGRAM is an off-table marker-hop walk; needs a REPRESENTATION decision (user consulted, not yet decided)
+Next f1 partial by path. Diverges at 0.05% (flat 97): V2 idle (running inst
+15's wave program as cache leftover) reads fhi idx 211 = $177A = LIVE
+wavepos[0] every frame (wnote=$D3 memwatch-proven); orig $0F vs ours $10 =
+the layout shift (m.wavepos_layout=False). The C11 layout-preserving fix is
+BLOCKED: the reading instrument (15, played by ALL voices) is itself
+NON-verbatim — its orig walk from editor pos 160 chains marker hops OFF THE
+TABLE (160→53→35→…→negative offsets = below-table file data read as wave
+steps, C2 class), settling into a 16-step consecutive cycle that wraps mod
+256; every re-trigger replays the ~46-step bouncing lead-in, all OBSERVED
+live (idle V2 reads each frame). Also: `_wave_layout_verbatim`'s relaxation
+gate keys on the READER instrument — the correct observability condition is
+the READ-TARGET VOICE's programs (idx 211→voice 0, 212→voice 1, 213→voice
+2); moot here (inst 15 played by voices 0+1 while observed) but fix the
+condition whenever this is next touched. FULL would need per-step POSITION
+fidelity: a `wave_step_pos`-style PER-STEP position list (arrangement §8;
+markers derivable from run breaks; wave_table_pos = the degenerate
+consecutive case) + a composer pool emitter that places steps at orig
+positions incl. mod-256 wrap — a USF schema addition ⇒ decision point
+(schema-addition discipline + Principle provenance challenge). Options
+presented to the user 2026-07-27; awaiting direction. Class size unknown
+(≥1; Object_of_Art 2026-06-28 was the sibling that killed the un-gated
+redirect row).
+
 ## ✅ ROUND 124 (2026-07-27): Cotton_Eye_Joe FULL (+1) — the $FF TEXT-fallthrough NOTE-INJECT (C13 third form, singleton)
 Next f1 partial by path = `Hudy/Cotton_Eye_Joe` (single, base $1000
 init-generated; dataflow path; canon_diff showed the $10E2-$10F2 "NEW" run =
