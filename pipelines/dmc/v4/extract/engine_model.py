@@ -925,25 +925,28 @@ def _offimage_sectors(mem, secp_lo: int, secp_hi: int, tunetab: int,
                     seen_loop.add(tgt)
                     pos = tgt
                     continue
-                if b >= 0x80:              # transpose byte, not a sector number
-                    # Post-transpose consumption (C34, the r100 quirk): the
-                    # transpose handler takes the NEXT byte as a sector number
-                    # UNCONDITIONALLY — a $FE/$FF there plays ONE ROW of its
-                    # pseudo-sector before the next fetch re-dispatches it, so
-                    # that sector's window must pass this gate too
-                    # (Rock_Tec_Tec: `a0 ff` track tail → secp[$FF] = $0000 =
-                    # live zeropage; the gate skipping it left _walk_track's
-                    # probe reading image zeros and dropping the row).
+                if b >= 0x80:              # transpose command
+                    # The transpose handler ($10FE-$1101) takes the NEXT byte
+                    # as a sector number UNCONDITIONALLY (INY / LDA($f8),y /
+                    # TAY — no re-dispatch), EVEN when it is itself >= $80
+                    # (Memomania: `$F3 $A5` plays sector $A5, not transpose
+                    # $A5). _walk_track mirrors this, so this gate must too —
+                    # else a post-transpose off-image sector is missed and
+                    # never overlaid, leaving _walk_track to read image zeros
+                    # and spuriously self-loop. A post-transpose $FE/$FF is
+                    # the C34 one-row pseudo-sector (played once, then the
+                    # next fetch re-dispatches it as loop/stop — Rock_Tec_Tec
+                    # `a0 ff` → secp[$FF] = $0000 live zeropage): same
+                    # off-image check, but pos stays on the $FE/$FF byte.
                     nb = mem[(tp + ((pos + 1) & 0xFF)) & 0xFFFF]
-                    if nb >= 0xFE:
-                        sec_addr = mem[(secp_lo + nb) & 0xFFFF] | \
-                            (mem[(secp_hi + nb) & 0xFFFF] << 8)
-                        if (sec_addr < load or sec_addr + 0xFF > 0xFFFF
-                                or (0xA000 <= sec_addr + 0xFF
-                                    and sec_addr <= 0xBFFF)
-                                or sec_addr + 0xFF >= 0xE000):
-                            out.add(sec_addr)
-                    pos += 1
+                    sec_addr = mem[(secp_lo + nb) & 0xFFFF] | \
+                        (mem[(secp_hi + nb) & 0xFFFF] << 8)
+                    if (sec_addr < load or sec_addr + 0xFF > 0xFFFF
+                            or (0xA000 <= sec_addr + 0xFF
+                                and sec_addr <= 0xBFFF)
+                            or sec_addr + 0xFF >= 0xE000):
+                        out.add(sec_addr)
+                    pos += 1 if nb >= 0xFE else 2
                     continue
                 sec_addr = mem[(secp_lo + b) & 0xFFFF] | \
                     (mem[(secp_hi + b) & 0xFFFF] << 8)
@@ -990,23 +993,105 @@ def _undefined_secp_reads(mem, secp_lo: int, secp_hi: int, tunetab: int,
                     seen_loop.add(tgt)
                     pos = tgt
                     continue
-                if b >= 0x80:              # transpose byte, not a sector number
-                    # Post-transpose consumption (C34): the next byte is a
-                    # sector number even when $FE/$FF — its POINTER fetch can
-                    # leave the image too (mirrors _offimage_sectors).
+                if b >= 0x80:              # transpose command
+                    # The next byte is a sector number UNCONDITIONALLY (orig
+                    # $10FE-$1101; mirrors _offimage_sectors / _walk_track) —
+                    # its POINTER fetch can leave the image whatever the byte's
+                    # value ($FE/$FF is the C34 one-row pseudo-sector, pos
+                    # stays on it; else consume both bytes).
                     nb = mem[(tp + ((pos + 1) & 0xFF)) & 0xFFFF]
-                    if nb >= 0xFE:
-                        for a in ((secp_lo + nb) & 0xFFFF,
-                                  (secp_hi + nb) & 0xFFFF):
-                            if not (load <= a < img_end):
-                                out.add(a)
-                    pos += 1
+                    for a in ((secp_lo + nb) & 0xFFFF,
+                              (secp_hi + nb) & 0xFFFF):
+                        if not (load <= a < img_end):
+                            out.add(a)
+                    pos += 1 if nb >= 0xFE else 2
                     continue
                 for a in ((secp_lo + b) & 0xFFFF, (secp_hi + b) & 0xFFFF):
                     if not (load <= a < img_end):
                         out.add(a)
                 pos += 1
     return sorted(out)
+
+
+def _offimage_track_ptrs(mem, tunetab: int, n_sub: int,
+                         forced: int | None = None) -> list:
+    """Track (orderlist) POINTERS from the tune table whose 256-byte read
+    window overlaps BANKED-IN ROM — the engine reads the ORDERLIST ITSELF from
+    static ROM, so the file-image zero-fill mis-decodes the whole voice
+    (Memomania sub 3: V1 ptr $F256 = KERNAL ROM, `01 F7 20 ...` -> sector 1 +
+    transpose walk; the zero-fill decodes sector 0 forever). The CPU-eye peek
+    reproduces ROM byte-for-byte.
+
+    STATIC ROM ONLY, deliberately: a pointer into the ROM regions ($A000-$BFFF
+    BASIC, $E000-$FFFF KERNAL under the PSID default $01=$37) is reproducible;
+    a below-load / zeropage pointer reads DYNAMIC RAM the stability filter
+    can only serve as 0 (= the old zero-fill), so overlaying it can only move
+    a divergence around, not fix it (it slightly worsened Flash/Kan-Kan when
+    the gate included < load). C29's static-vs-dynamic boundary.
+
+    Regression-safe by construction: a FULL member has every track pointer IN
+    image (else its orderlist read the zero-fill and it was already non-FULL),
+    so this returns [] for it and the build stays byte-identical. The 8-bit
+    track position bounds the window to [tp, tp+$FF]."""
+    out = set()
+    for sub in range(n_sub):
+        rec = tunetab + (sub if forced is None else forced) * 8
+        for vi in range(3):
+            tp = _rd16(mem, rec + vi * 2)
+            if ((0xA000 <= tp + 0xFF and tp <= 0xBFFF)
+                    or tp + 0xFF >= 0xE000):
+                out.add(tp)
+    return sorted(out)
+
+
+def _overlay_offimage_windows(mem, path: str, bases, post_sub, s,
+                              data_post_init: bool) -> None:
+    """Overlay CPU-eye bytes (siddump --peek-post-init = libsidplayfp ground
+    truth) over the 256-byte read windows at `bases`, touching ONLY UNDEFINED
+    bytes (C29). Shared by the off-image SECTOR overlay and the out-of-image
+    TRACK-POINTER pre-pass — both read the environment (banked-in ROM incl.
+    psiddrv's patched vectors, the 6510 port, env zeropage, power-on RAM).
+
+    Defined = image span ∪ bytes the (wrapper) init changed vs the same seed;
+    a garbage window can overlap real player data and the peek is a full
+    init+play snapshot, so writing over defined bytes clobbers the landing
+    view (Pour_le_merite / Abyssal_Karma). Per-byte source (C29 boundary,
+    static env vs dynamic residue): the port + banked ROM are STATIC -> the
+    peek value is truth; a RAM byte gets the peek snapshot only if CONSTANT
+    during play (memwatch stability), else 0 (the verdict-proven default;
+    without the filter a stack-page window wrote a live snapshot where 0 was
+    right — Remix_1995)."""
+    if not bases:
+        return
+    wranges = []
+    for base in bases:
+        if base + 0xFF > 0xFFFF:                 # 16-bit pointer wrap
+            wranges.append((base, 0xFFFF))
+            wranges.append((0x0000, (base + 0xFF) & 0xFFFF))
+        else:
+            wranges.append((base, base + 0xFF))
+    ref = bytearray(0x10000)
+    if data_post_init or post_sub is not None:
+        _poweron_fill(ref)
+        for _a in range(0x400):
+            ref[_a] = 0
+    _ld = s['load']
+    for _i, _b in enumerate(s['payload']):
+        if _ld + _i < 0x10000:
+            ref[_ld + _i] = _b
+    _imgspan = range(_ld, min(0x10000, _ld + len(s['payload'])))
+    _rom = ((0xA000, 0xBFFF), (0xE000, 0xFFFF))
+    peek = _cpu_peek(path, wranges, subtune=post_sub)
+    _ram = [a for a in peek if a >= 2
+            and not any(lo <= a <= hi for lo, hi in _rom)]
+    stable = _postinit_values(path, _ram, subtune=post_sub)
+    for a, v in peek.items():
+        if a in _imgspan or mem[a] != ref[a]:
+            continue                     # defined — never clobber
+        if a < 2 or any(lo <= a <= hi for lo, hi in _rom):
+            mem[a] = v
+        else:
+            mem[a] = stable.get(a, 0)
 
 
 # ---------------------------------------------------------------------------
@@ -1310,6 +1395,21 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # forced_subtune, factory C19 probe: Sans_intro's `LDA #$01` prefix forces
     # record 1 — record 0 is a $FE-stop dummy). Walk the played record then.
     forced = getattr(cfg, 'forced_subtune', None)
+    # C29 track-pointer class: a tune-table TRACK POINTER can itself leave the
+    # image into banked ROM (Memomania sub 3: V1 ptr $F256 = KERNAL ROM). The
+    # orderlist is then read from ROM, so overlay its CPU-eye window BEFORE the
+    # secp-read + sector walks below (both read `mem[tp+pos]`) — else they walk
+    # the zero-fill and mislocate everything. SKIPPED for post-init memory
+    # (same gate as _undefined_secp_reads below): there `mem` is the runtime
+    # RAM the engine reads, and a $A000-$BFFF/$E000+ orderlist address is
+    # GENERATED RAM, not banked ROM — peeking the CPU-eye there would clobber
+    # the generated orderlist with ROM bytes (Kan-Kan: init-unpacked orderlist
+    # at $A3A1 is RAM, not BASIC ROM).
+    _dpi = getattr(cfg, 'data_post_init', False)
+    if not (_dpi or post_sub is not None):
+        _oob_tracks = _offimage_track_ptrs(mem, tunetab, s.get('songs', 1),
+                                           forced=forced)
+        _overlay_offimage_windows(mem, path, _oob_tracks, None, s, False)
     # C29 pointer-byte class: a sector-POINTER fetch itself can leave the
     # image (track byte selects a sector # past the pointer tables). Serve
     # those bytes the CPU-eye value FIRST, or the zero-filled image view
@@ -1326,66 +1426,16 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
             mem[_a] = _v
     oob = _offimage_sectors(mem, secp_lo, secp_hi, tunetab, s.get('songs', 1),
                             s['load'], cfg.track_loop_target, forced=forced)
-    if oob:
-        # CPU-EYE capture of every window byte (siddump --peek-post-init,
-        # libsidplayfp = ground truth): banked-in ROM — including psiddrv's
-        # PATCHED KERNAL vectors, which no ROM file holds (Super_Seven's
-        # window byte 14 = $FFFD = the relocated driver entry hi) — the 6510
-        # port ($2F/$37), env zeropage, and the power-on RAM pattern for
-        # never-written bytes. One mechanism for all of it: read what the
-        # engine's LDA ($F8),y reads. The old class (base $0000, live-zp
-        # sonified) gets identical bytes to the former _postinit_values +
-        # hardcoded-port overlay. Run the subtune whose init materialises
-        # this player (C31 — song numbering is local).
-        wranges = []
-        for base in oob:
-            if base + 0xFF > 0xFFFF:                 # 16-bit pointer wrap
-                wranges.append((base, 0xFFFF))
-                wranges.append((0x0000, (base + 0xFF) & 0xFFFF))
-            else:
-                wranges.append((base, base + 0xFF))
-        # ONLY overlay UNDEFINED bytes — outside the image and untouched by
-        # the (wrapper) init. A window found by walking a GARBAGE tune record
-        # (header-overstated subtunes; the pre-scan covers all file subtunes)
-        # can overlap REAL player data, and the peek is a FULL-init+play
-        # snapshot — writing it over defined bytes clobbers the landing view
-        # (bit Pour_le_merite sub 0 + Abyssal_Karma subs 1-4: priming read
-        # from smashed state). Defined = image span ∪ bytes the py65 init run
-        # changed vs the same seed (same-value writes are indistinguishable
-        # and harmless — the value is right either way).
-        ref = bytearray(0x10000)
-        if getattr(cfg, 'data_post_init', False) or post_sub is not None:
-            _poweron_fill(ref)
-            for _a in range(0x400):
-                ref[_a] = 0
-        _ld = s['load']
-        for _i, _b in enumerate(s['payload']):
-            if _ld + _i < 0x10000:
-                ref[_ld + _i] = _b
-        _imgspan = range(_ld, min(0x10000, _ld + len(s['payload'])))
-        # Per-byte source rule (C29 boundary — reproduce STATIC environment,
-        # leave DYNAMIC as honest residue): the 6510 port + banked-in ROM are
-        # static → the peek value is the truth; a RAM byte gets the peek's
-        # snapshot ONLY if it is CONSTANT during play (memwatch stability),
-        # else 0 — the old class's verdict-proven default. Without the
-        # stability filter, a garbage window reaching the STACK PAGE wrote a
-        # live mid-play snapshot where the old code (and the FULL verdict)
-        # had 0 (regressed Remix_1995).
-        _rom = ((0xA000, 0xBFFF), (0xE000, 0xFFFF))
-        peek = _cpu_peek(path, wranges, subtune=post_sub)
-        _ram = [a for a in peek if a >= 2
-                and not any(lo <= a <= hi for lo, hi in _rom)]
-        stable = _postinit_values(path, _ram, subtune=post_sub)
-        for a, v in peek.items():
-            if a in _imgspan or mem[a] != ref[a]:
-                continue                     # defined — never clobber
-            if a < 2 or any(lo <= a <= hi for lo, hi in _rom):
-                mem[a] = v
-            else:
-                mem[a] = stable.get(a, 0)
-        # ($F8/$F9 — the live sector pointer — is served per-window inside
-        # _simulate_sector's rd(); overlapping low windows each see their
-        # OWN base, which one shared mem[] byte cannot express.)
+    # CPU-EYE overlay of every off-image sector window (the shared helper —
+    # see its docstring for the undefined-only + static/dynamic rules and the
+    # Pour_le_merite / Abyssal_Karma / Remix_1995 incidents behind them). The
+    # sonified environment is banked-in ROM (incl. psiddrv's PATCHED KERNAL
+    # vectors — Super_Seven's window byte 14 = $FFFD, the relocated driver
+    # entry hi), the 6510 port, env zeropage and the power-on RAM pattern.
+    _overlay_offimage_windows(mem, path, oob, post_sub, s, _dpi)
+    # ($F8/$F9 — the live sector pointer — is served per-window inside
+    # _simulate_sector's rd(); overlapping low windows each see their OWN
+    # base, which one shared mem[] byte cannot express.)
 
     # decode subtunes; collect referenced instruments + filter defs as
     # they surface
