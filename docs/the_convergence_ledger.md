@@ -114,7 +114,7 @@ practice, not code to factor).
 | song data ABSENT from file image · init generates/unpacks tables in RAM · operands point outside the loaded image · extract from POST-INIT RAM (py65), all-or-nothing signature · banking-wrapper JT-less base from the wrapper JSR target | C26 | logged |
 | multi-SID (2SID/3SID) · N chips, one player each behind a dispatch wrapper · players run sequentially -> merged log = [chip1][chip2] · extract/compose/verify each with single-chip machinery, chip-TAGGED (reg=chip*$20+reg) · voices number through chips, addresses are pipeline constants not USF | C27 | logged |
 | multi-SID VERDICT · rebuild is per-chip correct but the merged chip-tagged stream diverges on a CROSS-CHIP adjacency (chip1 vs chip2 write order) · cross-chip order is physically UNobservable (independent hardware, Trap-B analogue) · split by reg//0x20, require each chip's substream to pass · compare_instruction_stream(n_chips=N) · do NOT chase cycle precision / straddle-free capture | C28 | logged |
-| PLAYED sector reads the EMULATOR ENVIRONMENT · $FF loop → $0000 live zp sonified · truncated-copy wrapper → power-on-RAM secp byte → KERNAL-tail window + patched psiddrv vectors + 16-bit wrap · sector-POINTER fetch itself off-image (track byte indexes past the pointer tables → power-on $FF hi-byte mislocates the sector, `_undefined_secp_reads` pre-pass) · gate = any played sector leaving defined RAM (`_offimage_sectors`) · CPU-EYE capture `siddump --peek-post-init` (`_cpu_peek`) · py65 pattern-seed (`_poweron_fill`) · overlay ONLY undefined bytes · NULL-POINTER LOOP TARGET: patched $FF handler reads loop-otrk via a zp pointer that is $0000 → reads ZERO PAGE (measure from LIBSIDPLAYFP not py65 — they differ) | C29 | recurring (4×) |
+| PLAYED sector reads the EMULATOR ENVIRONMENT · $FF loop → $0000 live zp sonified · truncated-copy wrapper → power-on-RAM secp byte → KERNAL-tail window + patched psiddrv vectors + 16-bit wrap · sector-POINTER fetch itself off-image (track byte indexes past the pointer tables → power-on $FF hi-byte mislocates the sector, `_undefined_secp_reads` pre-pass) · gate = any played sector leaving defined RAM (`_offimage_sectors`) · CPU-EYE capture `siddump --peek-post-init` (`_cpu_peek`) · py65 pattern-seed (`_poweron_fill`) · overlay ONLY undefined bytes · NULL-POINTER LOOP TARGET: patched $FF handler reads loop-otrk via a zp pointer that is $0000 → reads ZERO PAGE (measure from LIBSIDPLAYFP not py65 — they differ) · ORDERLIST-POINTER itself in banked ROM ($F256 KERNAL) → `_offimage_track_ptrs` overlays it (STATIC ROM only; zp track-ptr = dynamic residue) · SCAN↔WALK: the off-image scans must mirror `_walk_track`'s post-transpose "next byte is a sector # even if >= $80" | C29 | recurring (5×) |
 | LOSSY ENUM over independently-toggleable flag bits · USF enum assumed two editor flags mutually exclusive (gate hold $10 / never-release $08) · engine gives one priority so the co-set bit is MECHANICALLY DEAD · but the raw flags byte is OBSERVABLE via a state-as-data read (off-table fxf) → reconstruction misses the dead bit · carry the masked flag as an elidable boolean CO-FIELD, keep the enum = the EFFECTIVE articulation | C30 | logged |
 | COMPILATION · one file packs N INDEPENDENT players + a per-subtune SMC dispatch wrapper (subtune→(base,song)) · header overstates songs, sub0 FULL others silent/garbage · ≥2 jump-table bases · unified-merge (renumber+dedup instruments) · heterogeneous engines (dmc_sfx) · distinct from C27 parallel chips | C31 | logged |
 | engine STICKY STATE materialized into effective variants · orderlist state over the loop wrap (fitted pad/period/rcmd) · pattern-row sticky duration/instr/vol (FC (fc_id,init_len) variants · len=L pickup · DMC ~intro decode variants) · fold to STATED notation (value present iff the stream states the command; absent = inherit) + ONE shared resolution interpreter (src/usf/resolve.py) · re-derivation assert, fallback wholesale | C32 | canonicalized (2×) |
@@ -658,6 +658,24 @@ practice, not code to factor).
   landing to the canon default `track[otrk+1]`; a valid pointer lands within a
   few transposes of it and is already correct, so LEAVE IT (an "override any
   non-start landing" heuristic regressed 3 valid-pointer siblings).
+- ORDERLIST-POINTER class (Memomania): the out-of-image read can be the TRACK
+  (orderlist) POINTER ITSELF, not a sector — a tune-table track ptr lands in
+  banked ROM ($F256 = KERNAL; others $C2xx) so the whole orderlist is read from
+  ROM and played (sector-1 melody + a transpose walk). `_offimage_track_ptrs`
+  pre-pass overlays the CPU-eye window (shares `_overlay_offimage_windows` with
+  the sector overlay), BEFORE the secp/sector walks. ⚠ STATIC ROM ONLY
+  ($A000-$BFFF / $E000-$FFFF); a below-load/zp track ptr reads DYNAMIC RAM
+  (served 0 = old zero-fill) so overlaying only MOVES a divergence. ⚠ GATE to
+  NON-post-init members (like `_undefined_secp_reads`): a post-init member's
+  ROM-range orderlist address is GENERATED RAM, not banked ROM (Kan-Kan $A3A1)
+  — overlaying it clobbers the generated orderlist. RESIDUE: a
+  ROM orderlist can still dispatch to an off-table secp# → sector $0000 = live
+  zp = dynamic wall (Memomania: 26→6086, port-byte→dynamic-zp transition).
+- SCAN↔WALK CONSISTENCY: `_offimage_sectors` / `_undefined_secp_reads` must
+  MIRROR `_walk_track` — post-transpose byte is a sector # UNCONDITIONALLY
+  (orig $10FE-$1101, no re-dispatch) even when >= $80 (`$F3 $A5` = sector $A5).
+  The scans only special-cased post-transpose $FE/$FF (C34) → missed the
+  $80-$FD case → off-image sector un-overlaid, walk self-loops on image zeros.
 - FULL ENTRY: [`ledger/C29.md`](ledger/C29.md) — read it before applying.
 
 ### C30 — lossy enum over independently-toggleable editor flag bits

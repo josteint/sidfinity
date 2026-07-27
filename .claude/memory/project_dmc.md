@@ -8,6 +8,58 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ROUND 120 (2026-07-27): out-of-image ROM ORDERLIST pointers (C29 5th occ) + scan↔walk consistency. Memomania is dynamic-zp RESIDUE
+Next f1 partial by path = `Harti/Memomania` sub 3 (single, base $B800, 6 subs,
+only sub 3 partial). ROOT CAUSE: sub 3's V1 **track (orderlist) pointer is
+`$F256` = KERNAL ROM** (all other pointers `$C2xx`, in image) — the orig reads
+the WHOLE orderlist from banked ROM and plays it (a sector-1 melody then a
+transpose walk through garbage); our zero-fill decoded sector 0 forever (played
+note 36 immediately where orig rests 4 frames then plays note 40).
+
+Two clean, general, regression-safe fixes (commit 89db7848, ledger C29):
+1. **`_offimage_track_ptrs` pre-pass** overlays the CPU-eye window at any
+   tune-table track pointer whose 256-byte window overlaps banked ROM
+   ($A000-$BFFF / $E000-$FFFF), BEFORE the secp/sector walks. Refactored the
+   inline sector overlay into a shared `_overlay_offimage_windows` helper
+   (faithful, byte-identical). **STATIC ROM ONLY** — a below-load/zp track ptr
+   is DYNAMIC RAM (stability filter → 0 = old zero-fill), so overlaying it only
+   moves a divergence. ⚠ **AND GATED to non-post-init members** (same
+   `if not (data_post_init or post_sub)` guard as `_undefined_secp_reads`): for
+   a `data_post_init` member `mem` is the RUNTIME RAM and a ROM-range orderlist
+   address is GENERATED RAM, not banked ROM — overlaying it clobbers the
+   generated orderlist. Bisect gotcha: `Kan-Kan`'s raw-image ptrs read `$0000`
+   but its POST-INIT ptrs are `$A3A1` (BASIC-ROM range) → without the post-init
+   gate the overlay peeked BASIC ROM over the init-unpacked orderlist and
+   regressed it 2→0 (found by old-vs-new worktree bisect; classify the gate on
+   the SAME `mem` the walk reads).
+2. **`_offimage_sectors` / `_undefined_secp_reads` now mirror `_walk_track`**:
+   the byte after a transpose is a sector # UNCONDITIONALLY (orig $10FE-$1101,
+   even `>= $80`: `$F3 $A5` = sector $A5). The old scans only handled
+   post-transpose $FE/$FF (C34) → missed the $80-$FD case → the post-transpose
+   off-image sector's secp/data went un-overlaid → `_walk_track` read image
+   zeros and spuriously self-looped.
+
+Memomania sub 3: first divergence **26 → 6086 writes** (len_b now = len_a). Does
+NOT reach FULL — its ROM orderlist dispatches (pos 5, post-`$F3`) to sector
+`$A5`; `$A5` is past the secp table so `secp[$A5]` = off-image `$C982/$C9A4` =
+`$00` → sector `$A5` = **address `$0000` = LIVE ZERO PAGE** = the C29 dynamic
+hard-residue wall (the divergence lands exactly at the port-byte→dynamic-zp
+transition, flat 6048). Genuinely irreproducible statically.
+
+**The class (6 f1 partials with out-of-image track pointers, scanned from the
+92-partial `dmc_wide_results` — a raw-image scan, so post-init members'
+ptrs are UNDER-reported there):** CANON ROM-ptr → helped (Memomania $F256
+26→6086; Cafe_Odd $EBxx sub0 already FULL, sub1 a broken/5-write subtune);
+dynamic below-load/zp (Flash/Itinerant, Wind_of_Dead; Goldrake below-load) →
+served 0, untouched by the ROM-only gate; POST-INIT (Kan-Kan) → untouched by
+the post-init gate. **0 members flipped to fully-FULL** — the value is the
+correct C29 extension + a general scan/walk-consistency bug fix + Memomania's
+first divergence 26→6086. Gates: dmc_smoke 6/6; Roots + Centric_tune_4 (C29
+sector members) still FULL; Kan-Kan byte-reverts to parent (post-init gate);
+golden byte-identity over 227 members (portfolio + C29/C34 + 200 random FULLs)
+= 0 regressions. Technique/boundaries: ledger [C29](../../docs/ledger/C29.md)
+5th occurrence.
+
 ## ✅ NATIVE-CAPTURE COMPLETENESS VERIFICATION (2026-07-25): all 4 shipped phases proven ZERO-REGRESSION by enumeration
 Prompted by a "are we 100% sure this is sound?" challenge. Every member whose
 extraction path any phase could touch was enumerated and verified (not argued):
