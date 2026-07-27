@@ -8,6 +8,23 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 122 (2026-07-27): Enforcer_2_Level_1_preview FULL (+1) — the DRUM FREQ-HI REPOINT wedge (C19 25th occ, singleton)
+Next f1 partial by path = `Heinmueck/Enforcer_2_Level_1_preview` (single, base
+$0C00, 1 sub, partial 27%: V2 freq hi orig $1A vs ours $0C at a drum event —
+`dmc_offtable_probe` correctly said NOT off-table). ROOT CAUSE: the
+absolute-freq wave step's hi store (canon $15FD `STA $1732,x` = fbh) is
+re-pointed at base+$754,x = **pwh+1, the NEXT voice's PW-hi state** — a drum
+step zeroes fbl but leaves the SID freq hi at the note's base, and the table
+byte pokes the neighbour's PW hi. One of canon_diff's 9 known unhandled
+singletons (its $15FD repoint row); the member also carries the V3-unit
+NOP-removal ($109C/$109D, already handled as `play_unit_repeat='1,1,0,1'`) +
+the $10DF loop hook, and builds via the DATAFLOW path — which already runs
+the uniform wedge probes, so the fix is just one `_WEDGE_PROBES` row
+(`_drum_fhi_probe`, anchored, fires only on the exact base+$754 operand) →
+`drum_fhi_to_pw` param → composer `ws_drd` hi store `sta pwh+1,x` (X=2
+unreachable, V3 removed). 27% → FULL 57236/57236. Gates: dmc_smoke 6/6 +
+full regression green. f1 count: 5322/5401 FULL + 79 partial.
+
 ## ✅ ROUND 121 (2026-07-27): Dreck_Ist_Weg FULL (+1) — the $7D-RETRIG branch-operand wedge (C19 24th occ, singleton)
 Next f1 partial by path = `Heinmueck/Dreck_Ist_Weg` (single, base $1000, sub 0
 partial at 2.8%: orig re-triggers V2's drum at frame 153, rebuild released).

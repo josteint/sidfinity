@@ -2376,6 +2376,32 @@ def _loop_target_probe(mem, base: int, strict: bool = False):
     return False
 
 
+def _drum_fhi_probe(path: str, base: int,
+                    post_init_sub: 'int | None' = None):
+    """Drum freq-hi REPOINT probe (C19 STATIC opcode probe). The absolute-freq
+    wave step's hi store (canon $15FD `STA $1732,x` = fbh) is re-pointed at
+    base+$754,x = pwh+1, the NEXT voice's pulse-width-hi running state: a
+    drum step then zeroes fbl but leaves the voice's SID freq hi at the
+    note's base value, while the wave table's freq byte pokes the next
+    voice's PW hi. Anchored on the surrounding canon shape (`LDA #$00 / STA
+    fbl,x / LDA abs,y / STA ...`) so a re-assembled layout can't false-fire.
+    Returns '1' (the composer's `drum_fhi_to_pw` param) or None (canon /
+    unknown repoint — canon behaviour, the verify verdict judges). Sole
+    HVSC carrier: MUSICIANS/H/Heinmueck/Enforcer_2_Level_1_preview.sid."""
+    mem, _ = _load(path, post_init_sub)
+    if (mem[base + 0x5F5] != 0xA9 or mem[base + 0x5F6] != 0x00
+            or mem[base + 0x5F7] != 0x9D
+            or _rd16(mem, base + 0x5F8) != base + 0x72F
+            or mem[base + 0x5FA] != 0xB9):
+        return None
+    site = base + 0x5FD
+    if mem[site] != 0x9D:
+        return None
+    if _rd16(mem, site + 1) == base + 0x754:
+        return '1'
+    return None
+
+
 def _switch_retrig_probe(mem, base: int) -> bool:
     """C19 STATIC opcode probe — the $7D (SWITCH) dispatch branch operand.
 
@@ -2918,6 +2944,7 @@ _WEDGE_PROBES = [
     ('pulsewidth_dir_persist',          lambda p, c: _pw_dir_persist_probe(p, c.base, c.post_init_sub)),
     ('switch_toggle_mask',              lambda p, c: _switch_toggle_mask_probe(p, c.base, c.gatemask_addr, c.post_init_sub)),
     ('glide_neutered',                  lambda p, c: _glide_neutered_probe(p, c.base, c.post_init_sub)),
+    ('drum_fhi_to_pw',                  lambda p, c: _drum_fhi_probe(p, c.base, c.post_init_sub)),
     ('route_clear_dead',                lambda p, c: _route_clear_dead_probe(p, c.base, c.post_init_sub)),
     ('fclaim_clear_dead',               lambda p, c: _fclaim_clear_dead_probe(p, c.base, c.post_init_sub)),
     ('track_ff_reinit',                 lambda p, c: _track_ff_reinit_probe(p, c.base, c.post_init_sub)),

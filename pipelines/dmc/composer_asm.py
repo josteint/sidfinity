@@ -1334,6 +1334,18 @@ evd5:
     pw_hi_const = str(usf.params.fields.get('pulsewidth_hi_const', '') or '')
     pw_hi_load = ('        lda pwhic,x                  ; patched PW-hi source'
                   if pw_hi_const else '        lda pwh,x')
+    # Drum (absolute-freq) wave-step hi-store repoint (C19 wedge,
+    # Heinmueck/Enforcer_2_Level_1_preview — sole family-1 carrier, see
+    # factory._drum_fhi_probe): the canon $15FD `STA $1732,x` (fbh) is
+    # re-pointed at $1754,x = pwh+1, so an absolute drum step zeroes fbl but
+    # LEAVES the voice's freq hi at the note's base value, while the wave
+    # table's freq byte pokes the NEXT voice's PW-hi running state. (X=2
+    # would land on the orig's PW-min bound slot, but that carrier's V3
+    # play unit is removed — unreachable.) Default -> byte-identical.
+    drum_fhi_pw = str(usf.params.fields.get('drum_fhi_to_pw', '') or '')
+    ws_drum_fhi = ('        sta pwh+1,x                  ; C19: -> next voice'
+                   ' PW hi (fbh keeps note base)'
+                   if drum_fhi_pw else '        sta fbh,x')
     # Dual-effect freq-generator wedge (C19 4th occurrence, Taurus/Taurus_02,
     # the only family-1 carrier — see factory._dual_freq_gen_probe): the member's
     # odd-parity dual path is byte-edited (`LDX $2F` -> X=$A9) so every
@@ -3216,7 +3228,7 @@ ws_drd:
         lda #$00
         sta fbl,x
         lda wftab,y                  ; absolute freq hi
-        sta fbh,x
+{ws_drum_fhi}
         inc wavepos,x
 sidwrite:
         ldy sidoff,x
