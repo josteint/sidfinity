@@ -2376,6 +2376,27 @@ def _loop_target_probe(mem, base: int, strict: bool = False):
     return False
 
 
+def _switch_retrig_probe(mem, base: int) -> bool:
+    """C19 STATIC opcode probe — the $7D (SWITCH) dispatch branch operand.
+
+    Canon: `CMP #$7D / BEQ base+$183` (toggle the per-voice switch flag).
+    The Dreck_Ist_Weg wedge re-points the BEQ to base+$158 — canon's own
+    mode-0 glide tail `LDA base+$744,x / JMP base+$1A6` — so $7D becomes a
+    FULL NOTE-INIT of the stored glide start note (the transpose add at
+    base+$1A2 is skipped and the switch flag never toggles). Accept ONLY
+    that exact target+tail; anything else keeps canon semantics (the
+    masked identity compare / verify judge). Sole HVSC carrier:
+    MUSICIANS/H/Heinmueck/Dreck_Ist_Weg.sid (family census 2026-07-27)."""
+    d = base - 0x1000
+    if bytes(mem[0x1129 + d:0x112C + d]) != b'\xC9\x7D\xF0':
+        return False
+    op = mem[0x112C + d]
+    tgt = (0x112D + d + (op - 256 if op >= 128 else op)) & 0xFFFF
+    h = 0x1158 + d
+    return (tgt == h and mem[h] == 0xBD and _rd16(mem, h + 1) == 0x1744 + d
+            and mem[h + 3] == 0x4C and _rd16(mem, h + 4) == 0x11A6 + d)
+
+
 def _sid_header_multi(sid_path: str):
     """Read the PSID v3/v4 multi-SID header fields. Returns
     (n_chips, sid2_addr, sid3_addr, sid2_model, sid3_model). Addresses are
@@ -2443,7 +2464,8 @@ def _config_at_base(sid_path: str, hvsc_root: str, base: int,
         op_secp_lo=at(0x1103), op_secp_hi=at(0x1108),
         freq_lo_addr=at(0x1647), freq_hi_addr=at(0x16A7),
         vibdepth_addr=at(0x1888), d417_shadow_addr=at(0x1018),
-        track_loop_target=_loop_target_probe(mem, base))
+        track_loop_target=_loop_target_probe(mem, base),
+        switch_retrig=_switch_retrig_probe(mem, base))
     _apply_wedge_probes(os.path.join(hvsc_root, sid_path), cfg)
     return cfg
 
@@ -3508,6 +3530,12 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84',
     loop_target = _loop_target_probe(mem, base, strict=True)
     for i in range(_LOOP_SITE, _LOOP_SITE + 3):
         masked[i - 0x1000] = 1
+    # $7D-retrig wedge (C19): the SWITCH dispatch BEQ operand at base+$12C is
+    # re-pointed at canon's own glide replay tail — a validated probe masks
+    # that one operand byte so the carrier flows through this canonical path.
+    switch_retrig = _switch_retrig_probe(mem, base)
+    if switch_retrig:
+        masked[0x112C - 0x1000] = 1
     # ---- canon sub-build knob probes: variants that either map to an
     # existing composer knob or emit the same writes. Each masks its site
     # so the variant passes the compare; the verify is the safety net. ----
@@ -3666,7 +3694,8 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84',
         op_secp_lo=at(0x1103), op_secp_hi=at(0x1108),
         freq_lo_addr=at(0x1647), freq_hi_addr=at(0x16A7),
         vibdepth_addr=at(0x1888), d417_shadow_addr=at(0x1018),
-        track_loop_target=loop_target, cia_period=cia_period,
+        track_loop_target=loop_target, switch_retrig=switch_retrig,
+        cia_period=cia_period,
         play_repeat=play_repeat,
         data_post_init=unpacked,
         extra_params=extra,

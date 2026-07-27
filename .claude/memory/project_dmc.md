@@ -8,6 +8,31 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 121 (2026-07-27): Dreck_Ist_Weg FULL (+1) — the $7D-RETRIG branch-operand wedge (C19 24th occ, singleton)
+Next f1 partial by path = `Heinmueck/Dreck_Ist_Weg` (single, base $1000, sub 0
+partial at 2.8%: orig re-triggers V2's drum at frame 153, rebuild released).
+ROOT CAUSE: ONE BYTE — the $7D SWITCH dispatch `CMP #$7D / BEQ` operand at
+$112C patched $56→$2B, re-pointing the branch from the canon switch-toggle
+handler ($1183) to canon's OWN mode-0 glide replay tail ($1158 `LDA $1744,x /
+JMP $11A6`): $7D = full note-init of the stored glide-start note (init clears
+it to 0; only glide rows write it), transpose add skipped, no switch toggle.
+Fix (commit this round, ledger C19 24th occ — read it for the technique):
+`factory._switch_retrig_probe` (validates exact target+tail, masks the one
+operand byte so the member flows through the CANONICAL path — it had been
+falling through to dataflow) → typed extract-only `cfg.switch_retrig` → the
+walk keeps an {'abs','cur'} shadow of $1744,x/curnote and decodes $7D as a
+plain note row `(abs - transp) & $FF` (stream byte-identical to a normal note
+row from $11A6 on; composer untouched; ≥$60 = refusal; shadow joins the
+endless/wrap keys only when on). Census: SOLE carrier in 10,689 scanned DMC
+files ⇒ regression-safe by construction. Dreck 2.8% → FULL 85879/85879.
+TOOL GAP: `dmc_canon_diff` reported this member as carrying ONLY the $10DF
+track-loop hook — a same-opcode BRANCH-OPERAND repoint is outside its cluster
+classes. When a canon member's divergence has no probed wedge, raw byte-diff
+vs `docs/dmc4_player_embedded_1000.bin` (774 diffs filtered to 2 real code
+wedges in one pass). Also: the $17C0/$1837 row-fetch "appendix" and $F0+/$7C
+handling are CANON (already modeled); do not mistake them for patches.
+f1 count: 5321/5401 FULL + 80 partial (r119 batch + this).
+
 ## ✅ ROUND 120 (2026-07-27): Memomania FULL (+1) — ROM orderlist ptrs (C29 5th) + C34 one-row law generalized ($80-$FD mutation, `runon` flag) + play-time 6510 port (C29 6th)
 Next f1 partial by path = `Harti/Memomania` sub 3 (single, base $B800, 6 subs,
 only sub 3 partial). ROOT CAUSE: sub 3's V1 **track (orderlist) pointer is

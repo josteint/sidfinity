@@ -58,6 +58,15 @@ class DMCV4Config:
     # loops to track position 0; the JSR-$1042 hook variant reads the
     # NEXT track byte as the loop position ($FF nn).
     track_loop_target: bool = False
+    # $7D-retrig wedge (factory-probed, ledger C19): the $7D (SWITCH) dispatch
+    # branch at base+$12C is re-pointed from the canon switch-toggle handler
+    # (base+$183) to the glide-note replay tail (base+$158: `LDA base+$744,x /
+    # JMP base+$1A6`) — $7D becomes a FULL NOTE-INIT of the stored glide start
+    # note (transpose add skipped, no switch-flag toggle). The extract decodes
+    # such $7D rows as plain note rows via a walk-level shadow of base+$744,x
+    # (init clears it to 0; only glide rows write it). Extract-only, never USF.
+    # Sole HVSC carrier: Heinmueck/Dreck_Ist_Weg.
+    switch_retrig: bool = False
     # RESET-ALL-to-N hook (dataflow-probed, ledger C13): a $FF handler that
     # writes to all three voices' track-pos ($1726/7/8) = a synchronized loop.
     # None = not this form (use track_loop_target). Two shapes:

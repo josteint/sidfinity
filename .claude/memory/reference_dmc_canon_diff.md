@@ -46,6 +46,10 @@ the probes' TRUE carrier counts (track_loop_hook 876, d418/wrapper 169, master_v
 ## Limits (in the tool docstring)
 - Misses IMMEDIATE-value tweaks (hr_preset $0F->X, cymbal $FF->X — a value diff,
   not an opcode/address diff).
+- Misses same-opcode BRANCH-OPERAND repoints (proven 2026-07-27, r121: Dreck's
+  $7D dispatch BEQ $56→$2B — the $7D-retrig wedge, C19 24th occ — reported as
+  "only the $10DF hook"). A "0 NEW" report does NOT cover branch operands;
+  fallback = raw byte-diff vs the canon binary, then filter operand/data runs.
 - Skips RE-ASSEMBLED members (1107/5401; linear-align only — an opcode-skeleton
   align would cover them).
 - `_KNOWN_SITES` handled/NEW tags are hand-maintained instruction-site windows.

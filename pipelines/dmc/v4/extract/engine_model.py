@@ -519,7 +519,9 @@ _SECFMT = {
 
 
 def _simulate_sector(mem, sec_addr: int, st: _Sticky,
-                     fmt: _SecFmt = _SECFMT['v4']) -> list:
+                     fmt: _SecFmt = _SECFMT['v4'],
+                     retrig: 'dict | None' = None,
+                     transpose: int = 0) -> list:
     """Walk one sector with the player's dispatch; mutate `st`; return
     the row list. Parametric over `fmt` (the command byte map).
 
@@ -532,7 +534,18 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
     pending-prefix) state repeat and returns `('endless', lead, period)` —
     the rows before the first repeated state, and one full period. A
     terminated sector never revisits a loop-top state (pos is strictly
-    increasing until the terminator), so the terminated path is untouched."""
+    increasing until the terminator), so the terminated path is untouched.
+
+    `retrig` (the $7D-retrig wedge, cfg.switch_retrig / ledger C19): a
+    mutable {'abs': .., 'cur': ..} shadow of the engine's stored glide-start
+    note base+$744,x ('abs', absolute = transpose already folded in at store
+    time) and curnote base+$12,x ('cur'). When set, a $7D byte is a FULL
+    NOTE-INIT of 'abs' entering the note path at base+$1A6 — the transpose
+    add is skipped — so it decodes as a plain note row with note byte
+    `(abs - transpose) & $FF` (the composer's playback re-adds `transpose`,
+    reproducing the same table index) and NO switch/gate toggle. Only glide
+    rows write the register: mode 0 stores start+transpose, mode 1 copies
+    curnote. None = canon semantics, byte-for-byte the old path."""
     rows = []
     pos = 0
     soft = False
@@ -579,7 +592,8 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
             raise RuntimeError(
                 f'unsupported:sector_decode no end at ${sec_addr:04X}')
         pos &= 0xFF
-        key = (pos, st.key(), soft, p_d, p_i, p_v, p_s)
+        key = (pos, st.key(), soft, p_d, p_i, p_v, p_s) + \
+            ((retrig['abs'], retrig['cur']) if retrig is not None else ())
         if key in seen:
             i = seen[key]
             return ('endless', rows[:i], rows[i:])
@@ -607,6 +621,22 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
                 return rows
             continue
         if b == fmt.switch:
+            if retrig is not None:
+                # $7D-retrig wedge: replay the stored glide-start note as a
+                # full note-init (transpose add skipped — subtract it here so
+                # playback's re-add lands the same index). A shadow value the
+                # note byte space can't express is a refusal, not a guess.
+                nb = (retrig['abs'] - transpose) & 0xFF
+                if nb >= fmt.instr_lo:
+                    raise RuntimeError(
+                        'unsupported:switch_retrig note $%02X' % nb)
+                retrig['cur'] = retrig['abs']
+                rows.append(DmcRow(note=nb, duration=st.dur, instr=st.instr,
+                                   vol=st.vol, soft=soft, **_take()))
+                pos += 1
+                if peek_end():
+                    return rows
+                continue
             rows.append(DmcRow(note=None, duration=st.dur, instr=st.instr,
                                vol=st.vol, gate_toggle=True, **_take()))
             pos += 1
@@ -619,6 +649,8 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
             if b & 0x10:             # mode 1: slide current note to target
                 target = rd(pos + 1)
                 pos += 2
+                if retrig is not None:      # base+$744,x <- curnote ($1168)
+                    retrig['abs'] = retrig['cur']
                 rows.append(DmcRow(note=target, duration=st.dur,
                                    instr=st.instr, vol=st.vol,
                                    glide_speed=speed, glide_slide=True,
@@ -630,6 +662,8 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
                 a = rd(pos + 1)
                 t = rd(pos + 2)
                 pos += 3
+                if retrig is not None:      # base+$744,x <- A+transp ($1145)
+                    retrig['abs'] = retrig['cur'] = (a + transpose) & 0xFF
                 rows.append(DmcRow(note=a, duration=st.dur, instr=st.instr,
                                    vol=st.vol, soft=soft,
                                    glide_speed=speed, glide_to=t,
@@ -651,6 +685,8 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
             pos += 1
             continue
         # note
+        if retrig is not None:              # curnote <- b+transp ($11A6)
+            retrig['cur'] = (b + transpose) & 0xFF
         rows.append(DmcRow(note=b, duration=st.dur, instr=st.instr,
                            vol=st.vol, soft=soft, **_take()))
         pos += 1
@@ -712,7 +748,8 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 loop_target: bool = False,
                 loop_reset_pos: int | None = None,
                 fmt: _SecFmt = _SECFMT['v4'],
-                instr_seed: int = 0) -> DmcVoice:
+                instr_seed: int = 0,
+                switch_retrig: bool = False) -> DmcVoice:
     """Walk one voice's track (orderlist), path-resolving every sector
     instance. Unrolls $FF loops until (wrap position, sticky state)
     repeats. `loop_target`: the JSR-$1042 player variant reads the byte
@@ -738,6 +775,12 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
     pat_key_to_id = {}
     st = _Sticky(instr=instr_seed)
     v.instr_seed = instr_seed
+    # $7D-retrig wedge shadow (cfg.switch_retrig, ledger C19). Seed 0/0: the
+    # canon init clears the whole base+$718..$79D state block (glide-start
+    # base+$744,x included) and the note-init cache to 0.
+    retrig = {'abs': 0, 'cur': 0} if switch_retrig else None
+    _rkey = (lambda: (retrig['abs'], retrig['cur'])) if switch_retrig \
+        else (lambda: ())
     transpose = 0
     pos = 0
     wrap_states = {}        # (tgt, sticky, pending) at wrap -> entry index
@@ -757,7 +800,7 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
             pos &= 0xFF
             wrapped = True
         if wrapped:
-            key = (pos, st.key(), transpose)
+            key = (pos, st.key(), transpose) + _rkey()
             if key in mod_states:
                 v.loop_to = mod_states[key]
                 return v
@@ -771,7 +814,7 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 tgt = loop_reset_pos    # reset-all-to-N SYNC hook (ledger C13)
             else:
                 tgt = mem[(track_addr + ((pos + 1) & 0xFF)) & 0xFFFF] if loop_target else 0
-            key = (tgt, st.key(), pending_off)
+            key = (tgt, st.key(), pending_off) + _rkey()
             if key in wrap_states:
                 v.loop_to = wrap_states[key]
                 return v
@@ -816,7 +859,10 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 ga = ((mem[(secp_lo + b) & 0xFFFF] |
                        (mem[(secp_hi + b) & 0xFFFF] << 8))
                       + pending_off) & 0xFFFF
-                probe = _simulate_sector(mem, ga, st.copy(), fmt)
+                probe = _simulate_sector(
+                    mem, ga, st.copy(), fmt,
+                    retrig=dict(retrig) if retrig is not None else None,
+                    transpose=transpose)
                 if isinstance(probe, tuple) and probe[0] == 'endless':
                     # A garbage pseudo-sector has no $7F terminator, so the
                     # simulation reports 'endless' — but the engine only ever
@@ -837,6 +883,16 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                         st.instr = r0.instr
                     if r0.vcmd:
                         st.vol = r0.vol
+                    if retrig is not None:
+                        # only r0 was consumed — apply ITS shadow effect alone
+                        # (the simulate copy above may have walked further)
+                        if r0.glide_to is not None:
+                            retrig['abs'] = retrig['cur'] = \
+                                (r0.note + transpose) & 0xFF
+                        elif r0.glide_slide:
+                            retrig['abs'] = retrig['cur']
+                        elif r0.note is not None:
+                            retrig['cur'] = (r0.note + transpose) & 0xFF
                     # sub_11E6 end-of-sector peek: after the row, a $7F at the
                     # new sector position advances the track NOW (pos++ +
                     # sectpos reset) — the byte then never re-dispatches. A
@@ -875,7 +931,8 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
         sec_addr = (mem[(secp_lo + sec) & 0xFFFF] |
                     (mem[(secp_hi + sec) & 0xFFFF] << 8)) + pending_off
         pending_off = 0
-        rows = _simulate_sector(mem, sec_addr, st, fmt)
+        rows = _simulate_sector(mem, sec_addr, st, fmt,
+                                retrig=retrig, transpose=transpose)
         if isinstance(rows, tuple) and rows[0] == 'endless':
             # unterminated sector (8-bit sectpos wrap): the voice never
             # leaves it — encode lead rows (once) + one period, self-loop.
@@ -1525,10 +1582,11 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
             fmt = _SECFMT[cfg.sector_format]
             if cfg.extra_params.get('glide_neutered'):
                 fmt = _dc_replace(fmt, glide_dead=True)
+            _sr = getattr(cfg, 'switch_retrig', False)
             v = _walk_track(smem, tp, secp_lo, secp_hi,
                             loop_target=cfg.track_loop_target,
                             loop_reset_pos=lrp,
-                            fmt=fmt)
+                            fmt=fmt, switch_retrig=_sr)
             # Initial sticky-instrument LEFTOVER ($1015,x — canon init never
             # clears it): a voice that note-inits before any $6x command
             # plays the leftover instrument, not 0. Re-walk seeded ONLY when
@@ -1541,7 +1599,8 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
                 v = _walk_track(smem, tp, secp_lo, secp_hi,
                                 loop_target=cfg.track_loop_target,
                                 loop_reset_pos=lrp,
-                                fmt=fmt, instr_seed=_seedl)
+                                fmt=fmt, instr_seed=_seedl,
+                                switch_retrig=_sr)
             voices.append(v)
         song = DmcSong(id=sub + 1, speed=mem[rec + 6],
                        master_vol=mem[rec + 7], voices=voices)
