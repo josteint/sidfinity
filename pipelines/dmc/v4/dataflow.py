@@ -359,6 +359,30 @@ def locate(mem: bytearray, base: int, play: int | None = None,
                 break
             j = buf.find(sig, j + 1)
 
+    # THIRD FORM of the $FF handler (a C13 corollary — the `loop_site is
+    # None ⟹ JSR-hook` binary above hid it; Hudy/Cotton_Eye_Joe): the canon
+    # loop-to-0 store IS present, but the re-dispatch `JMP $10D2` after it
+    # was overwritten by author-credit TEXT that EXECUTES — its first byte
+    # $50 'P' = BVC (always taken, V=0 from the duration arithmetic) into
+    # the dispatch's glide-range `CMP #$C0` with A=$00, which cascades to
+    # the plain-note path: every track wrap injects a spurious NOTE-0 row
+    # (sticky dur/instr, current transpose, +1 sectpos INC) before the walk
+    # resumes at position 0. Positive detection: the canon `C9 FF D0 08 A9
+    # 00 9D tpos` shape followed by a BVC landing exactly on a `CMP #$C0`.
+    loop_note_inject = False
+    if track_pos_addr is not None:
+        sig = bytes([0xC9, 0xFF, 0xD0, 0x08, 0xA9, 0x00, 0x9D,
+                     track_pos_addr & 0xFF, track_pos_addr >> 8, 0x50])
+        buf = bytes(mem)
+        j = buf.find(sig)
+        if j >= 0:
+            op = buf[j + 10]
+            tgt = j + 11 + (op - 256 if op >= 128 else op)
+            if 0 <= tgt < len(buf) - 1 and buf[tgt] == 0xC9 \
+                    and buf[tgt + 1] == 0xC0:
+                loop_note_inject = True
+                track_loop_target = False
+
     return {
         'op_instr': sites['instr'], 'op_wavectrl': sites['wavectrl'],
         'op_wavefreq': sites['wavefreq'], 'op_filtdef': sites['filtdef'],
@@ -370,4 +394,5 @@ def locate(mem: bytearray, base: int, play: int | None = None,
         'dual_parity_addr': state['dual_parity'],
         'track_loop_target': track_loop_target,
         'loop_reset_pos': loop_reset_pos,
+        'loop_note_inject': loop_note_inject,
     }

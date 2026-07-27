@@ -344,7 +344,11 @@ practice, not code to factor).
   a binary "not-A ⟹ B" classifier hides a THIRD form — fix by POSITIVE
   detection of the minority (verified absent from the majority), never by
   flipping the default; probe literals are per-voice DATA (don't assume
-  equal immediates).
+  equal immediates). Worked third form (r124): the $FF handler with canon
+  loop-to-0 store + author TEXT overwriting the re-dispatch JMP — the text
+  EXECUTES (BVC into the dispatch, A=$00) and injects a spurious note-0
+  row each wrap (`loop_note_inject`); pc-watch decided what static reading
+  couldn't.
 - FULL ENTRY: [`ledger/C13.md`](ledger/C13.md) — read it before applying.
 
 ### C14 — command-per-row tracker effects (note + fx + param per row)

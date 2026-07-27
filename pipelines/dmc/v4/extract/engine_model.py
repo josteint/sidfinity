@@ -749,7 +749,8 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 loop_reset_pos: int | None = None,
                 fmt: _SecFmt = _SECFMT['v4'],
                 instr_seed: int = 0,
-                switch_retrig: bool = False) -> DmcVoice:
+                switch_retrig: bool = False,
+                loop_note_inject: bool = False) -> DmcVoice:
     """Walk one voice's track (orderlist), path-resolving every sector
     instance. Unrolls $FF loops until (wrap position, sticky state)
     repeats. `loop_target`: the JSR-$1042 player variant reads the byte
@@ -810,6 +811,33 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
             v.stop = True
             return v
         if b == 0xFF:
+            if loop_note_inject:
+                # $FF text-fallthrough note-inject (cfg.loop_note_inject, a
+                # C13 third form — see config.py): the wrap plays ONE
+                # spurious note-0 row (sticky dur/instr, CURRENT transpose)
+                # and INCs sectpos before resuming at track position 0. The
+                # walk materialises the row as a one-row pattern entry;
+                # the wrap key carries transpose (it pitches the fake row)
+                # so unrolling converges on the right entry.
+                key = ('inject', st.key(), pending_off, transpose) + _rkey()
+                if key in wrap_states:
+                    v.loop_to = wrap_states[key]
+                    return v
+                wrap_states[key] = len(v.entries)
+                r0 = DmcRow(note=0, duration=st.dur, instr=st.instr,
+                            vol=st.vol)
+                pkey = (('inject', r0.note, r0.duration, r0.instr, r0.vol),)
+                pid = pat_key_to_id.get(pkey)
+                if pid is None:
+                    pid = len(v.patterns)
+                    v.patterns.append([r0])
+                    pat_key_to_id[pkey] = pid
+                v.entry_offsets.append(pos)
+                v.entries.append(pid)
+                v.transposes.append(transpose)
+                pos = 0
+                pending_off += 1        # the note path's INC $1729,x
+                continue
             if loop_reset_pos is not None:
                 tgt = loop_reset_pos    # reset-all-to-N SYNC hook (ledger C13)
             else:
@@ -1583,10 +1611,12 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
             if cfg.extra_params.get('glide_neutered'):
                 fmt = _dc_replace(fmt, glide_dead=True)
             _sr = getattr(cfg, 'switch_retrig', False)
+            _lni = getattr(cfg, 'loop_note_inject', False)
             v = _walk_track(smem, tp, secp_lo, secp_hi,
                             loop_target=cfg.track_loop_target,
                             loop_reset_pos=lrp,
-                            fmt=fmt, switch_retrig=_sr)
+                            fmt=fmt, switch_retrig=_sr,
+                            loop_note_inject=_lni)
             # Initial sticky-instrument LEFTOVER ($1015,x — canon init never
             # clears it): a voice that note-inits before any $6x command
             # plays the leftover instrument, not 0. Re-walk seeded ONLY when
@@ -1600,7 +1630,8 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
                                 loop_target=cfg.track_loop_target,
                                 loop_reset_pos=lrp,
                                 fmt=fmt, instr_seed=_seedl,
-                                switch_retrig=_sr)
+                                switch_retrig=_sr,
+                                loop_note_inject=_lni)
             voices.append(v)
         song = DmcSong(id=sub + 1, speed=mem[rec + 6],
                        master_vol=mem[rec + 7], voices=voices)

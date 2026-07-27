@@ -77,6 +77,15 @@ class DMCV4Config:
     #   tuple  — a DISTINCT loop position per voice (n0,n1,n2), round-63 (ledger
     #            C13 refinement, Attacker: 3/30/3); _walk_track indexes per voice.
     loop_reset_pos: int | tuple = None
+    # $FF text-fallthrough NOTE-INJECT (dataflow-probed third form of the
+    # loop handler, ledger C13 corollary — Hudy/Cotton_Eye_Joe): canon
+    # loop-to-0 store, but the re-dispatch JMP was overwritten by author
+    # TEXT whose first byte executes as a BVC into the note dispatch with
+    # A=$00 — every track wrap plays ONE spurious note-0 row (sticky
+    # dur/instr, wrap-time transpose) and INCs sectpos before resuming at
+    # position 0. Extract-only (the walk materialises the row; the
+    # composer plays ordinary content).
+    loop_note_inject: bool = False
     # Sector-command byte map (factory-probed). 'v4' = canonical
     # (terminator $7F, VOL $F0+, soft-start $7C); 'family2' = the
     # V4-derived variant (terminator $FF, no VOL/soft-start, instr range
