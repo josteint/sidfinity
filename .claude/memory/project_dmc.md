@@ -8,7 +8,7 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
-## ROUND 120 (2026-07-27): out-of-image ROM ORDERLIST pointers (C29 5th occ) + scan↔walk consistency. Memomania 26→6086 (residue is a garbage-sector walk-decode, NOT dynamic-zp — corrected)
+## ✅ ROUND 120 (2026-07-27): Memomania FULL (+1) — ROM orderlist ptrs (C29 5th) + C34 one-row law generalized ($80-$FD mutation, `runon` flag) + play-time 6510 port (C29 6th)
 Next f1 partial by path = `Harti/Memomania` sub 3 (single, base $B800, 6 subs,
 only sub 3 partial). ROOT CAUSE: sub 3's V1 **track (orderlist) pointer is
 `$F256` = KERNAL ROM** (all other pointers `$C2xx`, in image) — the orig reads
@@ -39,39 +39,47 @@ Two clean, general, regression-safe fixes (commit 89db7848, ledger C29):
    off-image sector's secp/data went un-overlaid → `_walk_track` read image
    zeros and spuriously self-looped.
 
-Memomania sub 3: first divergence **26 → 6086 writes** (len_b now = len_a). Does
-NOT reach FULL — but ⚠ **IT IS REPRODUCIBLE; the residue is a `_simulate_sector`
-DECODE BUG, not any kind of wall** (two earlier same-session conclusions —
-"dynamic zp untractable", then "garbage-sector, deeper live-zp part" — were BOTH
-WRONG; corrected after the user pushed twice + re-anchoring in the CORE TENET).
-PROOF it's reproducible: the sonified zeropage `$02-$3F` is 100% STATIC across
-the whole song (all `$00`; 505 note-init snapshots, 0 dynamic), and the orderlist
-`$F256` is banked ROM (pc-watch on the RUNNING player: V1 `$f8/$f9=$F256`), both
-static-overlayable (C29). GROUND-TRUTH V1 sector sequence (`--pc-watch C037`,
-run-length): sec1 `$C2E2`(76) → `$C8D0`(3) → `$C8C8`(7) → `$0000`(1) →
-`$FFFF`(1) → `$FF00`(1) → `$C37C`(73) → **`$0000`(183)**. THE BUG: my walk's
-entry3 decodes the garbage `$0000` sector (secp[$A5]) as 169 self-looping rows
-(notes 47,55,0,0,…) and self-loops (loop_to=4), so it never advances to
-`$FFFF/$FF00/$C37C/$0000×183`; the engine plays `$0000` BRIEFLY (1 fetch) then
-ADVANCES the orderlist. Unresolved: WHY the engine advances after 1 fetch on the
-first `$0000` but plays 183 fetches on the later one — the sector-position state
-machine for empty/`$0000` sectors, not yet pinned down. THE OLD (now-superseded)
-mis-analysis follows for the record: GROUND TRUTH (memwatch `--memwatch-on-write D405 BF26,BF2C,F8,F9`
-+ `BF26` track-pos trace, canon-relocated so otrk+0=$BF26 transp+0=$BF2C): the
-orig's V1 plays REAL, STATIC in-image sectors — sector 1 (`$C2E2`, the melody,
-inits 0-31) then sector `#$03` (`$C37C`, off-table freqs, inits 32+, tr $30). The
-transpose walk pos 4-7 (`$F3 $A5 $BA $D0`) is FOUR transposes accumulating to tr
-$30, landing at pos 8 = sector `#$03`. But `$A5` (pos 5) IS read as a sector per
-the (byte-verified CANON) transpose handler — `secp[$A5]`=`$0000` → the orig
-plays that empty and RE-DISPATCHES pos 5 as a transpose (tr $05). **Our
-`_simulate_sector` instead decodes the `$0000`/garbage sector as NOTES** (idx
-138 etc.), so our walk's sector sequence diverges from the orig's. So the first
-divergence (flat 6048) is a GARBAGE-SECTOR WALK-DECODE discrepancy — NOT yet
-root-caused, potentially tractable — not a dynamic-zp wall. (There likely IS a
-live-zp part deeper: V1 reads `$0000` 367× dominant, note-48-ish; whether those
-are static or dynamic is unverified.) NEXT: model the `$0000`/empty-garbage-
-sector "play-empty + re-dispatch the byte as a transpose" behaviour so the walk
-reaches sector `#$03` like the orig, then re-assess.
+Then THREE more fixes landed **Memomania sub 3 FULL (36108/36108; whole file
+6/6 FULL)** — after the user twice (correctly) rejected my "untractable"
+conclusions ("dynamic zp", then "engine-state wall"); the sonified zeropage is
+in fact 100% STATIC during play (505 snapshots, only $F8/$F9 dynamic) and
+everything was C29/C34-reproducible:
+
+3. **C34 one-row law GENERALIZED to $80-$FD (ledger C34 4th occ):** the engine
+   re-reads track[pos] EVERY duration expiry (only $7F advances pos; sectpos
+   persists) → a post-transpose byte $80-$FD plays ONE row of its garbage
+   sector then MUTATES into a TRANSPOSE next fetch. Memomania's KERNAL
+   orderlist `$F3 $A5 $BA $D0 $03`: one row each of $0000/$FFFF/$00FF at
+   accumulating sectpos, tr stepping 53→05→1A→30, landing REAL sector #$03
+   ($C37C) at sectpos base 3; then track[9]=$4C → the endless $0000 tail =
+   note 0+48 = the dominant $10C3. Proven by --pc-watch C037 sector-ptr
+   run-length [C2E2×76, C8D0×3, C8C8×7, 0000, FFFF, 00FF, C37C×73, 0000×183]
+   + otrk/transp memwatch. Walk fix: one-row path covers b>=$80, pending_off
+   ACCUMULATES (+ consumed), post-row sub_11E6 $7F-peek advances pos.
+4. **`runon` row flag + composer sectpos base threading:** the accumulated
+   sectpos is OBSERVABLE (off-table hi idx 130-132 = $1729-$172B live), so
+   `_pattern_secvals` gained a per-entry BASE and the last-row-0 rule is
+   skipped for run-on rows; base threads across orderlist entries
+   (`_sbase_next`). Carrier = the new stated byte-fact flag `runon` (grammar +
+   parser + writer; usf_corpus_check 11972/11972). Members without the flag
+   byte-identical (base 0, & 0xFF no-op).
+5. **PLAY-TIME 6510 port (C29 6th occ):** psiddrv sets $01 = iomap(play)
+   before each play() — Memomania plays at $B803 → $36 (BASIC banked out),
+   while --peek-post-init snapshots the idle $37. The $0000-sector row at
+   offset 1 sonifies the port: $36 = note 54 → idx 102 hi = $170D (STATIC
+   reg-offset 0) = freq $0001; the peek's $37 decoded note 55/idx 103 = $0701.
+   `_psid_play_iomap` serves $0001 in the overlay; below-$A000 players ($37)
+   byte-identical. Boundary noted in C29: under $36, $A000-$BFFF is RAM at
+   play time (ROM-window rules assume $37).
+
+Gates: dmc_smoke 6/6; carriers re-verified FULL under the new walk
+(Rock_Tec_Tec, Creo/Dance, Hank/Roots; Kan-Kan exactly at its old baseline);
+usf_corpus_check clean; golden byte-identity + full regression (see commit).
+METHOD LESSON (the session's real story): both "untractable" verdicts came
+from stopping at a plausible mechanism instead of tracing the engine's OWN
+walk — the pc-watch sector-ptr run-length + the memwatch otrk/transp trace
+were each one command and each overturned a wrong conclusion. Trace the
+mechanism to the end before classifying anything as residue.
 
 **The class (6 f1 partials with out-of-image track pointers, scanned from the
 92-partial `dmc_wide_results` — a raw-image scan, so post-init members'

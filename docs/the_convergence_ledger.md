@@ -119,7 +119,7 @@ practice, not code to factor).
 | COMPILATION · one file packs N INDEPENDENT players + a per-subtune SMC dispatch wrapper (subtune→(base,song)) · header overstates songs, sub0 FULL others silent/garbage · ≥2 jump-table bases · unified-merge (renumber+dedup instruments) · heterogeneous engines (dmc_sfx) · distinct from C27 parallel chips | C31 | logged |
 | engine STICKY STATE materialized into effective variants · orderlist state over the loop wrap (fitted pad/period/rcmd) · pattern-row sticky duration/instr/vol (FC (fc_id,init_len) variants · len=L pickup · DMC ~intro decode variants) · fold to STATED notation (value present iff the stream states the command; absent = inherit) + ONE shared resolution interpreter (src/usf/resolve.py) · re-derivation assert, fallback wholesale | C32 | canonicalized (2×) |
 | one FILE needs more than one COMPOSER · original packs players of DIFFERENT families behind a per-subtune dispatch wrapper · cannot be stored as one .usf · `origin_engine` Move-1 scaffold, boundary = "more than one COMPOSER" NOT "more than one engine" (5TT packs 5 sub-engines and needs none) | C35 | logged |
-| packed-stream byte whose meaning depends on the DECODER'S POSITION · a command handler consumes the following bytes itself with its OWN coarser rules (skipping the top-level dispatch AND the terminator test) · MA: invisible to the verdict (round-trips) — corrupts USF CONTENT · DMC track transpose handler: post-transpose $FF = a one-row pseudo-sector, then loop WITHOUT sectpos reset (visible at the wrap) · the quirk must reach EVERY walk that mirrors the dispatch — the C29 GATE walks skipped it, silently disabling the zp overlay (pseudo-sector $0000; probe the 'endless' sim's ROW 0) · find it by READING the handler | C34 | recurring (3×) |
+| packed-stream byte whose meaning depends on the DECODER'S POSITION · a command handler consumes the following bytes itself with its OWN coarser rules (skipping the top-level dispatch AND the terminator test) · MA: invisible to the verdict (round-trips) — corrupts USF CONTENT · DMC track transpose handler: post-transpose $FF = a one-row pseudo-sector, then loop WITHOUT sectpos reset (visible at the wrap) · the quirk must reach EVERY walk that mirrors the dispatch — the C29 GATE walks skipped it, silently disabling the zp overlay (pseudo-sector $0000; probe the 'endless' sim's ROW 0) · ONE-ROW LAW GENERAL FORM: engine re-dispatches track[pos] EVERY fetch, sectpos persists ($7F-only reset) → a post-transpose $80-$FD byte plays ONE row then MUTATES into a transpose (`runon` flag + composer sectpos base threading) · find it by READING the handler | C34 | recurring (4×) |
 | close a `Params.fields` ESCAPE-HATCH key → typed field · untyped behavior-named scalar in the generic params bag (init-phase state / mechanism scalar), borderline §7 · NOT opaque-bytes (C7) / NOT a wedge knob (C19) · it's a byte-identity CARRIER REFACTOR not a schema addition (value already in USF) · census ALL consumers (often cross-engine SHARED + dead readers) · clone an existing typed field of the same trichotomy category · type by MUSICAL category NOT a composer grouping · gate regenerates + MD5-compares every consumer family (surfaces broken extract paths behind a FULL verdict) | C33 | methodology |
 | PC-triggered bus tap false-fires on DATA reads of the trigger address · "capture at PC X" watches cpuRead, bus can't tell fetch from data · plausible WRONG snapshot · discriminate EXECUTION by the ≥3-consecutive-ascending-reads bus signature · validate any new tap by CROSS-EMULATOR byte-identity (also proves non-perturbation) · writelog_capture frame indices are COMPACTED (writes-only frames) vs raw siddump frames | C36 | logged |
 
@@ -668,13 +668,16 @@ practice, not code to factor).
   (served 0 = old zero-fill) so overlaying only MOVES a divergence. ⚠ GATE to
   NON-post-init members (like `_undefined_secp_reads`): a post-init member's
   ROM-range orderlist address is GENERATED RAM, not banked ROM (Kan-Kan $A3A1)
-  — overlaying it clobbers the generated orderlist. RESIDUE (Memomania 26→6086,
-  still partial): a GARBAGE-SECTOR WALK-DECODE discrepancy (NOT dynamic-zp — a
-  first same-session claim, corrected): the orig plays REAL sectors (melody +
-  `$C37C`), its transpose walk lands a garbage `secp[$A5]`=`$0000` sector that
-  it plays EMPTY + re-dispatches as a transpose, while `_simulate_sector`
-  decodes it as notes → sequences diverge. Model empty-garbage-sector
-  play-empty+re-dispatch; a deeper live-zp part is unverified.
+  — overlaying it clobbers the generated orderlist. Memomania landed FULL via
+  this + the C34 one-row generalization (runon/sectpos threading) + the
+  PLAY-TIME PORT rule below.
+- PLAY-TIME 6510 PORT: psiddrv sets `$01 = iomap(play_addr)` before each
+  play() — a player at/above $A000 runs with BASIC banked OUT ($36), while
+  `--peek-post-init` snapshots the IDLE-time $37. A $0000-window read at
+  offset 1 sonifies the PLAY-time value (`_psid_play_iomap`); the peek's $37
+  decoded Memomania's note one semitone high. Corollary: under $36,
+  $A000-$BFFF is RAM at play time — the ROM-window rules hold only when
+  iomap(play) = $37.
 - SCAN↔WALK CONSISTENCY: `_offimage_sectors` / `_undefined_secp_reads` must
   MIRROR `_walk_track` — post-transpose byte is a sector # UNCONDITIONALLY
   (orig $10FE-$1101, no re-dispatch) even when >= $80 (`$F3 $A5` = sector $A5).
@@ -835,6 +838,15 @@ practice, not code to factor).
   handler's real branches) — in EVERY walk that mirrors the dispatch (the C29
   gate walks included; 3rd occ). Behaviour-preserving, so it is safe to land
   alone.
+- ONE-ROW LAW, GENERAL FORM (4th occ, Memomania FULL): the engine re-reads
+  track[pos] on EVERY duration expiry (only $7F advances pos; sectpos
+  persists). A post-transpose byte $80-$FD plays ONE row of its (garbage)
+  sector then MUTATES into a TRANSPOSE on the next fetch ($FE/$FF = the
+  earlier stop/loop forms). One-row mechanics: consumed bytes ACCUMULATE in
+  the persistent sectpos (`pending_off`), and the post-row $7F peek can
+  advance the track immediately. The accumulated sectpos is observable
+  (off-table hi @ idx 130-132) → `runon` row flag + composer sectpos-shadow
+  per-entry base threading.
 - TELL: a handler that does `INY / LDA (ptr),Y` before returning to the loop,
   whose compare chain is SHORTER than the top-level map's.
 - FULL ENTRY: [`ledger/C34.md`](ledger/C34.md) — read it before applying.
