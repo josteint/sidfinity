@@ -1220,6 +1220,9 @@ class _T(Transformer):
     def fx_vcmd(self, _):
         return 'vol_cmd'
 
+    def fx_runon(self, _):
+        return 'runon'
+
     def fx_softcmd(self, items):
         return f'soft_cmd={int(items[0])}'
 

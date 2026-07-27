@@ -547,15 +547,19 @@ def _row_secwidth(row) -> int:
     return 1 + extra                         # plain note
 
 
-def _pattern_secvals(rows) -> list:
+def _pattern_secvals(rows, base: int = 0) -> list:
     """Per-row visible sectpos: cumulative width through the row's fetch;
     the LAST row reads 0 (the trailing $7F resets $1729,x in the same tick,
-    sub_11E6 -> $11F2)."""
-    vals, cum = [], 0
+    sub_11E6 -> $11F2) — UNLESS it is a RUN-ON row ('runon' fx flag: the
+    source stream hits the next fetch with no $7F, so $1729,x keeps its
+    accumulated value into the next entry). `base` = the sectpos inherited
+    from preceding run-on entries (0 for every $7F-terminated predecessor —
+    the historical behaviour, byte-identical when no runon rows exist)."""
+    vals, cum = [], base
     for r in rows:
-        cum += _row_secwidth(r)
+        cum = (cum + _row_secwidth(r)) & 0xFF
         vals.append(cum)
-    if vals:
+    if vals and 'runon' not in rows[-1].fx_flags:
         vals[-1] = 0
     return vals
 
@@ -672,13 +676,28 @@ class _Model:
                         pat_ids[enc] = gid
                     return gid
 
-                def _gid_entry(pid):
+                def _gid_entry(pid, sbase=0):
                     return _intern(
                         [_row_event(r, self.inst_slot)
                          for r in pat_by_local[pid].rows],
-                        _pattern_secvals(pat_by_local[pid].rows)
+                        _pattern_secvals(pat_by_local[pid].rows, sbase)
                         if self.sectpos else None,
                         _pattern_tempos(pat_by_local[pid].rows))
+
+                def _sbase_next(pid, sbase):
+                    # sectpos base threading: a pattern whose last row is
+                    # RUN-ON ('runon') leaves $1729,x at its accumulated
+                    # value — the next entry's visible sectpos starts there.
+                    # A $7F-terminated pattern resets it to 0 (the common
+                    # case: base stays 0 for every member with no runon
+                    # rows — byte-identical).
+                    if not self.sectpos:
+                        return 0
+                    rows = pat_by_local[pid].rows
+                    if rows and 'runon' in rows[-1].fx_flags:
+                        return (sbase + sum(_row_secwidth(r)
+                                            for r in rows)) & 0xFF
+                    return 0
 
                 # D6 piece 3 STICKY slot/vol: a note emits its instrument slot /
                 # vol only where the SOURCE row states it (None = inherit -> the
@@ -687,11 +706,11 @@ class _Model:
                 # so a rest's instrument command still updates the sticky state.
                 # Byte-keyed dedup then collapses the former per-entry ~intro
                 # variants that differed only by carried slot/vol.
-                def _gid_resolved(pid, resolved):
+                def _gid_resolved(pid, resolved, sbase=0):
                     return _intern(
                         [_row_event_stated(rr, self.inst_slot)
                          for rr in resolved],
-                        _pattern_secvals(pat_by_local[pid].rows)
+                        _pattern_secvals(pat_by_local[pid].rows, sbase)
                         if self.sectpos else None,
                         _pattern_tempos(pat_by_local[pid].rows))
 
@@ -723,12 +742,18 @@ class _Model:
                                    if x.id == v.id and
                                    (x.dur_field or x.instr)), None)
                         passes = resolve_voice(v, iv, n_passes=1)
-                        gids = [_gid_resolved(ol.entries[i], passes[0][i])
-                                for i in range(P)]
+                        gids, _sb = [], 0
+                        for i in range(P):
+                            gids.append(_gid_resolved(ol.entries[i],
+                                                      passes[0][i], _sb))
+                            _sb = _sbase_next(ol.entries[i], _sb)
                     else:
-                        gids = [_gid_entry(intros[i] if intros[i] is not None
-                                           else ol.entries[i])
-                                for i in range(P)]
+                        gids, _sb = [], 0
+                        for i in range(P):
+                            _pid = (intros[i] if intros[i] is not None
+                                    else ol.entries[i])
+                            gids.append(_gid_entry(_pid, _sb))
+                            _sb = _sbase_next(_pid, _sb)
                     for i in range(P):
                         if i == ol.loop_to:
                             loop_target = len(track)
@@ -750,11 +775,13 @@ class _Model:
                     cur0 = ol.transpose_at(0) if ol.entries else 0
                     off, cur, red = pad, cur0, 0
                     prev_t = None
+                    _sb = 0
                     for i, e in enumerate(ol.entries):
                         p = i % period
                         if i and p == 0:
                             off, cur, red = pad, cur0, 0  # physical-track boundary
-                        gid = _gid_entry(e)
+                        gid = _gid_entry(e, _sb)
+                        _sb = _sbase_next(e, _sb)
                         t = ol.transpose_at(i)
                         if t != cur:
                             off, cur = off + 1, t

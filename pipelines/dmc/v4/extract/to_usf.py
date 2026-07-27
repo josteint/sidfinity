@@ -110,6 +110,11 @@ def _row_to_usf(r: DmcRow, cmd_flags: bool = False) -> NoteRow:
         flags.append(f'glide={r.glide_speed}')
     if r.glide_to is not None:
         flags.append(f'glide_to={_pitch(r.glide_to)}')
+    if getattr(r, 'runon', False):
+        # run-on row: no $7F end-marker follows in the source stream — the
+        # engine's sector position is NOT reset after this row (feeds the
+        # composer's sectpos-shadow base threading).
+        flags.append('runon')
     if r.note is None:
         return NoteRow(pitch=Pitch.rest(), duration=r.duration,
                        fx_flags=tuple(flags))
@@ -153,6 +158,8 @@ def _row_to_usf_stated(r: DmcRow, cmd_flags: bool) -> NoteRow:
         flags.append(f'glide={r.glide_speed}')
     if r.glide_to is not None:
         flags.append(f'glide_to={_pitch(r.glide_to)}')
+    if getattr(r, 'runon', False):
+        flags.append('runon')       # no $7F follows: sectpos not reset
     dur = r.duration if r.dcmd else None
     instr = InstrumentRef(id=r.instr + 1) if r.icmd else None
     pitch = Pitch.rest() if r.note is None else _pitch(r.note)

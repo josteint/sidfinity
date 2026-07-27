@@ -114,6 +114,12 @@ class DmcRow:
     dcmd: bool = False       # $80-$BF duration command on this row
     icmd: bool = False       # $60-$7B instrument command on this row
     vcmd: bool = False       # $Fx volume/sustain command on this row
+    # RUN-ON row: the source stream ran into the next track fetch with NO $7F
+    # end-marker after this row (a post-transpose one-row garbage sector, or
+    # any unterminated tail) — the engine's sector position ($1729,x) is NOT
+    # reset here and keeps accumulating into the next entry. Consumed by the
+    # composer's sectpos shadow (per-entry base threading); USF flag 'runon'.
+    runon: bool = False
     softcmd: int = 0         # count of $7C soft-start toggles on this row
     tempo: int | None = None  # speed reload set AT this row (the Doxx tempo
                              # mailbox: an instr command >= $10 on the third
@@ -784,29 +790,39 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 pos &= 0xFF
                 wrapped = True
             b = mem[(track_addr + pos) & 0xFFFF]
-            if b >= 0xFE:
+            if b >= 0x80:
                 # THE ENGINE DOES NOT RE-DISPATCH the post-transpose byte in
                 # the fetch that consumed the transpose: `INY / LDA ($f8),y /
                 # TAY` takes it as a SECTOR NUMBER unconditionally ($10FE-
-                # $1101), so a track tail `...$A0 $FF` plays ONE ROW of
-                # secp[$FF]'s pseudo-sector; the NEXT row-fetch re-reads this
-                # position as a TRACK byte ($FF -> loop / $FE -> stop). The
-                # $FF loop then INHERITS the row's consumed bytes as the
-                # target sector's start position ($1729 is only zeroed by
-                # $7F, never by the loop handler). Creo/Dance: the composer
-                # aimed secp[$FF] at a real outro phrase and loops the whole
-                # track through it. Plain post-transpose sector numbers
-                # (< $FE) are unaffected: the re-dispatch reads the same
-                # sector number and simply continues the sector.
-                ga = mem[(secp_lo + b) & 0xFFFF] | \
-                    (mem[(secp_hi + b) & 0xFFFF] << 8)
+                # $1101), so ANY >= $80 byte after a transpose plays ONE ROW
+                # of its (usually garbage) sector; the NEXT row-fetch re-reads
+                # this position as a TRACK byte and the byte MUTATES ROLES:
+                #   $FF -> loop (Rock_Tec_Tec `a0 ff`: secp[$FF] = $0000 live
+                #        zp outro; Creo/Dance aim secp[$FF] at a real phrase),
+                #   $FE -> stop,
+                #   $80-$FD -> ANOTHER TRANSPOSE (Memomania `$F3 $A5 $BA $D0
+                #        $03`: each garbage byte plays one row of its sector
+                #        — secp[$A5]=$0000 port/zp, secp[$BA]=$FFFF wrap,
+                #        secp[$D0]=$00FF stack-page — then becomes tr +5/+26/
+                #        +48, finally landing the REAL sector #$03 at tr $30;
+                #        proven by the live pc-watch sector-ptr run-length
+                #        [$C2E2×76, $C8D0×3, $C8C8×7, $0000, $FFFF, $00FF,
+                #        $C37C×73, $0000×183] + the otrk/transp memwatch).
+                # The row's consumed bytes accumulate in the persistent sector
+                # position ($1729 is zeroed ONLY by $7F, never by loop/select),
+                # so chained one-row sectors each start where the previous
+                # left off — and the engine's post-row $7F peek (sub_11E6) can
+                # advance the track past the byte before it ever re-dispatches.
+                ga = ((mem[(secp_lo + b) & 0xFFFF] |
+                       (mem[(secp_hi + b) & 0xFFFF] << 8))
+                      + pending_off) & 0xFFFF
                 probe = _simulate_sector(mem, ga, st.copy(), fmt)
                 if isinstance(probe, tuple) and probe[0] == 'endless':
-                    # A garbage pseudo-sector (e.g. secp[$FF] = $0000 live zp,
-                    # Rock_Tec_Tec) has no $7F terminator, so the simulation
-                    # reports 'endless' — but the engine only ever plays ROW 0
-                    # before the next fetch re-dispatches the track byte, so
-                    # the first simulated row is all that matters.
+                    # A garbage pseudo-sector has no $7F terminator, so the
+                    # simulation reports 'endless' — but the engine only ever
+                    # plays ROW 0 before the next fetch re-dispatches the
+                    # track byte, so the first simulated row is all that
+                    # matters.
                     _rows = (probe[1] or []) + probe[2]
                     probe = _rows[:1]
                 if isinstance(probe, list) and probe:
@@ -821,10 +837,20 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                         st.instr = r0.instr
                     if r0.vcmd:
                         st.vol = r0.vol
+                    # sub_11E6 end-of-sector peek: after the row, a $7F at the
+                    # new sector position advances the track NOW (pos++ +
+                    # sectpos reset) — the byte then never re-dispatches. A
+                    # non-$7F peek = a RUN-ON row: sectpos keeps accumulating
+                    # (pending_off) into the next entry, and the composer's
+                    # sectpos shadow must mirror that (the 'runon' USF flag).
+                    peek = ((mem[(secp_lo + b) & 0xFFFF] |
+                             (mem[(secp_hi + b) & 0xFFFF] << 8))
+                            + pending_off + consumed) & 0xFFFF
+                    r0.runon = mem[peek] != 0x7F
                     key = tuple((r.note, r.duration, r.instr, r.vol, r.soft,
                                  r.gate_toggle, r.glide_speed, r.glide_to,
                                  r.glide_slide, r.dcmd, r.icmd, r.vcmd,
-                                 r.softcmd) for r in [r0])
+                                 r.softcmd, r.runon) for r in [r0])
                     pid = pat_key_to_id.get(key)
                     if pid is None:
                         pid = len(v.patterns)
@@ -833,9 +859,16 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                     v.entry_offsets.append(pos)
                     v.entries.append(pid)
                     v.transposes.append(transpose)
-                    pending_off = consumed
-                # (unsimulatable pseudo-sector: fall through, the $FE/$FF
-                # dispatch above handles the byte as before — old behavior)
+                    pending_off += consumed
+                    if not r0.runon:
+                        pending_off = 0
+                        pos += 1
+                        if pos > 0xFF:
+                            pos &= 0xFF
+                            wrapped = True
+                # (unsimulatable pseudo-sector: fall through, the next
+                # iteration's dispatch handles the byte as before — old
+                # behavior)
                 continue
         sec = b
         v.entry_offsets.append(pos)
@@ -929,15 +962,15 @@ def _offimage_sectors(mem, secp_lo: int, secp_hi: int, tunetab: int,
                     # The transpose handler ($10FE-$1101) takes the NEXT byte
                     # as a sector number UNCONDITIONALLY (INY / LDA($f8),y /
                     # TAY — no re-dispatch), EVEN when it is itself >= $80
-                    # (Memomania: `$F3 $A5` plays sector $A5, not transpose
-                    # $A5). _walk_track mirrors this, so this gate must too —
-                    # else a post-transpose off-image sector is missed and
-                    # never overlaid, leaving _walk_track to read image zeros
-                    # and spuriously self-loop. A post-transpose $FE/$FF is
-                    # the C34 one-row pseudo-sector (played once, then the
-                    # next fetch re-dispatches it as loop/stop — Rock_Tec_Tec
-                    # `a0 ff` → secp[$FF] = $0000 live zeropage): same
-                    # off-image check, but pos stays on the $FE/$FF byte.
+                    # (Memomania: `$F3 $A5` plays one row of sector $A5).
+                    # _walk_track mirrors this (one row, then the byte
+                    # re-dispatches by track rules on the next invocation:
+                    # $FF loop / $FE stop / $80-$FD another transpose), so
+                    # this gate must record the sector's window too — else a
+                    # post-transpose off-image sector is never overlaid and
+                    # _walk_track reads image zeros. pos += 1 only: the loop
+                    # then re-dispatches the byte exactly like the engine
+                    # (a < $80 byte re-records its window — set-deduped).
                     nb = mem[(tp + ((pos + 1) & 0xFF)) & 0xFFFF]
                     sec_addr = mem[(secp_lo + nb) & 0xFFFF] | \
                         (mem[(secp_hi + nb) & 0xFFFF] << 8)
@@ -946,7 +979,7 @@ def _offimage_sectors(mem, secp_lo: int, secp_hi: int, tunetab: int,
                                 and sec_addr <= 0xBFFF)
                             or sec_addr + 0xFF >= 0xE000):
                         out.add(sec_addr)
-                    pos += 1 if nb >= 0xFE else 2
+                    pos += 1
                     continue
                 sec_addr = mem[(secp_lo + b) & 0xFFFF] | \
                     (mem[(secp_hi + b) & 0xFFFF] << 8)
@@ -996,15 +1029,16 @@ def _undefined_secp_reads(mem, secp_lo: int, secp_hi: int, tunetab: int,
                 if b >= 0x80:              # transpose command
                     # The next byte is a sector number UNCONDITIONALLY (orig
                     # $10FE-$1101; mirrors _offimage_sectors / _walk_track) —
-                    # its POINTER fetch can leave the image whatever the byte's
-                    # value ($FE/$FF is the C34 one-row pseudo-sector, pos
-                    # stays on it; else consume both bytes).
+                    # its POINTER fetch can leave the image whatever the
+                    # byte's value. pos += 1 only: the loop then re-dispatches
+                    # the byte exactly like the engine (loop / stop / another
+                    # transpose / plain sector re-select).
                     nb = mem[(tp + ((pos + 1) & 0xFF)) & 0xFFFF]
                     for a in ((secp_lo + nb) & 0xFFFF,
                               (secp_hi + nb) & 0xFFFF):
                         if not (load <= a < img_end):
                             out.add(a)
-                    pos += 1 if nb >= 0xFE else 2
+                    pos += 1
                     continue
                 for a in ((secp_lo + b) & 0xFFFF, (secp_hi + b) & 0xFFFF):
                     if not (load <= a < img_end):
@@ -1042,6 +1076,24 @@ def _offimage_track_ptrs(mem, tunetab: int, n_sub: int,
                     or tp + 0xFF >= 0xE000):
                 out.add(tp)
     return sorted(out)
+
+
+def _psid_play_iomap(play_addr: int) -> int:
+    """The 6510 port value psiddrv sets BEFORE each play() call — the bank
+    config the ENGINE's environment reads see at play time (libsidplayfp
+    psiddrv iomap(), keyed on the play address): a player under BASIC ROM
+    ($A000+) runs with BASIC banked OUT, so a $0001 read sonifies $36, not
+    the idle-time $37 that `--peek-post-init` snapshots (Memomania at $B800:
+    the $0000-sector row at offset 1 plays note $36, not $37 — the peek's
+    value decoded one semitone high). Deterministic per member; $37 for the
+    common below-$A000 player, so every prior C29 carrier is unchanged."""
+    if play_addr < 0xA000:
+        return 0x37          # BASIC + KERNAL banked in
+    if play_addr < 0xD000:
+        return 0x36          # KERNAL only
+    if play_addr < 0xE000:
+        return 0x34          # no ROMs
+    return 0x35              # IO only
 
 
 def _overlay_offimage_windows(mem, path: str, bases, post_sub, s,
@@ -1088,7 +1140,12 @@ def _overlay_offimage_windows(mem, path: str, bases, post_sub, s,
     for a, v in peek.items():
         if a in _imgspan or mem[a] != ref[a]:
             continue                     # defined — never clobber
-        if a < 2 or any(lo <= a <= hi for lo, hi in _rom):
+        if a == 1:
+            # 6510 port: serve the PLAY-TIME bank value (psiddrv sets $01 =
+            # iomap(play) before each play call), not the peek's idle-time
+            # snapshot — they differ for players above $A000.
+            mem[a] = _psid_play_iomap(s.get('play', 0) or 0)
+        elif a < 2 or any(lo <= a <= hi for lo, hi in _rom):
             mem[a] = v
         else:
             mem[a] = stable.get(a, 0)

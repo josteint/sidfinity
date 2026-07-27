@@ -687,6 +687,10 @@ fx_flag: "tie"                  -> fx_tie
        | "instr_cmd"                 -> fx_icmd
        | "vol_cmd"                 -> fx_vcmd
        | "soft_cmd" "=" INT      -> fx_softcmd
+       // run-on row: the source stream hits the next fetch with NO
+       // end-of-pattern marker after this row — the engine's pattern-position
+       // counter is NOT reset and accumulates into the next orderlist entry.
+       | "runon"                 -> fx_runon
 
 // digi
 digi_body: "sample" ":" SAMPLE_PATH
