@@ -8,7 +8,7 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
-## ROUND 120 (2026-07-27): out-of-image ROM ORDERLIST pointers (C29 5th occ) + scan↔walk consistency. Memomania is dynamic-zp RESIDUE
+## ROUND 120 (2026-07-27): out-of-image ROM ORDERLIST pointers (C29 5th occ) + scan↔walk consistency. Memomania 26→6086 (residue is a garbage-sector walk-decode, NOT dynamic-zp — corrected)
 Next f1 partial by path = `Harti/Memomania` sub 3 (single, base $B800, 6 subs,
 only sub 3 partial). ROOT CAUSE: sub 3's V1 **track (orderlist) pointer is
 `$F256` = KERNAL ROM** (all other pointers `$C2xx`, in image) — the orig reads
@@ -40,11 +40,24 @@ Two clean, general, regression-safe fixes (commit 89db7848, ledger C29):
    zeros and spuriously self-looped.
 
 Memomania sub 3: first divergence **26 → 6086 writes** (len_b now = len_a). Does
-NOT reach FULL — its ROM orderlist dispatches (pos 5, post-`$F3`) to sector
-`$A5`; `$A5` is past the secp table so `secp[$A5]` = off-image `$C982/$C9A4` =
-`$00` → sector `$A5` = **address `$0000` = LIVE ZERO PAGE** = the C29 dynamic
-hard-residue wall (the divergence lands exactly at the port-byte→dynamic-zp
-transition, flat 6048). Genuinely irreproducible statically.
+NOT reach FULL — but ⚠ **the residue is NOT "dynamic zp, untractable"** (an
+earlier same-session conclusion that was WRONG — corrected after the user flagged
+it as suspicious). GROUND TRUTH (memwatch `--memwatch-on-write D405 BF26,BF2C,F8,F9`
++ `BF26` track-pos trace, canon-relocated so otrk+0=$BF26 transp+0=$BF2C): the
+orig's V1 plays REAL, STATIC in-image sectors — sector 1 (`$C2E2`, the melody,
+inits 0-31) then sector `#$03` (`$C37C`, off-table freqs, inits 32+, tr $30). The
+transpose walk pos 4-7 (`$F3 $A5 $BA $D0`) is FOUR transposes accumulating to tr
+$30, landing at pos 8 = sector `#$03`. But `$A5` (pos 5) IS read as a sector per
+the (byte-verified CANON) transpose handler — `secp[$A5]`=`$0000` → the orig
+plays that empty and RE-DISPATCHES pos 5 as a transpose (tr $05). **Our
+`_simulate_sector` instead decodes the `$0000`/garbage sector as NOTES** (idx
+138 etc.), so our walk's sector sequence diverges from the orig's. So the first
+divergence (flat 6048) is a GARBAGE-SECTOR WALK-DECODE discrepancy — NOT yet
+root-caused, potentially tractable — not a dynamic-zp wall. (There likely IS a
+live-zp part deeper: V1 reads `$0000` 367× dominant, note-48-ish; whether those
+are static or dynamic is unverified.) NEXT: model the `$0000`/empty-garbage-
+sector "play-empty + re-dispatch the byte as a transpose" behaviour so the walk
+reaches sector `#$03` like the orig, then re-assess.
 
 **The class (6 f1 partials with out-of-image track pointers, scanned from the
 92-partial `dmc_wide_results` — a raw-image scan, so post-init members'

@@ -668,9 +668,13 @@ practice, not code to factor).
   (served 0 = old zero-fill) so overlaying only MOVES a divergence. ⚠ GATE to
   NON-post-init members (like `_undefined_secp_reads`): a post-init member's
   ROM-range orderlist address is GENERATED RAM, not banked ROM (Kan-Kan $A3A1)
-  — overlaying it clobbers the generated orderlist. RESIDUE: a
-  ROM orderlist can still dispatch to an off-table secp# → sector $0000 = live
-  zp = dynamic wall (Memomania: 26→6086, port-byte→dynamic-zp transition).
+  — overlaying it clobbers the generated orderlist. RESIDUE (Memomania 26→6086,
+  still partial): a GARBAGE-SECTOR WALK-DECODE discrepancy (NOT dynamic-zp — a
+  first same-session claim, corrected): the orig plays REAL sectors (melody +
+  `$C37C`), its transpose walk lands a garbage `secp[$A5]`=`$0000` sector that
+  it plays EMPTY + re-dispatches as a transpose, while `_simulate_sector`
+  decodes it as notes → sequences diverge. Model empty-garbage-sector
+  play-empty+re-dispatch; a deeper live-zp part is unverified.
 - SCAN↔WALK CONSISTENCY: `_offimage_sectors` / `_undefined_secp_reads` must
   MIRROR `_walk_track` — post-transpose byte is a sector # UNCONDITIONALLY
   (orig $10FE-$1101, no re-dispatch) even when >= $80 (`$F3 $A5` = sector $A5).
