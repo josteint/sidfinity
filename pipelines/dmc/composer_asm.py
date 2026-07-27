@@ -1346,6 +1346,16 @@ evd5:
     ws_drum_fhi = ('        sta pwh+1,x                  ; C19: -> next voice'
                    ' PW hi (fbh keeps note base)'
                    if drum_fhi_pw else '        sta fbh,x')
+    # Deferred-wave note-init (OBSERVED build variant, C23 write-footprint —
+    # factory._noteinit_defer_probe; carrier: the re-assembled Heinmueck
+    # build, Redable_Rain): the note-INIT frame writes SR+AD and the state
+    # setup only — its note-init routine RTSes instead of falling through
+    # the wave step, so the note's first freq/PW/ctrl (gate-on) land on the
+    # NEXT play(). Default = canon (init frame runs the wave step).
+    ni_defer = str(usf.params.fields.get('noteinit_defer_wave', '0')) == '1'
+    ni_wave_tail = ('        rts                          ; deferred-wave '
+                    'build: first wave step next play'
+                    if ni_defer else '        jmp wavestep')
     # Dual-effect freq-generator wedge (C19 4th occurrence, Taurus/Taurus_02,
     # the only family-1 carrier — see factory._dual_freq_gen_probe): the member's
     # odd-parity dual path is byte-edited (`LDX $2F` -> X=$A9) so every
@@ -1510,8 +1520,17 @@ fx_dual_up:
         pw_base_reset = ''
         hr_test_var = f'hrtest:   .byt ${hr_test_init:02X}\n'
     else:
-        hr_test_write = ('        lda #$08\n'
-                         '        sta $d404,y                  ; TEST bit\n')
+        # hr_prep_gate (OBSERVED build variant, with noteinit_defer_wave —
+        # the re-assembled Heinmueck build): the hard-restart prep writes
+        # ctrl $08 then $09 (TEST, then TEST|GATE) before the $0F0F.
+        if str(usf.params.fields.get('hr_prep_gate', '0')) == '1':
+            hr_test_write = ('        lda #$08\n'
+                             '        sta $d404,y                  ; TEST bit\n'
+                             '        lda #$09\n'
+                             '        sta $d404,y                  ; TEST|GATE\n')
+        else:
+            hr_test_write = ('        lda #$08\n'
+                             '        sta $d404,y                  ; TEST bit\n')
         hr_arm = hr_disarm = hr_test_var = ''
         # pw_dir_persist: C19 wedge — the canon `STA $1765,x` (direction=up)
         # is re-pointed at an unused state byte, so the PWM sweep DIRECTION
@@ -2970,7 +2989,7 @@ ni_vib:
 {ni_vib_depth}        lda #$02
         sta guard,x                  ; gate logic off for 2 frames
 {cym_ni}ni_wave:
-        jmp wavestep
+{ni_wave_tail}
 
 ;; ----- running effects -----
 {rest_dispatch}{rest_none}run_effects:

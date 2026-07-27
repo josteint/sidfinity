@@ -2376,6 +2376,69 @@ def _loop_target_probe(mem, base: int, strict: bool = False):
     return False
 
 
+def _noteinit_defer_probe(path: str, subtune: int = 0) -> 'str | None':
+    """OBSERVED note-init variant (C23 write-footprint rule — layout-blind,
+    for RE-ASSEMBLED builds the static probes can't address). Classify each
+    play() chunk per voice from the ORIGINAL's per-IRQ writelog
+    (libsidplayfp ground truth): an INIT chunk writes both AD+SR with a
+    value pair that is neither the $0F/$0F hard-restart prep nor the
+    $00/$00 hold-clear. Canon note-init falls through the wave step, so an
+    init chunk ALWAYS carries the voice's same-chunk CTRL write; the
+    deferred-wave build (re-assembled Heinmueck player, Redable_Rain) RTSes
+    first — AD/SR only, the note's freq/PW/ctrl land on the NEXT play().
+    Cymbal (noise-burst) inits write freq+ctrl=$81 ON the init frame in BOTH
+    variants (the composer's cym_ni path already bursts + RTSes), so
+    burst-shaped chunks (ctrl $81 + both freq bytes) are excluded from the
+    classification. `noteinit_defer_wave='1'` needs >= 8 MELODIC init
+    chunks with NONE carrying a ctrl write. A canon member's melodic inits
+    always carry ctrl, so any such chunk disqualifies — an exotic
+    hard-restart preset or a noise-only member cannot false-fire (they
+    yield 0 melodic chunks = the canon default).
+
+    The SAME capture also classifies the hard-restart PREP chunks (AD=SR=
+    $0F): the build writes ctrl $08 THEN $09 (TEST, then TEST|GATE) where
+    canon writes $08 alone — `hr_prep_gate='1'` when >= 8 prep chunks all
+    show the exact [$08, $09] ctrl sequence.
+
+    Returns a (possibly empty) dict of composer params."""
+    from pipelines.hubbard.verify_cycle import writelog_per_irq_capture
+    try:
+        frames = writelog_per_irq_capture(path, subtune=subtune,
+                                          duration=10.0)
+    except Exception:
+        return {}
+    inits = with_ctrl = preps = preps_gate9 = 0
+    for fr in frames:
+        per, ctrls = {}, {}
+        for _cyc, reg, val in fr:      # reg = $D4xx offset (0-$18)
+            if 0 <= reg <= 0x14:
+                v, r = divmod(reg, 7)
+                per.setdefault(v, {})[r] = val
+                if r == 4:
+                    ctrls.setdefault(v, []).append(val)
+        for v, regs in per.items():
+            if 5 not in regs or 6 not in regs:
+                continue
+            if (regs[5], regs[6]) == (0x0F, 0x0F):
+                preps += 1
+                if ctrls.get(v) == [0x08, 0x09]:
+                    preps_gate9 += 1
+                continue
+            if (regs[5], regs[6]) == (0x00, 0x00):
+                continue
+            if regs.get(4) == 0x81 and 0 in regs and 1 in regs:
+                continue                   # cymbal burst — both variants
+            inits += 1
+            if 4 in regs:
+                with_ctrl += 1
+    out = {}
+    if inits >= 8 and with_ctrl == 0:
+        out['noteinit_defer_wave'] = '1'
+    if preps >= 8 and preps_gate9 == preps:
+        out['hr_prep_gate'] = '1'
+    return out
+
+
 def _drum_fhi_probe(path: str, base: int,
                     post_init_sub: 'int | None' = None):
     """Drum freq-hi REPOINT probe (C19 STATIC opcode probe). The absolute-freq
@@ -3049,6 +3112,17 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
             if hrv is not None:
                 cfg.extra_params['hard_restart'] = str(hrv)
     _apply_wedge_probes(path, cfg)
+    # Deferred-wave note-init + prep-gate9 (re-assembled builds only — the
+    # DATAFLOW path, marked by a located curnote_addr; canon members are
+    # proven canon by the masked identity compare, so the extra siddump
+    # observation is skipped).
+    # (skipped under a C18 phase wrapper: init writes legitimately split
+    # across F/P calls there and could mimic the defer footprint.)
+    if getattr(cfg, 'curnote_addr', None) is not None and \
+            'play_phases' not in cfg.extra_params and \
+            'noteinit_defer_wave' not in cfg.extra_params:
+        for k, v in _noteinit_defer_probe(path).items():
+            cfg.extra_params.setdefault(k, v)
     # forced_subtune is a cfg ATTRIBUTE, not a param; 0 == the default walk.
     fs = _forced_subtune_probe(path, cfg.base, post_init_sub)
     if fs:
