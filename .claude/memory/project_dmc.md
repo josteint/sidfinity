@@ -40,9 +40,23 @@ Two clean, general, regression-safe fixes (commit 89db7848, ledger C29):
    zeros and spuriously self-looped.
 
 Memomania sub 3: first divergence **26 → 6086 writes** (len_b now = len_a). Does
-NOT reach FULL — but ⚠ **the residue is NOT "dynamic zp, untractable"** (an
-earlier same-session conclusion that was WRONG — corrected after the user flagged
-it as suspicious). GROUND TRUTH (memwatch `--memwatch-on-write D405 BF26,BF2C,F8,F9`
+NOT reach FULL — but ⚠ **IT IS REPRODUCIBLE; the residue is a `_simulate_sector`
+DECODE BUG, not any kind of wall** (two earlier same-session conclusions —
+"dynamic zp untractable", then "garbage-sector, deeper live-zp part" — were BOTH
+WRONG; corrected after the user pushed twice + re-anchoring in the CORE TENET).
+PROOF it's reproducible: the sonified zeropage `$02-$3F` is 100% STATIC across
+the whole song (all `$00`; 505 note-init snapshots, 0 dynamic), and the orderlist
+`$F256` is banked ROM (pc-watch on the RUNNING player: V1 `$f8/$f9=$F256`), both
+static-overlayable (C29). GROUND-TRUTH V1 sector sequence (`--pc-watch C037`,
+run-length): sec1 `$C2E2`(76) → `$C8D0`(3) → `$C8C8`(7) → `$0000`(1) →
+`$FFFF`(1) → `$FF00`(1) → `$C37C`(73) → **`$0000`(183)**. THE BUG: my walk's
+entry3 decodes the garbage `$0000` sector (secp[$A5]) as 169 self-looping rows
+(notes 47,55,0,0,…) and self-loops (loop_to=4), so it never advances to
+`$FFFF/$FF00/$C37C/$0000×183`; the engine plays `$0000` BRIEFLY (1 fetch) then
+ADVANCES the orderlist. Unresolved: WHY the engine advances after 1 fetch on the
+first `$0000` but plays 183 fetches on the later one — the sector-position state
+machine for empty/`$0000` sectors, not yet pinned down. THE OLD (now-superseded)
+mis-analysis follows for the record: GROUND TRUTH (memwatch `--memwatch-on-write D405 BF26,BF2C,F8,F9`
 + `BF26` track-pos trace, canon-relocated so otrk+0=$BF26 transp+0=$BF2C): the
 orig's V1 plays REAL, STATIC in-image sectors — sector 1 (`$C2E2`, the melody,
 inits 0-31) then sector `#$03` (`$C37C`, off-table freqs, inits 32+, tr $30). The
