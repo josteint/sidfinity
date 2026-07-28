@@ -161,6 +161,13 @@ class DmcSong:
     # hand every subtune the start player's phase, flipping player 2's
     # wavestep/slide alternation). None = the file-level value serves.
     dual_phase: int | None = None
+    # C37 layer 2 — the save-state resume wrapper pastes DIFFERENT wave
+    # table / filter-def bytes per subtune. Raw collection (consumed by
+    # the clone-and-remap pass, C31 single-player form):
+    # wave_cells = {table position: [ctrl_poke|None, freq_poke|None]};
+    # filtdef_pokes = {def-table offset: byte}. None = no pokes.
+    wave_cells: dict | None = None
+    filtdef_pokes: dict | None = None
     # Per-subtune composer-param overrides (MusicSubtune.params). Same
     # per-player-fact split as the priming above: a COMPILATION's packed
     # players can disagree on a factory-probed wedge knob (Super_Seven:
@@ -1663,6 +1670,22 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
                                     for i in range(3))
             song.idle_masks = tuple(_ssc.get(gm + i, m.idle_masks[i])
                                     for i in range(3))
+        # C37 layer 2: survivors landing INSIDE the wave tables / filter
+        # defs are per-subtune INSTRUMENT CONTENT, not walk memory.
+        # Collect raw; the clone-and-remap pass below consumes them.
+        if _ssc:
+            _wcp = {}
+            for _a, _v in _ssc.items():
+                if wavefreq <= _a < wavefreq + 256:
+                    _wcp.setdefault(_a - wavefreq, [None, None])[1] = _v
+                elif wavectrl <= _a < wavectrl + 256:
+                    _wcp.setdefault(_a - wavectrl, [None, None])[0] = _v
+            if _wcp:
+                song.wave_cells = _wcp
+            _fdpk = {_a - filtdef: _v for _a, _v in _ssc.items()
+                     if filtdef <= _a < filtdef + 272}
+            if _fdpk:
+                song.filtdef_pokes = _fdpk
         m.songs.append(song)
         for v in voices:
             for rows in v.patterns:
@@ -1712,6 +1735,100 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
         for d in range(17):
             if filtdef + d * 16 + 16 <= 0x10000:
                 m.filter_defs[d] = _decode_filter_def(fmem, filtdef, d)
+    else:
+        fmem = mem
+    # C37 layer 2 — the state-resume copy can EDIT file-level tables (wave
+    # cells / filter-def bytes) per subtune: the subtunes genuinely hear
+    # DIFFERENT instrument programs. None of the differing positions is
+    # observable as a POSITION on the known carriers (no wavepos reads —
+    # the earlier "wavepos partial" classification was an artifact of the
+    # garbage record walk), so the honest representation is the C31
+    # clone-per-value-class: re-decode each poked subtune's used
+    # instruments (+ referenced filter defs) under that subtune's patched
+    # tables; where the content differs, CLONE the instrument (with a
+    # filter-def clone where needed) and REMAP that subtune's rows. Two
+    # instrument points for two audibly different programs is honest
+    # musical content. Gated on pokes: every other member is untouched.
+    _next_iid = (max(m.instruments) + 1) if m.instruments else 0
+    # Clone filter defs must land in an UNUSED NIBBLE slot (0-15): the
+    # engine's def index is instrument byte6's LO NIBBLE and the composer's
+    # step base is slot*16 in 8-bit arithmetic — a slot >= 16 silently
+    # WRAPS onto slot (n & 15)'s steps (C11; slot 17 read slot 1's zero
+    # deltas and froze the sweep). Repurposing an unused slot is safe only
+    # while no def walks off-record (repeat > 5 makes the whole window
+    # observable, C2) — otherwise skip the def clone (honest residue).
+    _def_clone_cache = {}
+    _used_defs = {i.filter_def for i in m.instruments.values() if i.filter_on}
+    _free_defs = [d for d in range(16) if d not in _used_defs] \
+        if not any((m.filter_defs.get(d) or {}).get('repeat', 0) > 5
+                   for d in _used_defs) else []
+    for song in m.songs:
+        _wcp = getattr(song, 'wave_cells', None) or {}
+        _fdpk = getattr(song, 'filtdef_pokes', None) or {}
+        if not (_wcp or _fdpk):
+            continue
+        c_tab = list(ctrl_tab)
+        f_tab = list(freq_tab)
+        for pos, (c, f) in _wcp.items():
+            if c is not None and pos < len(c_tab):
+                c_tab[pos] = c
+            if f is not None and pos < len(f_tab):
+                f_tab[pos] = f
+        dmem = None
+        if _fdpk:
+            dmem = bytearray(fmem)
+            for p, v in _fdpk.items():
+                if 0 <= filtdef + p < 0x10000:
+                    dmem[filtdef + p] = v
+        used = {r.instr for v in song.voices for rows in v.patterns
+                for r in rows if r.instr is not None} | {0}
+        remap = {}
+        for iid in sorted(used):
+            if iid not in m.instruments:
+                continue
+            cand = _decode_instrument(mem, instr_base, iid, c_tab, f_tab,
+                                      n_wave, pw_bound_shift=pw_shift)
+            newdef = None
+            if dmem is not None and cand.filter_on:
+                dno = cand.filter_def
+                if any(dno * 16 <= p < dno * 16 + 16 for p in _fdpk):
+                    cdef = _decode_filter_def(dmem, filtdef, dno)
+                    if cdef != m.filter_defs.get(dno):
+                        newdef = cdef
+            base_i = m.instruments[iid]
+            same_wave = (cand.wave_ctrl == base_i.wave_ctrl
+                         and cand.wave_freq == base_i.wave_freq
+                         and cand.wave_loop == base_i.wave_loop)
+            if same_wave and newdef is None:
+                continue
+            _dkey = None
+            if newdef is not None:
+                _dkey = (cand.filter_def, str(sorted(newdef.items())))
+                if _dkey in _def_clone_cache:
+                    newdef = None                  # slot already allocated
+                elif not _free_defs:
+                    # no representable slot for the def clone: keep the
+                    # wave clone if any, drop the def delta (residue)
+                    if same_wave:
+                        continue
+                    newdef, _dkey = None, None
+            cand.id = _next_iid
+            if newdef is not None:
+                slot = _free_defs.pop(0)
+                m.filter_defs[slot] = newdef
+                _def_clone_cache[_dkey] = slot
+            if _dkey is not None:
+                cand.filter_def = _def_clone_cache[_dkey]
+            m.instruments[_next_iid] = cand
+            remap[iid] = _next_iid
+            _next_iid += 1
+        if remap:
+            from dataclasses import replace as _dcr
+            for v in song.voices:
+                v.patterns = [
+                    [_dcr(r, instr=remap[r.instr])
+                     if r.instr in remap else r for r in rows]
+                    for rows in v.patterns]
     # family 2: cymbal fires one frame later (frame 2, params.cymbal_onset),
     # and the vibrato swells differently — note-init stores freq_hi(note)>>1
     # to $178C and RAMPS the 16-bit step ($1792/$1795) by it each half-cycle

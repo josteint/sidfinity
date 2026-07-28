@@ -8,7 +8,26 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
-## ⏸ r127 PART 2 (2026-07-28): C37 machinery LANDED — both Calf_Love non-start subtunes now decode the CORRECT song; remaining blocker = PER-SUBTUNE STATED-TABLE CELLS (schema decision for the owner)
+## ✅ ROUND 127 COMPLETE (2026-07-28): C37 save-state resume — BOTH Calf_Love members FULL (+2; f1 5329/5401)
+Part 3 (same day): the file-level-table pokes landed via C31 CLONE-AND-REMAP,
+NO schema. Sequence that matters for the record: a per-subtune `wave_table`
+cell-override SCHEMA was drafted on the "position-locked wavepos carrier"
+premise, then REVERTED — the corrected C37 decode produces NO wavepos records
+(the census classification was an artifact of the garbage record-1 walk), no
+position is observable, and the schema-addition discipline's
+alternative-exhaustion step killed the addition (name-on-proof held). Landed
+instead: extract clone pass (re-decode each poked subtune's used instruments
++ referenced filter defs under that subtune's patched tables; clone + remap
+rows; wave-region + filtdef-region survivor collection on DmcSong). C11
+occurrence inside the fix: a clone filter def MUST land in an unused NIBBLE
+slot 0-15 (composer fbase = slot*16 is 8-bit; slot 17 wrapped onto slot 1's
+zero deltas and froze the sweep at init value), gated on no referenced def
+walking off-record (repeat>5, C2 window). $104F (custom SR-write cache) seed
+never demanded — both members FULL without it: Calf_Love_2 132409/132409
+both subs; Calf_Love_everytime 137577+137517 both subs. Gates: smoke 6/6,
+full regression green (r127-2 commit).
+
+## superseded by part 3 above — ⏸ r127 PART 2 (2026-07-28): C37 machinery LANDED — both Calf_Love non-start subtunes now decode the CORRECT song; remaining blocker = PER-SUBTUNE STATED-TABLE CELLS (schema decision for the owner)
 Landed: `_state_resume_probe` (anchored static decode; fires on exactly the 2
 carriers) → `cfg.forced_subtune=0` + `cfg.subtune_state_copy` survivors; the
 extract applies them per-subtune to the walk smem (glide_neutered-style) +
