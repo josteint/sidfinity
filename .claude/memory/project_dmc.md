@@ -8,6 +8,29 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ⏸ OPEN (2026-07-28, r127 investigation): Rio/Calf_Love_2_everytime sub 1 — SAVE-STATE RESUME wrapper fully decoded (ledger C37, NEW class); implementation is the next round
+Sub 1 diverges at play pos 0 (r126 target left open). ROOT CAUSE FULLY
+DECODED: the init vector is an appended wrapper at $20C2 — SMC copy loop
+(`LDA $20EF,X` selects source page $73/$B4 → $2173/$21B4; dest pairs at
+$20F1, 65 bytes) pastes a per-subtune ENGINE-STATE SNAPSHOT into the player,
+then `LDA #0 / JMP $1807` = the real init ALWAYS gets song 0 (the tune table
+at $1BA8 has ONE record; this player is a C13-style variant — subtune shift
+is 3 ASLs / stride 8, operand tunetab ptr at $180E). Both header subtunes =
+the SAME song resumed from different state. py65 post-init diff PROVED the
+init wipe kills everything in $1718-$1785 (dead cargo); SURVIVORS per
+subtune: $1012-$1014 (sticky curnotes: sub1 $40/$18/$3C), $1015/$1016
+(instrument caches: $1F/$01), $104F (UNIDENTIFIED player byte — sub0 $FF /
+sub1 $A8; identify from the disasm before landing), + 5 DATA POKES: sector
+bytes $1A88/$1A8B/$1A8D ($2B/$1A/$1A) and track bytes $1B2C/$1B2F ($03/$03).
+Sub 0's copy == the file image (why sub 0 is FULL today). FIX SHAPE (C37):
+per-subtune post-init memory views for the walk (pokes flow into
+per-subtune patterns naturally) + existing init.voice_state note/instr
+priming; identify $104F first. NB: $1015 cache=$1F=31?? — 31 > max inst id;
+check whether $1015 here is cache or something else in this re-assembled
+layout before mapping it to instr priming. Carrier census (static signature scan, 2026-07-28): exactly TWO —
+Calf_Love_2_everytime (wrapper $20C2) + Calf_Love_everytime (wrapper
+$204F); no other Rio member carries it.
+
 ## ✅ ROUND 126 (2026-07-28): live-signal phase 4 — POSITIONAL wave-pool emission (+3 FULL: Fantastic_Dreams, Supreme, Rabies_Babies; r125 open note RESOLVED)
 Phase 4 of `docs/live_signal_modulation_draft.md` (§5.4). COMPOSER: a
 wave_position carrier whose USF carries the stated wave_table gets its pool

@@ -122,6 +122,7 @@ practice, not code to factor).
 | packed-stream byte whose meaning depends on the DECODER'S POSITION · a command handler consumes the following bytes itself with its OWN coarser rules (skipping the top-level dispatch AND the terminator test) · MA: invisible to the verdict (round-trips) — corrupts USF CONTENT · DMC track transpose handler: post-transpose $FF = a one-row pseudo-sector, then loop WITHOUT sectpos reset (visible at the wrap) · the quirk must reach EVERY walk that mirrors the dispatch — the C29 GATE walks skipped it, silently disabling the zp overlay (pseudo-sector $0000; probe the 'endless' sim's ROW 0) · ONE-ROW LAW GENERAL FORM: engine re-dispatches track[pos] EVERY fetch, sectpos persists ($7F-only reset) → a post-transpose $80-$FD byte plays ONE row then MUTATES into a transpose (`runon` flag + composer sectpos base threading) · find it by READING the handler | C34 | recurring (4×) |
 | close a `Params.fields` ESCAPE-HATCH key → typed field · untyped behavior-named scalar in the generic params bag (init-phase state / mechanism scalar), borderline §7 · NOT opaque-bytes (C7) / NOT a wedge knob (C19) · it's a byte-identity CARRIER REFACTOR not a schema addition (value already in USF) · census ALL consumers (often cross-engine SHARED + dead readers) · clone an existing typed field of the same trichotomy category · type by MUSICAL category NOT a composer grouping · gate regenerates + MD5-compares every consumer family (surfaces broken extract paths behind a FULL verdict) | C33 | methodology |
 | PC-triggered bus tap false-fires on DATA reads of the trigger address · "capture at PC X" watches cpuRead, bus can't tell fetch from data · plausible WRONG snapshot · discriminate EXECUTION by the ≥3-consecutive-ascending-reads bus signature · validate any new tap by CROSS-EMULATOR byte-identity (also proves non-perturbation) · writelog_capture frame indices are COMPACTED (writes-only frames) vs raw siddump frames | C36 | logged |
+| subtune SAVE-STATE RESUME wrapper · header overstates songs, tune table has ONE record · appended init wrapper copies a per-subtune state snapshot + DATA POKES then forces song 0 · non-start subtune diverges at play pos 0, wrong first note/instrument · only init-wipe SURVIVORS matter (priming → init.voice_state; pokes → per-subtune walk memory) | C37 | logged |
 
 ---
 
@@ -872,6 +873,22 @@ practice, not code to factor).
 - TELL: a handler that does `INY / LDA (ptr),Y` before returning to the loop,
   whose compare chain is SHORTER than the top-level map's.
 - FULL ENTRY: [`ledger/C34.md`](ledger/C34.md) — read it before applying.
+
+### C37 — subtune SAVE-STATE RESUME wrapper (one song, N entry states)
+- PRESENTS: header claims N subtunes, tune table has ONE real record; the
+  non-start subtune diverges at play position 0 (state_match=False) — its
+  first row plays a DIFFERENT note/instrument than the walk decoded. The
+  init vector is an APPENDED wrapper: SMC copy loop pastes a per-subtune
+  engine-state snapshot (+ song-DATA pokes) into the player, then forces
+  `LDA #0` into the real init. Memwatch giveaway: every subtune loads the
+  SAME tune-record track pointers.
+- CANONICAL: py65-diff POST-INIT memory per subtune vs the start song's;
+  keep only the init-wipe SURVIVORS (the copy runs BEFORE the wipe — the
+  rest is dead cargo, never represent it). Sticky curnote/cache survivors →
+  existing per-subtune `init.voice_state` priming; data pokes → extract
+  that subtune's songs from ITS OWN post-init memory view. Distinct from
+  C31 (N independent players) and C19 (static single-value poke).
+- FULL ENTRY: [`ledger/C37.md`](ledger/C37.md) — read it before applying.
 
 ### C33 — closing a `Params.fields` escape-hatch key → a typed field
 - PRESENTS: a leak scan flags a `params.fields['<key>']` that affects the
