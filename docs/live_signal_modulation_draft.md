@@ -1,7 +1,9 @@
 # Live-Signal Modulation + the Wave-Table Normal Form — USF schema draft (rev 2, for review)
 
-**Status: DRAFT rev 2, 2026-07-28 — not adopted. Written for owner review;
-nothing in the pipeline implements this yet.** Rev 1 proposed a per-step
+**Status: rev 2 APPROVED by the owner 2026-07-28; phase 1 (§5.1 —
+grammar/writer/parser/types for signal refs + the `wave_table` block)
+LANDED 2026-07-28 (corpus check 11,973/11,973, full regression green).
+Phases 2-5 not yet started.** Rev 1 proposed a per-step
 position list (`wave_step_pos`); review against C32 ("stated notation")
 replaced it with the wave-table normal form (§4) — the list was a
 projection of the table, stored redundantly beside resolved copies.

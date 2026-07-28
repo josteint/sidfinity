@@ -42,7 +42,13 @@ dedup dissolves, C19 pokes natural); vocabulary = name-on-proof; 5-phase
 migration, each byte-identity/verify-gated, deletions ride the pending
 corpus sync. NB rev-1's "off-table wave walk" was a SIGNED-ARITHMETIC
 misreading — the 8-bit cursor wraps mod 256, every walk lives in one
-256-cell space. Awaiting rev-2 review.
+256-cell space. Rev 2 APPROVED; **phase 1 LANDED 2026-07-28** (LiveSignal
+type + vocabulary const, signal-slot ofreq grammar, wave_table block
+[POSITIONAL cells — bare ctrl/freq keywords shadowed identical CNAME kv
+keys under the LALR contextual lexer; usf_corpus_check caught it],
+Instrument.wave_start, writer round-trip-stable; corpus 11973/11973 +
+full regression green). Next: phase 2 (wave-table normal form migration,
+MD5-gated).
 
 ## ✅ ROUND 124 (2026-07-27): Cotton_Eye_Joe FULL (+1) — the $FF TEXT-fallthrough NOTE-INJECT (C13 third form, singleton)
 Next f1 partial by path = `Hudy/Cotton_Eye_Joe` (single, base $1000

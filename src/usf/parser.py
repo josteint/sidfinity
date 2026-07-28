@@ -21,7 +21,7 @@ from src.usf.types import (
     MusicSubtune, DigiSubtune, SfxSubtune, DmcSfxSubtune,
     SfxEngine, SfxInstrument, SfxSong, SfxVoiceInit,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
-    GlobalEvent,
+    GlobalEvent, LiveSignal,
 )
 
 
@@ -347,9 +347,18 @@ class _T(Transformer):
     def inst_wave_filter(self, items):
         return ('wave_filter', list(items[0]))
 
+    def ofreq_signal(self, items):
+        # <name>(vN) — a named live generator (live-signal modulation §3)
+        return LiveSignal(str(items[0]), int(str(items[1])[1:]))
+
+    def ofreq_val(self, items):
+        return items[0]
+
     def ofreq_static(self, items):
-        # at(step, note, freq_lo, freq_hi) — read sonifies a fixed byte
-        return tuple(int(x) for x in items)
+        # at(step, note, freq_lo, freq_hi) — a slot is a fixed byte or a
+        # LiveSignal reference
+        return tuple(x if isinstance(x, LiveSignal) else int(x)
+                     for x in items)
 
     def ofreq_live(self, items):
         # live(step, note, freq_lo, freq_hi) — read sonifies a live value;
@@ -364,6 +373,25 @@ class _T(Transformer):
 
     def inst_wave_start_on_marker(self, items):
         return ('wave_start_on_marker', bool(int(items[0])))
+
+    def inst_wave_start(self, items):
+        return ('wave_start', int(items[0]))
+
+    def wt_step(self, items):
+        return (int(items[0]), ('step', items[1], items[2]))
+
+    def wt_jump(self, items):
+        return (int(items[0]), ('jump', int(items[1])))
+
+    def wave_table_block(self, items):
+        cells = {}
+        for pos, cell in items:
+            if pos in cells:
+                raise UsfParseError(f'duplicate wave_table cell: {pos}')
+            if not 0 <= pos <= 255:
+                raise UsfParseError(f'wave_table position out of range: {pos}')
+            cells[pos] = cell
+        return ('wave_table', cells)
 
     def pwm_mode(self, items):
         return ('mode', str(items[0]))
@@ -1502,6 +1530,7 @@ class _T(Transformer):
         dmc_sfx = None
         environment = None
         offtable_vibdepth = []
+        wave_table = None
         seen_blocks = set()
         for it in items:
             if isinstance(it, tuple):
@@ -1551,6 +1580,8 @@ class _T(Transformer):
                     dmc_sfx = v
                 elif k == 'environment':
                     environment = v
+                elif k == 'wave_table':
+                    wave_table = v
             elif isinstance(it, PsidMeta):
                 psid = it
             elif isinstance(it, Params):
@@ -1574,6 +1605,7 @@ class _T(Transformer):
             drum_programs=drum_programs, attack_len=attack_len,
             attack_wave=attack_wave, wave_arp=wave_arp, pulse_arp=pulse_arp,
             wave_programs=wave_programs, offtable_vibdepth=offtable_vibdepth,
+            wave_table=wave_table,
             default_filter=default_filter, default_pulse=default_pulse,
             dmc_sfx=dmc_sfx)
 

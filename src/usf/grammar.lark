@@ -9,7 +9,7 @@ start: psid_block params_block init_block top_block* instrument_block* subtune_b
 // themselves; each at most once — the parser enforces once-ness) so the LALR
 // table stays small: a chain of N optionals blows up construction (the 11th
 // one pushed build time from seconds to minutes; this form is O(1) per block).
-top_block: environment_block | freq_table_block | offtable_vibdepth_block | state_layout_block | song_end_block | init_behavior_block | master_vol_block | sfx_block | dmc_sfx_block | default_filter_block | default_pulse_block | fc_aux_block
+top_block: environment_block | freq_table_block | offtable_vibdepth_block | state_layout_block | song_end_block | init_behavior_block | master_vol_block | sfx_block | dmc_sfx_block | default_filter_block | default_pulse_block | fc_aux_block | wave_table_block
 
 // ----- default (idle) filter / pulse sweeps (DMC V5) -----
 // The default cutoff / PW modulation the engine applies before/between explicit
@@ -225,6 +225,19 @@ freq_table_block: "freq_table" "{" byte_list "}"
 // Off-table vibrato-depth reads (DMC v4): note-keyed vibrato depths for notes
 // that overshoot the 96-entry vibdepth table (note > 95). at(note, depth).
 offtable_vibdepth_block: "offtable_vibdepth" "{" ovd_entry+ "}"
+
+// The editor's SHARED position-indexed wave table (the wave-table normal
+// form — C32 stated notation; docs/live_signal_modulation_draft.md §4).
+// Sparse: only cells the music reaches are stated. `jump n` = the engine's
+// loop-back marker, stated as a musical jump distance. Instruments point
+// into it via `wave_start`.
+// Cells are positional `pos: <ctrl> <freq>` (no ctrl/freq keywords: those
+// words appear as plain kv KEYS elsewhere in the format, and keyword
+// terminals would shadow them in CNAME positions — proven by the phase-1
+// corpus check).
+wave_table_block: "wave_table" "{" wt_cell+ "}"
+wt_cell: INT ":" number number                  -> wt_step
+       | INT ":" "jump" INT                     -> wt_jump
 ovd_entry: "at" "(" number "," number ")"
 
 // ----- state_layout (optional) -----
@@ -360,15 +373,28 @@ instrument_field: "waveform" ":" byte_list                              -> inst_
                 // first-read chase writes the shared $171F scratch. Carried
                 // only when an off-table freq read sonifies that scratch.
                 | "wave_start_on_marker" ":" INT                        -> inst_wave_start_on_marker
+                // POINTER form (wave-table normal form §4): start position
+                // in the file-level wave_table block; replaces the resolved
+                // wave_ctrl/wave_freq/wave_loop copies once phase 2 lands.
+                | "wave_start" ":" INT                                  -> inst_wave_start
 
 // off-table arpeggio freq entry: at(offset, note, freq_lo, freq_hi).
 // `at(...)` = the read sonifies a FIXED byte (served from the captured lo/hi);
-// `live(...)` = the read sonifies a live-varying engine value (a duration
-// counter, freq accumulator, sector/wave position, speed/master-vol) that the
-// composer reproduces from its own equivalent state. A behavioral property of
-// the sound, not a memory-geometry descriptor. Absent `live` marker => static.
-ofreq_entry: "at" "(" number "," number "," number "," number ")"    -> ofreq_static
-           | "live" "(" number "," number "," number "," number ")"  -> ofreq_live
+// a slot may instead be a NAMED LIVE SIGNAL (`wave_position(v1)`, ...): the
+// byte is sampled from that generator at each read (live-signal modulation,
+// docs/live_signal_modulation_draft.md §3 — replaces the bare `live` marker
+// + the composer-side index-keyed meaning map). The legacy
+// `live(...)` form (live-varying value, generator implied by the window
+// index) stays parseable until the corpus sync retires it.
+ofreq_entry: "at" "(" number "," number "," ofreq_val "," ofreq_val ")"  -> ofreq_static
+           | "live" "(" number "," number "," number "," number ")"      -> ofreq_live
+ofreq_val: number
+         | OFSIG "(" VOICEREF ")"     -> ofreq_signal
+// The live-signal vocabulary (name-on-proof; keep in sync with
+// types.LIVE_SIGNAL_NAMES)
+OFSIG.2: "glide_note" | "sector_position" | "wave_position"
+       | "freq_base_lo" | "freq_base_hi"
+VOICEREF.2: "v" /[1-3]/
 
 pwm_args: pwm_kv+
 pwm_kv: "mode" "=" CNAME           -> pwm_mode

@@ -507,14 +507,25 @@ def _write_instrument(i: Instrument) -> list[str]:
         wfi = ' '.join(_hex(b) for b in i.wave_filter)
         lines.append(f'  wave_filter: {wfi}')
     if getattr(i, 'offtable_freq', None):
+        def _slot(v):
+            # a slot is a fixed byte or a named live-signal reference
+            # (live-signal modulation §3.1)
+            if hasattr(v, 'name') and hasattr(v, 'voice'):
+                return f'{v.name}(v{v.voice})'
+            return str(int(v))
+
         def _ofreq(rec):
             s, n, lo, hi = rec[:4]
+            if not isinstance(lo, int) or not isinstance(hi, int):
+                return f'at({s}, {n}, {_slot(lo)}, {_slot(hi)})'
             kw = 'live' if (len(rec) > 4 and rec[4]) else 'at'
             return f'{kw}({s}, {n}, {lo}, {hi})'
         entries = ' '.join(_ofreq(r) for r in i.offtable_freq)
         lines.append(f'  offtable_freq: {entries}')
     if getattr(i, 'wave_table_pos', None) is not None:
         lines.append(f'  wave_table_pos: {i.wave_table_pos}')
+    if getattr(i, 'wave_start', None) is not None:
+        lines.append(f'  wave_start: {i.wave_start}')
     if getattr(i, 'wave_start_on_marker', False):
         lines.append('  wave_start_on_marker: 1')
     lines.append(f'  {_write_pwm(i.pwm)}')
@@ -896,6 +907,17 @@ def write(usf: UsfFile) -> str:
         lines.append('offtable_vibdepth {  ; vibrato depths for notes past the table')
         for note, depth in usf.offtable_vibdepth:
             lines.append(f'  at({note}, {depth})')
+        lines.append('}')
+    if getattr(usf, 'wave_table', None):
+        lines.append('')
+        lines.append('wave_table {  ; shared position-indexed wave table '
+                     '(stated cells only): pos: <ctrl> <freq> | pos: jump n')
+        for pos in sorted(usf.wave_table):
+            cell = usf.wave_table[pos]
+            if cell[0] == 'jump':
+                lines.append(f'  {pos}: jump {cell[1]}')
+            else:
+                lines.append(f'  {pos}: {_hex(cell[1])} {_hex(cell[2])}')
         lines.append('}')
     if usf.state_layout is not None:
         lines.append('')

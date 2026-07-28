@@ -49,6 +49,27 @@ class Pitch:
         return f'{letter}{sep}{self.octave}'
 
 
+# Live-signal vocabulary (docs/live_signal_modulation_draft.md §3.2).
+# Admission is NAME-ON-PROOF: a name enters only when a member verifies FULL
+# using it. Each value is a generator with a describable musical shape —
+# a genuine categorical, not an engine index (the grammar enumerates the
+# same set; keep the two in sync).
+LIVE_SIGNAL_NAMES = ('glide_note', 'sector_position', 'wave_position',
+                     'freq_base_lo', 'freq_base_hi')
+
+
+@dataclass(frozen=True)
+class LiveSignal:
+    """A named live engine signal sonified by an off-table freq read.
+
+    Appears as the lo/hi slot of an `Instrument.offtable_freq` record
+    (`at(off, note, $12, wave_position(v1))`): the byte the read returns is
+    sampled from this generator at each read, instead of being a fixed
+    captured value. `voice` is 1-based (v1-v3), matching the file syntax."""
+    name: str
+    voice: int
+
+
 @dataclass(frozen=True)
 class InstrumentRef:
     """A reference to an instrument by id (`i1`) or name (`i:lead`).
@@ -679,6 +700,12 @@ class Instrument:
     # per-read behavioral flag replaced the DMC `offtable_redirect`/
     # `sectpos_shadow` params, which described HVSC memory geometry (Core Tenet
     # corollary). Serialized as `at(...)` (static) vs `live(...)`.
+    # TRANSITION (live-signal modulation, docs/live_signal_modulation_draft.md
+    # phase 1): a record's lo/hi slot may also be a `LiveSignal` — a NAMED
+    # live generator reference (`at(163, 48, $12, wave_position(v1))`)
+    # replacing the bare `live` flag + the composer-side index-keyed meaning
+    # map. The `live(...)` 5-tuple form remains parseable until the corpus
+    # sync retires it.
     offtable_freq: list[tuple] = field(default_factory=list)
     # Parallel per-step flag for `wave_freq`: 1 = the step's pitch is an
     # ABSOLUTE note index (a fixed pitch, played regardless of the row's
@@ -705,6 +732,12 @@ class Instrument:
     # equals the value the original sonifies. None = not carried (the
     # composer packs the pool however it likes).
     wave_table_pos: Optional[int] = None
+    # POINTER form (wave-table normal form, live_signal_modulation_draft §4):
+    # the instrument's start position in the file-level `wave_table` block.
+    # When set, the block is this instrument's wave content and the resolved
+    # `wave_ctrl`/`wave_freq`/`wave_loop`/`wave_table_pos` fields are absent
+    # (phase 2 migrates DMC to this form; until then None everywhere).
+    wave_start: Optional[int] = None
     # The editor placed this instrument's wave start ON its own loop marker
     # (the "start at the loop marker" idiom: wave byte9 = loop-marker position,
     # loop 0). On the first read the engine chases the marker back n positions,
@@ -1244,6 +1277,13 @@ class UsfFile:
     # `(note, depth)`, note > 95. The overrun lands on STATIC instrument-record
     # bytes (not runtime state), so the captured value is exact.
     offtable_vibdepth: list[tuple] = field(default_factory=list)
+    # The editor's SHARED position-indexed wave table (the wave-table normal
+    # form, docs/live_signal_modulation_draft.md §4 — C32 stated notation).
+    # Sparse dict: position (0-255, the engine's 8-bit cursor space) ->
+    # ('step', ctrl, freq) | ('jump', dist) — only cells the music REACHES
+    # are stated (C7 discipline). Instruments reference it via `wave_start`.
+    # Phase 1 carries the representation; phase 2 migrates DMC onto it.
+    wave_table: Optional[dict[int, tuple]] = None
     # Default (idle) filter-cutoff sweep (DMC V5 V3-global). The cutoff
     # modulation the engine applies by DEFAULT — from song start, before/
     # between explicit per-instrument filter notes (for tunes whose V3 never
