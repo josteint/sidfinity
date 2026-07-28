@@ -47,8 +47,24 @@ type + vocabulary const, signal-slot ofreq grammar, wave_table block
 [POSITIONAL cells — bare ctrl/freq keywords shadowed identical CNAME kv
 keys under the LALR contextual lexer; usf_corpus_check caught it],
 Instrument.wave_start, writer round-trip-stable; corpus 11973/11973 +
-full regression green). Next: phase 2 (wave-table normal form migration,
-MD5-gated).
+full regression green). **Phase 2 LANDED 2026-07-28** (commit this round): ONE shared resolver
+(`src/usf/resolve.py::resolve_wave_table` — mod-256 walk, jump=hop,
+absent-cell=hold, revisit=loop — subsumes ALL of `_slice_wave`'s
+historical normalizations incl. chain/underflow/flat-concat cases as
+emergent behavior) + `_wave_table_normal_form` (traced-walk cell stating,
+both bounding regimes, C32 re-derivation assert over the merged union,
+wavepos_layout/start-on-marker excluded → phase 4) + composer
+`_materialize_wave_table` at compose entry. EMISSION IS OPT-IN
+(`model_to_usf(wave_norm=True)` — only `write_dmc_usf` passes it): any
+merge path that rebuilds a UsfFile from parts would orphan pointer
+instruments from the file-level table (`zero_wave_table`) — regression
+caught it twice (2SID merge, MA heterogeneous, which consumes
+write_dmc_usf OUTPUT and must `denormalize_wave_table(parse(...))`).
+Gates: A/B MD5 59/59 identical (Jim/Tichelmann_03/Cool_Compo/Attah_2/
+Seaside/I_Am_Ready all norm-adopted; Object_of_Art falls back), adoption
+58/59, dmc_smoke, corpus 11973/11973, full regression green. Next:
+phase 3 (signal re-homing — named refs replace live() + the
+DMC_OFFTABLE_STATE index map, MD5-gated).
 
 ## ✅ ROUND 124 (2026-07-27): Cotton_Eye_Joe FULL (+1) — the $FF TEXT-fallthrough NOTE-INJECT (C13 third form, singleton)
 Next f1 partial by path = `Hudy/Cotton_Eye_Joe` (single, base $1000

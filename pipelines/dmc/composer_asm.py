@@ -37,7 +37,7 @@ import dataclasses
 from src.usf.types import (UsfFile, Pitch, MusicSubtune, InitState,
                            DmcSfxSubtune, InstrumentRef, VoiceBlock,
                            Orderlist)
-from src.usf.resolve import resolve_voice
+from src.usf.resolve import resolve_voice, resolve_wave_table
 from src.composer_runtime.xa65 import assemble
 from src.composer_runtime.psid import build_header
 from pipelines.dmc.engine_constants import FREQ_LO, FREQ_HI, VIBDEPTH
@@ -996,8 +996,57 @@ def _reloc_sid_regs(asm: str, reg_delta: int, keep_regs=()) -> str:
     return '\n'.join(out)
 
 
+def _materialize_wave_table(usf: UsfFile) -> None:
+    """Wave-table normal form (live_signal_modulation_draft §4): expand the
+    stated `wave_table` block into the legacy in-memory fields (instrument
+    waveform/wave_freq/loop + the idle wave_programs[0]) through the ONE
+    shared resolver, so every downstream consumer is unchanged. The melodic
+    signed-offset convention mirrors the extract writer exactly. No-op for
+    resolved-copy members."""
+    wt = getattr(usf, 'wave_table', None)
+    if not wt:
+        return
+    for inst in usf.instruments:
+        ws = getattr(inst, 'wave_start', None)
+        if ws is None:
+            continue
+        r = resolve_wave_table(wt, ws)
+        if r is None:
+            raise RuntimeError(
+                f'unsupported:wave_table_resolve i{inst.id} @{ws}')
+        c, f, loop = r
+        inst.waveform = list(c)
+        drum = 'drum' in (getattr(inst, 'effects', None) or frozenset())
+        inst.wave_freq = (list(f) if drum else
+                          [b - 256 if b >= 128 else b for b in f])
+        inst.loop = loop
+    if not usf.wave_programs.get(0):
+        r = resolve_wave_table(wt, 0)
+        if r is None:
+            raise RuntimeError('unsupported:wave_table_resolve idle @0')
+        usf.wave_programs[0] = {'ctrl': list(r[0]), 'freq': list(r[1]),
+                                'loop': r[2]}
+
+
+def denormalize_wave_table(usf: UsfFile) -> UsfFile:
+    """Convert a wave-table NORMAL-FORM UsfFile back to the resolved-copy
+    form in place (materialize through the shared resolver, then strip the
+    block + pointers). For MERGE paths that consume a written single-player
+    part and rebuild a combined UsfFile from pieces — the combined file has
+    no wave_table, so pointer instruments must be expanded first (the
+    zero_wave_table class the phase-2 regression caught). No-op for
+    resolved-copy files."""
+    _materialize_wave_table(usf)
+    usf.wave_table = None
+    for inst in usf.instruments:
+        if getattr(inst, 'wave_start', None) is not None:
+            inst.wave_start = None
+    return usf
+
+
 def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
                     reg_delta: int = 0, keep_regs=()) -> str:
+    _materialize_wave_table(usf)
     m = _Model(usf)
     insts = m.instruments
     n = len(insts)

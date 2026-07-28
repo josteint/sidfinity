@@ -263,7 +263,8 @@ def _stated_voice_form(v, ents, intros, loop_slot, soft_flags):
 
 
 def _instrument_to_usf(inst, wavepos_layout: bool = False,
-                       canon: bool = True) -> Instrument:
+                       canon: bool = True,
+                       wave_norm: bool = False) -> Instrument:
     effects = set()
     if inst.drum:
         effects.add('drum')
@@ -281,9 +282,13 @@ def _instrument_to_usf(inst, wavepos_layout: bool = False,
                                 initial_dir=inst.slide_dir, half_rate=True)
     return Instrument(
         id=inst.id + 1,
-        waveform=list(inst.wave_ctrl),
-        loop=inst.wave_loop,
-        wave_freq=wave_freq,
+        # normal form: the wave content lives in the file-level wave_table;
+        # this instrument is a pointer (the composer re-derives the
+        # resolved copies through the shared resolver)
+        waveform=[] if wave_norm else list(inst.wave_ctrl),
+        loop=0 if wave_norm else inst.wave_loop,
+        wave_freq=[] if wave_norm else wave_freq,
+        wave_start=inst.wave_start if wave_norm else None,
         adsr=(inst.ad, inst.sr),
         offtable_freq=_stamp_live(inst.offtable_freq, canon),
         # editor wave-table position (arrangement) — only for members whose
@@ -550,7 +555,19 @@ def _emit_otrk_fields(m) -> dict:
     return fields
 
 
-def model_to_usf(m: DmcModel) -> UsfFile:
+def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
+    # Wave-table normal form (§4) is OPT-IN per writer: only the audited
+    # single-player writer (write_dmc_usf) passes wave_norm=True. Every
+    # other caller — the 2SID/compilation/heterogeneous merges and any
+    # view-projection that reconstructs a UsfFile from parts — keeps the
+    # resolved-copy form, so an unaudited path can never orphan pointer
+    # instruments from their file-level table (the zero_wave_table crash
+    # the phase-2 regression caught, twice: the 2SID merge and MA's
+    # heterogeneous _project). The model must ALSO have passed extract()'s
+    # re-derivation assert (wave_table_norm set). SIDFINITY_WT_OLDFORM=1
+    # forces the old form — the A/B byte-identity lever.
+    _norm = getattr(m, 'wave_table_norm', None) if (
+        wave_norm and not os.environ.get('SIDFINITY_WT_OLDFORM')) else None
     pad_fields = _emit_otrk_fields(m)
     # row command flags (dur_cmd/instr_cmd/vol_cmd/soft_cmd) feed the composer's sectpos
     # shadow — emit them iff a canon-geometry off-table read sonifies the sector
@@ -731,7 +748,8 @@ def model_to_usf(m: DmcModel) -> UsfFile:
                                  play_repeat=m.play_repeat or 1)
                      if (m.cia_period or m.play_repeat > 1) else None),
         instruments=[_instrument_to_usf(m.instruments[k], m.wavepos_layout,
-                                        m.offtable_canon)
+                                        m.offtable_canon,
+                                        wave_norm=_norm is not None)
                      for k in sorted(m.instruments)],
         subtunes=subtunes,
         filter_programs={d + 1: dict(v) for d, v in m.filter_defs.items()},
@@ -739,12 +757,20 @@ def model_to_usf(m: DmcModel) -> UsfFile:
         # tuning is per-tune musical content (members ship edited or
         # wholly different temperaments): 96 lo + 96 hi bytes.
         freq_table=list(m.freq_lo) + list(m.freq_hi),
+        # Wave-table NORMAL FORM (§4): the stated shared table; instruments
+        # carry `wave_start` pointers and the resolved copies (waveform /
+        # wave_freq / loop + the idle wave_programs[0]) are ABSENT — the
+        # composer re-derives them through the shared resolver. None =
+        # resolved-copy form (fallback members + merge paths).
+        wave_table=_norm,
         # the idle wave program: what a voice's effects walk before its
         # first note (the engine's cleared cache starts the wave table
-        # at index 0, independent of any instrument's start)
-        wave_programs={0: {'ctrl': list(m.idle_wave[0]),
-                           'freq': list(m.idle_wave[1]),
-                           'loop': m.idle_wave[2]}},
+        # at index 0, independent of any instrument's start); under the
+        # normal form it is resolve_wave_table(wave_table, 0).
+        wave_programs=({} if _norm is not None else
+                       {0: {'ctrl': list(m.idle_wave[0]),
+                            'freq': list(m.idle_wave[1]),
+                            'loop': m.idle_wave[2]}}),
         # off-table vibrato-depth reads (note>95) — the vibdepth analog of
         # offtable_freq; composer places these past the vibdepth table.
         offtable_vibdepth=sorted(m.offtable_vibdepth.items()),
@@ -754,7 +780,7 @@ def model_to_usf(m: DmcModel) -> UsfFile:
 def write_dmc_usf(cfg: DMCV4Config, out_dir: str,
                   hvsc_root: str = 'hvsc84') -> str:
     m = extract(cfg, hvsc_root=hvsc_root)
-    usf = model_to_usf(m)
+    usf = model_to_usf(m, wave_norm=True)
     base = os.path.splitext(os.path.basename(cfg.sid_path))[0]
     out = os.path.join(out_dir, base + '.usf')
     write_file(usf, out)

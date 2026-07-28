@@ -1,9 +1,15 @@
 # Live-Signal Modulation + the Wave-Table Normal Form — USF schema draft (rev 2, for review)
 
-**Status: rev 2 APPROVED by the owner 2026-07-28; phase 1 (§5.1 —
-grammar/writer/parser/types for signal refs + the `wave_table` block)
-LANDED 2026-07-28 (corpus check 11,973/11,973, full regression green).
-Phases 2-5 not yet started.** Rev 1 proposed a per-step
+**Status: rev 2 APPROVED by the owner 2026-07-28. Phase 1 (§5.1 —
+grammar/writer/parser/types) LANDED 2026-07-28. Phase 2 (§5.2 — the wave
+normal form: shared resolver `src/usf/resolve.py::resolve_wave_table`,
+extract re-derivation assert, composer materializer, OPT-IN emission via
+`write_dmc_usf`) LANDED 2026-07-28: A/B byte-identity 59/59 incl. every
+chain-resolved hard case, adoption 58/59, corpus check + full regression
+green. Phase-2 lesson: normal-form emission is opt-in per writer and any
+merge path consuming a written part must `denormalize_wave_table` — the
+regression caught the pointer-orphaning class twice (2SID merge sketch,
+MA heterogeneous). Phases 3-5 not yet started.** Rev 1 proposed a per-step
 position list (`wave_step_pos`); review against C32 ("stated notation")
 replaced it with the wave-table normal form (§4) — the list was a
 projection of the table, stored redundantly beside resolved copies.

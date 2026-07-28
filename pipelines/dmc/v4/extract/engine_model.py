@@ -216,6 +216,13 @@ class DmcModel:
                                      # from the freq tables (extract geometry
                                      # probe). to_usf uses it to stamp per-read
                                      # `live` flags; NOT serialized as a bit.
+    # Wave-table NORMAL FORM (live_signal_modulation_draft §4, C32 stated
+    # notation): the sparse position-indexed cell dict to emit as the USF
+    # `wave_table` block, with instruments as `wave_start` pointers. Set
+    # ONLY when the shared resolver provably reproduces every resolved
+    # program (idle walk included) from the stated cells — else None and
+    # the member keeps the resolved-copy form (fallback wholesale).
+    wave_table_norm: 'dict | None' = None
     wavepos_layout: bool = False     # an off-table freq read sonifies a live
                                      # wave position ($177A-$177C) AND every
                                      # wave program is a verbatim contiguous
@@ -1830,6 +1837,10 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
             m.wavepos_layout = True
         else:
             del m.extra_params['d417_tail_anim']
+    # Wave-table NORMAL FORM (§4): state the shared table + prove the
+    # resolver round-trip; None = keep the resolved-copy form wholesale.
+    m.wave_table_norm = _wave_table_normal_form(m, ctrl_tab, freq_tab,
+                                                n_wave)
     # wjmp chase shadow: an off-table freq read on $171F (fhi idx 120 / flo
     # idx 216) sonifies the shared effect scratch — the LAST value written to
     # it that frame. One writer is a chasing instrument's first-read hop: an
@@ -1933,6 +1944,60 @@ def _split_offtable_by_subtune(m: DmcModel) -> None:
                     v.patterns = [
                         [replace(r, instr=tgt) if r.instr == iid else r
                          for r in pat] for pat in v.patterns]
+
+
+def _wave_table_normal_form(m: DmcModel, ctrl_tab, freq_tab, n_wave):
+    """Build the sparse STATED wave table (normal form §4) and prove, via
+    the SHARED resolver, that it reproduces every resolved program —
+    the C32 re-derivation assert. Returns the cell dict or None (member
+    keeps the resolved-copy form wholesale).
+
+    Cell collection mirrors the slicer's two bounding regimes: an
+    in-table walk is bounded to the real wave table (`n_wave`), the
+    mod-256 chain regime to the 256-byte read window — tried in that
+    order per program, accepting whichever reproduces the extract's
+    (ctrl, freq, loop) exactly. The FINAL assert re-runs the resolver
+    over the merged union (another program may state cells past a
+    bound that would change this program's absent-cell hold — the
+    union-pollution case), refusing wholesale on any mismatch.
+
+    Excluded for now (phase 4 territory): wavepos_layout members (their
+    positional pool emission carries wave_table_pos semantics) and
+    start-on-marker chase carriers (iwchase depends on len(waveform))."""
+    from src.usf.resolve import resolve_wave_table, walk_wave_table
+    if m.wavepos_layout:
+        return None
+    if any(ins.wave_start_on_marker for ins in m.instruments.values()):
+        return None
+
+    def view(bound):
+        b = min(bound, 256, len(ctrl_tab))
+        return {i: (('jump', ctrl_tab[i] - 0x90) if ctrl_tab[i] >= 0x90
+                    else ('step', ctrl_tab[i], freq_tab[i]))
+                for i in range(b)}
+    views = (view(n_wave), view(256))
+    progs = [(0, (list(m.idle_wave[0]), list(m.idle_wave[1]),
+                  m.idle_wave[2]))]
+    progs += [(ins.wave_start, (list(ins.wave_ctrl), list(ins.wave_freq),
+                                ins.wave_loop))
+              for ins in m.instruments.values()]
+    union = {}
+    for start, want in progs:
+        got = None
+        for v in views:
+            r = walk_wave_table(v, start)
+            if r is not None and (r[0], r[1], r[2]) == want:
+                got = r
+                break
+        if got is None:
+            return None
+        for p in got[3]:
+            union[p] = views[1].get(p, views[0].get(p))
+    for start, want in progs:
+        r = resolve_wave_table(union, start)
+        if r is None or (list(r[0]), list(r[1]), r[2]) != want:
+            return None
+    return union
 
 
 def _wave_layout_verbatim(m: DmcModel, ctrl_tab, freq_tab, n_wave):

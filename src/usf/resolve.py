@@ -107,3 +107,86 @@ def resolve_voice(voice: VoiceBlock,
             cur.append(first)
         passes.append(cur)
     return passes
+
+
+# ---------------------------------------------------------------------------
+# Wave-table normal form (docs/live_signal_modulation_draft.md §4)
+# ---------------------------------------------------------------------------
+
+def resolve_wave_table(cells: dict, start: int):
+    """Resolve a wave program from the stated sparse `wave_table` block.
+
+    `cells`: {position: ('step', ctrl, freq) | ('jump', dist)} — the C32
+    stated notation of the editor's shared position-indexed wave table
+    (only reached cells are stated). `start`: the instrument's
+    `wave_start` pointer (or 0 for the idle walk).
+
+    Engine semantics, mod-256 (the cursor is one byte): a `jump` cell hops
+    back `dist` positions and re-dispatches; a `step` cell emits and
+    advances; an ABSENT cell is the readable window's edge — the walk
+    holds on the last emitted step; re-reaching an already-emitted
+    position is the loop point. Returns (ctrl, freq, loop) as the flat
+    resolved program, or None when the walk cannot settle (degenerate
+    jump chain, or nothing emitted). This is the ONE resolution semantics
+    shared by the extract's re-derivation assert and the composer's
+    materializer — the two sides cannot disagree.
+    """
+    ctrl, freq = [], []
+    seen = {}
+    pos = start & 0xFF
+    for _ in range(512):
+        hops = 0
+        while True:
+            cell = cells.get(pos)
+            if cell is None or cell[0] != 'jump':
+                break
+            pos = (pos - cell[1]) & 0xFF
+            hops += 1
+            if hops > 128:
+                return None
+        cell = cells.get(pos)
+        if cell is None:
+            break                          # window edge -> hold
+        if pos in seen:
+            return ctrl, freq, seen[pos]
+        seen[pos] = len(ctrl)
+        ctrl.append(cell[1])
+        freq.append(cell[2])
+        pos = (pos + 1) & 0xFF
+    if not ctrl:
+        return None
+    return ctrl, freq, max(0, len(ctrl) - 1)
+
+
+def walk_wave_table(cells: dict, start: int):
+    """`resolve_wave_table` + the POSITIONS the walk visits (steps and
+    jump cells alike). Returns (ctrl, freq, loop, visited: set) or None.
+    Used by the extract to collect the exact cell set to state."""
+    ctrl, freq = [], []
+    seen = {}
+    visited = set()
+    pos = start & 0xFF
+    for _ in range(512):
+        hops = 0
+        while True:
+            cell = cells.get(pos)
+            if cell is None or cell[0] != 'jump':
+                break
+            visited.add(pos)
+            pos = (pos - cell[1]) & 0xFF
+            hops += 1
+            if hops > 128:
+                return None
+        cell = cells.get(pos)
+        if cell is None:
+            break
+        if pos in seen:
+            return ctrl, freq, seen[pos], visited
+        seen[pos] = len(ctrl)
+        visited.add(pos)
+        ctrl.append(cell[1])
+        freq.append(cell[2])
+        pos = (pos + 1) & 0xFF
+    if not ctrl:
+        return None
+    return ctrl, freq, max(0, len(ctrl) - 1), visited

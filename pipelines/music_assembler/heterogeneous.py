@@ -266,8 +266,12 @@ def heterogeneous_to_usf(rel: str, spec: dict | None = None,
             if pi2 == pi:
                 smap.setdefault(song2, k)
         cfg.song_subtunes = smap
-        per_player[pi] = ('dmc_v4', parse_file(
-            write_dmc_usf(cfg, td, hvsc_root=hvsc_root)), 'song')
+        # this merge rebuilds one UsfFile from parts (no file-level
+        # wave_table survives) — expand a normal-form part's pointer
+        # instruments back to resolved copies first
+        from pipelines.dmc.composer_asm import denormalize_wave_table
+        per_player[pi] = ('dmc_v4', denormalize_wave_table(parse_file(
+            write_dmc_usf(cfg, td, hvsc_root=hvsc_root))), 'song')
         unit_of[pi] = pi
     for pi, base in enumerate(bases):
         if kinds[pi] == 'dmc':
