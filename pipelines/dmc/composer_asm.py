@@ -808,6 +808,7 @@ class _Model:
                     marks = list(ol.stated_marks or [None] * P)
                     extras = list(ol.extra_cmds or [0] * P)
                     intros = list(ol.intro_entries or [None] * P)
+                    steady = [None] * P
                     offs = []
                     cum = 0
                     for i in range(P):
@@ -832,12 +833,29 @@ class _Model:
                                     else ol.entries[i])
                             gids.append(_gid_entry(_pid, _sb))
                             _sb = _sbase_next(_pid, _sb)
+                            # ENDLESS self-loop tail (C32 r128 admission):
+                            # an intro variant that ENCODES differently
+                            # from its steady entry exists only at the
+                            # loop slot (the fold scopes it there) — the
+                            # lead plays once, then the loop re-fetches
+                            # the steady entry at the SAME otrk (the
+                            # orig's frozen wrap position). Carried-only
+                            # intro variants dedup to the same gid and
+                            # emit nothing extra (byte identity).
+                            if intros[i] is not None and i == ol.loop_to:
+                                g2 = _gid_entry(ol.entries[i], _sb)
+                                if g2 != gids[i]:
+                                    steady[i] = g2
+                                    _sb = _sbase_next(ol.entries[i], _sb)
                     for i in range(P):
-                        if i == ol.loop_to:
+                        if i == ol.loop_to and steady[i] is None:
                             loop_target = len(track)
                         if marks[i] is not None:      # sticky transpose command
                             track += bytes([0xFD, (marks[i] + 64) & 0xFF])
                         track += bytes([gids[i], offs[i] & 0xFF])
+                        if steady[i] is not None:
+                            loop_target = len(track)
+                            track += bytes([steady[i], offs[i] & 0xFF])
                 else:
                     pad = int(usf.params.fields.get(
                         f'otrk_pad_s{sub.id}_v{v.id}', 0) or 0)

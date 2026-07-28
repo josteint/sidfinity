@@ -743,6 +743,11 @@ practice, not code to factor).
   the composer can't structurally discriminate (vol-only inheritance;
   auxiliary width shadows need ONE unambiguous source). WARNING: fitted
   models breed latent bugs (rho off-by-one) — observe, don't fit.
+  ENDLESS-TAIL (r128): an unterminated mod-256 sector self-loop FOLDS —
+  one track byte carries lead+period entries at EQUAL offsets (intro plays
+  once, the loop re-fetches steady at the frozen otrk); admission scoped
+  to cycle-length-1 tails, longer cycles keep the encoding-equivalence
+  refusal.
 - FULL ENTRY: [`ledger/C32.md`](ledger/C32.md) — read it before applying.
 
 ### C31 — COMPILATION: one file packs N independent players; a dispatch wrapper selects (player, song)

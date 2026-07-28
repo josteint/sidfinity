@@ -431,10 +431,22 @@ def _fold_stated_orderlist(v):
 
     entries = list(v.entries[:B])
     intros = [None] * B
+    # ENDLESS-TAIL admission (r128): a voice ending in an unterminated
+    # (mod-256 wrapped) sector walks to [.., lead, period] at ONE track
+    # byte — a SELF-LOOP slot whose pass-0 decode (lead) genuinely differs
+    # from its steady decode (period) in stated content. Scoped to exactly
+    # that shape: cycle length 1, equal observed offsets, loop_to = the
+    # tail slot — the Creo/Dance mid-sector-reentry refusal below stands
+    # for every longer cycle. The composer plays the intro entry once and
+    # loops on the steady entry at the SAME otrk value (the orig's frozen
+    # wrap position).
+    self_loop_tail = (len(slots) == 1 and S == B - 1
+                      and offs[B] == offs[B - 1])
     for j in range(B, n):
         sl = slots[j - B]
         if v.entries[j] != entries[sl]:
-            if not _stated_equal(v.patterns[entries[sl]],
+            if not self_loop_tail and \
+               not _stated_equal(v.patterns[entries[sl]],
                                  v.patterns[v.entries[j]]):
                 return None
             intros[sl] = entries[sl]        # intro variant = pass-0 decode

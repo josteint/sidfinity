@@ -8,7 +8,39 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
-## ⏸ OPEN (2026-07-28, r128 investigation): Mephisto/Deprave_7_tune_3 — NOT wavepos: live OTRK drift from the 'endless'-sector walk's entry_offsets gap (fix shape decided, NOT landed — gates needed)
+## ✅ ROUND 128 COMPLETE (2026-07-28): endless-tail fold landed — otrk drift fixed; Deprave's residual = LIVE CPU STACK sonified (C29 dynamic, hard residue)
+The decided fix shape landed exactly as specified, three edits: (1) WALK
+(`engine_model` endless branch) appends the extra entry's `entry_offsets`
+at the SAME `pos` — both lead and period live at the one track byte the
+engine's otrk freezes on; (2) FOLD (`_fold_stated_orderlist`) admits the
+stated-content-differing intro pair ONLY for the self-loop tail (cycle
+length 1, equal offsets, loop_to = tail slot — the Creo/Dance refusal
+stands for every longer cycle; `_stated_voice_form`'s dedup-merge check
+still sends the pair to the effective-rows branch, so it rides the
+existing `intro_entries` mechanism); (3) COMPOSER stated branch: a tail
+intro whose gid ENCODES differently from the steady entry emits
+[gid_lead, otrk][gid_period, otrk] with the $FF loop target at the steady
+entry — lead once, period forever, otrk re-seeded frozen (carried-only
+intros dedup to one gid → byte-identical for everyone else). GATES:
+census scanner (tmp/r128_endless_census.py → .jsonl) over all 5401 f1
+members found 32 tail carriers (+45 probe-only pseudo-sector members,
+unaffected); all 32 verified: 27/28 prior FULLs stay FULL (Lane_Crazy
+partial = the r127 pre-existing C20 palimpsest, byte-identical verdict
+confirmed under a pre-change HEAD worktree), Memomania now FULL (stale
+batch row), 4 fold-fail voices (Memomania/Canyon/Pour_le_merite/Black_It)
+fall back harmlessly. Deprave_7_tune_3: divergence 30139 → 157878 (otrk
+now tracks — memwatch shows $1727 frozen at $A1 ✓); the RESIDUAL is V2's
+endless window $00FF-$01FE = zeropage + THE LIVE CPU STACK: at live
+sectpos ~$F4 the cursor crosses $01F3+ where every IRQ's JSR return
+addresses churn (orig picks up a live vol-7/instr-31 command; post-init
+snapshot has zeros). Emulator-environment dynamic RAM, C29 hard-residue
+boundary — our rebuild has a DIFFERENT stack by construction; stays
+partial, correctly. Also fixed this round: `effect_chain_profiler`
+--find-write blind spot (absolute stores carry no `[effaddr]` bracket in
+the pc-trace — `_ABS_STORE` regex added; Calf_Love's 177 D416=$06 writes
+now found, PC $106E; INVESTIGATION_BACKLOG updated).
+
+## resolved by r128 above — ⏸ OPEN (2026-07-28, r128 investigation): Mephisto/Deprave_7_tune_3 — NOT wavepos: live OTRK drift from the 'endless'-sector walk's entry_offsets gap (fix shape decided, NOT landed — gates needed)
 r126's "continuation into unstated cells" hypothesis REFUTED by measurement
 (C11 rule): event-aligned memwatch (orig $177A-C vs our labels via
 dmc_state_addr) shows wavepos tracks 1:1 — 0 mismatches over 1921 events

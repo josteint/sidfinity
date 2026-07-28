@@ -64,6 +64,11 @@ _PC_LINE = re.compile(
     r'([0-9a-fA-F]{2})\b')                 # Y
 _STORE = re.compile(r'\b(ST[AXY])\w*', re.I)        # STA / STX / STY (+addr mode)
 _EFFADDR = re.compile(r'\[d4([0-9a-fA-F]{2})\]', re.I)
+# The pc-trace resolves an [effaddr] bracket only for INDEXED stores; an
+# absolute store prints bare (`8d 16 d4  STAa  d416`, no bracket). Missing
+# these made --find-write report 0 for players that write SID registers
+# with absolute stores (Calf_Love, 2026-07-28) — match the disasm operand.
+_ABS_STORE = re.compile(r'\bST[AXY]a\s+d4([0-9a-fA-F]{2})\s*$', re.I)
 _CYCLE = re.compile(r'\((\d+)\)')
 
 
@@ -102,7 +107,7 @@ def _capture(sid_path: str, subtune: int, start_frame: int, end_frame: int):
                 if mc and 'Instruction' in line:
                     cur_cycle = int(mc.group(1))
                     continue
-                me = _EFFADDR.search(line)
+                me = _EFFADDR.search(line) or _ABS_STORE.search(line)
                 if not me:
                     continue
                 reg = int(me.group(1), 16)

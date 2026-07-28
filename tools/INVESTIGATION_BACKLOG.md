@@ -110,4 +110,4 @@ add a tripwire?).
 - **Promotions and demotions happen here.** When a backlog idea gets
   built, move to Built. When a Built tool hurts more than helps, move
   to Hurt list with the reason.
-- effect_chain_profiler --find-write returned 0 occurrences for D416=$06 writes that provably exist (Calf_Love_2 sub 1, 2026-07-28, both --subtune 1 and 2) — verify its capture path / value parse before next use.
+- ~~effect_chain_profiler --find-write returned 0 occurrences for D416=$06 writes that provably exist (Calf_Love_2 sub 1, 2026-07-28)~~ **FIXED r128 (2026-07-28)**: the pc-trace resolves an `[effaddr]` bracket only for INDEXED stores; absolute stores (`8d 16 d4  STAa d416`, no bracket) were invisible to the `_EFFADDR` regex — so any player writing SID registers with absolute stores reported 0. `_ABS_STORE` now matches the bare disasm operand; re-test found the 177 D416=$06 writes (PC $106E).

@@ -978,8 +978,16 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
         if isinstance(rows, tuple) and rows[0] == 'endless':
             # unterminated sector (8-bit sectpos wrap): the voice never
             # leaves it — encode lead rows (once) + one period, self-loop.
+            # BOTH chunks live at the SAME track byte (the engine's otrk
+            # freezes at `pos` forever), so the extra entry carries the
+            # same observed offset — the balanced offsets let
+            # `_fold_stated_orderlist` fold the tail (r128; the old
+            # imbalance len(offs) = n-1 forced every endless voice onto
+            # otrk_legacy).
             _, lead, period = rows
             for chunk in ([lead] if lead else []) + [period]:
+                if len(v.entries) > len(v.entry_offsets) - 1:
+                    v.entry_offsets.append(pos)
                 v.patterns.append(chunk)
                 v.entries.append(len(v.patterns) - 1)
                 v.transposes.append(transpose)
