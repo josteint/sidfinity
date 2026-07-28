@@ -1605,6 +1605,19 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
                 smem = list(mem)
                 for _a, _v in _pokes.items():
                     smem[_a] = _v
+        # C37 save-state resume wrapper: apply this subtune's surviving
+        # state-copy bytes (song-DATA pokes + below-wipe priming) to the
+        # walk memory, so the track/sector walk and the sticky-instrument
+        # seed read the engine's EFFECTIVE bytes for THIS subtune.
+        _ssc = (getattr(cfg, 'subtune_state_copy', None) or {}).get(sub)
+        if _ssc:
+            _p2 = {a & 0xFFFF: v for a, v in _ssc.items()
+                   if mem[a & 0xFFFF] != v}
+            if _p2:
+                if smem is mem:
+                    smem = list(mem)
+                for _a, _v in _p2.items():
+                    smem[_a] = _v
         voices = []
         for vi in range(3):
             tp = _rd16(mem, rec + vi * 2)
@@ -1642,6 +1655,14 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
             voices.append(v)
         song = DmcSong(id=sub + 1, speed=mem[rec + 6],
                        master_vol=mem[rec + 7], voices=voices)
+        # C37: the copied sticky curnote / gate-mask bytes are per-subtune
+        # idle priming (§4.5) — ride the existing DmcSong per-subtune slots
+        # (to_usf emits them as subtune init.voice_state overrides).
+        if _ssc and any((cn + i) in _ssc for i in range(3)):
+            song.idle_notes = tuple(_ssc.get(cn + i, m.idle_notes[i])
+                                    for i in range(3))
+            song.idle_masks = tuple(_ssc.get(gm + i, m.idle_masks[i])
+                                    for i in range(3))
         m.songs.append(song)
         for v in voices:
             for rows in v.patterns:

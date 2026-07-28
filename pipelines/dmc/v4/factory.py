@@ -1089,6 +1089,73 @@ def _forced_subtune_probe(path: str, base: int,
     return mem[init + 1] if reaches else None
 
 
+def _state_resume_probe(path: str, base: int,
+                        post_init_sub: 'int | None' = None):
+    """Subtune SAVE-STATE RESUME wrapper (ledger C37, STATIC anchored probe).
+
+    The init vector is an appended wrapper: `JSR copy / JMP real-init`,
+    where `copy` is an SMC loop (`TAX / LDA srclo_tab,X / STA <src-operand>`
+    then per pair: dest lo/hi from a pair table -> the STA operand, one
+    data byte from the per-subtune source block -> that dest, INC src-lo)
+    ending `LDA #imm / RTS` — so the real init always receives song `imm`
+    and every header "subtune" is the same song resumed from a pasted
+    state snapshot. Decode statically, anchored on the exact opcode
+    skeleton (a shape mismatch returns None — never guess).
+
+    Returns (forced_song, {subtune: {addr: byte}}) with the copy filtered
+    to its init-wipe SURVIVORS (the copy runs BEFORE init, so anything in
+    the base+$718..base+$79D wipe is dead cargo), or None. The source
+    address INCs only its LO byte, so the per-byte address wraps within
+    the page (ledger C11 — mirror the register width).
+
+    Regression-safe: the probe fires only on the full skeleton match
+    (census 2026-07-28: exactly 2 carriers in HVSC, Rio's two Calf_Love
+    members); a non-carrier's cfg is untouched."""
+    mem, s = _load(path, post_init_sub)
+    init = s['init']
+    tgt = init
+    if mem[init] == 0x4C:
+        tgt = mem[init + 1] | mem[init + 2] << 8
+    if mem[tgt] != 0x20 or mem[(tgt + 3) & 0xFFFF] != 0x4C:
+        return None
+    sub = mem[tgt + 1] | mem[tgt + 2] << 8
+
+    def op16(a):
+        return mem[a] | mem[a + 1] << 8
+    ops = [(0, 0xAA), (1, 0xBD), (4, 0x8D), (7, 0xA0), (9, 0xB9),
+           (12, 0x8D), (15, 0xC8), (16, 0xB9), (19, 0x8D), (22, 0xC8),
+           (23, 0xAD), (26, 0x8D), (29, 0xEE), (32, 0xC0), (34, 0xD0),
+           (36, 0xA9), (38, 0x60)]
+    if any(mem[(sub + o) & 0xFFFF] != op for o, op in ops):
+        return None
+    # SMC wiring: the STA at +4 and INC at +29 must target the LDA-src lo
+    # operand (+24); the two dest-operand stores must target the STA-dst
+    # operand lo/hi (+27/+28); both pair-table reads share one table.
+    if op16(sub + 5) != sub + 24 or op16(sub + 30) != sub + 24:
+        return None
+    if op16(sub + 13) != sub + 27 or op16(sub + 20) != sub + 28:
+        return None
+    dtab = op16(sub + 10)
+    if op16(sub + 17) != dtab:
+        return None
+    cnt = mem[sub + 33]
+    if cnt == 0 or cnt & 1:
+        return None
+    n = cnt // 2
+    src_hi = mem[sub + 25]
+    stab = op16(sub + 2)
+    dests = [op16(dtab + 2 * k) for k in range(n)]
+    forced = mem[sub + 37]
+    wipe_lo, wipe_hi = base + 0x718, base + 0x79D
+    out = {}
+    for song_i in range(s.get('songs', 1)):
+        lo = mem[stab + song_i]
+        out[song_i] = {
+            d: mem[(src_hi << 8) | ((lo + k) & 0xFF)]
+            for k, d in enumerate(dests) if not wipe_lo <= d <= wipe_hi}
+    return forced, out
+
+
 def _glide_neutered_probe(path: str, base: int,
                           post_init_sub: 'int | None' = None):
     """Glide-speed store re-pointed away from glsp (STATIC opcode probe, C19).
@@ -3127,6 +3194,11 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
     fs = _forced_subtune_probe(path, cfg.base, post_init_sub)
     if fs:
         cfg.forced_subtune = fs
+    # C37 save-state resume wrapper: every subtune plays the forced song,
+    # differentiated only by the wrapper's surviving state copy.
+    sr = _state_resume_probe(path, cfg.base, post_init_sub)
+    if sr is not None:
+        cfg.forced_subtune, cfg.subtune_state_copy = sr
     return cfg
 
 

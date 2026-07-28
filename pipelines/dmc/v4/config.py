@@ -141,6 +141,15 @@ class DMCV4Config:
     # record normally (walk record = sub index). Extract-only: the composer
     # plays the walked content; the forced index is an engine artifact, not USF.
     forced_subtune: int = None
+    # C37 subtune SAVE-STATE RESUME wrapper: {subtune: {addr: byte}} — the
+    # per-subtune state-copy SURVIVORS (bytes the wrapper pastes BEFORE the
+    # real init that the init wipe does NOT erase: sticky curnote/cache
+    # priming below the state block + song-DATA pokes). The extract applies
+    # them to that subtune's walk memory and lifts the curnote bytes into
+    # per-subtune init.voice_state priming. Extract-only: the wrapper's
+    # mechanism never reaches USF; only its surviving musical effects do.
+    # None = no wrapper (every existing member).
+    subtune_state_copy: dict = None
     # POST-INIT leftover values (dataflow/re-assembled members only; None =
     # read the file image). Canon's leftover priming (d417 shadow, idle
     # notes/masks, dual phase) reads the FILE IMAGE because canon init never

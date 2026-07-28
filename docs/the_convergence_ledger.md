@@ -887,7 +887,10 @@ practice, not code to factor).
   rest is dead cargo, never represent it). Sticky curnote/cache survivors →
   existing per-subtune `init.voice_state` priming; data pokes → extract
   that subtune's songs from ITS OWN post-init memory view. Distinct from
-  C31 (N independent players) and C19 (static single-value poke).
+  C31 (N independent players) and C19 (static single-value poke). SECOND
+  LAYER: the copy can also edit FILE-LEVEL tables (wavefreq cells /
+  filter defs) — per-subtune stated-table cell carriage is an OPEN schema
+  decision; until then those subtunes are honest residue.
 - FULL ENTRY: [`ledger/C37.md`](ledger/C37.md) — read it before applying.
 
 ### C33 — closing a `Params.fields` escape-hatch key → a typed field

@@ -8,7 +8,25 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
-## ⏸ OPEN (2026-07-28, r127 investigation): Rio/Calf_Love_2_everytime sub 1 — SAVE-STATE RESUME wrapper fully decoded (ledger C37, NEW class); implementation is the next round
+## ⏸ r127 PART 2 (2026-07-28): C37 machinery LANDED — both Calf_Love non-start subtunes now decode the CORRECT song; remaining blocker = PER-SUBTUNE STATED-TABLE CELLS (schema decision for the owner)
+Landed: `_state_resume_probe` (anchored static decode; fires on exactly the 2
+carriers) → `cfg.forced_subtune=0` + `cfg.subtune_state_copy` survivors; the
+extract applies them per-subtune to the walk smem (glide_neutered-style) +
+lifts copied curnote/masks into DmcSong.idle_notes/idle_masks (existing
+per-subtune priming). Calf_Love_2 sub 1: play_match 1 → 65 with len_a==len_b
+(correct song; was a garbage record-1 walk); Calf_Love_everytime sub 1 same
+shape (36/137577). REMAINING: the survivors also EDIT FILE-LEVEL TABLES —
+Calf_Love_2's $1A88/$1A8B/$1A8D = WAVEFREQ positions 12/15/17 (proven: orig
+sub0-vs-sub1 streams first differ at exactly the pos-12 read, $0EA2 vs
+$0F81 = wnote 45 vs 46) and $1B2C/$1B2F = FILTER-DEF bytes; runtime-static
+(memwatch, no animator). Filter defs could clone-and-remap (C31), but the
+wave cells are POSITION-LOCKED (wavepos carrier — positional pool needs one
+byte per cell) ⇒ the principled shape = per-subtune `wave_table` cell
+override patched at init (ovr_sub-style) = a SCHEMA ADDITION ⇒ owner
+decision pending. $104F identified = the player's custom SR-write cache
+(volume-override OR-merge); seed unmodelled until a divergence demands it.
+
+## superseded by part 2 above — ⏸ OPEN (2026-07-28, r127 investigation): Rio/Calf_Love_2_everytime sub 1 — SAVE-STATE RESUME wrapper fully decoded (ledger C37, NEW class); implementation is the next round
 Sub 1 diverges at play pos 0 (r126 target left open). ROOT CAUSE FULLY
 DECODED: the init vector is an appended wrapper at $20C2 — SMC copy loop
 (`LDA $20EF,X` selects source page $73/$B4 → $2173/$21B4; dest pairs at

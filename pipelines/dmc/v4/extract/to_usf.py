@@ -708,7 +708,8 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
         # into the SAME InitVoice as the resolver seed above, since the
         # composer looks these up by voice id.
         if song.idle_notes is not None:
-            s_dur = (song.durrel_init if reads_durrel and any(song.durrel_init)
+            s_dur = (song.durrel_init
+                     if reads_durrel and any(song.durrel_init or ())
                      else (0, 0, 0))
             by_id = {iv.id: iv for iv in seed_voices}
             for vi in range(3):
