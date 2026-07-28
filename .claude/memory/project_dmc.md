@@ -33,10 +33,16 @@ implemented boldly and completely. Census run (tmp/live_signal_census.out:
 ~750+ landed members live-served today; gla ~340 / sectpos ~130 / wavepos
 ~77 live members; wavepos partials = Fantastic_Dreams, Supreme,
 Rabies_Babies, Calf_Love_2_everytime, Kordiaukis_01_2SID,
-Deprave_7_tune_3). Schema DRAFT written for review:
-`docs/live_signal_modulation_draft.md` (named signal refs replace the
-live() flag + composer-side index map; wave_step_pos arrangement field;
-4-phase migration each byte-identity/verify-gated). Awaiting draft review.
+Deprave_7_tune_3). Schema DRAFT rev 2 written for review:
+`docs/live_signal_modulation_draft.md` — named signal refs replace the
+live() flag + composer-side index map; the WAVE-TABLE NORMAL FORM (sparse
+position-indexed stated table, C32) replaces both the per-instrument
+resolved wave copies AND rev 1's wave_step_pos idea (labels inherent, C8
+dedup dissolves, C19 pokes natural); vocabulary = name-on-proof; 5-phase
+migration, each byte-identity/verify-gated, deletions ride the pending
+corpus sync. NB rev-1's "off-table wave walk" was a SIGNED-ARITHMETIC
+misreading — the 8-bit cursor wraps mod 256, every walk lives in one
+256-cell space. Awaiting rev-2 review.
 
 ## ✅ ROUND 124 (2026-07-27): Cotton_Eye_Joe FULL (+1) — the $FF TEXT-fallthrough NOTE-INJECT (C13 third form, singleton)
 Next f1 partial by path = `Hudy/Cotton_Eye_Joe` (single, base $1000
