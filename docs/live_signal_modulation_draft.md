@@ -9,7 +9,28 @@ chain-resolved hard case, adoption 58/59, corpus check + full regression
 green. Phase-2 lesson: normal-form emission is opt-in per writer and any
 merge path consuming a written part must `denormalize_wave_table` — the
 regression caught the pointer-orphaning class twice (2SID merge sketch,
-MA heterogeneous). Phases 3-5 not yet started.** Rev 1 proposed a per-step
+MA heterogeneous). Phase 3 SCAFFOLDING landed 2026-07-28 (full vocabulary + grammar/types/
+writer/parser incl. voiceless globals; extract stamping + composer
+dual-form derivation) with EMISSION GATED OFF: implementation surfaced
+that sparse-signal records' captured values are LOAD-BEARING INIT PRIMING
+(the composer seeds its sparse glide vars igla/iglb from them, ledger
+C11) — "signal replaces the value" drops them, so the promised MD5 gate
+is unattainable as drafted. OPEN DECISION (§8): where the seeds live
+(init.voice_state per §4.5, vs keeping value+signal in the record).
+Phases 4-5 not started.**
+
+## 8. Phase-3 open decision — sparse-signal seeds
+
+A live record's captured (lo, hi) bytes are noise for DENSE signals but
+are the INIT-LEFTOVER PRIMING for SPARSE ones (`glide_note` /
+`glide_target`: written only by glide rows, so the capture = the file
+image's leftover, which the composer must seed its vars from — C11).
+Options: (a) move the seeds to `init.voice_state` (their §4.5 home;
+schema fields + extract/composer moves; signals then cleanly replace
+slots); (b) keep the record's int slots AND add the signal as extra
+record elements (no seed migration; the slot value's meaning becomes
+"captured/seed byte"). (a) is the principled shape; (b) is the smaller
+diff. Owner decision pending. Rev 1 proposed a per-step
 position list (`wave_step_pos`); review against C32 ("stated notation")
 replaced it with the wave-table normal form (§4) — the list was a
 projection of the table, stored redundantly beside resolved copies.

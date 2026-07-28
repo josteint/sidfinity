@@ -389,11 +389,29 @@ instrument_field: "waveform" ":" byte_list                              -> inst_
 ofreq_entry: "at" "(" number "," number "," ofreq_val "," ofreq_val ")"  -> ofreq_static
            | "live" "(" number "," number "," number "," number ")"      -> ofreq_live
 ofreq_val: number
-         | OFSIG "(" VOICEREF ")"     -> ofreq_signal
+         | OFSIG "(" VOICEREF? ")"    -> ofreq_signal
 // The live-signal vocabulary (name-on-proof; keep in sync with
-// types.LIVE_SIGNAL_NAMES)
-OFSIG.2: "glide_note" | "sector_position" | "wave_position"
-       | "freq_base_lo" | "freq_base_hi"
+// types.LIVE_SIGNAL_NAMES + composer_asm.DMC_SIGNAL_NAMES). Voice is
+// 1-based for per-voice signals, absent for globals (`tempo()`).
+OFSIG.2: "transpose" | "freq_base_lo" | "freq_base_hi"
+       | "freq_accum_lo" | "freq_accum_hi"
+       | "row_duration_reload" | "row_duration"
+       | "glide_speed" | "glide_note" | "glide_target"
+       | "note_pending" | "instrument_offset"
+       | "pulse_lo" | "pulse_hi" | "pulse_phase" | "pulse_dir"
+       | "pulse_step" | "pulse_min" | "pulse_max" | "pulse_base"
+       | "vibrato_dir" | "vibrato_counter" | "vibrato_ramp_counter"
+       | "vibrato_onset" | "vibrato_width" | "vibrato_ramp_cache"
+       | "vibrato_step_lo" | "vibrato_step_hi"
+       | "slide_accum_lo" | "slide_accum_hi"
+       | "slide_freq_lo" | "slide_freq_hi"
+       | "instrument_flags" | "wave_ctrl_cache" | "note_offset"
+       | "wave_speed_cache" | "gate_guard" | "track_position"
+       | "speed_counter" | "filter_claim" | "filter_cutoff"
+       | "filter_step" | "filter_frame" | "filter_base" | "filter_size"
+       | "filter_duration" | "filter_repeat" | "filter_stop"
+       | "filter_res" | "sector_position" | "wave_position"
+       | "tempo" | "master_volume"
 VOICEREF.2: "v" /[1-3]/
 
 pwm_args: pwm_kv+

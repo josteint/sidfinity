@@ -348,8 +348,10 @@ class _T(Transformer):
         return ('wave_filter', list(items[0]))
 
     def ofreq_signal(self, items):
-        # <name>(vN) — a named live generator (live-signal modulation §3)
-        return LiveSignal(str(items[0]), int(str(items[1])[1:]))
+        # <name>(vN) / <name>() — a named live generator (live-signal
+        # modulation §3); voice absent = a global signal
+        v = int(str(items[1])[1:]) if len(items) > 1 else None
+        return LiveSignal(str(items[0]), v)
 
     def ofreq_val(self, items):
         return items[0]

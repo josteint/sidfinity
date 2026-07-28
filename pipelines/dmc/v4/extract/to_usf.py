@@ -56,17 +56,37 @@ def _offtable_live_idx() -> set:
 
 
 def _stamp_live(recs, canon: bool) -> list:
-    """Tag each off-table read `(off, note, lo, hi)` with a 5th element `live`
-    (1 iff the read sonifies a live-varying value: canon geometry AND the read
-    idx hits a live-served window slot). Static reads stay 4-tuples so they
-    serialize as `at(...)` and non-off-table engines are byte-identical."""
+    """Tag each off-table read `(off, note, lo, hi)` whose canon-geometry
+    window landing sonifies a live-varying value.
+
+    Phase 3 (live-signal modulation §3): each live slot becomes a NAMED
+    `LiveSignal` reference — the lo slot for the flo-window landing
+    ($1647+idx), the hi slot for the fhi-window landing ($16A7+idx) —
+    replacing the bare 5-tuple `live` flag. ⚠ EMISSION IS GATED OFF
+    (SIDFINITY_SIG_NEWFORM=1 to test): replacing a slot DROPS its captured
+    byte, and for SPARSE signals (glide_note/glide_target) that byte is
+    load-bearing INIT PRIMING (the composer's igla/iglb seeds, ledger C11)
+    — the seed's principled home (init.voice_state, trichotomy §4.5) is an
+    open design decision; until it lands, the legacy live-flag form stays
+    the emitted default. Static reads stay plain 4-tuples so non-off-table
+    engines are byte-identical."""
+    from src.usf.types import LiveSignal
+    from pipelines.dmc.composer_asm import signal_for_addr
     live_idx = _offtable_live_idx()
+    oldform = not os.environ.get('SIDFINITY_SIG_NEWFORM')
     out = []
     for rec in recs:
         off, note, lo, hi = rec[:4]
         idx = (off + note) & 0xFF
         if canon and idx in live_idx:
-            out.append((off, note, lo, hi, 1))
+            if oldform:
+                out.append((off, note, lo, hi, 1))
+                continue
+            slo = signal_for_addr(0x1647 + idx)
+            shi = signal_for_addr(0x16A7 + idx)
+            out.append((off, note,
+                        LiveSignal(*slo) if slo else lo,
+                        LiveSignal(*shi) if shi else hi))
         else:
             out.append((off, note, lo, hi))
     return out

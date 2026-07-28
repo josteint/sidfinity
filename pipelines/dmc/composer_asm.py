@@ -256,6 +256,56 @@ DMC_SECTPOS_ROW = (0x1729, 'sectpos', 3)
 DMC_WAVEPOS_ROW = (0x177A, 'wavepos', 3)
 
 
+# Live-signal NAMES (live_signal_modulation_draft §3, phase 3): the USF
+# vocabulary name for each live-served engine variable. One entry per
+# DMC_OFFTABLE_STATE label (+ the sectpos/wavepos rows + the co-located
+# tempo/master-volume slots). The composer maps names back to its OWN
+# variables (mechanism); the USF never speaks in window indices again.
+# Keep in sync with types.LIVE_SIGNAL_NAMES + the grammar's OFSIG terminal.
+DMC_SIGNAL_NAMES = {
+    'transp': 'transpose', 'fbl': 'freq_base_lo', 'fbh': 'freq_base_hi',
+    'accl': 'freq_accum_lo', 'acch': 'freq_accum_hi',
+    'dur': 'row_duration', 'durrel': 'row_duration_reload',
+    'glsp': 'glide_speed', 'gla': 'glide_note', 'glb': 'glide_target',
+    'pend': 'note_pending', 'ioff': 'instrument_offset',
+    'pwl': 'pulse_lo', 'pwh': 'pulse_hi', 'pwphase': 'pulse_phase',
+    'pwdir': 'pulse_dir', 'pwstep': 'pulse_step',
+    'cpwmin': 'pulse_min', 'cpwmax': 'pulse_max', 'cpwbase': 'pulse_base',
+    'vibdir': 'vibrato_dir', 'vibctr': 'vibrato_counter',
+    'rampctr': 'vibrato_ramp_counter', 'vibdel': 'vibrato_onset',
+    'vibwid': 'vibrato_width', 'cvram': 'vibrato_ramp_cache',
+    'vstep': 'vibrato_step_lo', 'vsteph': 'vibrato_step_hi',
+    'slal': 'slide_accum_lo', 'slah': 'slide_accum_hi',
+    'fxf': 'instrument_flags', 'wctrl': 'wave_ctrl_cache',
+    'wnote': 'note_offset', 'wjmp': 'wave_speed_cache',
+    'guard': 'gate_guard', 'otrk': 'track_position',
+    'spdctr': 'speed_counter', 'fclaim': 'filter_claim',
+    'fcut': 'filter_cutoff', 'fstep': 'filter_step',
+    'fframe': 'filter_frame', 'fbase': 'filter_base',
+    'fsz': 'filter_size', 'fdu': 'filter_duration',
+    'frep': 'filter_repeat', 'fstop': 'filter_stop', 'fres': 'filter_res',
+    'dtmpl': 'slide_freq_lo', 'dtmph': 'slide_freq_hi',
+    'sectpos': 'sector_position', 'wavepos': 'wave_position',
+}
+
+
+def signal_for_addr(addr: int):
+    """(signal_name, voice|None) for a live-served canon-geometry address,
+    or None (a static byte). Voice is 1-based for per-voice triples, None
+    for globals. The single source of truth for extract's signal stamping;
+    consistent with offtable_live_idx by construction (same rows)."""
+    if addr == 0x1716:
+        return ('tempo', None)
+    if addr == 0x1717:
+        return ('master_volume', None)
+    for base, label, nb in DMC_OFFTABLE_STATE + [DMC_SECTPOS_ROW,
+                                                 DMC_WAVEPOS_ROW]:
+        if base <= addr < base + nb:
+            return (DMC_SIGNAL_NAMES[label],
+                    (addr - base + 1) if nb > 1 else None)
+    return None
+
+
 _OFFTABLE_LIVE_IDX = None
 
 
@@ -632,14 +682,24 @@ class _Model:
         _all = [r for i in self.instruments
                 for r in (getattr(i, 'offtable_freq', None) or [])]
         _live = offtable_live_idx()
-        _static_at_live = any(not (len(r) > 4 and r[4])
+
+        def _rec_live(r):
+            # live = the legacy 5-tuple flag OR any named-signal slot
+            # (phase 3, live-signal modulation §3 — both forms accepted
+            # until the corpus sync retires the flag)
+            return (len(r) > 4 and r[4]) or \
+                any(hasattr(x, 'voice') for x in r[2:4])
+        _static_at_live = any(not _rec_live(r)
                               and ((r[0] + r[1]) & 0xFF) in _live for r in _all)
         self.offtable_redirect = not _static_at_live
         _SECTPOS_IDX = {(0x1729 + k) - ORIG_FHI for k in range(3)} \
             | {(0x1729 + k) - ORIG_FLO for k in range(3)}
-        self.sectpos = any(len(r) > 4 and r[4]
-                           and ((r[0] + r[1]) & 0xFF) in _SECTPOS_IDX
-                           for r in _all)
+        self.sectpos = any(
+            (any(getattr(x, 'name', None) == 'sector_position'
+                 for x in r[2:4])
+             or (len(r) > 4 and r[4]
+                 and ((r[0] + r[1]) & 0xFF) in _SECTPOS_IDX))
+            for r in _all)
         # filter defs: program key -> slot = orig def# (key-1). The def table
         # is emitted DENSE in orig order at the orig 16-byte record stride so
         # off-table walk reads (repeat > 5) hit the same bytes as the orig;

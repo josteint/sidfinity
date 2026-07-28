@@ -62,9 +62,20 @@ caught it twice (2SID merge, MA heterogeneous, which consumes
 write_dmc_usf OUTPUT and must `denormalize_wave_table(parse(...))`).
 Gates: A/B MD5 59/59 identical (Jim/Tichelmann_03/Cool_Compo/Attah_2/
 Seaside/I_Am_Ready all norm-adopted; Object_of_Art falls back), adoption
-58/59, dmc_smoke, corpus 11973/11973, full regression green. Next:
-phase 3 (signal re-homing — named refs replace live() + the
-DMC_OFFTABLE_STATE index map, MD5-gated).
+58/59, dmc_smoke, corpus 11973/11973, full regression green. **Phase 3 SCAFFOLDING landed 2026-07-28, EMISSION GATED OFF**
+(SIDFINITY_SIG_NEWFORM=1 to test): full 52-name vocabulary
+(types.LIVE_SIGNAL_NAMES + grammar OFSIG incl. voiceless globals
+`tempo()`), `composer_asm.DMC_SIGNAL_NAMES` + `signal_for_addr` (the
+addr→name single source of truth), extract stamping, composer dual-form
+boolean derivation (_rec_live). BLOCKED ON A DESIGN DECISION (draft §8):
+a live record's captured (lo,hi) bytes are LOAD-BEARING for SPARSE
+signals — the composer seeds igla/iglb (glide_note/glide_target priming,
+C11 sparse-var seeding) from the ovr[] window bytes those records place
+— so "signal replaces the value" drops real content and the MD5 gate
+fails structurally. Options: seeds → init.voice_state (§4.5 home,
+principled) vs value+signal both in the record (small diff). Awaiting
+owner. Default emission verified byte-identical (Klepkomania MD5 ✓,
+smoke 6/6, signal round-trip incl. globals ✓).
 
 ## ✅ ROUND 124 (2026-07-27): Cotton_Eye_Joe FULL (+1) — the $FF TEXT-fallthrough NOTE-INJECT (C13 third form, singleton)
 Next f1 partial by path = `Hudy/Cotton_Eye_Joe` (single, base $1000

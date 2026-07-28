@@ -509,9 +509,10 @@ def _write_instrument(i: Instrument) -> list[str]:
     if getattr(i, 'offtable_freq', None):
         def _slot(v):
             # a slot is a fixed byte or a named live-signal reference
-            # (live-signal modulation §3.1)
+            # (live-signal modulation §3.1); voiceless = a global signal
             if hasattr(v, 'name') and hasattr(v, 'voice'):
-                return f'{v.name}(v{v.voice})'
+                return (f'{v.name}(v{v.voice})' if v.voice is not None
+                        else f'{v.name}()')
             return str(int(v))
 
         def _ofreq(rec):

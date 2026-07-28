@@ -51,11 +51,30 @@ class Pitch:
 
 # Live-signal vocabulary (docs/live_signal_modulation_draft.md §3.2).
 # Admission is NAME-ON-PROOF: a name enters only when a member verifies FULL
-# using it. Each value is a generator with a describable musical shape —
-# a genuine categorical, not an engine index (the grammar enumerates the
-# same set; keep the two in sync).
-LIVE_SIGNAL_NAMES = ('glide_note', 'sector_position', 'wave_position',
-                     'freq_base_lo', 'freq_base_hi')
+# using it — every name below has landed carriers (the DMC live-serving
+# machinery's proven variable set; census 2026-07-27). Each value is a
+# generator with a describable musical shape — a genuine categorical, not
+# an engine index (the grammar enumerates the same set; keep the two and
+# pipelines/dmc/composer_asm.DMC_SIGNAL_NAMES in sync).
+LIVE_SIGNAL_NAMES = (
+    'transpose', 'freq_base_lo', 'freq_base_hi',
+    'freq_accum_lo', 'freq_accum_hi',
+    'row_duration', 'row_duration_reload',
+    'glide_speed', 'glide_note', 'glide_target',
+    'note_pending', 'instrument_offset',
+    'pulse_lo', 'pulse_hi', 'pulse_phase', 'pulse_dir', 'pulse_step',
+    'pulse_min', 'pulse_max', 'pulse_base',
+    'vibrato_dir', 'vibrato_counter', 'vibrato_ramp_counter',
+    'vibrato_onset', 'vibrato_width', 'vibrato_ramp_cache',
+    'vibrato_step_lo', 'vibrato_step_hi',
+    'slide_accum_lo', 'slide_accum_hi', 'slide_freq_lo', 'slide_freq_hi',
+    'instrument_flags', 'wave_ctrl_cache', 'note_offset',
+    'wave_speed_cache', 'gate_guard', 'track_position',
+    'speed_counter', 'filter_claim', 'filter_cutoff', 'filter_step',
+    'filter_frame', 'filter_base', 'filter_size', 'filter_duration',
+    'filter_repeat', 'filter_stop', 'filter_res',
+    'sector_position', 'wave_position', 'tempo', 'master_volume',
+)
 
 
 @dataclass(frozen=True)
@@ -65,9 +84,10 @@ class LiveSignal:
     Appears as the lo/hi slot of an `Instrument.offtable_freq` record
     (`at(off, note, $12, wave_position(v1))`): the byte the read returns is
     sampled from this generator at each read, instead of being a fixed
-    captured value. `voice` is 1-based (v1-v3), matching the file syntax."""
+    captured value. `voice` is 1-based (v1-v3) for per-voice signals,
+    None for globals (`tempo()`, `speed_counter()`, ...)."""
     name: str
-    voice: int
+    voice: Optional[int] = None
 
 
 @dataclass(frozen=True)
