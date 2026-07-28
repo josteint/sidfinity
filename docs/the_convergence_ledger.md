@@ -292,7 +292,11 @@ practice, not code to factor).
   instruction sequence. Negative transposes wrap low notes HIGH.
 - PRESENTS (wavepos): a note-init/wave-step freq write diverges and an
   instrument's (wave offset + note) & $FF hits fhi idx 211-213 ($177A-$177C =
-  live wave position). Fix = layout-preserving pool (`wave_table_pos`); the
+  live wave position). CANONICAL since phase 4 (2026-07-28): POSITIONAL pool
+  emission from the stated wave_table (norm carriers — full 256-cell table
+  verbatim, labels native, chain walks included; compose-side resolve proof,
+  idle validated against the table's own walk). Legacy old-form fix =
+  layout-preserving pool (`wave_table_pos`); the
   verbatim gate admits NON-verbatim programs that are UNOBSERVABLE (every
   wavepos read self-referential to a verbatim instrument → free-slot
   placement, r98). ⚠ `dmc_offtable_probe`'s by-value attribution has

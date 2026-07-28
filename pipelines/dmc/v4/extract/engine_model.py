@@ -1961,14 +1961,15 @@ def _wave_table_normal_form(m: DmcModel, ctrl_tab, freq_tab, n_wave):
     bound that would change this program's absent-cell hold — the
     union-pollution case), refusing wholesale on any mismatch.
 
-    Excluded for now (phase 4 territory): wavepos_layout members (their
-    positional pool emission carries wave_table_pos semantics) and
-    start-on-marker chase carriers (iwchase depends on len(waveform))."""
+    Phase 4 lifted the former wavepos_layout / start-on-marker
+    exclusions: wavepos_layout members carry BOTH forms during the
+    transition (the composer prefers place_prog when wave_table_pos is
+    present — byte-identical to the pre-norm build); a start-on-marker
+    instrument's `wave_start` is the raw marker cell, which the walk
+    chases exactly as the engine does (a non-positional build still
+    materializes the settled span and keeps the iwchase re-assert via
+    the wave_start_on_marker flag)."""
     from src.usf.resolve import resolve_wave_table, walk_wave_table
-    if m.wavepos_layout:
-        return None
-    if any(ins.wave_start_on_marker for ins in m.instruments.values()):
-        return None
 
     def view(bound):
         b = min(bound, 256, len(ctrl_tab))
@@ -2065,17 +2066,33 @@ def _wave_layout_verbatim(m: DmcModel, ctrl_tab, freq_tab, n_wave):
             out[iid] = start
         max_end = max(max_end, start + n + 1)
     if nonverb:
-        # relaxation gate: every recorded wavepos read must be
-        # self-referential to a verbatim instrument (see docstring)
-        rv = getattr(m, 'offtable_read_voices', None) or {}
+        # relaxation gate: a wavepos read at fhi idx 211+j sonifies VOICE
+        # j's wave position, so the observability condition is on the
+        # READ-TARGET voice's programs — every instrument voice j plays
+        # must be verbatim-placed (its labels are what the read shows).
+        # The READER instrument's own placement is irrelevant: it only
+        # causes the read, and its program CONTENT (hence the read
+        # timing) is identical under repacking. (The pre-2026-07-28 gate
+        # keyed on the reader instrument + self-referential attribution —
+        # sound but wrongly-motivated; a cross-voice read of a clean
+        # voice was rejected for the reader's sins.) Sticky-instrument
+        # inheritance can play record 0 without stating it (C31 idle
+        # semantics), so record 0 is always included.
+        played_by = [set(), set(), set()]
+        for song in m.songs:
+            for vi, v in enumerate(song.voices):
+                for rows in v.patterns:
+                    for r in rows:
+                        if r.instr is not None:
+                            played_by[vi].add(r.instr)
         for iid, ins in m.instruments.items():
             for off, note, *_rest in ins.offtable_freq:
                 idx = (off + note) & 0xFF
                 if not 211 <= idx <= 213:
                     continue
-                if iid not in out:       # reading inst must be verbatim
-                    return None
-                if rv.get((iid, off, note)) != {idx - 211}:
+                need = played_by[idx - 211] | ({0} if 0 in m.instruments
+                                               else set())
+                if any(k in m.instruments and k not in out for k in need):
                     return None
         seen = {}
         for iid, n in nonverb:

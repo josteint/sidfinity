@@ -889,7 +889,37 @@ def merge_2sid_usf(models, sid2_model=None, sid3_model=None,
     that subtune's own per-chip tempo (`tempo 2/3`) and priming
     (`sid 2/3`)."""
     import dataclasses
-    usfs = [model_to_usf(m) for m in models]
+    # Phase 4 (live-signal modulation): a wavepos-CARRIER chip needs the
+    # stated wave_table + per-instrument wave_start pointers in the merged
+    # file, or the composer cannot emit its pool positionally. The schema
+    # has ONE file-level wave_table and the chips' tables generally differ,
+    # so the norm form is carried for the carrier chip(s) ONLY (the others
+    # stay resolved-copy; their instruments carry no pointers, so the
+    # foreign table is inert for them). Multiple carrier chips are admitted
+    # only when their stated tables agree — otherwise fall back wholesale
+    # (honest residue; flagged for the phase-5 per-chip-table decision).
+    _WPI = {(0x177A + k) - 0x16A7 for k in range(3)}
+
+    def _wp_carrier(m):
+        return getattr(m, 'wave_table_norm', None) is not None and any(
+            (o + n) & 0xFF in _WPI
+            for ins in m.instruments.values()
+            for o, n, _lo, _hi in (ins.offtable_freq or []))
+    carriers = [ci for ci, m in enumerate(models) if _wp_carrier(m)]
+    if carriers and all(models[c].wave_table_norm ==
+                        models[carriers[0]].wave_table_norm
+                        for c in carriers):
+        usfs = [model_to_usf(m, wave_norm=(ci in carriers))
+                for ci, m in enumerate(models)]
+        merged_wave_table = usfs[carriers[0]].wave_table
+    else:
+        usfs = [model_to_usf(m) for m in models]
+        merged_wave_table = None
+    # the merged idle program must stay stated even when chip 1 went norm
+    # form (its wave_programs are empty then) — take the first non-empty
+    merged_wave_progs = next(
+        (u.wave_programs for u in usfs if u.wave_programs.get(0)),
+        usfs[0].wave_programs)
     if active is None:
         # no observation: the chips are one tune driven by the same subtune
         # number, so their subtune lists must line up 1:1
@@ -1030,6 +1060,8 @@ def merge_2sid_usf(models, sid2_model=None, sid3_model=None,
         params=dataclasses.replace(base.params, fields=merged_params),
         instruments=merged_instruments,
         filter_programs=merged_filters,
+        wave_table=merged_wave_table,
+        wave_programs=merged_wave_progs,
         subtunes=merged_subtunes)
 
 

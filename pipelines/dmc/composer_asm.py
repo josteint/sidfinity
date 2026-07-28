@@ -700,6 +700,24 @@ class _Model:
              or (len(r) > 4 and r[4]
                  and ((r[0] + r[1]) & 0xFF) in _SECTPOS_IDX))
             for r in _all)
+        # POSITIONAL pool emission (live_signal_modulation phase 4): a
+        # wave_position carrier whose USF carries the stated wave_table
+        # gets its pool emitted AT the stated cell positions — the runtime
+        # cursor then equals the original's labels natively (marker-hop
+        # chains through co-located data and mod-256 wraps included), and
+        # DMC_WAVEPOS_ROW serves the read live. Legacy wave_table_pos
+        # members keep the place_prog path; everyone else the repack.
+        _WP_IDX = {(0x177A + k) - 0x16A7 for k in range(3)}
+        self.wavepos_positional = bool(
+            usf.wave_table and not self.wavepos_layout
+            and all(getattr(i, 'wave_start', None) is not None
+                    for i in self.instruments)
+            and any(
+                any(getattr(x, 'name', None) == 'wave_position'
+                    for x in r[2:4])
+                or (len(r) > 4 and r[4]
+                    and ((r[0] + r[1]) & 0xFF) in _WP_IDX)
+                for r in _all))
         # filter defs: program key -> slot = orig def# (key-1). The def table
         # is emitted DENSE in orig order at the orig 16-byte record stride so
         # off-table walk reads (repeat > 5) hit the same bytes as the orig;
@@ -945,6 +963,55 @@ class _Model:
                     'wave layout overlap conflict'
             return pos
 
+        # POSITIONAL emission (wavepos_positional, phase 4): the full
+        # 256-cell stated table, verbatim at its positions (jump cells as
+        # the orig's $90+dist marker bytes, unstated cells zero). Emitting
+        # all 256 cells makes the runtime's read domain equal the
+        # resolver's (mod-256, no "absent cell" edge), so the composer can
+        # PROVE equivalence: every program resolved over the emitted table
+        # must equal its materialized (ctrl, freq, loop) — the C32
+        # re-derivation assert at the compose side. A program that walked
+        # off the stated cells (a hold-terminated resolve) fails the proof
+        # and drops the member back to the repacked pool (honest residue,
+        # never a wrong pool).
+        if self.wavepos_positional:
+            wt = usf.wave_table
+            dense = {p: c for p, c in wt.items()}
+            full = {i: dense.get(i, ('step', 0, 0)) for i in range(256)}
+            # The idle walk validates against the TABLE'S OWN resolve from
+            # position 0 — in positional mode the emitted pool IS this
+            # chip's stated table, and that is also what the original
+            # player freewheels over. (A 2SID merge carries ONE shared
+            # wave_programs[0], which can structurally differ from the
+            # carrier chip's own idle while emitting the identical hold
+            # stream — chip 1's 10x$41 vs chip 2's 9x$41, Kordiaukis.)
+            _ir = resolve_wave_table(wt, 0)
+            progs = [(0, (list(_ir[0]), [b & 0xFF for b in _ir[1]],
+                          _ir[2]))] if _ir is not None else []
+            progs += [(inst.wave_start,
+                       (list(inst.waveform),
+                        [b & 0xFF for b in (inst.wave_freq
+                                            or [0] * len(inst.waveform))],
+                        inst.loop))
+                      for inst in self.instruments]
+            ok = True
+            for start, want in progs:
+                r = resolve_wave_table(full, start)
+                if r is None or (list(r[0]), [b & 0xFF for b in r[1]],
+                                 r[2]) != (want[0], want[1], want[2]):
+                    ok = False
+                    break
+            if ok:
+                self.wctrl = bytearray(
+                    (0x90 + full[i][1]) & 0xFF if full[i][0] == 'jump'
+                    else full[i][1] & 0xFF for i in range(256))
+                self.wfreq = bytearray(
+                    0 if full[i][0] == 'jump' else full[i][2] & 0xFF
+                    for i in range(256))
+                self.iwst = [inst.wave_start for inst in self.instruments]
+                return
+            self.wavepos_positional = False    # fall back to the repack
+
         first = place_prog if self.wavepos_layout else \
             (lambda ctrl, freq, loop, _pos: add_prog(ctrl, freq, loop))
 
@@ -1126,7 +1193,11 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # transient chase), so it re-asserts wjmp=n at note-init for these (the hop
     # then repeats every settled frame, matching the orig). Distance = program
     # length n; 0 = no chase. Emitted + wired only when some instrument chases.
-    iwchase = [len(i.waveform) & 0xFF if getattr(i, 'wave_start_on_marker', False)
+    # A POSITIONAL pool needs no chase re-assert: iwst points at the raw
+    # marker cell and the first wave step performs the orig's chase (with
+    # its wjmp write) natively.
+    iwchase = [0] * len(insts) if m.wavepos_positional else \
+        [len(i.waveform) & 0xFF if getattr(i, 'wave_start_on_marker', False)
                else 0 for i in insts]
     _any_chase = any(iwchase)
     # PULSE-STEP INDEX WIDTH (ledger C8 — widen the composer's own index).
@@ -2486,7 +2557,8 @@ fx_dual_up:
     # static capture.
     otmap = (DMC_OFFTABLE_STATE if m.offtable_redirect else []) \
         + ([DMC_SECTPOS_ROW] if sectpos_on else []) \
-        + ([DMC_WAVEPOS_ROW] if m.wavepos_layout else [])
+        + ([DMC_WAVEPOS_ROW] if (m.wavepos_layout or
+                                 m.wavepos_positional) else [])
     ws_lo_redirect = _gen_offtable_redirect(
         otmap, ORIG_FLO, 192, 'lda freqlo,y', 'ws_rd_los')
     ws_hi_redirect = _gen_offtable_redirect(

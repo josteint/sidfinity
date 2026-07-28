@@ -23,7 +23,25 @@ the composer window-fill skips signal slots and sources igla/iglb from
 the init fields (legacy fallback kept for old-form files). Gate: A/B
 write-stream identity 16/16 across all live-signal classes (6 seeded
 gla carriers, sectpos, dense-state, plain, chain-resolved), corpus
-11,973/11,973, full regression green. Phases 4-5 not started.**
+11,973/11,973, full regression green. PHASE 4 LANDED 2026-07-28
+(§5.4): positional pool emission for wave_position carriers — the
+composer emits the full 256-cell stated table verbatim at its
+positions when a carrier's USF has one (proof: every program resolved
+over the emitted table equals its materialized form, else fall back
+to the repack), the norm's wavepos_layout / start-on-marker
+exclusions lifted (chasers' wave_start = the raw marker cell; the
+chase and its wjmp write happen natively on the positional path), the
+2SID merge carries the CARRIER chip's table (others stay
+resolved-copy; both-carriers-differing falls back), and the
+_wave_layout_verbatim relaxation gate re-keyed on the READ-TARGET
+voice's programs. Targets: Fantastic_Dreams + Supreme + Rabies_Babies
+FULL (+3); Kordiaukis_01_2SID play streams now fully match — its
+residual is a per-IRQ-trichotomy Check-A artifact (the orig defers
+chip-2 init into frame 2, see project_dmc); Calf_Love_2 sub 1 /
+Deprave_7_tune_3 blocked elsewhere (track-walk decode / continuation
+into unstated cells). The §3.3 idle-walk `wavepos` seed was NOT
+needed by any carrier and per §3.2 name-on-proof is NOT added until
+one proves it. Phase 5 (corpus sync) not started.**
 
 ## 8. Phase-3 open decision — sparse-signal seeds
 

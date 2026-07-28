@@ -8,7 +8,51 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
-## ⏸ OPEN (2026-07-27, r125 investigation): Imaic/Fantastic_Dreams — wavepos-read carrier whose READER PROGRAM is an off-table marker-hop walk; needs a REPRESENTATION decision (user consulted, not yet decided)
+## ✅ ROUND 126 (2026-07-28): live-signal phase 4 — POSITIONAL wave-pool emission (+3 FULL: Fantastic_Dreams, Supreme, Rabies_Babies; r125 open note RESOLVED)
+Phase 4 of `docs/live_signal_modulation_draft.md` (§5.4). COMPOSER: a
+wave_position carrier whose USF carries the stated wave_table gets its pool
+emitted as the FULL 256-cell table verbatim at its positions
+(`_Model.wavepos_positional`) — runtime cursor == orig labels natively (chain
+walks, mod-256 wraps, marker hops incl. the native start-on-marker chase +
+its wjmp write, so iwchase is suppressed on this path); DMC_WAVEPOS_ROW gated
+on layout OR positional. Compose-side C32 proof: every program resolved over
+the emitted table must equal its materialized form, else fall back to repack;
+the IDLE program validates against the TABLE'S OWN resolve-from-0, never the
+file's shared wave_programs[0] (a 2SID merge's shared idle differs
+structurally from the carrier chip's own — Kordiaukis 10x$41 vs 9x$41, same
+hold stream). EXTRACT: `_wave_table_normal_form`'s wavepos_layout +
+start-on-marker exclusions LIFTED (chaser wave_start = the raw marker cell —
+the walk chases it exactly like the engine); `_wave_layout_verbatim`'s
+relaxation gate re-keyed on the READ-TARGET voice's played programs (idx
+211+j observes voice j; the old reader-instrument key was the recorded r125
+landmine). 2SID MERGE: carries the CARRIER chip's stated table + pointers
+(other chips stay resolved-copy, foreign table inert without pointers;
+multi-carrier-differing falls back wholesale — flagged for the phase-5
+per-chip-table decision). NO SCHEMA CHANGE; the §3.3 idle-walk `wavepos` seed
+was needed by NO carrier → per name-on-proof NOT added.
+Targets: Fantastic_Dreams FULL 205903 (the r125 blocker — inst 15's 62-step
+off-table chain walk, unservable by any layout pool), Supreme FULL 133531,
+Rabies_Babies FULL 70511. Kordiaukis_01_2SID: play streams now FULLY match
+both chips (351228→371142/371142); residual = a VERDICT-LAYER artifact — the
+orig defers chip-2's init burst into ~frame 2 (inside the per-IRQ play
+capture) while our dispatcher inits at init time (dropped by the capture), so
+per-IRQ trichotomy Check A compares orig's primed chip-2 state vs invisible
+defaults (a flat 50Hz capture at full songlength says is_full=True,
+audio_guaranteed). Open: fix = either C28-extend the verdict (per-chip init
+prefix at substream start is init, state compared from the REAL chip state)
+or defer our chip-2 init to match. Calf_Love_2_everytime sub 1: NOT wavepos —
+orig's first V1 note plays idle-leftover curnote 51 with instrument cache 0
+while our walk decodes note=0/instr=5 (a C34-shaped track-walk decode issue;
+memwatch-proven, present at baseline). Deprave_7_tune_3: wavepos label drift
+of 2 deep in (orig $0E vs ours $0C at its self-read) = a walk CONTINUING into
+UNSTATED cells (soft-note continuation past stated reachability) — the
+boundary recorded in C11. Exposure: 8 wavepos_layout/chaser FULLs re-verified
+FULL (Distant_Echoes, No_Name_Remix, In_die_Dunkelheit, Das_Remix, II-V3,
+Object_of_Art, High_Tech, Aktarus) + 57-carrier sweep + full regression (see
+gates in the round commit). Ledger C11 entry + card updated (positional
+supersedes layout for norm carriers).
+
+## ✅ RESOLVED by r126 — ⏸ OPEN (2026-07-27, r125 investigation): Imaic/Fantastic_Dreams — wavepos-read carrier whose READER PROGRAM is an off-table marker-hop walk; needs a REPRESENTATION decision (user consulted, not yet decided)
 Next f1 partial by path. Diverges at 0.05% (flat 97): V2 idle (running inst
 15's wave program as cache leftover) reads fhi idx 211 = $177A = LIVE
 wavepos[0] every frame (wnote=$D3 memwatch-proven); orig $0F vs ours $10 =
