@@ -27,10 +27,16 @@ fidelity: a `wave_step_pos`-style PER-STEP position list (arrangement §8;
 markers derivable from run breaks; wave_table_pos = the degenerate
 consecutive case) + a composer pool emitter that places steps at orig
 positions incl. mod-256 wrap — a USF schema addition ⇒ decision point
-(schema-addition discipline + Principle provenance challenge). Options
-presented to the user 2026-07-27; awaiting direction. Class size unknown
-(≥1; Object_of_Art 2026-06-28 was the sibling that killed the un-gated
-redirect row).
+(schema-addition discipline + Principle provenance challenge). DIRECTION (user, 2026-07-27): no per-member shoehorn — embrace state
+sonification as a FIRST-CLASS USF feature ("live-signal modulation"),
+implemented boldly and completely. Census run (tmp/live_signal_census.out:
+~750+ landed members live-served today; gla ~340 / sectpos ~130 / wavepos
+~77 live members; wavepos partials = Fantastic_Dreams, Supreme,
+Rabies_Babies, Calf_Love_2_everytime, Kordiaukis_01_2SID,
+Deprave_7_tune_3). Schema DRAFT written for review:
+`docs/live_signal_modulation_draft.md` (named signal refs replace the
+live() flag + composer-side index map; wave_step_pos arrangement field;
+4-phase migration each byte-identity/verify-gated). Awaiting draft review.
 
 ## ✅ ROUND 124 (2026-07-27): Cotton_Eye_Joe FULL (+1) — the $FF TEXT-fallthrough NOTE-INJECT (C13 third form, singleton)
 Next f1 partial by path = `Hudy/Cotton_Eye_Joe` (single, base $1000
