@@ -15,9 +15,15 @@ dual-form derivation) with EMISSION GATED OFF: implementation surfaced
 that sparse-signal records' captured values are LOAD-BEARING INIT PRIMING
 (the composer seeds its sparse glide vars igla/iglb from them, ledger
 C11) — "signal replaces the value" drops them, so the promised MD5 gate
-is unattainable as drafted. OPEN DECISION (§8): where the seeds live
-(init.voice_state per §4.5, vs keeping value+signal in the record).
-Phases 4-5 not started.**
+is unattainable as drafted. §8 RESOLVED (owner, 2026-07-28): option (a) — the sparse-glide seeds
+moved to typed `init.voice_state` fields (`glide_note`/`glide_target`),
+and PHASE 3 LANDED 2026-07-28: named-signal emission is the default
+(SIDFINITY_SIG_OLDFORM = the A/B lever, retired at the corpus sync);
+the composer window-fill skips signal slots and sources igla/iglb from
+the init fields (legacy fallback kept for old-form files). Gate: A/B
+write-stream identity 16/16 across all live-signal classes (6 seeded
+gla carriers, sectpos, dense-state, plain, chain-resolved), corpus
+11,973/11,973, full regression green. Phases 4-5 not started.**
 
 ## 8. Phase-3 open decision — sparse-signal seeds
 

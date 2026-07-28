@@ -72,10 +72,18 @@ a live record's captured (lo,hi) bytes are LOAD-BEARING for SPARSE
 signals — the composer seeds igla/iglb (glide_note/glide_target priming,
 C11 sparse-var seeding) from the ovr[] window bytes those records place
 — so "signal replaces the value" drops real content and the MD5 gate
-fails structurally. Options: seeds → init.voice_state (§4.5 home,
-principled) vs value+signal both in the record (small diff). Awaiting
-owner. Default emission verified byte-identical (Klepkomania MD5 ✓,
-smoke 6/6, signal round-trip incl. globals ✓).
+fails structurally. RESOLVED (owner): option (a). **Phase 3 LANDED 2026-07-28**: seeds →
+typed `InitVoice.glide_note`/`glide_target` (§4.5 priming; extract
+mirrors the composer's window fill to compute them; composer prefers
+the init fields, legacy ovr fallback for old-form files); signal
+emission now the DEFAULT (`SIDFINITY_SIG_OLDFORM=1` = A/B lever, retire
+at sync); `_ovr_positions` skips signal slots (dense captures were
+noise — deliberately dropped from the ML data). Gate: A/B WRITE-STREAM
+identity 16/16 (all live-signal classes incl. the 6 seeded gla
+carriers), smoke 6/6, corpus 11973/11973, full regression green. Next:
+phase 4 (`wave_position` completion — positional pool emission for
+wavepos carriers + idle seed; targets the 6 wavepos partials) + phase 5
+(corpus sync retires live()/resolved-copy forms).
 
 ## ✅ ROUND 124 (2026-07-27): Cotton_Eye_Joe FULL (+1) — the $FF TEXT-fallthrough NOTE-INJECT (C13 third form, singleton)
 Next f1 partial by path = `Hudy/Cotton_Eye_Joe` (single, base $1000

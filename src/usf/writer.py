@@ -137,6 +137,10 @@ def _write_init_voice(v: InitVoice) -> str:
         parts.append(f'guard: {_hex(v.guard)}')
     if v.dur_reload is not None:
         parts.append(f'dur_reload: {_hex(v.dur_reload)}')
+    if getattr(v, 'glide_note', None) is not None:
+        parts.append(f'glide_note: {_hex(v.glide_note)}')
+    if getattr(v, 'glide_target', None) is not None:
+        parts.append(f'glide_target: {_hex(v.glide_target)}')
     if getattr(v, 'note_active', False):
         parts.append('note_active: 1')
     if getattr(v, 'sliding', False):

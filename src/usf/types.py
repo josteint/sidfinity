@@ -838,6 +838,15 @@ class InitVoice:
     # equals the current row's duration). Audible only when an
     # off-table read sonifies it. None = 0.
     dur_reload: Optional[int] = None
+    # Init-leftover priming for the SPARSE glide state (trichotomy §4.5;
+    # live-signal modulation phase 3a — draft §8 option (a)): the values
+    # glide_note / glide_target hold BEFORE any glide row writes them —
+    # the work file's leftovers, sonified from frame 0 when an off-table
+    # read lands on them (ledger C11 sparse-var seeding; the composer
+    # seeds its glide vars from these). Previously smuggled inside the
+    # live off-table records' captured value slots. None = 0.
+    glide_note: Optional[int] = None
+    glide_target: Optional[int] = None
     # ----- idle-mid-note priming (trichotomy §4.5) -----
     # Some editors save their work file with a voice caught MID-NOTE, and the
     # engine's init does not clear that state. The voice then idles as if a

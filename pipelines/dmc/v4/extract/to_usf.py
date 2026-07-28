@@ -62,18 +62,18 @@ def _stamp_live(recs, canon: bool) -> list:
     Phase 3 (live-signal modulation §3): each live slot becomes a NAMED
     `LiveSignal` reference — the lo slot for the flo-window landing
     ($1647+idx), the hi slot for the fhi-window landing ($16A7+idx) —
-    replacing the bare 5-tuple `live` flag. ⚠ EMISSION IS GATED OFF
-    (SIDFINITY_SIG_NEWFORM=1 to test): replacing a slot DROPS its captured
-    byte, and for SPARSE signals (glide_note/glide_target) that byte is
-    load-bearing INIT PRIMING (the composer's igla/iglb seeds, ledger C11)
-    — the seed's principled home (init.voice_state, trichotomy §4.5) is an
-    open design decision; until it lands, the legacy live-flag form stays
-    the emitted default. Static reads stay plain 4-tuples so non-off-table
-    engines are byte-identical."""
+    replacing the bare 5-tuple `live` flag. Replacing a slot drops its
+    captured byte — dense signals' captures were noise, and the SPARSE
+    glide seeds (the one load-bearing case, ledger C11) now travel as
+    typed init.voice_state priming (glide_note/glide_target — draft §8
+    option (a), the trichotomy §4.5 home). SIDFINITY_SIG_OLDFORM=1 forces
+    the legacy form (the A/B gate lever; retired at the corpus sync).
+    Static reads stay plain 4-tuples so non-off-table engines are
+    byte-identical."""
     from src.usf.types import LiveSignal
     from pipelines.dmc.composer_asm import signal_for_addr
     live_idx = _offtable_live_idx()
-    oldform = not os.environ.get('SIDFINITY_SIG_NEWFORM')
+    oldform = bool(os.environ.get('SIDFINITY_SIG_OLDFORM'))
     out = []
     for rec in recs:
         off, note, lo, hi = rec[:4]
@@ -588,6 +588,27 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
     # forces the old form — the A/B byte-identity lever.
     _norm = getattr(m, 'wave_table_norm', None) if (
         wave_norm and not os.environ.get('SIDFINITY_WT_OLDFORM')) else None
+    # Sparse-glide SEEDS (phase 3a, draft §8 option (a)): the work-file
+    # leftovers of glide_note/glide_target ($1744/$1747), previously
+    # smuggled as the captured value slots of live off-table records (the
+    # composer's igla/iglb window-fill). Computed by mirroring that fill —
+    # instruments in emission order, later records win — and emitted as
+    # init.voice_state priming under the NEW signal form (the legacy form
+    # keeps carrying them inside the records).
+    _gseed = ([0, 0, 0], [0, 0, 0])
+    if not os.environ.get('SIDFINITY_SIG_OLDFORM'):
+        _fill = {}
+        for k in sorted(m.instruments):
+            for rec in (m.instruments[k].offtable_freq or []):
+                off, note, lo, hi = rec[:4]
+                idx = (off + note) & 0xFF
+                if idx >= 96:
+                    _fill[idx - 96] = hi          # hi window pos
+                if idx >= 192:
+                    _fill[idx - 192] = lo         # lo window pos
+        for x in range(3):
+            _gseed[0][x] = _fill.get(61 + x, 0)   # gla ($1744+x)
+            _gseed[1][x] = _fill.get(64 + x, 0)   # glb ($1747+x)
     pad_fields = _emit_otrk_fields(m)
     # row command flags (dur_cmd/instr_cmd/vol_cmd/soft_cmd) feed the composer's sectpos
     # shadow — emit them iff a canon-geometry off-table read sonifies the sector
@@ -758,9 +779,12 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
             InitVoice(id=v + 1,
                       note=m.idle_notes[v] or None,
                       gate_mask=m.idle_masks[v] or None,
-                      dur_reload=durrel[v] or None)
+                      dur_reload=durrel[v] or None,
+                      glide_note=_gseed[0][v] or None,
+                      glide_target=_gseed[1][v] or None)
             for v in range(3)
-            if m.idle_notes[v] or m.idle_masks[v] or durrel[v]],
+            if m.idle_notes[v] or m.idle_masks[v] or durrel[v]
+            or _gseed[0][v] or _gseed[1][v]],
             slide_phase=(m.dual_phase or 0) or None),
         # environment (trichotomy §4.3): CIA multispeed latch /
         # whole-play() per-VBI repeats. None = single-speed vblank.

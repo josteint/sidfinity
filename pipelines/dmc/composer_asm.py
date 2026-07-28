@@ -2212,18 +2212,24 @@ fx_dual_up:
     # unrelated static code/data: place every record verbatim and emit the live
     # structures OUTSIDE the window (see the ovrwin emission below).
     def _ovr_positions(inst):
-        """(window position, value) each of `inst`'s off-table records fills."""
+        """(window position, value) each of `inst`'s off-table records fills.
+
+        A NAMED-SIGNAL slot (phase 3) fills nothing: the read is served
+        live by the redirect, and the slot no longer carries a captured
+        byte (the sparse-glide seeds moved to init.voice_state)."""
         for rec in getattr(inst, 'offtable_freq', []) or []:
             off, note, lo, hi = rec[:4]     # rec may carry a 5th `live` flag
             idx = (off + note) & 0xFF
             if idx < 96:
                 continue
             ph = idx - 96
-            if not (m.offtable_redirect and 6 <= ph <= 16):
+            if isinstance(hi, int) and \
+                    not (m.offtable_redirect and 6 <= ph <= 16):
                 yield ph, hi
             if idx >= 192:
                 pl = idx - 192
-                if not (m.offtable_redirect and 6 <= pl <= 16):
+                if isinstance(lo, int) and \
+                        not (m.offtable_redirect and 6 <= pl <= 16):
                     yield pl, lo
 
     ovr = [0] * 160
@@ -2286,8 +2292,17 @@ fx_dual_up:
     # seed == the old zero-init, so members that don't read here are unchanged.
     _glap = 0x1744 - ORIG_FLO - 192
     _glbp = 0x1747 - ORIG_FLO - 192
-    igla = [ovr[_glap + x] for x in range(3)]
-    iglb = [ovr[_glbp + x] for x in range(3)]
+    # Seed source priority (phase 3a): the typed init.voice_state fields
+    # (glide_note/glide_target — the seeds' §4.5 home) when present, else
+    # the legacy window-fill bytes (old-form records still carry them).
+    _ivs = {v.id: v for v in ((usf.init.voices if usf.init else None) or [])}
+
+    def _gseed(x, attr, pos):
+        v = _ivs.get(x + 1)
+        val = getattr(v, attr, None) if v is not None else None
+        return ovr[pos + x] if val is None else val
+    igla = [_gseed(x, 'glide_note', _glap) for x in range(3)]
+    iglb = [_gseed(x, 'glide_target', _glbp) for x in range(3)]
 
     data = []
     data.append('inote:\n' + _byt(idle))
