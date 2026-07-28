@@ -8,6 +8,34 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ⏸ OPEN (2026-07-28, r128 investigation): Mephisto/Deprave_7_tune_3 — NOT wavepos: live OTRK drift from the 'endless'-sector walk's entry_offsets gap (fix shape decided, NOT landed — gates needed)
+r126's "continuation into unstated cells" hypothesis REFUTED by measurement
+(C11 rule): event-aligned memwatch (orig $177A-C vs our labels via
+dmc_state_addr) shows wavepos tracks 1:1 — 0 mismatches over 1921 events
+INCLUDING the divergent one. The diverging read (flat 30139, V2 freq hi $0E
+vs $0C, f1866) has orig wnote=$7F → fhi idx 127 = $1726 = V1's OTRK (track
+byte-offset, live-served): ours = entry+1 = 12, orig = 14 = entry+1 + 2
+transpose-command bytes. CAUSAL CHAIN: all 3 voices end in a C11 'endless'
+wrapped sector; that walk path (engine_model ~line 978) appends lead+period
+entries WITHOUT matching entry_offsets (len(offs) = n-1 for every voice) →
+`_fold_stated_orderlist` refuses at its FIRST precondition → otrk_legacy
+(entry+1 approximation) → drift wherever transpose commands accumulate
+(Deprave's offsets are EXACTLY entry+1+#transpose-changes — derivable, no
+redundant commands). FIX SHAPE (next session, gates required): (1) balance
+the endless path's entry_offsets (appends `pos` per extra chunk) — NB this
+ALONE changes fold eligibility for EVERY endless member (they proceed past
+the length check; the lead-vs-period intro pair then refuses on
+stated-inequality → still legacy, but VERIFY the class); (2) the fold's
+intro machinery can't carry a structurally-different lead/period pair in one
+slot (documented Creo/Dance refusal) — either extend the SECOND fold branch
+(effective rows + intro_entries) to admit the endless tail, or add an
+exact-verified `otrk_chg` derivation param (otrk = entry+1+#changes, emitted
+only when it reproduces EVERY offset; the endless tail's frozen otrk needs
+the seed = the wrap position, not the derivation). Census the otrk-legacy +
+live-otrk-read partials before choosing (residue-triage order). Tool note:
+`effect_chain_profiler --find-write D416=06` returned 0 for writes that
+exist — investigate before trusting it again (INVESTIGATION_BACKLOG).
+
 ## ✅ ROUND 127 COMPLETE (2026-07-28): C37 save-state resume — BOTH Calf_Love members FULL (+2; f1 5329/5401)
 Part 3 (same day): the file-level-table pokes landed via C31 CLONE-AND-REMAP,
 NO schema. Sequence that matters for the record: a per-subtune `wave_table`

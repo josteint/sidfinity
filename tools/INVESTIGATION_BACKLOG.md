@@ -110,3 +110,4 @@ add a tripwire?).
 - **Promotions and demotions happen here.** When a backlog idea gets
   built, move to Built. When a Built tool hurts more than helps, move
   to Hurt list with the reason.
+- effect_chain_profiler --find-write returned 0 occurrences for D416=$06 writes that provably exist (Calf_Love_2 sub 1, 2026-07-28, both --subtune 1 and 2) — verify its capture path / value parse before next use.
