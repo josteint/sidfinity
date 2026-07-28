@@ -21,18 +21,27 @@ entries WITHOUT matching entry_offsets (len(offs) = n-1 for every voice) →
 `_fold_stated_orderlist` refuses at its FIRST precondition → otrk_legacy
 (entry+1 approximation) → drift wherever transpose commands accumulate
 (Deprave's offsets are EXACTLY entry+1+#transpose-changes — derivable, no
-redundant commands). FIX SHAPE (next session, gates required): (1) balance
-the endless path's entry_offsets (appends `pos` per extra chunk) — NB this
-ALONE changes fold eligibility for EVERY endless member (they proceed past
-the length check; the lead-vs-period intro pair then refuses on
-stated-inequality → still legacy, but VERIFY the class); (2) the fold's
-intro machinery can't carry a structurally-different lead/period pair in one
-slot (documented Creo/Dance refusal) — either extend the SECOND fold branch
-(effective rows + intro_entries) to admit the endless tail, or add an
-exact-verified `otrk_chg` derivation param (otrk = entry+1+#changes, emitted
-only when it reproduces EVERY offset; the endless tail's frozen otrk needs
-the seed = the wrap position, not the derivation). Census the otrk-legacy +
-live-otrk-read partials before choosing (residue-triage order). Tool note:
+redundant commands). FIX SHAPE — DECIDED (2026-07-28, owner-directed re-anchor in the canon; the
+`otrk_chg` fitted-param alternative is REJECTED per C32's "observe, don't
+fit" — a derivation rule chosen because it happens to reproduce the data is
+the fitted-model disease with an exactness alibi; it would also leave the
+real defects in place). The principled fix = make the STATED FOLD succeed,
+because the failure is two honest defects, not a representation limit:
+(1) balance the endless walk path's entry_offsets (append `pos` per extra
+chunk — the offsets are OBSERVED track facts; today's imbalance is a plain
+bookkeeping bug); (2) extend `_fold_stated_orderlist` to admit the ENDLESS
+TAIL — a SELF-LOOP slot whose pass-0 decode (lead) differs from its steady
+decode (period) — as one physical slot with intro=lead / steady=period via
+the EXISTING intro_entries mechanism (the composer already plays intro on
+first fetch, steady on loop passes; a self-looping slot then re-seeds the
+same otrk value = the orig's frozen wrap position, naturally). Keep the
+Creo/Dance mid-sector-reentry refusal intact (scope the admission to the
+self-loop tail: cycle length 1, equal offsets, loop_to = the tail slot).
+otrk then derives EXACTLY from stated marks — no approximation. GATES
+(blast radius = the fold runs for every member): census the endless-sector
+members FIRST (voices whose walk returns the ('endless', ...) tuple),
+verify that whole class + a FULL-side sample under the change, then full
+regression before commit. Tool note:
 `effect_chain_profiler --find-write D416=06` returned 0 for writes that
 exist — investigate before trusting it again (INVESTIGATION_BACKLOG).
 
