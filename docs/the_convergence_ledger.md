@@ -538,7 +538,12 @@ practice, not code to factor).
   though play streams match.
 - CANONICAL: Check A (end-of-init chip state) + aligned play-stream compare.
   TWO implementations exist (`_trichotomy_compare` shift-recovery; basic
-  known-length + probe) — consult before writing a third.
+  known-length + probe) — consult before writing a third. The verdict is
+  sound only under SYMMETRIC OBSERVATION: a capture that drops the init
+  prefix on one side (per-IRQ + an orig that DEFERS a chip's init burst
+  into an early play(), Kordiaukis 2SID) makes Check A compare primed state
+  vs invisible defaults — fix with `writelog_per_irq_capture(keep_init=True)`
+  (the |N chunk), never by deferring the rebuild's init to match.
 - FULL ENTRY: [`ledger/C21.md`](ledger/C21.md) — read it before applying.
 
 ### C22 — ambiguous round-trip flag encoding

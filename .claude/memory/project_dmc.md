@@ -8,6 +8,31 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 128b (2026-07-28): Kordiaukis_01_2SID FULL — per-IRQ capture keeps the init prefix (|N) for the trichotomy verdict; Check A now REAL for CIA members
+The r126 residual was a pure OBSERVATION ARTIFACT: orig defers chip-2's
+init burst into its substream head (~frame 2, captured) while our
+init-time chip-2 writes were DROPPED by the per-IRQ capture — per-chip
+trichotomy Check A compared orig's primed state vs invisible defaults
+(play streams fully matched both chips; flat full-length capture said
+is_full). DECISION: extend the verdict by SYMMETRIC OBSERVATION, not by
+deferring our init (that would reproduce the orig's init timing —
+anti-trichotomy). Landed: siddump emits the dropped init prefix as a
+`|N` chunk (multi-frame-init continuation included — those bytes were
+previously dropped SILENTLY; parsers splitting on |I unaffected);
+`writelog_per_irq_capture(keep_init=True)` prepends it as one leading
+frame; the v4 verdict paths (dmc_build_one.verify + dmc_family_batch,
+both capture sites) pass keep_init — C21's shift recovery aligns past
+both inits and Check A compares REAL end-of-init states. NB this turns
+Check A from VACUOUS to real for every CIA member (500 in f1; both
+sides' inits were previously dropped → state 0 vs 0): gates = Kordiaukis
+FULL (515888/515888 chip 0 + chip 2 aligned d=-19), 20-member stratified
+prior-FULL CIA sample + Nocturno + Aetsch all 22/22 FULL, full
+regression. NOT flipped: pipelines/dmc/verify.py (regression's DMC
+runner) — its CIA path is a flat match_all prefix compare that keep_init
+would break at write 0; it predates the trichotomy CIA verdict and stays
+as-is (candidate for a later unification); dmc_v5 verdict paths likewise
+untouched (own census gate needed before strictening).
+
 ## ✅ ROUND 128 COMPLETE (2026-07-28): endless-tail fold landed — otrk drift fixed; Deprave's residual = LIVE CPU STACK sonified (C29 dynamic, hard residue)
 The decided fix shape landed exactly as specified, three edits: (1) WALK
 (`engine_model` endless branch) appends the extra entry's `entry_offsets`

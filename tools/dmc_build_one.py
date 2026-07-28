@@ -22,6 +22,7 @@ capture + scaled tolerance for CIA subtunes, per-chip for multi-SID).
 from __future__ import annotations
 
 import argparse
+import functools
 import os
 import subprocess
 import sys
@@ -153,7 +154,11 @@ def verify(orig: str, reb: str, nch: int, localize: bool = False,
     allok, fails = True, []
     for sub in range(n):
         cia = bool((speed >> min(sub, 31)) & 1)
-        cap = writelog_per_irq_capture if cia else writelog_capture
+        # keep_init: retain the |N init prefix so trichotomy Check A compares
+        # REAL end-of-init chip states (a deferred per-chip init burst in the
+        # orig is otherwise judged against invisible defaults — Kordiaukis).
+        cap = (functools.partial(writelog_per_irq_capture, keep_init=True)
+               if cia else writelog_capture)
         dur = max(5.0, min((durs[sub] if durs and sub < len(durs) else 110) * 1.1, 1500.0))
         a = cap(orig, subtune=sub, duration=dur, force_rsid=rsid)
         b = cap(reb, subtune=sub, duration=dur)

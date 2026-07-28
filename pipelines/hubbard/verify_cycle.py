@@ -78,7 +78,8 @@ def writelog_capture(sid_path: str, subtune: int = 0,
 
 def writelog_per_irq_capture(sid_path: str, subtune: int = 0,
                              duration: float = 2.0,
-                             force_rsid: bool = False) -> list[Frame]:
+                             force_rsid: bool = False,
+                             keep_init: bool = False) -> list[Frame]:
     """Run `siddump --writelog-per-irq` and parse the per-PSID-`play()`
     register writes — one `Frame` per play() invocation instead of one per
     siddump 50 Hz frame.
@@ -101,6 +102,16 @@ def writelog_per_irq_capture(sid_path: str, subtune: int = 0,
     54/54, Battle_of_Britain 54/54).
 
     `subtune` is 0-indexed (as in `writelog_capture`).
+
+    `keep_init=True` prepends the tune's init writes (siddump's `|N`
+    chunks — the prefix the `|I` stream drops) as one leading frame. Use
+    with `compare_instruction_stream(mode='trichotomy')`: with the init
+    prefix present on BOTH sides, the shift recovery aligns past both
+    inits and Check A compares the REAL end-of-init chip states. Without
+    it, an original that DEFERS a chip's init burst into an early play()
+    (Kordiaukis_01_2SID chip 2) has its burst captured while the
+    rebuild's init-time writes are invisible — Check A then compares
+    primed state vs defaults, a pure observation artifact (ledger C21).
     """
     cmd = [SIDDUMP, sid_path, '--subtune', str(subtune + 1),
            '--duration', str(duration), '--writelog-per-irq', '--raw']
@@ -108,21 +119,32 @@ def writelog_per_irq_capture(sid_path: str, subtune: int = 0,
         cmd.append('--force-rsid')
     r = subprocess.run(cmd, capture_output=True, text=True)
     frames: list[Frame] = []
+    init_writes: Frame = []
+
+    def _parse(chunk: str) -> Frame:
+        toks = [t for t in chunk.split(':') if t != '']
+        writes: Frame = []
+        for i in range(0, len(toks) - 2, 3):
+            try:
+                writes.append((int(toks[i]), int(toks[i + 1], 16),
+                               int(toks[i + 2], 16)))
+            except ValueError:
+                pass
+        return writes
+
     for line in r.stdout.splitlines():
-        if '|I' not in line:
+        if '|' not in line:
             continue
         # A line may carry MULTIPLE |I chunks (multiple play()s per siddump
-        # frame under CIA). Each chunk = :cyc:reg:val:cyc:reg:val...
-        for chunk in line.split('|I')[1:]:
-            toks = [t for t in chunk.split(':') if t != '']
-            writes: Frame = []
-            for i in range(0, len(toks) - 2, 3):
-                try:
-                    writes.append((int(toks[i]), int(toks[i + 1], 16),
-                                   int(toks[i + 2], 16)))
-                except ValueError:
-                    pass
-            frames.append(writes)
+        # frame under CIA), plus |N init-prefix chunks. Each chunk =
+        # :cyc:reg:val:cyc:reg:val...
+        for seg in line.split('|')[1:]:
+            if seg.startswith('I'):
+                frames.append(_parse(seg[1:]))
+            elif seg.startswith('N') and keep_init:
+                init_writes += _parse(seg[1:])
+    if keep_init and init_writes:
+        frames.insert(0, init_writes)
     return frames
 
 

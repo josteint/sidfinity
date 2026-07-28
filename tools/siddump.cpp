@@ -111,7 +111,8 @@ int main(int argc, char* argv[])
             "  --writelog-per-irq  Like --writelog, but writes are bucketed PER PSID play()\n"
             "                      invocation (|I chunk), not per siddump frame. Eliminates\n"
             "                      Trap C. Splits by play-entry cycle (origin-corrected) and\n"
-            "                      drops the init prefix (writes before the first play-entry).\n"
+            "                      drops the init prefix (writes before the first play-entry)\n"
+            "                      from the |I stream, emitting it as a |N chunk instead.\n"
             "                      Implies --writelog; prefix changes from |W: to |I.\n"
             "  --per-irq-debug  --writelog-per-irq + stderr dump of base/entry/write cycles\n"
             "  --memtrace     Append memory access trace\n"
@@ -773,13 +774,39 @@ int main(int argc, char* argv[])
                 // Each IRQ's writes = log entries whose cycle is between
                 // this IRQ entry and the next (or end of log).
                 size_t idx = 0;
-                // Drop the init prefix: writes before the global first
-                // play() entry (frame-0 chunk only — see firstIrqChunkPending).
+                // Drop the init prefix from the |I stream: writes before the
+                // global first play() entry (frame-0 chunk only — see
+                // firstIrqChunkPending). The dropped writes are EMITTED as a
+                // |N chunk so a caller that needs the init prefix (the DMC
+                // trichotomy verdict — Check A on REAL end-of-init state,
+                // Kordiaukis r128b) can keep it; parsers splitting on |I are
+                // unaffected.
                 if (firstIrqChunkPending && !irqCycles.empty()) {
                     uint64_t firstEntry = rel(irqCycles[0]);
-                    while (idx < log.size() && log[idx].cycle < firstEntry)
-                        ++idx;
+                    size_t initEnd = idx;
+                    while (initEnd < log.size()
+                           && log[initEnd].cycle < firstEntry)
+                        ++initEnd;
+                    if (initEnd > idx) {
+                        printf("|N");
+                        for (size_t k = idx; k < initEnd; k++)
+                            printf(":%u:%02X:%02X", log[k].cycle,
+                                   log[k].reg, log[k].value);
+                    }
+                    idx = initEnd;
                     firstIrqChunkPending = false;
+                }
+                // Init spanning several frames BEFORE the first play entry:
+                // these frames have writes but no entry and were previously
+                // dropped silently — emit them as |N continuation chunks.
+                if (firstIrqChunkPending && irqCycles.empty()
+                        && idx < log.size()) {
+                    printf("|N");
+                    while (idx < log.size()) {
+                        printf(":%u:%02X:%02X", log[idx].cycle,
+                               log[idx].reg, log[idx].value);
+                        ++idx;
+                    }
                 }
                 for (size_t i = 0; i < irqCycles.size(); i++) {
                     uint64_t end = (i + 1 < irqCycles.size())

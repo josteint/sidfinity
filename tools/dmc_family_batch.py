@@ -16,6 +16,7 @@ Usage:
 """
 from __future__ import annotations
 
+import functools
 import json
 import os
 import signal
@@ -125,7 +126,11 @@ def run_member(rel: str) -> dict:
                 # CIA-timed (multispeed) subtunes: play() does not align with
                 # siddump's 19656-cycle frame buckets (Trap C) — capture PER
                 # play(). Vblank subtunes use the flat per-frame capture.
-                cap = writelog_per_irq_capture if cia else writelog_capture
+                # keep_init: retain the |N init prefix so trichotomy Check A
+                # compares REAL end-of-init chip states (Kordiaukis r128b).
+                cap = (functools.partial(writelog_per_irq_capture,
+                                         keep_init=True)
+                       if cia else writelog_capture)
                 origs[sub] = (cap(orig, subtune=sub, duration=dur), dur, cia)
 
             def build_and_verify(hold_gateoff=None):
@@ -156,7 +161,9 @@ def run_member(rel: str) -> dict:
                 subs = {}; ok = True; first_diff = None; flat_div = None
                 for sub in range(n):
                     a, dur, cia = origs[sub]
-                    cap = writelog_per_irq_capture if cia else writelog_capture
+                    cap = (functools.partial(writelog_per_irq_capture,
+                                             keep_init=True)
+                           if cia else writelog_capture)
                     b = cap(tmp_sid, subtune=sub, duration=dur)
                     # CIA (multispeed) tail tolerance scales with the multispeed
                     # factor N (= play()s per PAL frame, measured from the
