@@ -273,7 +273,11 @@ practice, not code to factor).
   the constructor the sub-player path stops at, so every wedge knob still came
   back defaulted. Grep the probe table's CALL SITES, not just the constructor.
   TELL when a retry hides it: batch FULL but a fresh build partial → the
-  stored `.usf` and `.sid` disagree (C20 fifth layer).
+  stored `.usf` and `.sid` disagree (C20 fifth layer). 6th occ: the init
+  probe can SUCCEED with a plausible WRONG latch (fine byte programmed at a
+  site init never runs — KB's $2600 vs measured $2663) → CROSS-CHECK every
+  init-probed latch against the measured entry period, prefer the
+  measurement on a STABLE disagreement (`_cia_period_crosschecked`).
 - FULL ENTRY: [`ledger/C9.md`](ledger/C9.md) — read it before applying.
 
 ### C10 — chip-global ($D415-$D418) automation that varies during the song

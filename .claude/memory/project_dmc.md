@@ -8,6 +8,24 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 130 (2026-07-29): CIA latch CROSS-CHECK (C9 6th occ) — Big_GLORZ + Low_Frequency FULL (+2)
+Next-partial Big_GLORZ: PERFECT full-overlap prefix + rebuild 1.07%
+LONGER — a pure rate error. Factory trusted the py65 init-probe latch
+($2600 — suspicious round lo=0) over ground truth; measured steady entry
+period = 9828 = canonical $2663 (KB's player programs $DC05=$26 at one
+site, the $63 lo byte at a second site the sentinel'd init never runs).
+FIX: `_cia_period_crosschecked` (factory) — init latch kept only when the
+measured median entry period agrees (±3 cyc); STABLE disagreement (≥80%
+of per-period estimates within ±3 of median) → `measured_period − 1`;
+unstable measurement (C18 phase wrappers) keeps the init value. All 3
+call sites (canon / multisid / dataflow) switched. GATES: smoke 6/6;
+CIA census (tmp/r130_cia_census.py, all 502 speed-bit f1 members): 2
+carriers, BOTH partial, BOTH now FULL (Big_GLORZ, Low_Frequency — the
+KB pair), 0 FULL-side carriers, 4 unstable-measure FULLs untouched by
+construction; full regression green. Ledger C9 6th occurrence recorded
+(a probe that CAN return a value is not thereby RIGHT — cross-check
+against cheap ground truth instead of short-circuiting).
+
 ## ✅ ROUND 129 (2026-07-29): wave-program IN-TABLE RUNAWAY fix — Long_Time + Sweet_Remix FULL (+2), Goldrake moved later
 Next-partial-by-path Long_Time diverged on V2's drum: orig's inst-13 wave
 program walks past the packed table's end (the packer truncates ctrl/note

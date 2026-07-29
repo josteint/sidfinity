@@ -284,6 +284,62 @@ def _cia_period_from_writelog(sid_path: str, subtune: int,
     return 0
 
 
+def _cia_entry_period(sid_path: str, subtune: int, dur: float = 3.0):
+    """Measure the ACTUAL steady play-entry period from the ground-truth
+    writelog debug stream. Returns (median_period, stable) or None when
+    unmeasurable. `stable` = >=80% of per-period estimates within +/-3
+    cycles of the median (a C18 phase wrapper / alternating-latch driver
+    fails stability and must not be judged by the median)."""
+    import subprocess
+    import re
+    import statistics
+    sd = os.path.join(os.path.dirname(__file__), '..', '..', '..',
+                      'tools', 'siddump')
+    try:
+        out = subprocess.run(
+            [sd, sid_path, '--writelog-per-irq', '--per-irq-debug',
+             '--duration', str(dur), '--subtune', str(subtune)],
+            capture_output=True, text=True, timeout=90).stderr
+    except Exception:
+        return None
+    frames = []
+    for line in out.splitlines():
+        m = re.search(r'nentries=(\d+) entry0=(\d+)', line)
+        if m:
+            frames.append((int(m.group(1)), int(m.group(2))))
+    per = []
+    for (n0, e0), (_, e1) in zip(frames, frames[1:]):
+        if n0 >= 1 and e1 > e0:
+            per.append((e1 - e0) / n0)
+    if len(per) < 20:
+        return None
+    med = statistics.median(per)
+    stable = sum(1 for p in per if abs(p - med) <= 3) / len(per) >= 0.8
+    return round(med), stable
+
+
+def _cia_period_crosschecked(sid_path: str, subtune: int) -> int:
+    """`_cia_period_from_init`, CROSS-CHECKED against the ground-truth
+    entry-period measurement (ledger C9, 6th occ — Big_GLORZ): the py65
+    post-init $DC04/$DC05 snapshot can be a plausible WRONG latch when the
+    fine byte is programmed where the init run never reaches (Big_GLORZ:
+    init leaves $2600, the $63 lo byte lands from a second site — measured
+    steady period 9828 = the canonical $2663). Keep the init latch when the
+    measured period agrees (+/-3 cyc jitter) or the measurement is
+    unstable/unavailable (byte-identical for every truthful-init member);
+    on a STABLE disagreement return `measured_period - 1`."""
+    cp = _cia_period_from_init(sid_path, subtune)
+    if not (0x0100 <= cp <= 0xFFFF):
+        return cp
+    m = _cia_entry_period(sid_path, subtune)
+    if m is None:
+        return cp
+    period, stable = m
+    if not stable or abs((cp + 1) - period) <= 3:
+        return cp
+    return period - 1
+
+
 def _cia_period_from_init(sid_path: str, subtune: int,
                           max_cycles: int = 3_000_000) -> int:
     """Run the PSID init in py65 and read the CIA1 timer A latch
@@ -2693,7 +2749,7 @@ def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
     # PREFIX of ~1/N the original's length, with no content divergence.
     cia = 0
     if s.get('speed', 0) & 1:
-        cp = _cia_period_from_init(path, 0)
+        cp = _cia_period_crosschecked(path, 0)
         if not (0x0100 <= cp <= 0xFFFF):
             cp = _cia_period_from_writelog(path, 0)
         if 0x0100 <= cp <= 0xFFFF:
@@ -3331,8 +3387,8 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str,
     # is itself a best-effort fallback.
     cia_period = 0
     if s.get('speed', 0) & 1:
-        cp = _cia_period_from_init(os.path.join(hvsc_root, sid_path),
-                                   s['start'] - 1)
+        cp = _cia_period_crosschecked(os.path.join(hvsc_root, sid_path),
+                                       s['start'] - 1)
         if not (0x0100 <= cp <= 0xFFFF):
             cp = _cia_period_from_writelog(os.path.join(hvsc_root, sid_path),
                                            s['start'] - 1)
@@ -3606,7 +3662,7 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84',
     eff_play = base + 3 if base_override is not None else s['play']
     cia_period = 0
     if s.get('speed', 0) & 1:
-        cia_period = _cia_period_from_init(
+        cia_period = _cia_period_crosschecked(
             os.path.join(hvsc_root, sid_path), s['start'] - 1)
         if not (0x0100 <= cia_period <= 0xFFFF):
             # py65 couldn't read the latch (init hangs / unsupported opcode /
