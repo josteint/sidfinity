@@ -1821,8 +1821,8 @@ fx_dual_up:
                       '        sta pwstep,x\n'
                       '        jmp pw_sweep                 ; sweep+filter+glide+wave+write\n\n'
                       ) if rphase_pulse_tail else ''
-    if (tokens and 'P' in tokens and len(tokens) > 1
-            and all(t == 'P' or t == 'S'
+    if (tokens and ('P' in tokens or 'P2' in tokens) and len(tokens) > 1
+            and all(t == 'P' or t == 'P2' or t == 'S'
                     or (t[0] in 'FR' and t[1:]
                         and set(t[1:]) <= set('123')) for t in tokens)):
         n_ph = len(tokens)
@@ -1838,6 +1838,11 @@ fx_dual_up:
                      f'        beq pp_r{k}\n')
             if t == 'P':
                 body = '        jmp playframe                ; P = full play\n'
+            elif t == 'P2':
+                # whole play body TWICE in ONE call (C24 sibling, r135 —
+                # Bajerek's parity wrapper: 3 body-runs per 2 IRQs)
+                body = ('        jsr playframe                ; P2 = full play x2\n'
+                        '        jmp playframe\n')
             elif t == 'S':
                 body = '        rts                          ; S = silent call\n'
             elif t[0] == 'R':         # R<voices>: register refresh — the

@@ -605,7 +605,10 @@ practice, not code to factor).
 - PRESENTS (whole-play): a VBLANK member with a PERFECT play-stream prefix
   and a clean ~N× length tail — the whole play() runs N× per VBI. Count
   writes/frame, then disassemble the play VECTOR and FOLLOW its JMP
-  indirection (`JSR T ×N :RTS` / `JSR T; JMP T`).
+  indirection (`JSR T ×N :RTS` / `JSR T; JMP T`). A CIA member with a
+  clean ×1.5 tail at an IDENTICAL measured rate = the ALTERNATING form
+  (parity wrapper doubles every other call; per-play counts 34/17 vs flat
+  17) → observed parity → a `P2` token in the C18 phase alphabet.
 - CANONICAL: `play_unit_repeat=[v0,v1,v2,filter]` list / `play_repeat=N`
   param, detected by static byte-probe (C19 method). Distinct from C18
   (phase behaviour across CALLS).

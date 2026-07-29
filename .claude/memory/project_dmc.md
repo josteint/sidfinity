@@ -8,6 +8,23 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 135 (2026-07-29): alternating whole-play repeat — parity wrapper, P2 phase token (C24 4th form) — Bajerek FULL (+1)
+Next-partial Bajerek: perfect prefix, orig len exactly ×1.5 ours, measured
+IRQ rate IDENTICAL both sides ($2663 2×) — the appended play vector
+`INC $02 / LSR / BCS / JSR $1003 / JMP $1003` runs the whole body TWICE
+every other call (3 body-runs per 2 IRQs = a 3× tune from a 2× timer).
+Doubly invisible: factory forces play_repeat=1 for CIA members; the C18
+reachability observer sees a double-P as plain 'P'. One-glance
+discriminator: per-play write counts 34/17 alternating vs our flat 17.
+FIX: `_play_repeat_parity_probe` (static wrapper shape + observed
+doubling parity from the per-IRQ capture, C23 footprint rule) →
+play_phases='P_P2'; composer phase alphabet gains the P2 token
+(`jsr playframe / jmp playframe`). Probe pitfalls hit and fixed during
+the round: the per-frame debug `nwrites` can't split a multi-entry frame
+(use writelog_per_irq_capture), and an "in-player range" gate wrongly
+covered the appended wrapper. GATES: shape census = 1 carrier
+family-wide; smoke 6/6; full regression green.
+
 ## ✅ ROUND 134 (2026-07-29): $FF-handler JMP-stub with PER-VOICE loop targets (C19 27th occ) — Road_to_Sydney FULL (+1)
 Next-partial Road_to_Sydney: mid-song (f2185) V1 row-duration divergence —
 the SAME pattern row played dur 14 early and 21 late. NOT a data poke

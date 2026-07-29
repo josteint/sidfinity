@@ -3162,7 +3162,57 @@ def _multisid_keep_regs(mem, base: int, chip_addr: int) -> tuple:
 # from the file image at `c.base` — probing the image there reads zeros, so
 # every wedge would come back defaulted: C9's "a second build path never
 # measured the parameter", one layer further out than round 83b closed it.
+def _play_repeat_parity_probe(path: str, base: int,
+                              post_init_sub: 'int | None' = None):
+    """Alternating whole-play repeat via a PARITY wrapper (C24 sibling, r135
+    — Bajerek): the appended play vector is `INC zp / LDA zp / LSR / BCS +3 /
+    JSR T / JMP T` (same zp, same T), so every OTHER call runs the whole play
+    body TWICE — 3 body-runs per 2 IRQs (a 3x tune faked from a 2x timer;
+    the factory forces play_repeat=1 for CIA members and the C18 reachability
+    observer sees only 'P' phases, so the doubling was invisible). Static
+    shape gate first; then OBSERVE which parity doubles from the orig's
+    per-IRQ write counts (C23 footprint rule — the phase alphabet's counter
+    seeds so call #1 executes tokens[0], so tokens[0] = play #0's class).
+    Returns a play_phases schedule ('P2_P' / 'P_P2') or None."""
+    mem, s = _load(path, post_init_sub)
+    play = s['play']
+    w = bytes(mem[play:play + 13])
+    if not (len(w) == 13
+            and w[0] == 0xE6 and w[2] == 0xA5 and w[1] == w[3]      # INC/LDA zp
+            and w[4] == 0x4A                                        # LSR A
+            and w[5] == 0xB0 and w[6] == 0x03                       # BCS +3
+            and w[7] == 0x20 and w[10] == 0x4C):                    # JSR/JMP
+        return None
+    t_jsr = w[8] | (w[9] << 8)
+    t_jmp = mem[play + 11] | (mem[play + 12] << 8)
+    if t_jsr != t_jmp or not base <= t_jsr < base + 0x1000:
+        return None
+    # observe the doubling parity from the ground-truth per-IRQ capture
+    # (one chunk per play() — the per-frame debug nwrites can't split a
+    # multi-entry frame)
+    import statistics
+    try:
+        from pipelines.hubbard.verify_cycle import writelog_per_irq_capture
+        cap = writelog_per_irq_capture(path, subtune=0, duration=8,
+                                       keep_init=False)
+    except Exception:
+        return None
+    counts = [len(fr) for fr in cap]
+    if len(counts) < 60:
+        return None
+    # parity classes relative to play index 0 (skip the init-transient head)
+    even_med = statistics.median([c for i, c in enumerate(counts[20:], 20)
+                                  if i % 2 == 0])
+    odd_med = statistics.median([c for i, c in enumerate(counts[20:], 20)
+                                 if i % 2 == 1])
+    hi, lo = max(even_med, odd_med), min(even_med, odd_med)
+    if lo <= 0 or hi / lo < 1.6:          # require a clear ~2x parity split
+        return None
+    return 'P2_P' if even_med > odd_med else 'P_P2'
+
+
 _WEDGE_PROBES = [
+    ('play_phases',                     lambda p, c: _play_repeat_parity_probe(p, c.base, c.post_init_sub)),
     ('master_vol_every_play',           lambda p, c: _d418_play_wrapper(p, c.base, c.post_init_sub)),
     ('master_vol_reassert_filter_tail', lambda p, c: _d418_filter_tail_probe(p, c.base, c.post_init_sub)),
     ('hold_gateoff',                    lambda p, c: _hold_gateoff_probe(p, c.base, c.post_init_sub)),
