@@ -8,6 +8,26 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 132 (2026-07-29): SWING-DRIVER latch median (C9 8th occ) — Falu_Mix + Compotune_1 + Compotune_2 FULL (+3)
+Next-partial Falu_Mix: perfect prefix + rebuild 0.35% long. The player
+REPROGRAMS $DC04/05 every IRQ — tempo-swing cycle [4033,4033,4033,7610]
+(measured per-frame estimates 4033/4927/5225 all explained by the cycle;
+whole-cycle average 4927.25) — so the writelog probe's canonical
+`19656//N−1` (4913) was 0.3% fast. FIX in `_cia_period_from_writelog`:
+compare the canonical latch to the MEDIAN of per-frame per-period
+estimates; on a >4-cyc disagreement re-measure 10 s and return
+`round(median)−1`. ⚠ the first cut used an entry0-anchored RAW MEAN —
+poisoned +7 cyc by the init→first-play gap outlier, fired for DOZENS of
+canonical FULLs; the census re-run caught it pre-land (the C9 8th-occ
+estimator lesson). GATES: probe-path census (78 members with unreadable
+init latch): branch fires for exactly 4 — Falu_Mix + Mephisto
+Compotune_1/2 (all partial→FULL) + Merry_Christmas_Mix_1 (FULL, held
+FULL with the closer latch 9819); smoke 6/6; full regression green.
+Swing schedule = engine bookkeeping (Mode-1 observable is only the
+average rate) → single best-latch, no schema growth. Residual ~0.1%
+length deltas remain within tolerance (occasional longer cycles beyond
+the 4-slot model — accepted).
+
 ## ✅ ROUND 131 (2026-07-29): PER-SUBTUNE SPEED MASK (C9 7th occ) — F_A_K_E-Intro FULL (+1)
 Next-partial F_A_K_E-Intro sub 1: perfect prefix, rebuild exactly 2× the
 orig — the file MIXES a CIA 2× song (sub 0, $2663) with a VBLANK song

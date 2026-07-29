@@ -267,7 +267,48 @@ def _cia_period_from_writelog(sid_path: str, subtune: int,
         return 0
     n = round(total / (span / 19656.0))
     if n >= 2:
-        return 19656 // n - 1
+        canon = 19656 // n - 1
+        # Cross-check the canonical latch against the MEASURED long-run mean
+        # entry period (r132, Falu_Mix — C9 8th occ): a player that REPROGRAMS
+        # the latch every IRQ (tempo-swing cycle [4033,4033,4033,7610]) has a
+        # non-canonical effective rate; returning the canonical builds a
+        # 0.3%-fast rebuild = a guaranteed length partial. The mean is
+        # entry0-anchored (exact period count between first and last entry0
+        # — the base-span estimator's ±1-frame edge error is bigger than the
+        # signal). Canonical members measure within a couple of cycles of
+        # canon+1 and are returned unchanged.
+        def _med(txt):
+            # median of per-frame per-period estimates — for a cyclic
+            # latch schedule, frames holding whole cycles dominate, so the
+            # median IS the steady whole-cycle average; and unlike an
+            # entry0-anchored raw mean it is IMMUNE to the init->first-play
+            # gap outlier (which inflated a 3s mean by ~+7 cycles and made
+            # this branch fire for dozens of truly-canonical members).
+            # frame0's delta (the init gap) is skipped outright.
+            ent = [(int(m.group(1)), int(m.group(2))) for m in
+                   re.finditer(r'nentries=(\d+) entry0=(\d+)', txt)]
+            per = [(e1 - e0) / n0
+                   for (n0, e0), (_, e1) in zip(ent[1:], ent[2:])
+                   if n0 >= 1 and e1 > e0]
+            if len(per) < 20:
+                return None
+            per.sort()
+            return per[len(per) // 2]
+        med = _med(out)
+        if med is not None and abs((canon + 1) - med) > 4:
+            # rare path (Falu_Mix-class swing drivers): re-measure over 10 s
+            try:
+                out10 = subprocess.run(
+                    [sd, sid_path, '--writelog-per-irq', '--per-irq-debug',
+                     '--duration', '10', '--subtune', str(subtune)],
+                    capture_output=True, text=True, timeout=120).stderr
+                m10 = _med(out10)
+                if m10 is not None:
+                    med = m10
+            except Exception:
+                pass
+            return round(med) - 1
+        return canon
     # Single-speed: measure the exact entry-to-entry period (entry0 = the
     # play-entry PHI1 clock per siddump frame; a frame holding 2 entries
     # yields a doubled delta — the median discards those). The DEFAULT CIA

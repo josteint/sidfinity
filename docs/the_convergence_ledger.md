@@ -277,7 +277,11 @@ practice, not code to factor).
   mask is PER-SUBTUNE (a file mixes a CIA song with vblank ones) — rebuild
   a clean N× the orig's length on a NON-start subtune = the composer
   stamped the bit on every subtune; `PsidMeta.speed` already models the
-  mask — populate + respect it, NO schema addition. 6th occ: the init
+  mask — populate + respect it, NO schema addition. 8th occ: a per-IRQ
+  latch-reprogramming SWING driver has a NON-canonical steady rate — the
+  probe's `19656//N−1` is a hypothesis; check it against the MEDIAN of
+  per-frame period estimates (a raw mean is poisoned by the init-gap
+  outlier — census every estimator before landing). 6th occ: the init
   probe can SUCCEED with a plausible WRONG latch (fine byte programmed at a
   site init never runs — KB's $2600 vs measured $2663) → CROSS-CHECK every
   init-probed latch against the measured entry period, prefer the
