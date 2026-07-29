@@ -1404,6 +1404,9 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # extracted per-member operand — a few demos patch it (e.g. Presentation's
     # $DF) for a different noise timbre. Read from the binary, default $FF.
     cymbal_burst = int(usf.params.fields.get('cymbal_burst', 0xFF)) & 0xFF
+    # cymbal attack CTRL value: the second immediate of the burst (canon $81 =
+    # noise+gate; Grapevine_18_intro patches it to $02 = sync-only, r133).
+    cymbal_ctrl = int(usf.params.fields.get('cymbal_ctrl', 0x81)) & 0xFF
     # vibrato swell mechanism (two builds of the same engine ramp the
     # triangle differently): 'width' (canon) holds a fixed per-note step
     # (the $1888 VIBDEPTH table) and DOUBLES the half-cycle width as it
@@ -2507,7 +2510,7 @@ fx_dual_up:
         f'        lda #${cymbal_burst:02X}\n'
         '        sta $d400,y\n'
         '        sta $d401,y\n'
-        '        lda #$81\n'
+        f'        lda #${cymbal_ctrl:02X}\n'
         '        sta $d404,y                  ; gated noise burst\n')
     if cymbal_onset == 0:
         cym_ni = ('        lda fxf,x\n'

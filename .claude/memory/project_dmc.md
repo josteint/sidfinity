@@ -8,6 +8,20 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 133 (2026-07-29): cymbal CTRL immediate wedge (C19 26th occ) — Grapevine_18_intro FULL (+1)
+Next-partial Grapevine_18_intro: diverged at f1 write 17, V3 noise-attack
+ctrl orig $02 vs our $81 — the canon burst's SECOND immediate patched
+($1313: `LDA #$81` → `#$02`, a sync-only attack; the dmc_canon_diff
+immediate blind spot). `_cymbal_burst_byte` had the ctrl HARDCODED in its
+anchor (`A9 81`) so it structurally could not see it — generalized to
+capture (burst, ctrl); new `cymbal_ctrl` param (default $81, composer
+emits it in `_cym_burst`). Diagnosis detour recorded in C19: the member
+also re-assembles the instr cache +1 ($1016-$1018), so canon-address
+memwatch showed V2's instrument for V3 and looked like a cross-voice
+wedge until the member's own operands were read. GATES: census 2 carriers
+family-wide (Presentation $DF burst FULL/canonical-ctrl = untouched;
+Grapevine fixed); smoke 6/6; full regression green.
+
 ## ✅ ROUND 132 (2026-07-29): SWING-DRIVER latch median (C9 8th occ) — Falu_Mix + Compotune_1 + Compotune_2 FULL (+3)
 Next-partial Falu_Mix: perfect prefix + rebuild 0.35% long. The player
 REPROGRAMS $DC04/05 every IRQ — tempo-swing cycle [4033,4033,4033,7610]

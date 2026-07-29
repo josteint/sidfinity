@@ -946,15 +946,19 @@ def frames_clear_adsr(frames) -> bool:
 
 def _cymbal_burst_byte(path: str):
     """The immediate operand of the cymbal noise-burst write (LDA #imm; STA
-    $D400,y; STA $D401,y; LDA #$81; STA $D404,y). Canon is $FF; a few demos
-    patch it for a different noise timbre (e.g. Presentation's $DF). Read from
-    the file image so it is layout-independent. None if the pattern is absent."""
+    $D400,y; STA $D401,y; LDA #imm2; STA $D404,y). Canon is ($FF, $81); a few
+    demos patch either immediate — the freq for a different noise timbre
+    (Presentation's $DF), the CTRL for a different attack waveform
+    (Grapevine_18_intro's $02 = sync-only, r133 — the immediate-wedge class
+    dmc_canon_diff documents as its blind spot). Read from the file image so
+    it is layout-independent. Returns (burst, ctrl) or None if the pattern is
+    absent."""
     import re
     data = open(path, 'rb').read()
     doff = int.from_bytes(data[6:8], 'big')
-    m = re.search(rb'\xa9(.)\x99\x00\xd4\x99\x01\xd4\xa9\x81\x99\x04\xd4',
+    m = re.search(rb'\xa9(.)\x99\x00\xd4\x99\x01\xd4\xa9(.)\x99\x04\xd4',
                   data[doff:])
-    return m.group(1)[0] if m else None
+    return (m.group(1)[0], m.group(2)[0]) if m else None
 
 
 def _hr_patch_probe(path: str, base: int, post_init_sub: 'int | None' = None):
@@ -3255,10 +3259,13 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
     cfg.post_init_sub = post_init_sub
     path = os.path.join(hvsc_root, sid_path)
     # --- non-uniform wedge stanzas (special guard / two keys / attribute) ---
-    # cymbal noise-burst timbre: only when patched off the canon $FF.
+    # cymbal noise-burst timbre / attack ctrl: only when patched off the
+    # canon ($FF, $81).
     cb = _cymbal_burst_byte(path)
-    if cb is not None and cb != 0xFF:
-        cfg.extra_params['cymbal_burst'] = cb
+    if cb is not None and cb[0] != 0xFF:
+        cfg.extra_params['cymbal_burst'] = cb[0]
+    if cb is not None and cb[1] != 0x81:
+        cfg.extra_params['cymbal_ctrl'] = cb[1]
     # hard-restart SMC-toggle wedge sets TWO keys.
     hr = _hr_patch_probe(path, cfg.base, post_init_sub)
     if hr is not None:
