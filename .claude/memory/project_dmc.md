@@ -21,6 +21,16 @@ parse form + resolved-copy wave fields — 52 stored .usf OUTSIDE f1
 (v5/family-2, extracts not migrated) still carry live(), and
 resolved-copy is load-bearing on the 2SID/compilation/hetero merge
 paths; their deletion rides the future v5/family-2 extract migration.
+FAMILY-2 SYNC EXPLICITLY DEFERRED (owner, 2026-07-29): the 52 stored
+live()-form .usf turned out to be family-2 (2,889 members, v4 pipeline
+`sector_format='family2'`) whose WHOLE corpus is July-stale (2,508
+stored artifacts, no current-code rows) — the recorded "expect this
+corpus-wide when family-2 work resumes" condition. A fresh f2 batch was
+started and the owner STOPPED it (150/2889 done; those rows were
+REMOVED from tmp/dmc_wide_results.jsonl so no future mass-write acts on
+a half-batch — an f2 sync must start from a complete fresh batch). Do
+NOT sync/orphan-clean family 2 until the owner asks; grammar keeps
+parsing live() until then.
 Residue census (divergence_census --partials, closeout): 63 partials =
 a LONG TAIL, no dominant lever — 10 unknown (trichotomy-fallback keyed),
 6 V3-freqlo-deep, 6 $D418-deep ($1E vs $1F — a vol/filter-mode bit), 5
