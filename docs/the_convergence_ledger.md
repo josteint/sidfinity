@@ -84,7 +84,7 @@ practice, not code to factor).
 | Problem class / keywords | Entry | Status |
 |---|---|---|
 | value swept over time · PW / cutoff contour · oscillator · ramp | C1 | shared |
-| byte-indexed program table · runs off-table · table extent / size · index overruns into adjacent array | C2 | factor-candidate (5×+: freq/pulse/wave/filter) |
+| byte-indexed program table · runs off-table · table extent / size · index overruns into adjacent array · in-table walk hits table end with NO marker (runaway ≠ hold) | C2 | factor-candidate (6×+: freq/pulse/wave×3/filter) |
 | "no program" detection · leading (0,0) · idle position 0 | C3 | methodology |
 | localize runtime divergence · writelog diverges, cause internal · memwatch | C4 | methodology |
 | detection ≠ FULL · residue triage · accept-at-detect | C5 | methodology |
@@ -150,6 +150,9 @@ practice, not code to factor).
   `min(256, 0x10000-addr)` and let the per-program walker bound reachability;
   when the walk is unbounded, EMIT THE ORIG'S RECORD LAYOUT (or simulate the
   walk and emit the resolved sequence) so every walked read is byte-exact.
+  This includes the IN-table walk that reaches the nominal end with no
+  terminator: the engine does NOT hold there — simulate the continued walk
+  (cap-and-hold is the same nominal-length disease one branch later).
   For a one-shot off-table ramp (no loop): taint-classify the source FIRST
   (static ⇒ representable / written ⇒ residue), reach = the re-init interval,
   on phase-cap TRUNCATE the prefix, and pool large captures (C8).

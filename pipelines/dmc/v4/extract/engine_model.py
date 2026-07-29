@@ -1317,10 +1317,13 @@ def _slice_wave(ctrl_tab: list, freq_tab: list, start: int, n_inbound=None):
             end = pos
             break
         pos += 1
-    if end is None:                      # runaway — cap at table end, hold
-        ctrl = ctrl_tab[start:n]
-        freq = freq_tab[start:n]
-        return ctrl, freq, max(0, len(ctrl) - 1)
+    if end is None:
+        # runaway — no marker before the table's nominal end. The engine
+        # never stops there: the 8-bit position keeps INCing into the
+        # adjacent bytes (C2 — Long_Time inst 13: ctrl reads cross into the
+        # note table's head, note reads run past its end). Simulate the
+        # mod-256 walk over the extended window instead of cap-and-hold.
+        return _resolve_wave_chain(ctrl_tab, freq_tab, start)
     back = ctrl_tab[end] - 0x90
     loop_pos = end - back
     if loop_pos < 0:

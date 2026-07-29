@@ -8,6 +8,27 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 129 (2026-07-29): wave-program IN-TABLE RUNAWAY fix — Long_Time + Sweet_Remix FULL (+2), Goldrake moved later
+Next-partial-by-path Long_Time diverged on V2's drum: orig's inst-13 wave
+program walks past the packed table's end (the packer truncates ctrl/note
+tables to 45 used cells; positions 45+ read ctrl from the NOTE table's head
+and notes past its end — C2). `_slice_wave`'s in-table RUNAWAY branch (no
+marker before nominal end) was the LAST nominal-length bound: it capped at
+table end + held, while the engine INCs on. FIX (one edit): route runaway
+to `_resolve_wave_chain` like off-table starts; the stated wave_table norm
+form absorbs the settled walk's extra cells (only the duration-bounded
+prefix is observable). GATES: dmc_smoke 6/6, full regression 0 regressed,
+carrier census (tmp/r129_runaway_census.py, old-vs-new slice compare over
+the deduped wide-results members, partials first): 3 carriers in the 63
+partials — Long_Time FULL, Sweet_Remix FULL, Goldrake sub-1 first-div
+25947→26584 (remaining blocker = C11 live off-table hi reads on its
+relocated $9000 compilation player: $9775/$9786-88 LIVE per
+dmc_offtable_probe — separate class). FULL-side census ran to completion
+as the exposure audit for changed-FULL carriers (verdict-neutral by
+construction: a cap-held FULL can only be FULL if the tail never plays).
+NB engine_model.py changed ⇒ family code_hash bumped: the r128c-synced
+corpus re-verifies at the next fresh batch; no mass-write this round.
+
 ## ✅ ROUND 128c (2026-07-29): PHASE-5 CORPUS SYNC — f1 batch 5338/5401 FULL (98.8%) + mass-write + levers retired
 The overnight full f1 batch on r128b code: **5338 FULL + 63 partial, 0
 error/unsupported** (+9 vs r127's 5329; the r113-r127 gains are now ON
