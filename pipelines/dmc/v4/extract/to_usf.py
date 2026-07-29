@@ -66,22 +66,20 @@ def _stamp_live(recs, canon: bool) -> list:
     captured byte — dense signals' captures were noise, and the SPARSE
     glide seeds (the one load-bearing case, ledger C11) now travel as
     typed init.voice_state priming (glide_note/glide_target — draft §8
-    option (a), the trichotomy §4.5 home). SIDFINITY_SIG_OLDFORM=1 forces
-    the legacy form (the A/B gate lever; retired at the corpus sync).
-    Static reads stay plain 4-tuples so non-off-table engines are
+    option (a), the trichotomy §4.5 home). The SIDFINITY_SIG_OLDFORM A/B
+    lever was retired at the phase-5 corpus sync (2026-07-29) — the v4
+    corpus is mass-written in the signal form; the legacy `live` 5-tuple
+    remains parseable only for the not-yet-migrated v5/family-2 stored
+    files. Static reads stay plain 4-tuples so non-off-table engines are
     byte-identical."""
     from src.usf.types import LiveSignal
     from pipelines.dmc.composer_asm import signal_for_addr
     live_idx = _offtable_live_idx()
-    oldform = bool(os.environ.get('SIDFINITY_SIG_OLDFORM'))
     out = []
     for rec in recs:
         off, note, lo, hi = rec[:4]
         idx = (off + note) & 0xFF
         if canon and idx in live_idx:
-            if oldform:
-                out.append((off, note, lo, hi, 1))
-                continue
             slo = signal_for_addr(0x1647 + idx)
             shi = signal_for_addr(0x16A7 + idx)
             out.append((off, note,
@@ -596,31 +594,28 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
     # instruments from their file-level table (the zero_wave_table crash
     # the phase-2 regression caught, twice: the 2SID merge and MA's
     # heterogeneous _project). The model must ALSO have passed extract()'s
-    # re-derivation assert (wave_table_norm set). SIDFINITY_WT_OLDFORM=1
-    # forces the old form — the A/B byte-identity lever.
-    _norm = getattr(m, 'wave_table_norm', None) if (
-        wave_norm and not os.environ.get('SIDFINITY_WT_OLDFORM')) else None
+    # re-derivation assert (wave_table_norm set). (The SIDFINITY_WT_OLDFORM
+    # A/B lever was retired at the phase-5 corpus sync, 2026-07-29.)
+    _norm = getattr(m, 'wave_table_norm', None) if wave_norm else None
     # Sparse-glide SEEDS (phase 3a, draft §8 option (a)): the work-file
     # leftovers of glide_note/glide_target ($1744/$1747), previously
     # smuggled as the captured value slots of live off-table records (the
     # composer's igla/iglb window-fill). Computed by mirroring that fill —
     # instruments in emission order, later records win — and emitted as
-    # init.voice_state priming under the NEW signal form (the legacy form
-    # keeps carrying them inside the records).
+    # init.voice_state priming under the signal form.
     _gseed = ([0, 0, 0], [0, 0, 0])
-    if not os.environ.get('SIDFINITY_SIG_OLDFORM'):
-        _fill = {}
-        for k in sorted(m.instruments):
-            for rec in (m.instruments[k].offtable_freq or []):
-                off, note, lo, hi = rec[:4]
-                idx = (off + note) & 0xFF
-                if idx >= 96:
-                    _fill[idx - 96] = hi          # hi window pos
-                if idx >= 192:
-                    _fill[idx - 192] = lo         # lo window pos
-        for x in range(3):
-            _gseed[0][x] = _fill.get(61 + x, 0)   # gla ($1744+x)
-            _gseed[1][x] = _fill.get(64 + x, 0)   # glb ($1747+x)
+    _fill = {}
+    for k in sorted(m.instruments):
+        for rec in (m.instruments[k].offtable_freq or []):
+            off, note, lo, hi = rec[:4]
+            idx = (off + note) & 0xFF
+            if idx >= 96:
+                _fill[idx - 96] = hi          # hi window pos
+            if idx >= 192:
+                _fill[idx - 192] = lo         # lo window pos
+    for x in range(3):
+        _gseed[0][x] = _fill.get(61 + x, 0)   # gla ($1744+x)
+        _gseed[1][x] = _fill.get(64 + x, 0)   # glb ($1747+x)
     pad_fields = _emit_otrk_fields(m)
     # row command flags (dur_cmd/instr_cmd/vol_cmd/soft_cmd) feed the composer's sectpos
     # shadow — emit them iff a canon-geometry off-table read sonifies the sector

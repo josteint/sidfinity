@@ -41,7 +41,18 @@ chip-2 init into frame 2, see project_dmc); Calf_Love_2 sub 1 /
 Deprave_7_tune_3 blocked elsewhere (track-walk decode / continuation
 into unstated cells). The §3.3 idle-walk `wavepos` seed was NOT
 needed by any carrier and per §3.2 name-on-proof is NOT added until
-one proves it. Phase 5 (corpus sync) not started.**
+one proves it. PHASE 5 (corpus sync) LANDED 2026-07-29: full f1
+batch re-run on r128b code (5338/5401 FULL + 63 partial, 0 error),
+`dmc_mass_write` sync (5338 written, 0 err, 4 drifted ex-FULL orphans
+removed, 9/9 path-stratified disk audit), `usf_corpus_check`
+12,001/12,001. The SIDFINITY_WT_OLDFORM / SIDFINITY_SIG_OLDFORM A/B
+levers RETIRED (byte-identity gate 15/15 fresh-vs-stored .usf+.sid,
+smoke 6/6, full regression). The `live(...)` PARSE form and the
+resolved-copy wave fields are NOT deleted: 52 stored .usf outside f1
+(v5 / family-2 — extracts not yet migrated) still carry live(), and
+the resolved-copy form is load-bearing on the 2SID/compilation/
+heterogeneous merge paths. Their deletion rides the v5/family-2
+extract migration (the §7 remaining question), not this sync.**
 
 ## 8. Phase-3 open decision — sparse-signal seeds
 

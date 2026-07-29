@@ -8,6 +8,22 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 128c (2026-07-29): PHASE-5 CORPUS SYNC — f1 batch 5338/5401 FULL (98.8%) + mass-write + levers retired
+The overnight full f1 batch on r128b code: **5338 FULL + 63 partial, 0
+error/unsupported** (+9 vs r127's 5329; the r113-r127 gains are now ON
+DISK). `dmc_mass_write`: 5338 written 0 err, 4 drifted ex-FULL orphans
+removed (Lane_Crazy class — C20-correct), 9/9 path-stratified disk
+audit, `usf_corpus_check` 12,001/12,001. Levers
+SIDFINITY_WT_OLDFORM/SIG_OLDFORM retired (dead with the corpus in
+signal+wave_table form; gate = 15/15 fresh-vs-stored byte identity +
+smoke + full regression). NOT deleted, deliberately: the `live(...)`
+parse form + resolved-copy wave fields — 52 stored .usf OUTSIDE f1
+(v5/family-2, extracts not migrated) still carry live(), and
+resolved-copy is load-bearing on the 2SID/compilation/hetero merge
+paths; their deletion rides the future v5/family-2 extract migration.
+Residue: 63 partials = the census hard classes (off-table dynamic /
+CIA / stack-sonification like Deprave).
+
 ## ✅ ROUND 128b (2026-07-28): Kordiaukis_01_2SID FULL — per-IRQ capture keeps the init prefix (|N) for the trichotomy verdict; Check A now REAL for CIA members
 The r126 residual was a pure OBSERVATION ARTIFACT: orig defers chip-2's
 init burst into its substream head (~frame 2, captured) while our
