@@ -8,6 +8,30 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ⏸ ROUND 137 (2026-07-29): Deprave_7_tune_3 — DISPATCH-DEPTH stack-page serving landed (div 157878→157962); the r128 "live CPU stack = hard residue" boundary PARTIALLY overturned; remaining blockers enumerated
+The r128 boundary re-measured (C11 expiry rule, 3rd precedent): the stack
+bytes V2's endless window reads are DETERMINISTIC AT DISPATCH DEPTH (the
+play call-chain fingerprint — 252/256 window bytes byte-identical across
+1,244 fetch events; the 4 deep slots vary per event but are single-valued
+at their CONSUMING event). Landed: `_dispatch_depth_serve` (engine_model)
+— `--pc-watch base+$D2` (track-fetch entry, 3-byte site; the 2-byte
+`LDA ($f8),y` at $110F is INVISIBLE to C36's ≥3-ascending discriminator —
+gap recorded in C36) + a second sectpos capture zipped by event ordinal;
+serves STACK-PAGE ($0100-$01FE) bytes the C29 overlay left at zero:
+stable→value, per-event→earliest consuming-interval value (span≤6 guards
+against sector-reset interval pollution; zp incl. $F8/F9 pointer pairs
+never touched — the first cut clobbered $00F9 and taught that guard).
+RESULT: the vol-7 pick-up row reproduces ($78 ✓); div 157878→157962.
+REMAINING BLOCKERS (why still partial): (1) the picked-up $01F3 byte is
+$7F = SECTOR-END — the orig ESCAPES the endless state at the crossing and
+resumes marching its track through garbage; the walk's endless model has
+no mid-cycle $7F escape. (2) LAP-VARYING content: the 2nd endless lap
+(~245 s, in-window) reads DIFFERENT stack bytes ($FF at $01F3) — needs a
+lap-aware walk memory (unroll with per-lap windows); r128's "instr-31"
+was actually $7F&$1F. GATES: 9 C29-class FULLs re-verified FULL incl.
+Remix_1995 (the 0-is-right caution carrier — measures 0 at dispatch
+depth, same verdict by measurement); smoke; full regression green.
+
 ## ✅ ROUND 136 (2026-07-29): negative-transpose ADC immediate wedge (C19 28th occ) — Party_Pooper_3_intro FULL (+1)
 Next-partial Party_Pooper_3_intro: deep V3 note-init pitch divergence
 (orig $0777 vs ours $02F6, ~100 s in) — NOT off-table (probe bowed out).

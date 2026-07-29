@@ -1211,6 +1211,121 @@ def _psid_play_iomap(play_addr: int) -> int:
     return 0x35              # IO only
 
 
+def _pc_watch_abs(path: str, pc: int, lo: int, hi: int, dur: float,
+                  post_sub) -> list:
+    """`--pc-watch` events at `pc` with the absolute window [lo, hi]:
+    a list of (voice_x, playidx, bytes) per EXECUTION, in order. The
+    3-byte site's registers sample PRE-instruction, so X = the dispatch
+    voice. Ground truth (libsidplayfp)."""
+    import subprocess
+    sd = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..',
+                      'tools', 'siddump')
+    import re
+    cmd = [sd, path, '--pc-watch', f'{pc:04X}', '0-0',
+           '--pc-watch-abs', f'{lo:04X}-{hi:04X}',
+           '--duration', str(int(dur) + 1)]
+    if post_sub is not None:
+        cmd += ['--subtune', str(post_sub + 1)]
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True,
+                             timeout=600).stdout
+    except Exception:
+        return []
+    ev = []
+    for m in re.finditer(
+            r'\|PW:%04X:(..):(..):(..):([0-9A-F]+):([0-9A-F]*):([0-9A-F]*)'
+            % pc, out):
+        try:
+            ev.append((int(m.group(2), 16), int(m.group(4), 16),
+                       bytes.fromhex(m.group(6))))
+        except ValueError:
+            continue
+    return ev
+
+
+def _dispatch_depth_serve(mem, path: str, wranges, base, post_sub, s) -> None:
+    """Serve LOW-RAM window bytes the value the engine's row fetch actually
+    reads — measured AT DISPATCH DEPTH (r137, Deprave_7_tune_3; overturns
+    the r128 'live CPU stack = hard residue' boundary): a window over the
+    stack page ($0100-$01FE) holds the play call-chain's return-address
+    fingerprint, which is DETERMINISTIC per fetch (same code path every
+    row), so `--pc-watch` on the track-fetch entry (base+$D2, 3-byte LDY —
+    the exact call depth of the subsequent sector reads) with an absolute
+    window captures what the fetch sees. Two captures zipped by event
+    ordinal (deterministic emulation): the window itself + the sectpos
+    triple, so a byte that varies per event (the deepest stack slots) is
+    served the value at its CONSUMING event — the event whose voice's
+    sectpos interval [sp_k, sp_{k+1}) covers the byte's window offset.
+    Bytes stable across all events get that value outright (this replaces
+    the play-constant-else-0 default ONLY for low RAM; Remix_1995's
+    0-is-right byte measures 0 here — same verdict, now by measurement).
+    Anchored on the canon fetch site; anything else leaves mem untouched."""
+    if base is None or mem[(base + 0xD2) & 0xFFFF] != 0xBC or \
+            _rd16(mem, base + 0xD3) != base + 0x726:
+        return
+    # serve range: the STACK PAGE only ($0100-$01FE). The window the walk
+    # actually reads there can be runtime-resolved (a live secp pointer at
+    # $00FF — invisible to the static gate scan), so the trigger is merely
+    # "the member has low-RAM windows at all" and the serving is bounded by
+    # (a) the fixed stack-page range and (b) bytes the C29 overlay left at
+    # ZERO — zp (incl. the $F8+ live pointer pairs) is never touched, and
+    # anything another rule already served is never clobbered.
+    if not any(lo <= 0x01FF for lo, _ in wranges):
+        return
+    lo, hi = 0x0100, 0x01FE
+    try:
+        dur = min(_verify_window(path), 400.0)
+    except Exception:
+        dur = 240.0
+    pc = base + 0xD2
+    sp_addr = base + 0x729
+    win = _pc_watch_abs(path, pc, lo, hi, dur, post_sub)
+    sps = _pc_watch_abs(path, pc, sp_addr, sp_addr + 2, dur, post_sub)
+    if len(win) < 20 or len(win) != len(sps):
+        return
+    n = hi - lo + 1
+    mats = [w for _, _, w in win if len(w) == n]
+    if len(mats) != len(win):
+        return
+    for off in range(n):
+        a = lo + off
+        if mem[a] != 0:
+            continue                     # already served / defined
+        vals = {m[off] for m in mats}
+        if len(vals) == 1:
+            mem[a] = mats[0][off]
+            continue
+        # per-event byte: serve the CONSUMING event's value — the event
+        # whose voice's sectpos interval [sp_k, sp_k+1) covers this
+        # address's offset in ITS window. The window base is the live
+        # pointer's value, best-effort resolved as the wrange whose span
+        # covers the address, else the $00FF page-crossing base.
+        wbase = next((wl for wl, wh in wranges if wl <= a <= wh), 0x00FF)
+        o = (a - wbase) & 0xFF
+        cand = []
+        per_voice = {}
+        for k, ((v, _, _), (_, _, sp)) in enumerate(zip(win, sps)):
+            if len(sp) == 3 and v < 3:
+                per_voice.setdefault(v, []).append((sp[v], k))
+        for v, seq in per_voice.items():
+            for (sp0, k0), (sp1, _) in zip(seq, seq[1:]):
+                # a row consumes at most a handful of bytes; a large jump is
+                # a sector RESET/wrap (a different sector entirely) whose
+                # interval must not claim this offset
+                span = (sp1 - sp0) & 0xFF
+                if 0 < span <= 6 and ((o - sp0) & 0xFF) < span:
+                    cand.append(mats[k0][off])
+        if cand:
+            # candidates in event order: serve the EARLIEST consuming
+            # event's value (the first endless lap — what the verify window
+            # reaches first). Later laps can read DIFFERENT stack bytes
+            # (the call-chain fingerprint evolves); per-lap divergence past
+            # the first crossing stays honest residue until a lap-aware
+            # walk memory exists.
+            mem[a] = cand[0]
+        # never consumed: leave the zero
+
+
 def _overlay_offimage_windows(mem, path: str, bases, post_sub, s,
                               data_post_init: bool) -> None:
     """Overlay CPU-eye bytes (siddump --peek-post-init = libsidplayfp ground
@@ -1609,6 +1724,18 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # vectors — Super_Seven's window byte 14 = $FFFD, the relocated driver
     # entry hi), the 6510 port, env zeropage and the power-on RAM pattern.
     _overlay_offimage_windows(mem, path, oob, post_sub, s, _dpi)
+    # r137: refine LOW-RAM window bytes (stack page) with the value the
+    # fetch reads AT DISPATCH DEPTH — see _dispatch_depth_serve. The wrange
+    # construction mirrors the overlay's (16-bit pointer wrap included).
+    if oob:
+        _wr = []
+        for _b in oob:
+            if _b + 0xFF > 0xFFFF:
+                _wr.append((_b, 0xFFFF))
+                _wr.append((0x0000, (_b + 0xFF) & 0xFFFF))
+            else:
+                _wr.append((_b, _b + 0xFF))
+        _dispatch_depth_serve(mem, path, _wr, cfg.base, post_sub, s)
     # ($F8/$F9 — the live sector pointer — is served per-window inside
     # _simulate_sector's rd(); overlapping low windows each see their OWN
     # base, which one shared mem[] byte cannot express.)
