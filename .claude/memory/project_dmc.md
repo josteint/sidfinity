@@ -8,6 +8,31 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ⏸ ROUND 137b (2026-07-29, owner-directed continuation): Deprave div 157878 → 219359 (98.4%, lengths EQUAL) — per-READ-SITE serving; ONE residual (lap-2 crossing, needs playidx-paired serving)
+The r137 "$7F escape" reading was WRONG — ground truth (memwatch): the
+engine NEVER escapes (otrk stays $A1, sectpos wraps $FF→$01, instr $1F
+plays on — r128's "instr-31" was exact). Resolution: the $7F at $01F3 is
+read by TWO SITES AT TWO CALL DEPTHS — the end-of-row PEEK ($11E6 LDY /
+LDA($f8),y / CMP #$7F, deeper: sees a different below-SP stale byte, does
+NOT terminate) vs the next row's FETCH (dispatch depth: sees $7F = instr
+$1F command). Same address, different value per site — C34
+position-dependence at per-CALL-DEPTH grain; both sites read STALE BYTES
+BELOW SP left by whichever subroutines ran last (deterministic per site).
+LANDED: (a) fetch-depth serve extended to zp $0002-$00F7 (the post-escape
+— actually never-escape — sectors resolve to base $0000); (b)
+`_PEEK_DEPTH_MAP` — peek-site capture (pc-watch base+$1E6 zipped with the
+LIVE $F8/F9 pointer + sectpos: exact per-event attribution) consulted by
+`peek_end` for low-RAM addrs; empty for ordinary members. RESULT: the
+walk now mirrors the non-escape; V2's endless march decodes the vol-7 /
+instr-31 crossing rows; 219359/222826 matched, len EQUAL. ATTEMPTED +
+REVERTED: lap-aware ordinal-paired fetch serving (`_FETCH_EVENTS` +
+`fetch_ctx`, machinery kept but wired OFF) — pairing by decoded-row
+ordinal MISALIGNS once the orderlist loops (regressed lap 1 to 157946);
+the correct pairing key is PLAYIDX (walk can derive each row's play index
+from cumulative durations) — the next session's step. RESIDUAL = the
+lap-2 crossing (~253 s) reading evolved stack bytes. GATES: 9 C29-class
+FULLs re-verified FULL; smoke; full regression green.
+
 ## ⏸ ROUND 137 (2026-07-29): Deprave_7_tune_3 — DISPATCH-DEPTH stack-page serving landed (div 157878→157962); the r128 "live CPU stack = hard residue" boundary PARTIALLY overturned; remaining blockers enumerated
 The r128 boundary re-measured (C11 expiry rule, 3rd precedent): the stack
 bytes V2's endless window reads are DETERMINISTIC AT DISPATCH DEPTH (the

@@ -537,10 +537,25 @@ _SECFMT = {
 }
 
 
+# peek-site low-RAM values (see _simulate_sector.peek_end). Set by
+# _dispatch_depth_serve for members whose windows cross dynamic low RAM;
+# CLEARED at every extract() entry so nothing leaks across members in a
+# pooled batch process.
+_PEEK_DEPTH_MAP: dict = {}
+# per-voice ORDINAL-PAIRED fetch windows (lap-aware serving): the k-th row
+# the walk decodes for voice v consumed its bytes under the k-th captured
+# dispatch event's stack state — {voice: [ {addr: byte} per event ]}. The
+# walk's row ordinal is derived live (base ordinal + len(rows)), so lap-2
+# re-entries of the same window read lap-2's measured bytes. Same lifecycle
+# as _PEEK_DEPTH_MAP.
+_FETCH_EVENTS: dict = {}
+
+
 def _simulate_sector(mem, sec_addr: int, st: _Sticky,
                      fmt: _SecFmt = _SECFMT['v4'],
                      retrig: 'dict | None' = None,
-                     transpose: int = 0) -> list:
+                     transpose: int = 0,
+                     fetch_ctx: 'tuple | None' = None) -> list:
     """Walk one sector with the player's dispatch; mutate `st`; return
     the row list. Parametric over `fmt` (the command byte map).
 
@@ -597,9 +612,30 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
             return sec_addr & 0xFF
         if a == 0x00F9:
             return (sec_addr >> 8) & 0xFF
+        # lap-aware fetch serving (r137b): a low-RAM byte's value depends on
+        # WHEN it is consumed (the stack fingerprint evolves across endless
+        # laps) — serve from the row's own captured dispatch event. Ordinal
+        # = rows decoded for this voice so far (no counter to maintain).
+        if fetch_ctx is not None and a <= 0x01FE:
+            evs, base_ord = fetch_ctx
+            k = base_ord + len(rows)
+            if evs and k < len(evs) and a in evs[k]:
+                return evs[k][a]
         return mem[a]
 
     def peek_end():
+        # PER-READ-SITE serving (r137b, Deprave — C34 position-dependence at
+        # per-CALL-DEPTH grain): the engine's end-of-row PEEK ($11E6 LDY /
+        # LDA ($f8),y / CMP #$7F) runs at a DIFFERENT call depth than the
+        # row fetch, so a below-SP stack byte yields DIFFERENT values to the
+        # two sites (the fetch's $7F is instr $1F; the peek there saw a
+        # non-$7F stale byte and did NOT terminate). _PEEK_DEPTH_MAP holds
+        # the measured peek-site values for low-RAM addresses; empty for
+        # every ordinary member (byte-identical path).
+        if _PEEK_DEPTH_MAP:
+            a = (sec_addr + (pos & 0xFF)) & 0xFFFF
+            if a in _PEEK_DEPTH_MAP:
+                return _PEEK_DEPTH_MAP[a] == fmt.term
         return rd(pos) == fmt.term
 
     while True:
@@ -770,7 +806,8 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 instr_seed: int = 0,
                 switch_retrig: bool = False,
                 loop_note_inject: bool = False,
-                transpose_neg_bias: int = 1) -> DmcVoice:
+                transpose_neg_bias: int = 1,
+                fetch_events: 'list | None' = None) -> DmcVoice:
     """Walk one voice's track (orderlist), path-resolving every sector
     instance. Unrolls $FF loops until (wrap position, sticky state)
     repeats. `loop_target`: the JSR-$1042 player variant reads the byte
@@ -794,6 +831,8 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
     after an actual wrap, so terminated tracks take the exact old path."""
     v = DmcVoice()
     pat_key_to_id = {}
+    rows_done = 0                    # per-voice consumed-row ordinal (lap-aware
+                                     # fetch serving; 0-cost when unused)
     st = _Sticky(instr=instr_seed)
     v.instr_seed = instr_seed
     # $7D-retrig wedge shadow (cfg.switch_retrig, ledger C19). Seed 0/0: the
@@ -912,7 +951,9 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 probe = _simulate_sector(
                     mem, ga, st.copy(), fmt,
                     retrig=dict(retrig) if retrig is not None else None,
-                    transpose=transpose)
+                    transpose=transpose,
+                    fetch_ctx=((fetch_events, rows_done)
+                               if fetch_events else None))
                 if isinstance(probe, tuple) and probe[0] == 'endless':
                     # A garbage pseudo-sector has no $7F terminator, so the
                     # simulation reports 'endless' — but the engine only ever
@@ -965,6 +1006,7 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                     v.entry_offsets.append(pos)
                     v.entries.append(pid)
                     v.transposes.append(transpose)
+                    rows_done += 1       # the pseudo-sector's single row
                     pending_off += consumed
                     if not r0.runon:
                         pending_off = 0
@@ -982,7 +1024,11 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                     (mem[(secp_hi + sec) & 0xFFFF] << 8)) + pending_off
         pending_off = 0
         rows = _simulate_sector(mem, sec_addr, st, fmt,
-                                retrig=retrig, transpose=transpose)
+                                retrig=retrig, transpose=transpose,
+                                fetch_ctx=((fetch_events, rows_done)
+                                           if fetch_events else None))
+        rows_done += (len(rows[1]) + len(rows[2])
+                      if isinstance(rows, tuple) else len(rows))
         if isinstance(rows, tuple) and rows[0] == 'endless':
             # unterminated sector (8-bit sectpos wrap): the voice never
             # leaves it — encode lead rows (once) + one period, self-loop.
@@ -1272,22 +1318,25 @@ def _dispatch_depth_serve(mem, path: str, wranges, base, post_sub, s) -> None:
     # anything another rule already served is never clobbered.
     if not any(lo <= 0x01FF for lo, _ in wranges):
         return
-    lo, hi = 0x0100, 0x01FE
     try:
         dur = min(_verify_window(path), 400.0)
     except Exception:
         dur = 240.0
     pc = base + 0xD2
     sp_addr = base + 0x729
-    win = _pc_watch_abs(path, pc, lo, hi, dur, post_sub)
     sps = _pc_watch_abs(path, pc, sp_addr, sp_addr + 2, dur, post_sub)
-    if len(win) < 20 or len(win) != len(sps):
-        return
-    n = hi - lo + 1
-    mats = [w for _, _, w in win if len(w) == n]
-    if len(mats) != len(win):
-        return
-    for off in range(n):
+    serve_ranges = ((0x0002, 0x00F7), (0x0100, 0x01FE))
+    _range_caps = {}
+    for lo, hi in serve_ranges:
+      win = _pc_watch_abs(path, pc, lo, hi, dur, post_sub)
+      if len(win) < 20 or len(win) != len(sps):
+        continue
+      _range_caps[(lo, hi)] = win
+      n = hi - lo + 1
+      mats = [w for _, _, w in win if len(w) == n]
+      if len(mats) != len(win):
+        continue
+      for off in range(n):
         a = lo + off
         if mem[a] != 0:
             continue                     # already served / defined
@@ -1324,6 +1373,49 @@ def _dispatch_depth_serve(mem, path: str, wranges, base, post_sub, s) -> None:
             # walk memory exists.
             mem[a] = cand[0]
         # never consumed: leave the zero
+    # ORDINAL-PAIRED fetch windows (lap-aware serving — see rd() in
+    # _simulate_sector): per voice, the sequence of combined {addr: byte}
+    # windows, one per captured dispatch event, in order. Excludes the
+    # $F8-$FF pointer band (rd() serves those self-referentially).
+    if _range_caps:
+        per_voice_events = {0: [], 1: [], 2: []}
+        n_ev = min(len(w) for w in _range_caps.values())
+        for k in range(n_ev):
+            d = {}
+            v = None
+            for (lo, hi), win in _range_caps.items():
+                ev_v, _, wb = win[k]
+                v = ev_v
+                if len(wb) == hi - lo + 1:
+                    for off2, byte in enumerate(wb):
+                        aa = lo + off2
+                        if not (0x00F8 <= aa <= 0x00FF):
+                            d[aa] = byte
+            if v is not None and v < 3:
+                per_voice_events[v].append(d)
+        _FETCH_EVENTS.update(per_voice_events)
+    # PEEK-SITE map (per-read-site serving — see _simulate_sector.peek_end):
+    # the end-of-row peek at base+$1E6 (3-byte LDY, watchable) runs at a
+    # different call depth; capture its window + the live $F8/F9 pointer +
+    # the sectpos triple, zipped by event ordinal. The pointer gives exact
+    # per-event attribution (the peeked address = pointer + the peeking
+    # voice's post-INC sectpos), earliest event wins per address.
+    if mem[(base + 0x1E6) & 0xFFFF] == 0xBC and \
+            _rd16(mem, base + 0x1E7) == base + 0x729:
+        ppc = base + 0x1E6
+        pw = _pc_watch_abs(path, ppc, 0x0100, 0x01FE, dur, post_sub)
+        pptr = _pc_watch_abs(path, ppc, 0x00F8, 0x00F9, dur, post_sub)
+        psp = _pc_watch_abs(path, ppc, sp_addr, sp_addr + 2, dur, post_sub)
+        if pw and len(pw) == len(pptr) == len(psp):
+            pm = {}
+            for (v, _, w), (_, _, pt), (_, _, sp) in zip(pw, pptr, psp):
+                if len(w) != 0xFF or len(pt) != 2 or len(sp) != 3 or v >= 3:
+                    continue
+                sbase = pt[0] | (pt[1] << 8)
+                a = (sbase + sp[v]) & 0xFFFF
+                if 0x0100 <= a <= 0x01FE and a not in pm:
+                    pm[a] = w[a - 0x100]
+            _PEEK_DEPTH_MAP.update(pm)
 
 
 def _overlay_offimage_windows(mem, path: str, bases, post_sub, s,
@@ -1573,6 +1665,8 @@ def _decode_filter_def(mem, base: int, n: int) -> dict:
 # ---------------------------------------------------------------------------
 
 def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
+    _PEEK_DEPTH_MAP.clear()          # per-member; no leak across pool members
+    _FETCH_EVENTS.clear()
     path = os.path.join(hvsc_root, cfg.sid_path)
     mem, s = _load_image(path)
     # INIT-UNPACKER member (factory-detected): every data table lives
@@ -1792,7 +1886,12 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
                             fmt=fmt, switch_retrig=_sr,
                             loop_note_inject=_lni,
                             transpose_neg_bias=getattr(
-                                cfg, 'transpose_neg_bias', 1))
+                                cfg, 'transpose_neg_bias', 1),
+                            # lap-aware serving DISABLED pending playidx-
+                            # based pairing (r137b: ordinal counting mis-
+                            # aligns once the orderlist loops — regressed
+                            # lap 1; the machinery + captures stay)
+                            fetch_events=None)
             # Initial sticky-instrument LEFTOVER ($1015,x — canon init never
             # clears it): a voice that note-inits before any $6x command
             # plays the leftover instrument, not 0. Re-walk seeded ONLY when
@@ -1809,7 +1908,8 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
                                 switch_retrig=_sr,
                                 loop_note_inject=_lni,
                                 transpose_neg_bias=getattr(
-                                    cfg, 'transpose_neg_bias', 1))
+                                    cfg, 'transpose_neg_bias', 1),
+                                fetch_events=None)
             voices.append(v)
         song = DmcSong(id=sub + 1, speed=mem[rec + 6],
                        master_vol=mem[rec + 7], voices=voices)
