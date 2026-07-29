@@ -259,6 +259,11 @@ class DmcModel:
                                      # of an 8580 tune sounds wrong (filters)
     n_subtunes: int = 1
     start_song: int = 1
+    speed_mask: int = 0              # PSID header speed bitmask (bit N =
+                                     # subtune N CIA-timed) — per-subtune
+                                     # ENVIRONMENT (a file can mix a CIA
+                                     # multispeed song with vblank ones:
+                                     # F_A_K_E-Intro sub 0 $2663 / sub 1 VBI)
 
 
 # ---------------------------------------------------------------------------
@@ -1540,6 +1545,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
         released=s.get('released', ''),
         clock=_hdr_clock(path), sid_model=_hdr_sid_model(path),
         n_subtunes=s.get('songs', 1), start_song=s.get('start', 1),
+        speed_mask=s.get('speed', 0),
     )
 
     m.idle_wave = _slice_wave(ctrl_tab, freq_tab, 0, n_wave)

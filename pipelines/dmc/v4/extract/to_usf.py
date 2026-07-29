@@ -770,7 +770,11 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
     return UsfFile(
         psid=PsidMeta(title=m.title, author=m.author, released=m.released,
                       clock=m.clock, sid=m.sid_model,
-                      start_song=m.start_song),
+                      start_song=m.start_song,
+                      # per-subtune play-dispatch environment (a file can mix
+                      # a CIA multispeed song with vblank ones); masked to the
+                      # walked subtunes
+                      speed=m.speed_mask & ((1 << m.n_subtunes) - 1)),
         params=Params(fields={
             # otrk phase-offset scalars (see _otrk_pad)
             **pad_fields,

@@ -273,7 +273,11 @@ practice, not code to factor).
   the constructor the sub-player path stops at, so every wedge knob still came
   back defaulted. Grep the probe table's CALL SITES, not just the constructor.
   TELL when a retry hides it: batch FULL but a fresh build partial → the
-  stored `.usf` and `.sid` disagree (C20 fifth layer). 6th occ: the init
+  stored `.usf` and `.sid` disagree (C20 fifth layer). 7th occ: the speed
+  mask is PER-SUBTUNE (a file mixes a CIA song with vblank ones) — rebuild
+  a clean N× the orig's length on a NON-start subtune = the composer
+  stamped the bit on every subtune; `PsidMeta.speed` already models the
+  mask — populate + respect it, NO schema addition. 6th occ: the init
   probe can SUCCEED with a plausible WRONG latch (fine byte programmed at a
   site init never runs — KB's $2600 vs measured $2663) → CROSS-CHECK every
   init-probed latch against the measured entry period, prefer the

@@ -49,6 +49,7 @@ def parse_psid(path):
     play = int.from_bytes(sid[12:14], 'big')
     songs = int.from_bytes(sid[14:16], 'big')
     start = int.from_bytes(sid[16:18], 'big')
+    speed = int.from_bytes(sid[18:22], 'big')   # per-subtune CIA/VBI bitmask
     name = sid[22:54].rstrip(b'\0').decode('latin-1')
     author = sid[54:86].rstrip(b'\0').decode('latin-1')
     released = sid[86:118].rstrip(b'\0').decode('latin-1')
@@ -58,7 +59,7 @@ def parse_psid(path):
         payload = payload[2:]
     return {
         'load': load, 'init': init, 'play': play,
-        'songs': songs, 'start': start,
+        'songs': songs, 'start': start, 'speed': speed,
         'name': name, 'author': author, 'released': released,
         'payload': payload,
         # The source file, so downstream ground-truth observers (siddump

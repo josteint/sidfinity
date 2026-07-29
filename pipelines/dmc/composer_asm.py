@@ -3776,13 +3776,15 @@ subsav: .byt $00
     sidm = {6581: 1, 8580: 2, 'both': 3}.get(usf.psid.sid, 0)
     m2 = {6581: 1, 8580: 2, 'both': 3}.get(usf.psid.sid2, 0)
     m3 = {6581: 1, 8580: 2, 'both': 3}.get(usf.psid.sid3, 0)
-    # CIA multispeed: set the PSID speed bit for every subtune so the host
-    # drives play() off the timer each player programs (build_dmc_sid does
-    # the same for single-chip). Without it a multispeed member is called at
-    # vblank and, under a C18 phase schedule that divides the rate, plays at
-    # 1/N speed — an exact per-chip PREFIX of 1/N the length.
-    speed = ((1 << len(usf.subtunes)) - 1) if (
-        usf.environment and usf.environment.cia_period) else 0
+    # CIA multispeed: set the PSID speed bits so the host drives play() off
+    # the timer each player programs (build_dmc_sid does the same for
+    # single-chip). The USF's psid.speed carries the orig's PER-SUBTUNE mask
+    # (a file can mix a CIA song with vblank ones — F_A_K_E-Intro); an absent
+    # mask (older stored .usf) falls back to all-subtunes = the pre-r131
+    # behaviour, byte-identical.
+    _sm = usf.psid.speed & ((1 << len(usf.subtunes)) - 1)
+    speed = ((_sm or ((1 << len(usf.subtunes)) - 1)) if (
+        usf.environment and usf.environment.cia_period) else 0)
     header = build_header(
         load=0, init=LOAD, play=LOAD + 3,
         songs=len(usf.subtunes), start_song=usf.psid.start_song,
@@ -3877,10 +3879,12 @@ def build_dmc_sid(usf: UsfFile) -> bytes:
         return build_dmc_2sid_sid(usf)
     asm = _sanitize_asm(compose_dmc_asm(usf))
     code = assemble(asm)
-    # CIA multispeed: set the PSID speed bit for every subtune so
-    # libsidplayfp drives play() via the CIA1 timer A our init programs.
-    speed = ((1 << len(usf.subtunes)) - 1) if (
-        usf.environment and usf.environment.cia_period) else 0
+    # CIA multispeed: set the PSID speed bits so libsidplayfp drives play()
+    # via the CIA1 timer A our init programs. psid.speed = the orig's
+    # PER-SUBTUNE mask; absent mask -> all subtunes (pre-r131 behaviour).
+    _sm = usf.psid.speed & ((1 << len(usf.subtunes)) - 1)
+    speed = ((_sm or ((1 << len(usf.subtunes)) - 1)) if (
+        usf.environment and usf.environment.cia_period) else 0)
     # Header clock/SID-model flags from the USF psid block (extracted from
     # the orig header): the write-log verdict is BLIND to these, but a 6581
     # build of an 8580 tune sounds wrong (filter curve, combined waves) —

@@ -8,6 +8,23 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 131 (2026-07-29): PER-SUBTUNE SPEED MASK (C9 7th occ) — F_A_K_E-Intro FULL (+1)
+Next-partial F_A_K_E-Intro sub 1: perfect prefix, rebuild exactly 2× the
+orig — the file MIXES a CIA 2× song (sub 0, $2663) with a VBLANK song
+(sub 1, header mask 0b1), while the composer stamped the speed bit on
+EVERY subtune and psiddrv drove sub 1 off the timer. NO schema addition:
+`PsidMeta.speed` already modeled the mask (grammar/writer round-trip in
+place) — it was simply never populated/read. Wired: `parse_psid` parses
+the header speed field; `DmcModel.speed_mask`; extract sets
+`psid.speed & ((1<<n_subtunes)-1)`; both composer header sites emit the
+mask with an all-ones fallback when absent (older stored .usf =
+byte-identical); init's unconditional timer programming left (inert
+without a $DC0D enable). GATES: smoke 6/6; header census over all 5833
+members: F_A_K_E-Intro is the family's ONLY mixed-mask member (all-CIA
+members hit the identical fallback); full regression green. Repaired a
+r130 doc slip (the C9 "stored artifact pair DISAGREES" TELL heading had
+been consumed by the 6th-occ insert).
+
 ## ✅ ROUND 130 (2026-07-29): CIA latch CROSS-CHECK (C9 6th occ) — Big_GLORZ + Low_Frequency FULL (+2)
 Next-partial Big_GLORZ: PERFECT full-overlap prefix + rebuild 1.07%
 LONGER — a pure rate error. Factory trusted the py65 init-probe latch
