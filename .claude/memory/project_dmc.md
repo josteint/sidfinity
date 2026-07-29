@@ -8,6 +8,18 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 136 (2026-07-29): negative-transpose ADC immediate wedge (C19 28th occ) — Party_Pooper_3_intro FULL (+1)
+Next-partial Party_Pooper_3_intro: deep V3 note-init pitch divergence
+(orig $0777 vs ours $02F6, ~100 s in) — NOT off-table (probe bowed out).
+Memwatch: orig live transp $0F at otrk $1C where the track byte is $81
+(canon −1, our walk's decode). The transpose handler's negative branch
+ADC immediate is patched: canon `EOR #$1F / ADC #$01` → `ADC #$11`,
+biasing every $80-$9F transpose +$10. Extract-only fix per C19:
+`cfg.transpose_neg_bias` (probed off the `49 1F 69 imm 9D base+$72C`
+shape at the canon site) threaded into `_walk_track`'s negative-branch
+arithmetic (both call sites). GATES: census 1 carrier family-wide;
+smoke 6/6; full regression green.
+
 ## ✅ ROUND 135 (2026-07-29): alternating whole-play repeat — parity wrapper, P2 phase token (C24 4th form) — Bajerek FULL (+1)
 Next-partial Bajerek: perfect prefix, orig len exactly ×1.5 ours, measured
 IRQ rate IDENTICAL both sides ($2663 2×) — the appended play vector

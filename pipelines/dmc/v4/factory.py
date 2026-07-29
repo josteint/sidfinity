@@ -3309,6 +3309,16 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
     cfg.post_init_sub = post_init_sub
     path = os.path.join(hvsc_root, sid_path)
     # --- non-uniform wedge stanzas (special guard / two keys / attribute) ---
+    # negative-transpose ADC immediate (C19 wedge, r136 — the $80-$9F
+    # transpose branch `EOR #$1F / ADC #imm / STA base+$72C,x`; canon #$01).
+    # Anchored on the EOR/ADC/STA shape with the relocation-aware operand.
+    _mem0, _ = _load(path, post_init_sub)
+    _tb = cfg.base + 0x72C
+    _pat = re.compile(rb'\x49\x1f\x69(.)\x9d'
+                      + re.escape(bytes([_tb & 0xFF, _tb >> 8])), re.DOTALL)
+    _m = _pat.search(bytes(_mem0))
+    if _m and _m.group(1)[0] != 0x01:
+        cfg.transpose_neg_bias = _m.group(1)[0]
     # cymbal noise-burst timbre / attack ctrl: only when patched off the
     # canon ($FF, $81).
     cb = _cymbal_burst_byte(path)

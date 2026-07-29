@@ -58,6 +58,13 @@ class DMCV4Config:
     # loops to track position 0; the JSR-$1042 hook variant reads the
     # NEXT track byte as the loop position ($FF nn).
     track_loop_target: bool = False
+    # Negative-transpose bias (factory-probed C19 immediate wedge, r136 —
+    # Party_Pooper_3_intro): the transpose handler's $80-$9F branch is canon
+    # `EOR #$1F / ADC #$01` (= two's-complement negative); a patched ADC
+    # immediate biases every "negative" transpose (+$11 makes $81 land at
+    # +$0F). EXTRACT-only (folds into the walked orderlist transposes, like
+    # pw_bound_shift). Canon = 1.
+    transpose_neg_bias: int = 1
     # $7D-retrig wedge (factory-probed, ledger C19): the $7D (SWITCH) dispatch
     # branch at base+$12C is re-pointed from the canon switch-toggle handler
     # (base+$183) to the glide-note replay tail (base+$158: `LDA base+$744,x /

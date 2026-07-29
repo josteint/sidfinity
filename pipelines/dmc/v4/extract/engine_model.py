@@ -769,7 +769,8 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 fmt: _SecFmt = _SECFMT['v4'],
                 instr_seed: int = 0,
                 switch_retrig: bool = False,
-                loop_note_inject: bool = False) -> DmcVoice:
+                loop_note_inject: bool = False,
+                transpose_neg_bias: int = 1) -> DmcVoice:
     """Walk one voice's track (orderlist), path-resolving every sector
     instance. Unrolls $FF loops until (wrap position, sticky state)
     repeats. `loop_target`: the JSR-$1042 player variant reads the byte
@@ -873,7 +874,9 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
             if b >= 0xA0:
                 transpose = b - 0xA0
             else:
-                t8 = ((((b - 0xA0) & 0xFF) ^ 0x1F) + 1) & 0xFF
+                # canon ADC #$01; a C19 immediate wedge biases the
+                # negative range (cfg.transpose_neg_bias, r136)
+                t8 = ((((b - 0xA0) & 0xFF) ^ 0x1F) + transpose_neg_bias) & 0xFF
                 transpose = t8 - 256 if t8 >= 128 else t8
             pos += 1
             if pos > 0xFF:
@@ -1660,7 +1663,9 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
                             loop_target=cfg.track_loop_target,
                             loop_reset_pos=lrp,
                             fmt=fmt, switch_retrig=_sr,
-                            loop_note_inject=_lni)
+                            loop_note_inject=_lni,
+                            transpose_neg_bias=getattr(
+                                cfg, 'transpose_neg_bias', 1))
             # Initial sticky-instrument LEFTOVER ($1015,x — canon init never
             # clears it): a voice that note-inits before any $6x command
             # plays the leftover instrument, not 0. Re-walk seeded ONLY when
@@ -1675,7 +1680,9 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
                                 loop_reset_pos=lrp,
                                 fmt=fmt, instr_seed=_seedl,
                                 switch_retrig=_sr,
-                                loop_note_inject=_lni)
+                                loop_note_inject=_lni,
+                                transpose_neg_bias=getattr(
+                                    cfg, 'transpose_neg_bias', 1))
             voices.append(v)
         song = DmcSong(id=sub + 1, speed=mem[rec + 6],
                        master_vol=mem[rec + 7], voices=voices)
