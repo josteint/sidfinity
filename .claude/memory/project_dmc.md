@@ -23,9 +23,11 @@ the deduped wide-results members, partials first): 3 carriers in the 63
 partials — Long_Time FULL, Sweet_Remix FULL, Goldrake sub-1 first-div
 25947→26584 (remaining blocker = C11 live off-table hi reads on its
 relocated $9000 compilation player: $9775/$9786-88 LIVE per
-dmc_offtable_probe — separate class). FULL-side census ran to completion
-as the exposure audit for changed-FULL carriers (verdict-neutral by
-construction: a cap-held FULL can only be FULL if the tail never plays).
+dmc_offtable_probe — separate class). FULL-side census COMPLETE: 5,833
+members swept, 4 carriers TOTAL (the 3 partials + ONE full — Halucination,
+re-verified FULL), 0 extract errors — the exposure audit confirms the
+verdict-neutral argument (a cap-held FULL can only be FULL if the tail
+never plays) and no norm-form/build-error side effects anywhere.
 NB engine_model.py changed ⇒ family code_hash bumped: the r128c-synced
 corpus re-verifies at the next fresh batch; no mass-write this round.
 
