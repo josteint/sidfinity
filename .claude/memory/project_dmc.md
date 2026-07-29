@@ -21,8 +21,13 @@ parse form + resolved-copy wave fields — 52 stored .usf OUTSIDE f1
 (v5/family-2, extracts not migrated) still carry live(), and
 resolved-copy is load-bearing on the 2SID/compilation/hetero merge
 paths; their deletion rides the future v5/family-2 extract migration.
-Residue: 63 partials = the census hard classes (off-table dynamic /
-CIA / stack-sonification like Deprave).
+Residue census (divergence_census --partials, closeout): 63 partials =
+a LONG TAIL, no dominant lever — 10 unknown (trichotomy-fallback keyed),
+6 V3-freqlo-deep, 6 $D418-deep ($1E vs $1F — a vol/filter-mode bit), 5
+V2-freqlo-early, then 3-and-smaller clusters (16 more singleton-ish
+buckets; Deprave + Ziazi = the V2-SR-deep stack/dynamic class). Next
+round should pick a cluster representative via dmc_next_partial, not
+expect a batch lever.
 
 ## ✅ ROUND 128b (2026-07-28): Kordiaukis_01_2SID FULL — per-IRQ capture keeps the init prefix (|N) for the trichotomy verdict; Check A now REAL for CIA members
 The r126 residual was a pure OBSERVATION ARTIFACT: orig defers chip-2's
