@@ -359,6 +359,32 @@ def locate(mem: bytearray, base: int, play: int | None = None,
                 break
             j = buf.find(sig, j + 1)
 
+    # C19 JMP-STUB $FF handler with PER-VOICE IMMEDIATE loop targets (r134,
+    # Road_to_Sydney): the canon `A9 00 9D otrk` is wholly replaced by
+    # `4C stub`, and the appended stub dispatches on X —
+    #   E0 02 / F0 05 / A9 aa / 4C h+11 / A9 bb / 9D otrk / 4C dispatch
+    # — so V1/V2 loop to track position aa and V3 to bb, IGNORING the data's
+    # loop byte (with no canon loop site the old classification defaulted to
+    # track_loop_target=True = read-next-byte, decoding garbage loop
+    # targets). Anchors: the canon compare prefix, the BEQ/JMP internal
+    # targets, and the STA operand == the fetch-anchored track-pos address.
+    if loop_reset_pos is None and track_pos_addr is not None:
+        sig = bytes([0xC9, 0xFF, 0xD0, 0x08, 0x4C])
+        buf = bytes(mem)
+        j = buf.find(sig)
+        while j >= 0:
+            h = buf[j + 5] | (buf[j + 6] << 8)
+            if (buf[h:h + 2] == b'\xe0\x02'
+                    and buf[h + 2:h + 4] == b'\xf0\x05'
+                    and buf[h + 4] == 0xA9 and buf[h + 6] == 0x4C
+                    and (buf[h + 7] | (buf[h + 8] << 8)) == h + 11
+                    and buf[h + 9] == 0xA9 and buf[h + 11] == 0x9D
+                    and (buf[h + 12] | (buf[h + 13] << 8)) == track_pos_addr):
+                track_loop_target = False
+                loop_reset_pos = (buf[h + 5], buf[h + 5], buf[h + 10])
+                break
+            j = buf.find(sig, j + 1)
+
     # THIRD FORM of the $FF handler (a C13 corollary — the `loop_site is
     # None ⟹ JSR-hook` binary above hid it; Hudy/Cotton_Eye_Joe): the canon
     # loop-to-0 store IS present, but the re-dispatch `JMP $10D2` after it

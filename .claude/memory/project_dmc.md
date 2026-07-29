@@ -8,6 +8,24 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 134 (2026-07-29): $FF-handler JMP-stub with PER-VOICE loop targets (C19 27th occ) — Road_to_Sydney FULL (+1)
+Next-partial Road_to_Sydney: mid-song (f2185) V1 row-duration divergence —
+the SAME pattern row played dur 14 early and 21 late. NOT a data poke
+(taint: static): the $FF loop handler is wholly REPLACED by `JMP $1B57`
+(no canon site) → dataflow's binary classification defaulted to
+track_loop_target=True (read-next-byte) and decoded garbage loop targets
+(V1 loop@5 vs engine's 0); the appended stub dispatches per voice
+(CPX #$02: V1/V2→0, V3→1). The wrap itself was SILENT (both sides
+re-enter pattern 0), diverging only when the post-wrap entry sequences
+drift — hence the deep first-div. FIX: positive stub-shape recognition in
+dataflow.locate → the existing per-voice loop_reset_pos tuple (r63
+machinery). Diagnostic route worth keeping: flat-stream D405-position
+diff (Trap-C-free note-init timeline) localized the row; the earlier
+frame-number diff was Trap-C-unsound and misled. state_match=False was
+divergence fallout (clean-window Check A was green). GATES: signature
+census = 1 carrier family-wide (this member); smoke 6/6; full regression
+green.
+
 ## ✅ ROUND 133 (2026-07-29): cymbal CTRL immediate wedge (C19 26th occ) — Grapevine_18_intro FULL (+1)
 Next-partial Grapevine_18_intro: diverged at f1 write 17, V3 noise-attack
 ctrl orig $02 vs our $81 — the canon burst's SECOND immediate patched
