@@ -72,6 +72,15 @@ class DmcInstrument:
     drum: bool               # flag $01 — wave freq bytes are absolute
     noise_attack: bool       # flag $80 — cymbal
     wave_start: int          # byte9 (raw index into the shared wave table)
+    # The instrument's ORIGINAL record byte-offset (orig inst# * 11, the exact
+    # 6502 carry chain the player uses; = $174D,x). Normally the composer
+    # derives this from the instrument's emitted slot, but a COMPILATION merges
+    # each packed player's instruments into ONE renumbered pool while the ioff a
+    # note sonifies (off-table read idx 166-168) is the ORIG player-local
+    # offset, not the merged slot's. Set by `merge_models` on a renumbered
+    # instrument so the composer emits the orig value; None = derive from the
+    # slot (byte-identical for single-player). Ledger C31/C11.
+    record_offset: int | None = None
     wave_pool_pos: int | None = None  # table position of the program's first
                                       # step (== wave_start unless byte9 sits
                                       # on the own-end marker); set only when

@@ -8,6 +8,28 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 149 (2026-07-30): per-instrument record_offset — sonified ioff survives the merge renumber — Pinov_Vox/Goldrake FULL (+1) — C31/C11
+Next-partial Pinov_Vox/Goldrake (2-player COMPILATION $8500/$9000; NO STIL/
+BUGlist entry). sub 0 (player 0) FULL, sub 1 (player 1) partial: V3 freq hi
+$2C vs orig $00 deep at frame ~1630, state_match=True. Player 1 STANDALONE
+verifies FULL → a MERGE collapse (per-player fact), like r148 but a NEW fact.
+- ROOT CAUSE: `$2C=44=4*11`, `$00=0*11` — the `ioff` var ($174D, off-table read
+  idx 166-168, C11 live-served) = the current instrument's record offset =
+  orig inst# * 11. The merge renumbers each player's instruments into one pool,
+  and the composer's `ioffval = _inst_offset(slot)` used the MERGED slot. Player
+  1's local inst #0 (ioff $00) became merged id 5 → sonified $2C. idle_wave was
+  p0==p1 here (r148 correctly inert); vibdepth/idle_guards override didn't fix.
+- FIX: `record_offset` per-instrument field (DmcInstrument + USF Instrument,
+  precedent wave_table_pos). Composer emits `ioffval[k] = i.record_offset or
+  _inst_offset(slot)`. merge_models stamps `_inst_offset(orig_local#)` BEFORE
+  the dedup key (rides the key so different-offset identical instruments never
+  share a slot) and nulls it when == slot default. Ledger C31/C11.
+- GATED: single-player never sets it (byte-identical). Gates: usf_corpus_check
+  12001/12001 (additive grammar); golden over 49 (18 comps + 30 single) = 29
+  identical + 0 single-player changed + 8 changed comps (Goldrake partial→FULL,
+  7 others FULL→FULL verdict-preserved); smoke 6/6; full regression green.
+- f1: 5363 FULL / 38 partial (was 5362/39).
+
 ## ✅ ROUND 148 (2026-07-30): PER-SUBTUNE idle_wave — Pievspie/Mission_Moon FULL (+1) — C31
 Landed the r147 sub-1 lead: the compilation merge collapsed `idle_wave` (the
 cleared-cache lead-in wave a voice walks before its first note) to the START

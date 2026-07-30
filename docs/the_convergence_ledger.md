@@ -835,7 +835,12 @@ practice, not code to factor).
   player are a recurring family: `d417_shadow` (→ per-subtune
   `init.sid.filter.res_routing`, no schema addition), a disagreeing WEDGE
   KNOB (`rest_effects` → `MusicSubtune.params` + gated composer runtime
-  dispatch, Super_Seven), and any memory RE-READ
+  dispatch, Super_Seven), `idle_wave` (→ per-subtune `MusicSubtune.
+  wave_programs[0]`, Mission_Moon), the INSTRUMENT NUMBER a note sonifies via
+  the off-table `ioff` read (idx 166-168 = orig inst# * 11; the merge
+  RENUMBERS each player's instruments into one pool → `record_offset` per-
+  instrument field carries the ORIG offset + rides the dedup key so different-
+  offset instruments never share a slot, Goldrake), and any memory RE-READ
   inside extract (the filter-def post-init window decoded all-zero). RULE: any
   RUNTIME measurement inside a per-player extract must run the FILE subtune
   that SELECTS that player (song numbering is LOCAL; the wrong subtune leaves

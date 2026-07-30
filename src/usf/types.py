@@ -752,6 +752,14 @@ class Instrument:
     # equals the value the original sonifies. None = not carried (the
     # composer packs the pool however it likes).
     wave_table_pos: Optional[int] = None
+    # The instrument's ORIGINAL record byte-offset (orig inst# * 11). Audible
+    # ONLY when an off-table freq read sonifies a voice's instrument-record
+    # offset ($174D, idx 166-168). The composer normally derives it from the
+    # instrument's emitted position; a COMPILATION renumbers each packed
+    # player's instruments into one pool, so a renumbered instrument carries its
+    # ORIG offset here and the composer emits that instead (ledger C31/C11, the
+    # ioff analog of wave_table_pos). None = derive from the slot.
+    record_offset: Optional[int] = None
     # POINTER form (wave-table normal form, live_signal_modulation_draft §4):
     # the instrument's start position in the file-level `wave_table` block.
     # When set, the block is this instrument's wave content and the resolved

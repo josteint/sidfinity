@@ -368,6 +368,9 @@ instrument_field: "waveform" ":" byte_list                              -> inst_
                 // pool at these positions so its wave-position state equals
                 // the sonified value.
                 | "wave_table_pos" ":" INT                              -> inst_wave_table_pos
+                // ORIG instrument-record offset (orig inst# * 11) for a
+                // compilation's renumbered instrument whose ioff a note sonifies
+                | "record_offset" ":" INT                               -> inst_record_offset
                 // The editor started this instrument's wave ON its own loop
                 // marker ("start at the loop marker" idiom); the engine's
                 // first-read chase writes the shared $171F scratch. Carried

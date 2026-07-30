@@ -1274,7 +1274,13 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     ipwmax = [i.pwm.max_hi for i in insts]
     # instrument-record byte offset (orig inst# * 11, exact 6502 chain) — the
     # value the orig keeps in $174D,x; shadowed in ioff,x for off-table reads.
-    ioffval = [_inst_offset(i.id - 1) for i in insts]
+    # `record_offset`, when carried, is the ORIGINAL per-player offset: a
+    # COMPILATION renumbers each packed player's instruments into one merged
+    # pool, but the ioff a note sonifies (idx 166-168 off-table) is the orig
+    # player-local inst# * 11, NOT the merged slot's (ledger C31/C11). None =
+    # derive from the emitted position (byte-identical for single-player).
+    ioffval = [(i.record_offset if getattr(i, 'record_offset', None) is not None
+                else _inst_offset(i.id - 1)) for i in insts]
     # wjmp chase shadow (extract wave_start_on_marker): an instrument the editor
     # started ON its own loop marker chases back n on the first read every
     # note-init, storing $171F=n. The composer packs the settled program (no

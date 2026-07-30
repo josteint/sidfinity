@@ -643,6 +643,7 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
     `subtune_map[k] = (player_idx, song_idx)` gives the (player, song) for PSID
     subtune k. `hdr` carries title/author/released/clock/sid_model/start_song.
     """
+    from pipelines.dmc.composer_asm import _inst_offset   # ioff carry chain
     start = max(0, hdr['start_song'] - 1)
     base_pidx = subtune_map[start][0] if start < len(subtune_map) else 0
     b = models[base_pidx]
@@ -759,6 +760,13 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
         ni = copy.deepcopy(inst)
         if conflict and ni.filter_on and (pidx, ni.filter_def) in fd_remap:
             ni.filter_def = fd_remap[(pidx, ni.filter_def)]
+        # The ioff a note sonifies (off-table read idx 166-168) is the ORIG
+        # player-local record offset (inst# * 11), NOT the merged slot's. Stamp
+        # it now so it (a) rides the dedup KEY — two players' instruments that
+        # are identical but sit at different table positions sonify different
+        # ioff, so they must NOT share a slot — and (b) survives the renumber
+        # below (ledger C31/C11, the ioff analog of idle_wave).
+        ni.record_offset = _inst_offset(old)
         bk = _inst_key(ni, drop=('offtable_freq',))
         placed = None
         for nid in pool[bk]:
@@ -775,6 +783,12 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
         pool[bk].append(new)
         remap[pidx][old] = new
         ni.id = new
+        # keep the orig offset ONLY when the renumber actually moved it — a
+        # non-renumbered instrument (base player, or a slot that happens to land
+        # on its orig #) derives the same value from its position, so leaving it
+        # None keeps the emitted image byte-identical to the pre-fix build.
+        if ni.record_offset == _inst_offset(new):
+            ni.record_offset = None
         merged.instruments[new] = ni
     if len(merged.instruments) > _MAX_INSTR:
         raise ValueError(
