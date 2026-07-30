@@ -542,12 +542,13 @@ _SECFMT = {
 # CLEARED at every extract() entry so nothing leaks across members in a
 # pooled batch process.
 _PEEK_DEPTH_MAP: dict = {}
-# per-voice ORDINAL-PAIRED fetch windows (lap-aware serving): the k-th row
-# the walk decodes for voice v consumed its bytes under the k-th captured
-# dispatch event's stack state — {voice: [ {addr: byte} per event ]}. The
-# walk's row ordinal is derived live (base ordinal + len(rows)), so lap-2
-# re-entries of the same window read lap-2's measured bytes. Same lifecycle
-# as _PEEK_DEPTH_MAP.
+# per-voice PLAYIDX-PAIRED fetch windows (lap-aware serving): {voice:
+# {playidx: {addr: byte}}} — each row's fetch happens exactly `duration`
+# plays after the previous one, so the walk derives a row's play index as
+# first_event_playidx + cumulative durations (immune to the ordinal drift
+# that broke row-count pairing: orderlist loops / init events). Lap-2
+# re-entries of the same window then read lap-2's measured bytes. Same
+# lifecycle as _PEEK_DEPTH_MAP.
 _FETCH_EVENTS: dict = {}
 
 
@@ -612,15 +613,19 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
             return sec_addr & 0xFF
         if a == 0x00F9:
             return (sec_addr >> 8) & 0xFF
-        # lap-aware fetch serving (r137b): a low-RAM byte's value depends on
+        # lap-aware fetch serving (r137c): a low-RAM byte's value depends on
         # WHEN it is consumed (the stack fingerprint evolves across endless
-        # laps) — serve from the row's own captured dispatch event. Ordinal
-        # = rows decoded for this voice so far (no counter to maintain).
+        # laps) — serve from the row's own captured dispatch event, keyed by
+        # PLAY INDEX: this row's fetch happens `sum(prior durations)` plays
+        # after the voice's first fetch (dur 0 = 256 plays). Lazy sum is
+        # fine: fetch_ctx is None for every ordinary member.
         if fetch_ctx is not None and a <= 0x01FE:
-            evs, base_ord = fetch_ctx
-            k = base_ord + len(rows)
-            if evs and k < len(evs) and a in evs[k]:
-                return evs[k][a]
+            evmap, base_pi = fetch_ctx
+            if evmap:
+                pi = base_pi + sum((r.duration or 256) for r in rows)
+                ev = evmap.get(pi)
+                if ev is not None and a in ev:
+                    return ev[a]
         return mem[a]
 
     def peek_end():
@@ -831,8 +836,10 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
     after an actual wrap, so terminated tracks take the exact old path."""
     v = DmcVoice()
     pat_key_to_id = {}
-    rows_done = 0                    # per-voice consumed-row ordinal (lap-aware
-                                     # fetch serving; 0-cost when unused)
+    ticks_done = 0                   # per-voice cumulative row durations in
+                                     # PLAYS (lap-aware fetch serving pairs
+                                     # events by playidx; 0-cost when unused)
+    base_pi = min(fetch_events) if fetch_events else 0
     st = _Sticky(instr=instr_seed)
     v.instr_seed = instr_seed
     # $7D-retrig wedge shadow (cfg.switch_retrig, ledger C19). Seed 0/0: the
@@ -952,7 +959,7 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                     mem, ga, st.copy(), fmt,
                     retrig=dict(retrig) if retrig is not None else None,
                     transpose=transpose,
-                    fetch_ctx=((fetch_events, rows_done)
+                    fetch_ctx=((fetch_events, base_pi + ticks_done)
                                if fetch_events else None))
                 if isinstance(probe, tuple) and probe[0] == 'endless':
                     # A garbage pseudo-sector has no $7F terminator, so the
@@ -1006,7 +1013,7 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                     v.entry_offsets.append(pos)
                     v.entries.append(pid)
                     v.transposes.append(transpose)
-                    rows_done += 1       # the pseudo-sector's single row
+                    ticks_done += (r0.duration or 256)
                     pending_off += consumed
                     if not r0.runon:
                         pending_off = 0
@@ -1025,10 +1032,12 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
         pending_off = 0
         rows = _simulate_sector(mem, sec_addr, st, fmt,
                                 retrig=retrig, transpose=transpose,
-                                fetch_ctx=((fetch_events, rows_done)
+                                fetch_ctx=((fetch_events,
+                                            base_pi + ticks_done)
                                            if fetch_events else None))
-        rows_done += (len(rows[1]) + len(rows[2])
-                      if isinstance(rows, tuple) else len(rows))
+        _tr = (list(rows[1]) + list(rows[2])
+               if isinstance(rows, tuple) else rows)
+        ticks_done += sum((r.duration or 256) for r in _tr)
         if isinstance(rows, tuple) and rows[0] == 'endless':
             # unterminated sector (8-bit sectpos wrap): the voice never
             # leaves it — encode lead rows (once) + one period, self-loop.
@@ -1282,7 +1291,10 @@ def _pc_watch_abs(path: str, pc: int, lo: int, hi: int, dur: float,
             r'\|PW:%04X:(..):(..):(..):([0-9A-F]+):([0-9A-F]*):([0-9A-F]*)'
             % pc, out):
         try:
-            ev.append((int(m.group(2), 16), int(m.group(4), 16),
+            # a/x/y are hex; playidx is printed DECIMAL (r137c: a hex
+            # parse inflated every pairing key ~5x and silently unpaired
+            # the lap-aware serving)
+            ev.append((int(m.group(2), 16), int(m.group(4), 10),
                        bytes.fromhex(m.group(6))))
         except ValueError:
             continue
@@ -1378,21 +1390,22 @@ def _dispatch_depth_serve(mem, path: str, wranges, base, post_sub, s) -> None:
     # windows, one per captured dispatch event, in order. Excludes the
     # $F8-$FF pointer band (rd() serves those self-referentially).
     if _range_caps:
-        per_voice_events = {0: [], 1: [], 2: []}
+        per_voice_events = {0: {}, 1: {}, 2: {}}
         n_ev = min(len(w) for w in _range_caps.values())
         for k in range(n_ev):
             d = {}
-            v = None
+            v = pi = None
             for (lo, hi), win in _range_caps.items():
-                ev_v, _, wb = win[k]
-                v = ev_v
+                ev_v, ev_pi, wb = win[k]
+                v, pi = ev_v, ev_pi
                 if len(wb) == hi - lo + 1:
                     for off2, byte in enumerate(wb):
                         aa = lo + off2
                         if not (0x00F8 <= aa <= 0x00FF):
                             d[aa] = byte
-            if v is not None and v < 3:
-                per_voice_events[v].append(d)
+            if v is not None and v < 3 and d:
+                # a re-dispatch within one play() collapses (same state)
+                per_voice_events[v].setdefault(pi, d)
         _FETCH_EVENTS.update(per_voice_events)
     # PEEK-SITE map (per-read-site serving — see _simulate_sector.peek_end):
     # the end-of-row peek at base+$1E6 (3-byte LDY, watchable) runs at a
@@ -1887,11 +1900,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
                             loop_note_inject=_lni,
                             transpose_neg_bias=getattr(
                                 cfg, 'transpose_neg_bias', 1),
-                            # lap-aware serving DISABLED pending playidx-
-                            # based pairing (r137b: ordinal counting mis-
-                            # aligns once the orderlist loops — regressed
-                            # lap 1; the machinery + captures stay)
-                            fetch_events=None)
+                            fetch_events=_FETCH_EVENTS.get(vi))
             # Initial sticky-instrument LEFTOVER ($1015,x — canon init never
             # clears it): a voice that note-inits before any $6x command
             # plays the leftover instrument, not 0. Re-walk seeded ONLY when
@@ -1909,7 +1918,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
                                 loop_note_inject=_lni,
                                 transpose_neg_bias=getattr(
                                     cfg, 'transpose_neg_bias', 1),
-                                fetch_events=None)
+                                fetch_events=_FETCH_EVENTS.get(vi))
             voices.append(v)
         song = DmcSong(id=sub + 1, speed=mem[rec + 6],
                        master_vol=mem[rec + 7], voices=voices)

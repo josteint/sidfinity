@@ -8,6 +8,26 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ⏸ ROUND 137c (2026-07-29): Deprave — PLAYIDX-paired lap-aware serving LANDED + VERIFIED ALIGNED (all 3 voices 100% event hits); residual UNMOVED at 219359 = a V1 DRUM-PATH value (next session's lead)
+The r137b ordinal-pairing failure root-caused TWICE: (1) pairing key must
+be PLAYIDX derived from cumulative row durations (dur 0 = 256 plays), NOT
+decoded-row ordinal (misaligns at orderlist loops); (2) ⚠ the PW event
+playidx field is printed DECIMAL — the hex parse inflated every key ~5x
+and silently unpaired everything (`_pc_watch_abs` fixed). Wired ON:
+`_FETCH_EVENTS` = {voice: {playidx: window}}, `rd()` serves via
+base_pi + Σ(durations); alignment PROVEN: V1 2081/2081, V2 1311/1311,
+V3 1661/1661 walk-row→event hits (misses only past the capture window).
+RESIDUAL at 219322/219359 (~272 s, 98.44%): V1 freq hi orig $27 vs ours
+$25, freq LO EQUAL — orig state at the write: curnote=$07, fbh=$27,
+acch=0 ⇒ the base hi was loaded by a DRUM-path table read (not the
+$1647/$16A7 freq tables — dmc_offtable_probe structurally can't see it),
+value off by 2. NEXT LEAD: identify V1's instrument at that row (likely
+environment-derived content) + which drum/wave read produced $27; note
+the peek map is still FIRST-WINS (not lap-aware) — if the drum trail
+dead-ends, check a lap-2 peek mis-decision shifting V1's phase. GATES:
+9-member class census re-run (parse fix + pairing are enabled changes),
+smoke, full regression — all green.
+
 ## ⏸ ROUND 137b (2026-07-29, owner-directed continuation): Deprave div 157878 → 219359 (98.4%, lengths EQUAL) — per-READ-SITE serving; ONE residual (lap-2 crossing, needs playidx-paired serving)
 The r137 "$7F escape" reading was WRONG — ground truth (memwatch): the
 engine NEVER escapes (otrk stays $A1, sectpos wraps $FF→$01, instr $1F
