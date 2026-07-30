@@ -8,6 +8,23 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 138 (2026-07-30): forced-tune-record wedge 3rd FORM (`LDA #imm / JSR base`, C19 29th occ) — Hear_Circa_2_Minutes FULL (+1)
+Next-partial Odysseus/Hear_Circa_2_Minutes: diverged at flat pos 32 and
+the rebuild played a COHERENT but entirely DIFFERENT song — the richer
+disguise of the 9th-occ forced-tune-record class (Sans_intro's record 0
+was a dummy; here record 0 is a full other tune). Init wrapper at $0FD0:
+`LDA #$00/STA $0FE6` (phase counter) then **`LDA #$03 / JSR $1000`** —
+record 3 hard-forced — then CIA $2663. The play-wrapper half (SMC parity
+→ P_F123, $1567 vibflip) and the CIA latch were already probed right;
+only the record force was invisible: `_forced_subtune_probe` required
+`LDA #imm` AT the init vector reaching base by fall-through/JMP. FIX
+(extract-only, C19): probe gains the 3rd form — scan the wrapper window
+`[init, min(init+$30, base))` for `A9 imm 20 <base>` (exact JSR target =
+static anchor). Census: 1 behavior-changing carrier + 8 imm=0 no-ops
+(7 Rayden 2SIDs + Praiser/Mega_Mix). FULL 271977/271977 state ✓.
+GATES: smoke 6/6, full regression green. f1 now 5352 FULL / 49 partial
+(vs the r128c batch baseline).
+
 ## ✅ ROUND 137d (2026-07-29): DEPRAVE_7_TUNE_3 FULL (+1) — 222826/222826 exact. The r128 hard-residue member fully lands; final piece = DOUBLED-PREFIX command COUNTS
 The "drum-path" residual decoded as the C11 SECTPOS live read (wnote $82
 → fhi idx 130 = $1729, V1's own sectpos) with our shadow off by exactly

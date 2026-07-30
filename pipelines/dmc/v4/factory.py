@@ -1172,22 +1172,36 @@ def _forced_subtune_probe(path: str, base: int,
     reaches it (fall-through, or a `JMP base`) rejects banking / other
     LDA#-leading wrappers whose immediate is not a subtune index. Census over
     5833 f1 members: exactly 2 carriers, both imm=1 and both previously partial
-    — Sans_intro (fall-through form) + Devilock/Sub_Effect (JMP-to-base form)."""
+    — Sans_intro (fall-through form) + Devilock/Sub_Effect (JMP-to-base form).
+    3rd form (2026-07-30, Odysseus/Hear_Circa_2_Minutes, imm=3): the forcing
+    LDA sits deeper in a longer wrapper and reaches init via `JSR base`
+    (wrapper continues with CIA latch programming after); family census of the
+    JSR shape: 1 behavior-changing carrier + 8 imm=0 no-ops."""
     mem, s = _load(path, post_init_sub)
     init = s['init']
     if init == base or not (0 <= init and init + 4 <= 0xFFFF):
-        return None
-    if mem[init] != 0xA9:                          # LDA #imm
         return None
     # base must be the standard tune-select dispatch: JMP base+$1D
     if not (mem[base] == 0x4C and
             (mem[base + 1] | (mem[base + 2] << 8)) == (base + 0x1D) & 0xFFFF):
         return None
-    nxt = init + 2                                 # LDA #imm must REACH base
-    reaches = (nxt == base or
-               (mem[nxt] == 0x4C and
-                (mem[nxt + 1] | (mem[nxt + 2] << 8)) == base))
-    return mem[init + 1] if reaches else None
+    if mem[init] == 0xA9:                          # LDA #imm at the vector
+        nxt = init + 2                             # LDA #imm must REACH base
+        if (nxt == base or
+                (mem[nxt] == 0x4C and
+                 (mem[nxt + 1] | (mem[nxt + 2] << 8)) == base)):
+            return mem[init + 1]
+    # 3rd form (Hear_Circa_2_Minutes): the forcing LDA sits DEEPER in the
+    # wrapper and reaches init via `JSR base` (`A9 imm 20 <base>`), with the
+    # wrapper continuing after (CIA latch programming). The exact 16-bit JSR
+    # target adjacent to an LDA# is the static anchor; scan only the wrapper
+    # window before/around the vector's page so a data byte can't pattern-match.
+    end = min(init + 0x30, base if base > init else init + 0x30, 0xFFFC)
+    for a in range(init, end):
+        if (mem[a] == 0xA9 and mem[a + 2] == 0x20 and
+                (mem[a + 3] | (mem[a + 4] << 8)) == base):
+            return mem[a + 1]
+    return None
 
 
 def _state_resume_probe(path: str, base: int,
