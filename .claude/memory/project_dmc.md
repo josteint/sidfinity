@@ -8,6 +8,38 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## 🔶 ROUND 147 (2026-07-30, PARTIAL): compilation detection for NON-page-aligned lo/hi-pair wrapper — Pievspie/Mission_Moon sub 0 FULL; sub 1 proven lead
+Next-partial Pievspie/Mission_Moon (2 subtunes, VBLANK, load $5000; NO STIL/
+BUGlist entry). It's a COMPILATION (C31) the factory MISSED. Init wrapper $5DF3
+= `TAX / LDA $5DE6,X (hi) / LDA $5DE4,X (lo) / STA vectors / JMP` — per-subtune
+player dispatch via a SEPARATE lo table + hi table → players $5E24 (sub 0) +
+$5000 (sub 1), both valid canon jump tables. Detection is PAGE-ALIGNED by
+construction (static: base=hi<<8; observe: `--pc-watch` watches low-byte
+$00/$48 + a page-aligned pre-gate; `_is_player_head` asserts `a&0xFF==0`), so
+the NON-page-aligned base $5E24 (low $24) is invisible to BOTH paths.
+- FIX (LANDED, commit 84ada94): `detect_compilation` pairs the two `LDA abs,X`
+  tables when the page-aligned classification fails, validating each base via
+  `_is_canon_base_unaligned` (exact canon-offset sig, page-alignment-free —
+  strict enough that a spurious pairing can't validate). Sole carrier in the
+  DMC family (census). Sub 0 → FULL. Ledger C31. Gates: smoke 6/6, full
+  regression green.
+- 🔎 SUB 1 LEAD (root cause PROVEN, fix NOT landed): the $5000 player
+  STANDALONE verifies FULL, but the MERGE corrupts V2 → a C31 per-player fact
+  collapsed. Bisected to per-subtune **`idle_wave`**: the merge sets per-song
+  idle_notes/masks/durrel (compilation.py:791) but NOT idle_wave, which is
+  FILE-LEVEL (`wave_programs[0]` = the wave walk from wave-table pos 0). The two
+  players' wave tables DIFFER at pos 0, so sub 1's V2 idles on player 0's wave →
+  its freq-base cache (fbl+1) diverges → V2's off-table freq read (idx 233 =
+  fbl+1, C11 live-served) reads $8F vs orig $F7. PROOF: forcing merged
+  `idle_wave = player1's` → BOTH subtunes FULL (sub 0 doesn't depend on
+  idle_wave). FIX NEEDED = per-subtune idle_wave: the idle wave is a file-level
+  wave PROGRAM at pool index 0; make it per-subtune (extend the `per_sub_prime`
+  note/mask/cinst mechanism to a per-subtune idle wave START position into a
+  merged pool holding both players' idle waves, or a per-subtune wave_programs[0]).
+  Traps ruled out along the way: wavepos_layout (no effect), off-table records
+  (no effect), idle_guards (identical), freq tables (identical).
+- f1 unchanged (member still partial): 5361 FULL / 40 partial.
+
 ## ✅ ROUND 146 (2026-07-30): CIA latch per-play RE-ARM — C25 mirrored-class refinement — Strange_Acidshit FULL (+1)
 Next-partial after Sound_Test: PVCF/Strange_Acidshit. STIL (PVCF's own words):
 "octa multispeed... additional $1003er callings" — an 8× multispeed. Verdict

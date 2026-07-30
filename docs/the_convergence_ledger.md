@@ -812,6 +812,16 @@ practice, not code to factor).
   ≥2-page-aligned-base pre-gate = zero-regression. TRAP: observation alone
   cannot separate this from a MULTI-SID member whose wrapper gates chips per
   subtune (Rayden) — discriminate on the PSID chip count.
+  ⚠ EXCEPTION — NON-PAGE-ALIGNED bases (Pievspie/Mission_Moon $5E24, $5000):
+  "observe instead of teaching static" FAILS here because observation is ALSO
+  page-aligned by construction (`--pc-watch` watches low-byte $00/$48; the
+  pre-gate scans page-aligned addresses; `_is_player_head` asserts `a&0xFF==0`).
+  A wrapper that carries an explicit lo table + hi table selecting non-page-
+  aligned bases is INVISIBLE to both. So DO teach the static parser this ONE
+  shape: pair the two `LDA abs,X` tables (`base = lo[x] | hi[x]<<8`) and validate
+  every base with a page-alignment-FREE exact-canon-offset check
+  (`_is_canon_base_unaligned`) — strict enough that a spurious pairing can't
+  validate; sole carrier in the family.
 - RELOCATING WRAPPER: the packed player may not be IN THE IMAGE AT ALL — the
   wrapper COPIES it into RAM per subtune, so an image scan can never find it
   (C26 applied to DETECTION). Admit via a 2nd pre-gate "≥1 in-image base AND
@@ -864,7 +874,16 @@ practice, not code to factor).
   leftovers → ride `subtune{init{voice N{note/gate_mask/dur_reload}}}` (NO
   schema addition — same file-level-vs-per-subtune split as `speed_ctr_init`),
   with the composer's table widening GATED so existing members stay
-  byte-identical.
+  byte-identical. ⚠ INCOMPLETE — `idle_wave` is ALSO per-subtune but is NOT yet
+  rode per-subtune: the merge sets per-song idle_notes/masks/durrel
+  (`compilation.py:791`) but idle_wave stays FILE-LEVEL (`wave_programs[0]` =
+  the wave walk from wave-table pos 0). Two players whose wave tables differ at
+  pos 0 → the non-base player's idle voice walks the WRONG wave, its freq-base
+  cache (fbl) diverges, and an off-table freq read of fbl mis-plays
+  (Pievspie/Mission_Moon sub 1; PROVEN: forcing merged idle_wave=player1's →
+  both subtunes FULL). FIX NEEDED = per-subtune idle_wave (extend `per_sub_prime`
+  to a per-subtune idle wave START into a pool holding both players' idle waves,
+  or a per-subtune `wave_programs[0]`).
 - FULL ENTRY: [`ledger/C31.md`](ledger/C31.md) — read it before applying.
 
 ### C35 — one FILE, more than one COMPOSER (`origin_engine`)
