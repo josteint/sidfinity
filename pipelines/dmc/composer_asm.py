@@ -1981,6 +1981,22 @@ fx_dual_up:
             '        sta $d418                    ; play-vector wrapper\n'
             f'        jmp {play_entry}\n\n') + play_wrapper
         play_entry = 'playd418'
+    # CIA latch RE-ARM every play (C25 mirrored class — PVCF octa-multispeed,
+    # Strange_Acidshit): the orig's play VECTOR re-programs $DC04/$DC05 the SAME
+    # latch each call (~15 cyc) before the body. Under an extreme latch (8x) that
+    # per-play overhead pushes the orig's body OVER budget into overrun, so its
+    # effective rate slips below the latch; our init-only setup runs latch-limited
+    # (faster) -> a small length overshoot with a perfect content prefix.
+    # Reproduce the per-play re-arm so our body carries the same cycle budget.
+    if cia_period and str(usf.params.fields.get('cia_rearm_per_play', '')) == '1':
+        play_wrapper = (
+            'playcia:\n'
+            '        lda #>CIA_PERIOD\n'
+            '        sta $dc05                    ; per-play CIA latch re-arm\n'
+            '        lda #<CIA_PERIOD\n'
+            '        sta $dc04\n'
+            f'        jmp {play_entry}\n\n') + play_wrapper
+        play_entry = 'playcia'
     # Song-global filter-cutoff LFO (usf.filter_mod): a free-running looped
     # contour with two phase-offset taps feeding a filter program's init and
     # stop cutoff cells every play() call; the engine samples them at filter

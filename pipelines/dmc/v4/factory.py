@@ -3610,8 +3610,93 @@ def _pw_base_read_probe(path: str, base: int,
     return f'{op:04X}'
 
 
+def _cia_rearm_probe(path: str, base: int,
+                     post_init_sub: 'int | None' = None):
+    """Reproduce the play VECTOR's per-play CIA1 timer-A latch RE-ARM (C25
+    mirrored class — PVCF octa-multispeed Strange_Acidshit + the re-arming DMC
+    family). The orig play vector writes BOTH $DC04 and $DC05 (the SAME latch
+    it set at init, ~12 cyc) before the body EVERY call; our composer sets the
+    latch once at init, so our body runs ~12 cyc/play FASTER -> a small length
+    OVERSHOOT (out of the CIA tolerance under an extreme latch like Strange's
+    8x, comfortably inside it elsewhere). Reproducing the re-arm carries the
+    same per-play cost, matching orig's effective rate. Returns 1 iff the play
+    vector (following one JMP) writes both $DC04 and $DC05 before its body JMP,
+    on a CIA-timed member; else None.
+
+    GATED ON MEASURED OVERRUN — the re-arm is beneficial ONLY when orig's play
+    body OVERRUNS its latch (effective period > latch+1). Then orig runs slower
+    than the latch rate and our clean, lighter body is FASTER (overshoot), so
+    the re-arm closes the gap. When orig FITS its latch and OUR body is the
+    heavier one (undershoot — e.g. Moog/Compozak, overrun 0.9986, our body
+    slower), the re-arm would WORSEN the match, so we DON'T fire. This is the
+    C9 'measure, don't guess' reflex: the static shape says the orig re-arms,
+    the measurement says whether reproducing it helps. Verified: firing on the
+    overrunning members closed 22/22 tested re-arming builds toward orig (0
+    regressed); Compozak (non-overrunning) is correctly left alone."""
+    mem, s = _load(path, post_init_sub)
+    if not (s.get('speed', 0) & 1):        # CIA-driven subtune 0 only
+        return None
+    p = s['play']
+    if p and mem[p] == 0x4C:               # follow one JMP into the wrapper
+        p = mem[p + 1] | (mem[p + 2] << 8)
+    lo = hi = imm = None
+    a = p
+    for _ in range(24):                    # play vector must re-arm the latch,
+        if not (0 <= a <= 0xFFFC):         # capturing its immediate lo/hi
+            break
+        op = mem[a]
+        if op == 0xA9:                     # LDA #imm
+            imm = mem[a + 1]
+            a += 2
+        elif op == 0x8D:                   # STA abs
+            addr = mem[a + 1] | (mem[a + 2] << 8)
+            if addr == 0xDC04:
+                lo = imm
+            elif addr == 0xDC05:
+                hi = imm
+            a += 3
+        elif op == 0x4C:                   # JMP -> body: stop before the body
+            break
+        else:
+            a += 1
+    if lo is None or hi is None:           # not a both-bytes latch re-arm
+        return None
+    latch = lo | (hi << 8)
+    if latch == 0:
+        return None
+    period = _measure_play_period(path, 0)                 # failing sub 0
+    if period is None or period <= (latch + 1) * 1.0015:   # orig must OVERRUN
+        return None
+    return 1
+
+
+def _measure_play_period(sid_path: str, subtune: int, dur: float = 4.0):
+    """Orig's effective play-entry period in CPU cycles (ground truth): sum the
+    per-play write-log buckets' entry counts over the absolute PHI1 cycle span
+    (`--writelog-per-irq --per-irq-debug`). Returns cycles/play, or None."""
+    import subprocess
+    import re
+    sd = os.path.join(os.path.dirname(__file__), '..', '..', '..',
+                      'tools', 'siddump')
+    try:
+        out = subprocess.run(
+            [sd, sid_path, '--writelog-per-irq', '--per-irq-debug',
+             '--duration', str(dur), '--subtune', str(subtune + 1)],
+            capture_output=True, text=True, timeout=90).stderr
+    except Exception:
+        return None
+    fr = [(int(m.group(1)), int(m.group(2))) for m in
+          re.finditer(r'frame=\d+ base=(\d+) nentries=(\d+)', out)]
+    if len(fr) < 20:
+        return None
+    total = sum(f[1] for f in fr)
+    span = fr[-1][0] - fr[0][0]
+    return span / total if total and span > 0 else None
+
+
 _WEDGE_PROBES = [
     ('play_phases',                     lambda p, c: _play_repeat_parity_probe(p, c.base, c.post_init_sub)),
+    ('cia_rearm_per_play',              lambda p, c: _cia_rearm_probe(p, c.base, c.post_init_sub)),
     ('pw_base_sid_read',                lambda p, c: _pw_base_read_probe(p, c.base, c.post_init_sub)),
     ('master_vol_every_play',           lambda p, c: _d418_play_wrapper(p, c.base, c.post_init_sub)),
     ('master_vol_reassert_filter_tail', lambda p, c: _d418_filter_tail_probe(p, c.base, c.post_init_sub)),

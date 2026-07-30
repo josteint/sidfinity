@@ -625,6 +625,16 @@ practice, not code to factor).
   that grew); make the common case O(1) (leading bounds check). Content-
   identical by construction; pure timing. Ask what any per-voice per-frame
   addition costs × 3 voices × the tightest corpus latch.
+- MIRRORED CLASS (orig OVERRUNS its own latch, rebuild too fast): honest
+  residue ONLY for un-attributable slowness. When the overrun is a SPECIFIC
+  reproducible per-play OP — Strange_Acidshit's play VECTOR re-arms $DC04/$DC05
+  (the SAME latch) every call (~12 cyc), which our init-only setup skips → we
+  run faster → length overshoot — reproduce THAT op (`_cia_rearm_probe` →
+  `cia_rearm_per_play` → composer `playcia:` wrapper). ⚠ GATE on MEASURED orig
+  overrun (period > latch), NOT the static re-arm shape (105 carriers): fire
+  only when orig overruns (our lighter body overshoots → re-arm helps); skip
+  when orig fits its latch and OUR body is heavier (undershoot, e.g. Compozak
+  0.9986 → re-arm would worsen). Firing set 10, all FULL; C9 measure-don't-guess.
 - FULL ENTRY: [`ledger/C25.md`](ledger/C25.md) — read it before applying.
 
 ### C26 — song data ABSENT from the file image (init generates/unpacks in RAM)

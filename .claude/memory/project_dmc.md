@@ -8,6 +8,35 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 146 (2026-07-30): CIA latch per-play RE-ARM — C25 mirrored-class refinement — Strange_Acidshit FULL (+1)
+Next-partial after Sound_Test: PVCF/Strange_Acidshit. STIL (PVCF's own words):
+"octa multispeed... additional $1003er callings" — an 8× multispeed. Verdict
+shape: full orig matched (play_match=len_a=1641467) but rebuild 0.14% too LONG
+(len_b=1643848) = a RATE overshoot, not content. This is the C25 MIRRORED class
+(orig's play body overruns its own tight latch: orig 7.19 plays/frame < our
+7.31; orig effective period 2467 > latch 2456), which the ledger had marked
+honest residue.
+- ROOT CAUSE (principled, NOT fragile padding): orig's play VECTOR ($1FE4)
+  re-arms $DC04/$DC05 (the SAME $0998 latch) EVERY call (~12 cyc). Our composer
+  sets the latch ONCE at init, so our clean, lighter body ran ~12 cyc/play
+  FASTER → the overshoot. The overrun is a SPECIFIC REPRODUCIBLE OP → reproducing
+  it is core-tenet-principled, unlike C25's declined arbitrary cycle-padding.
+- FIX: factory._cia_rearm_probe (play vector writes both $DC04+$DC05, captures
+  the latch immediates) → cia_rearm_per_play → composer prepends a `playcia:`
+  re-arm wrapper. Strange_Acidshit: 2381-over → 68-over (within tolerance) →
+  FULL. Ledger C25 refinement.
+- ⚠ NOT UNCONDITIONALLY SAFE — GATED ON MEASURED OVERRUN (C9 measure-don't-guess).
+  The re-arm helps OVERSHOOT members (our body faster, orig overruns) but WORSENS
+  UNDERSHOOT members (our body heavier — Moog/Compozak, len_b 6 UNDER, overrun
+  0.9986). Fire ONLY when orig's measured effective period > latch. `_cia_rearm_
+  probe` runs `_measure_play_period` and gates at >1.0015×(latch+1). Census: 105
+  static re-arm carriers, but the overrun gate fires on EXACTLY 10 (Astovel +
+  8 Kubiszyn_Paul tunes sharing the player + Strange_Acidshit), ALL FULL;
+  Compozak/Bassbumper (non-overrunning) correctly excluded → byte-identical
+  (probe returns None). A with/without sweep of 22 re-arming builds = 0 regressed.
+  Distinct from Compotune_1 (overrun not a reproducible op → stays residue).
+- GATES: smoke 6/6, full regression green. f1 now 5361 FULL / 40 partial.
+
 ## ✅ ROUND 145 (2026-07-30): F-phase per-voice REPEAT — massive-multispeed effects (C18) — Sound_Test FULL (+1)
 Next-partial after Scratch_It: PVCF/Sound_Test. STIL (PVCF's own words): "an
 11-speeder, sounds like samples", used in the Reflex trackmo 'Reflection'.
