@@ -1923,6 +1923,17 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
             voices.append(v)
         song = DmcSong(id=sub + 1, speed=mem[rec + 6],
                        master_vol=mem[rec + 7], voices=voices)
+        # C37: a state-copy byte landing on the d417 routing shadow is this
+        # subtune's resumed res_routing priming — ride the existing per-song
+        # override (None for every non-carrier: gated on the poke itself).
+        if _ssc and cfg.d417_shadow_addr is not None and \
+                (cfg.d417_shadow_addr & 0xFFFF) in _ssc:
+            song.d417_shadow = _ssc[cfg.d417_shadow_addr & 0xFFFF]
+        # ... and on the global slide/vibrato half-rate parity ($1019
+        # twin): this subtune resumes with the counter mid-phase — ride
+        # the existing per-song dual_phase -> subtune init.slide_phase.
+        if _ssc and (dp & 0xFFFF) in _ssc:
+            song.dual_phase = _ssc[dp & 0xFFFF] & 1
         # C37: the copied sticky curnote / gate-mask bytes are per-subtune
         # idle priming (§4.5) — ride the existing DmcSong per-subtune slots
         # (to_usf emits them as subtune init.voice_state overrides).

@@ -8,6 +8,31 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 139 (2026-07-30): C37 3rd carrier via OBSERVATION detection — Cafe_Odd FULL (+1, both subs); r138 probe misfire fixed
+Next-partial PVCF/Cafe_Odd (base $E000, re-assembled): sub 1 diverged in
+INIT ($D418 $FA vs $FF). Root cause = a C37 SAVE-STATE RESUME wrapper in
+a 2nd SHAPE the static skeleton can't parse (`JMP copy`; single src-lo
+table $F240,X + dest lo/hi tables $F180/$F220, 29 pairs; `LDA #$00 /
+JMP $E000` → every subtune is song 0 resumed; record 1 = dead cargo,
+whence the wrong $FA vol). Landed `_state_resume_observe` (C37's own
+canonical rule): py65 init(A=sub) per subtune, fire iff ALL enter base
+with the same A and ≥1 non-start sub's post-init RAM diffs (≤256 B);
+diff = the survivors. THREE new survivor categories lifted (all onto
+PRE-EXISTING fields, zero schema): d417 shadow poke → song.d417_shadow →
+subtune res_routing; GLOBAL vib/slide parity $E019 ($1019 twin) →
+song.dual_phase → subtune init.slide_phase (the 21s V3 wave-phase
+divergence: vibrato-flagged instruments alternate wave-step/vibrato on
+that one global counter); wavectrl cell $EA50 $94→$91 = a $90+n
+wave-program JUMP retarget → the existing clone-and-remap pass (clones
+$17/$18). ALSO fixed r138's probe: the static JSR-form match mis-fired
+on Bomberman_preview's CONDITIONAL wrapper (only sub 0 → song 5) —
+`_init_song_observe` cross-check added (fire iff observed A == imm for
+all subs); Bomberman refused, back to baseline partial (its conditional
+per-subtune song remap = future lead). Census (104 multi-subtune
+non-JT-init members): observe fires ONLY on Morbital_plus (already
+partial; sub-1 div 1→37, no regression). GATES: smoke 6/6, Hear_Circa +
+Cafe_Odd FULL, full regression green. f1 now 5353 FULL / 48 partial.
+
 ## ✅ ROUND 138 (2026-07-30): forced-tune-record wedge 3rd FORM (`LDA #imm / JSR base`, C19 29th occ) — Hear_Circa_2_Minutes FULL (+1)
 Next-partial Odysseus/Hear_Circa_2_Minutes: diverged at flat pos 32 and
 the rebuild played a COHERENT but entirely DIFFERENT song — the richer

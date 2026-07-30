@@ -1196,12 +1196,64 @@ def _forced_subtune_probe(path: str, base: int,
     # wrapper continuing after (CIA latch programming). The exact 16-bit JSR
     # target adjacent to an LDA# is the static anchor; scan only the wrapper
     # window before/around the vector's page so a data byte can't pattern-match.
+    # ⚠ The static match alone is NOT sufficient: the LDA can sit under a
+    # CONDITION (Bomberman_preview: `CMP #$00 / BNE / LDA #$05 / JSR base`
+    # remaps ONLY subtune 0 to song 5) — a byte scan cannot see the branch.
+    # Cross-check by OBSERVATION (C18): run init(A=sub) under py65 per header
+    # subtune and require the A entering `base` to equal the immediate for
+    # EVERY subtune; a conditional wrapper fails the check and stays refused.
     end = min(init + 0x30, base if base > init else init + 0x30, 0xFFFC)
     for a in range(init, end):
         if (mem[a] == 0xA9 and mem[a + 2] == 0x20 and
                 (mem[a + 3] | (mem[a + 4] << 8)) == base):
-            return mem[a + 1]
+            imm = mem[a + 1]
+            seen = _init_song_observe(path, base, s.get('songs', 1))
+            if seen is not None and all(v == imm for v in seen):
+                return imm
+            return None
     return None
+
+
+def _init_song_observe(path: str, base: int, songs: int):
+    """Run the FILE's init(A=sub) under py65 for each header subtune and
+    return the list of A values at the FIRST entry into `base` (the song
+    the real init actually receives), or None if any run fails to reach
+    base / return. py65 is trustworthy here — pure init, no playback."""
+    import sys as _sys
+    _sys.path.insert(0, os.path.join(os.path.dirname(__file__),
+                                     '..', '..', '..', 'tools', 'py65_lib'))
+    from py65.devices.mpu6502 import MPU
+    from seed_disassembly import parse_psid
+    spec = parse_psid(path)
+    out = []
+    for sub in range(max(songs, 1)):
+        mpu = MPU()
+        m = bytearray(0x10000)
+        for i, b in enumerate(spec['payload']):
+            if spec['load'] + i < 0x10000:
+                m[spec['load'] + i] = b
+        mpu.memory = m
+        mpu.stPush(0x00)
+        mpu.stPush(0x00)                    # RTS sentinel -> PC = $0001
+        mpu.pc = spec['init']
+        mpu.a = sub
+        mpu.x = mpu.y = 0
+        a_at_base = None
+        for _ in range(3_000_000):
+            if mpu.pc == base and a_at_base is None:
+                a_at_base = mpu.a
+            if mpu.pc == 0x0001:
+                break
+            try:
+                mpu.step()
+            except Exception:
+                return None
+        else:
+            return None
+        if a_at_base is None:
+            return None
+        out.append(a_at_base)
+    return out
 
 
 def _state_resume_probe(path: str, base: int,
@@ -1269,6 +1321,90 @@ def _state_resume_probe(path: str, base: int,
             d: mem[(src_hi << 8) | ((lo + k) & 0xFF)]
             for k, d in enumerate(dests) if not wipe_lo <= d <= wipe_hi}
     return forced, out
+
+
+def _state_resume_observe(path: str, base: int,
+                          post_init_sub: 'int | None' = None,
+                          max_diff: int = 256):
+    """C37 save-state resume wrapper, detected by OBSERVATION (the ledger's
+    own canonical rule — C18/C31: don't keep teaching a static wrapper
+    parser new shapes). Fallback when `_state_resume_probe`'s skeleton
+    doesn't match (2nd shape, Cafe_Odd: `JMP copy` form, single src-lo
+    table + dest lo/hi tables, `LDA #$00` before `JMP base`).
+
+    Run the FILE's init(A=sub) under py65 per header subtune, recording A
+    at the FIRST entry into `base` (py65's PC is exact — no C36 bus-tap
+    ambiguity). If EVERY subtune enters the player with the SAME song A
+    (a forced song) and ≥1 non-start subtune's post-init RAM differs from
+    the start subtune's, it is a resume wrapper: the diffs ARE the
+    init-wipe survivors (the wipe zeroes identically across subs, so
+    wiped copy bytes cancel out of the diff automatically). py65 is
+    trustworthy here — every surviving byte is file-loaded or
+    init-written (no deep playback).
+
+    Returns (forced_song, {subtune: {addr: byte}}) or None. Survivors
+    exclude I/O ($D000-$DFFF); a sub with > max_diff differing bytes
+    refuses (that scale suggests a per-subtune unpacker, C26 — not a
+    state paste; the member stays partial rather than mis-modeled).
+    LIMIT: survivors are measured relative to the START subtune, so a
+    start-subtune poke that differs from the file image is invisible —
+    such a carrier would present as sub-0 partial and needs the static
+    probe (or a baseline-vs-image extension)."""
+    mem0, s = _load(path, post_init_sub)
+    init = s['init']
+    songs = s.get('songs', 1)
+    if songs < 2 or init == base:
+        return None
+    import sys as _sys
+    _sys.path.insert(0, os.path.join(os.path.dirname(__file__),
+                                     '..', '..', '..', 'tools', 'py65_lib'))
+    from py65.devices.mpu6502 import MPU
+    from seed_disassembly import parse_psid
+    spec = parse_psid(path)
+
+    def run(sub):
+        mpu = MPU()
+        m = bytearray(0x10000)
+        for i, b in enumerate(spec['payload']):
+            if spec['load'] + i < 0x10000:
+                m[spec['load'] + i] = b
+        mpu.memory = m
+        mpu.stPush(0x00)
+        mpu.stPush(0x00)                    # RTS sentinel -> PC = $0001
+        mpu.pc = spec['init']
+        mpu.a = sub
+        mpu.x = mpu.y = 0
+        a_at_base = None
+        for _ in range(3_000_000):
+            if mpu.pc == base and a_at_base is None:
+                a_at_base = mpu.a
+            if mpu.pc == 0x0001:
+                return a_at_base, m
+            try:
+                mpu.step()
+            except Exception:
+                return None, None
+        return None, None
+
+    a0, post0 = run(0)
+    if a0 is None:
+        return None
+    out = {0: {}}
+    any_diff = False
+    for k in range(1, songs):
+        ak, postk = run(k)
+        if ak != a0 or postk is None:
+            return None                     # not a forced-song wrapper
+        d = {a: postk[a] for a in range(0x10000)
+             if postk[a] != post0[a] and not 0xD000 <= a <= 0xDFFF}
+        if len(d) > max_diff:
+            return None
+        if d:
+            any_diff = True
+        out[k] = d
+    if not any_diff:
+        return None                         # pure forced song = C19's probe
+    return a0, out
 
 
 def _glide_neutered_probe(path: str, base: int,
@@ -3375,6 +3511,9 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
     # C37 save-state resume wrapper: every subtune plays the forced song,
     # differentiated only by the wrapper's surviving state copy.
     sr = _state_resume_probe(path, cfg.base, post_init_sub)
+    if sr is None:
+        # 2nd wrapper shape onwards: detect by observation (C37 canonical).
+        sr = _state_resume_observe(path, cfg.base, post_init_sub)
     if sr is not None:
         cfg.forced_subtune, cfg.subtune_state_copy = sr
     return cfg

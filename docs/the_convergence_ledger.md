@@ -122,7 +122,7 @@ practice, not code to factor).
 | packed-stream byte whose meaning depends on the DECODER'S POSITION · a command handler consumes the following bytes itself with its OWN coarser rules (skipping the top-level dispatch AND the terminator test) · MA: invisible to the verdict (round-trips) — corrupts USF CONTENT · DMC track transpose handler: post-transpose $FF = a one-row pseudo-sector, then loop WITHOUT sectpos reset (visible at the wrap) · the quirk must reach EVERY walk that mirrors the dispatch — the C29 GATE walks skipped it, silently disabling the zp overlay (pseudo-sector $0000; probe the 'endless' sim's ROW 0) · ONE-ROW LAW GENERAL FORM: engine re-dispatches track[pos] EVERY fetch, sectpos persists ($7F-only reset) → a post-transpose $80-$FD byte plays ONE row then MUTATES into a transpose (`runon` flag + composer sectpos base threading) · find it by READING the handler | C34 | recurring (4×) |
 | close a `Params.fields` ESCAPE-HATCH key → typed field · untyped behavior-named scalar in the generic params bag (init-phase state / mechanism scalar), borderline §7 · NOT opaque-bytes (C7) / NOT a wedge knob (C19) · it's a byte-identity CARRIER REFACTOR not a schema addition (value already in USF) · census ALL consumers (often cross-engine SHARED + dead readers) · clone an existing typed field of the same trichotomy category · type by MUSICAL category NOT a composer grouping · gate regenerates + MD5-compares every consumer family (surfaces broken extract paths behind a FULL verdict) | C33 | methodology |
 | PC-triggered bus tap false-fires on DATA reads of the trigger address · "capture at PC X" watches cpuRead, bus can't tell fetch from data · plausible WRONG snapshot · discriminate EXECUTION by the ≥3-consecutive-ascending-reads bus signature · validate any new tap by CROSS-EMULATOR byte-identity (also proves non-perturbation) · writelog_capture frame indices are COMPACTED (writes-only frames) vs raw siddump frames · GAP: 2-byte indirect sites (`LDA (zp),y`) are INVISIBLE to the discriminator — watch a 3-byte site at the same call depth with --pc-watch-abs | C36 | logged |
-| subtune SAVE-STATE RESUME wrapper · header overstates songs, tune table has ONE record · appended init wrapper copies a per-subtune state snapshot + DATA POKES then forces song 0 · non-start subtune diverges at play pos 0, wrong first note/instrument · only init-wipe SURVIVORS matter (priming → init.voice_state; song-data pokes → per-subtune walk memory; wave/filter-table pokes → C31 clone-and-remap, def clones in unused nibble slots) | C37 | recurring (2×, both FULL) |
+| subtune SAVE-STATE RESUME wrapper · header overstates songs, tune table has ONE record · appended init wrapper copies a per-subtune state snapshot + DATA POKES then forces song 0 · non-start subtune diverges at play pos 0, wrong first note/instrument · only init-wipe SURVIVORS matter (priming → init.voice_state; song-data pokes → per-subtune walk memory; wave/filter-table pokes → C31 clone-and-remap, def clones in unused nibble slots) | C37 | recurring (3×, all FULL) |
 
 ---
 
@@ -928,6 +928,15 @@ practice, not code to factor).
   0-15, the 8-bit slot*16 base wraps past 15 — C11). A per-subtune
   wave_table-override schema was drafted and REVERTED (the
   position-locked premise was an artifact; name-on-proof held).
+  DETECTION IS OBSERVATION-FIRST (3rd carrier, 2nd wrapper shape): when
+  the static skeleton misses, run init(A=sub) under py65 per subtune —
+  fire iff every subtune enters base with the SAME A and ≥1 non-start
+  subtune's post-init RAM differs (≤256 bytes) from the start subtune's;
+  the diff IS the survivor set. Survivor categories now also include the
+  d417 routing SHADOW (→ subtune res_routing priming) and the GLOBAL
+  vib/slide half-rate parity $1019 twin (→ subtune init.slide_phase) —
+  a resumed parity shifts every vibrato-flagged voice's WAVE-STEP phase
+  by one play (a mid-song wave divergence, not a position-0 one).
 - FULL ENTRY: [`ledger/C37.md`](ledger/C37.md) — read it before applying.
 
 ### C33 — closing a `Params.fields` escape-hatch key → a typed field
