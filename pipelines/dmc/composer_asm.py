@@ -441,7 +441,14 @@ def _row_event(row, inst_slot: dict) -> tuple:
     soft = 1 if 'noretrig' in flags else 0
     if 'glide_to' in flags:
         target = _glide_target(flags['glide_to'], note)
+        if 'note_clock' in flags:
+            # clock-driven start pitch (Dresden): the stream byte IS the
+            # composer's free-running play-tick counter — the encoder emits
+            # the $FF seed and labels the byte; the play entry INCs it.
+            note = 'clk'
         return ('note', soft, note, row.duration, slot, vol, gspd, target)
+    if 'note_clock' in flags:
+        note = 'clk'
     return ('note', soft, note, row.duration, slot, vol, 0, None)
 
 
@@ -498,8 +505,14 @@ def _row_event_stated(rr, inst_slot: dict) -> tuple:
         return ('slide', gspd, note, rr.duration, slot, vol)
     soft = 1 if 'noretrig' in flags else 0
     if 'glide_to' in flags:
-        return ('note', soft, note, rr.duration, slot, vol, gspd,
-                _glide_target(flags['glide_to'], note))
+        target = _glide_target(flags['glide_to'], note)
+        if 'note_clock' in flags:
+            # clock-driven start pitch (Dresden): the stream byte IS the
+            # live play-tick counter — encoder emits the $FF seed + label.
+            note = 'clk'
+        return ('note', soft, note, rr.duration, slot, vol, gspd, target)
+    if 'note_clock' in flags:
+        note = 'clk'
     return ('note', soft, note, rr.duration, slot, vol, 0, None)
 
 
@@ -514,7 +527,8 @@ def _pattern_tempos(rows) -> 'list | None':
 
 
 def _encode_pattern(rows_events: list, secvals: list | None = None,
-                    tempos: list | None = None) -> bytes:
+                    tempos: list | None = None,
+                    clk_out: list | None = None) -> bytes:
     """Encode one pattern. With `secvals` (sectpos shadow on), each event
     carries the row's visible orig sector-position right after the opcode —
     every handler stores it to sectpos,x at fetch, mirroring the orig's
@@ -527,9 +541,14 @@ def _encode_pattern(rows_events: list, secvals: list | None = None,
         for k, ev in enumerate(rows_events):
             if tempos[k] is not None:
                 pre += bytes([0x05, tempos[k] & 0x0F])
+            sub_clk = [] if clk_out is not None else None
+            start = len(pre)
             pre += _encode_pattern(rows_events[k:k + 1],
                                    None if secvals is None
-                                   else secvals[k:k + 1])[:-1]
+                                   else secvals[k:k + 1],
+                                   clk_out=sub_clk)[:-1]
+            if sub_clk:
+                clk_out.extend(start + o for o in sub_clk)
         pre.append(0x00)
         return bytes(pre)
 
@@ -571,6 +590,13 @@ def _encode_pattern(rows_events: list, secvals: list | None = None,
             f = soft | (2 if target is not None else 0)
             f |= (0x08 if slot is not None else 0) \
                  | (0x10 if vol is not None else 0)
+            if note == 'clk':
+                # clock-driven pitch: the byte is the live play counter —
+                # emit the $FF seed and record its offset (the emitter
+                # labels it; the play entry INCs it every call).
+                if clk_out is not None:
+                    clk_out.append(len(out) + 2 + len(sp))
+                note = 0xFF
             out += bytes([0x01] + sp + [f, note, dur & 0x3F]
                          + _sv_tail(slot, vol))
             if target is not None:
@@ -745,6 +771,7 @@ class _Model:
                             for d in range(_maxd + 1)]
         # global pattern pool (content-deduped) + per subtune/voice tracks
         self.patterns: list[bytes] = []
+        self.pat_clk: dict[int, list] = {}   # gid -> clock-byte offsets
         pat_ids: dict[bytes, int] = {}
         self.subtunes = []
         for sub in usf.subtunes:
@@ -761,12 +788,16 @@ class _Model:
                 # pattern). Off-table reads sonify this counter ($1726,x), so
                 # the runtime keeps otrk,x as real state seeded per entry.
                 def _intern(events, secvals, tempos=None):
-                    enc = _encode_pattern(events, secvals, tempos)
+                    clks = []
+                    enc = _encode_pattern(events, secvals, tempos,
+                                          clk_out=clks)
                     gid = pat_ids.get(enc)
                     if gid is None:
                         gid = len(self.patterns)
                         self.patterns.append(enc)
                         pat_ids[enc] = gid
+                        if clks:
+                            self.pat_clk[gid] = clks
                     return gid
 
                 def _gid_entry(pid, sbase=0):
@@ -2514,8 +2545,36 @@ fx_dual_up:
         if loop_off is not None:              # loop_off is a BYTE offset now
             s += f'\n        .byt $FF, <({lbl}+{loop_off}), >({lbl}+{loop_off})'
         data.append(s)
+    clk_labels = []
     for i, blob in enumerate(m.patterns):
-        data.append(f'pat_{i}:\n' + _byt(blob))
+        offs = sorted(getattr(m, 'pat_clk', {}).get(i, []))
+        if not offs:
+            data.append(f'pat_{i}:\n' + _byt(blob))
+            continue
+        # split the blob so each clock byte gets its own label — the play
+        # entry INCs it every call (the byte IS the live counter, exactly
+        # the orig's mechanism; seed $FF is the byte value itself).
+        parts, prev = [f'pat_{i}:'], 0
+        for k, off in enumerate(offs):
+            if off > prev:
+                parts.append(_byt(blob[prev:off]))
+            lbl = f'pclk{i}_{k}'
+            clk_labels.append(lbl)
+            parts.append(f'{lbl}:\n        .byt ${blob[off]:02X}')
+            prev = off + 1
+        if prev < len(blob):
+            parts.append(_byt(blob[prev:]))
+        data.append('\n'.join(parts))
+    if clk_labels:
+        # play-clock shim: INC every clock byte at the head of EVERY play
+        # call (before any phase dispatch — the orig's wrapper INCs first),
+        # and re-seed $FF at init (the orig's init wrapper does).
+        _incs = ''.join(f'        inc {l}\n' for l in clk_labels)
+        play_wrapper = ('playclk:\n' + _incs
+                        + f'        jmp {play_entry}\n\n') + play_wrapper
+        play_entry = 'playclk'
+        cia_init = cia_init + ''.join(
+            f'        lda #$FF\n        sta {l}\n' for l in clk_labels)
     data_asm = '\n'.join(data)
 
     # note-init cymbal (canon onset 0) vs frame-2 cymbal (family-2 onset 1).

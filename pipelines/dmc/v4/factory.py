@@ -1214,6 +1214,40 @@ def _forced_subtune_probe(path: str, base: int,
     return None
 
 
+def _playclk_probe(path: str, base: int,
+                   post_init_sub: 'int | None' = None):
+    """PLAY-CLOCK-IN-SONG-DATA wrapper (C19 'Ed'-animator family, Dresden):
+    the appended play vector is `INC addr / LDA addr / AND #$01 / CMP #$01 /
+    BEQ fx / JMP base+3`, where `addr` is a byte INSIDE A PLAYED SECTOR —
+    the wrapper's phase parity counter doubles as pattern content (a glide
+    row reads the live counter as its start note = a pitch that rises one
+    step per play tick). STATIC anchored probe: the exact INC/LDA operand
+    pair at the play vector + the init wrapper seeding the SAME address
+    (`LDX #$FF / STX addr` or LDA/STA form). Returns the addr (int) or
+    None; non-carriers are untouched (the probe fires on nothing else —
+    an ordinary phase wrapper keeps its counter OUTSIDE the data, and the
+    walk flags only rows whose source byte sits AT the addr anyway)."""
+    mem, s = _load(path, post_init_sub)
+    play, init = s['play'], s['init']
+    if play == base + 3 or play + 8 > 0xFFFF:
+        return None
+    if not (mem[play] == 0xEE and mem[play + 3] == 0xAD):
+        return None
+    addr = mem[play + 1] | (mem[play + 2] << 8)
+    if (mem[play + 4] | (mem[play + 5] << 8)) != addr:
+        return None
+    if not (mem[play + 6] == 0x29 and mem[play + 7] == 0x01):
+        return None
+    # init wrapper must seed the same byte to $FF (LDX #$FF/STX or LDA/STA)
+    end = min(init + 0x30, 0xFFFB)
+    for a in range(init, end):
+        if (mem[a] in (0xA2, 0xA9) and mem[a + 1] == 0xFF and
+                mem[a + 2] in (0x8E, 0x8D) and
+                (mem[a + 3] | (mem[a + 4] << 8)) == addr):
+            return addr
+    return None
+
+
 def _init_song_observe(path: str, base: int, songs: int):
     """Run the FILE's init(A=sub) under py65 for each header subtune and
     return the list of A values at the FIRST entry into `base` (the song
@@ -3504,6 +3538,10 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
             'noteinit_defer_wave' not in cfg.extra_params:
         for k, v in _noteinit_defer_probe(path).items():
             cfg.extra_params.setdefault(k, v)
+    # play-clock counter byte embedded in the song data (Dresden, C19).
+    pca = _playclk_probe(path, cfg.base, post_init_sub)
+    if pca is not None:
+        cfg.extra_params.setdefault('playclk_addr', f'{pca:04X}')
     # forced_subtune is a cfg ATTRIBUTE, not a param; 0 == the default walk.
     fs = _forced_subtune_probe(path, cfg.base, post_init_sub)
     if fs:

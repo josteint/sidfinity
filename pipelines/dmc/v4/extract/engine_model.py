@@ -121,6 +121,8 @@ class DmcRow:
     # composer's sectpos shadow (per-entry base threading); USF flag 'runon'.
     runon: bool = False
     softcmd: int = 0         # count of $7C soft-start toggles on this row
+    clock_note: bool = False  # this row's note/glide-start byte IS the live
+                             # play-clock counter (USF flag 'note_clock')
     tempo: int | None = None  # speed reload set AT this row (the Doxx tempo
                              # mailbox: an instr command >= $10 on the third
                              # voice doubles as a tempo command — see the
@@ -551,6 +553,14 @@ _PEEK_DEPTH_MAP: dict = {}
 # lifecycle as _PEEK_DEPTH_MAP.
 _FETCH_EVENTS: dict = {}
 
+# PLAY-CLOCK byte inside the song data (C19 'Ed'-animator family, Dresden):
+# the play wrapper INCs a byte EMBEDDED IN A PLAYED SECTOR every call and
+# uses bit 0 as its phase parity; a glide/note row whose source byte sits AT
+# that address plays the LIVE counter, not the stale file value. The walk
+# flags such rows ('note_clock'); the composer reproduces the mechanism.
+# Same lifecycle as _PEEK_DEPTH_MAP (set per member by extract()).
+_PLAYCLK_ADDR: list = []             # [] = off; [addr] = the counter byte
+
 
 def _simulate_sector(mem, sec_addr: int, st: _Sticky,
                      fmt: _SecFmt = _SECFMT['v4'],
@@ -721,6 +731,8 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
                 continue
             else:                    # mode 0: play A, glide to B
                 a = rd(pos + 1)
+                _clk = ((sec_addr + ((pos + 1) & 0xFF)) & 0xFFFF) in \
+                    _PLAYCLK_ADDR
                 t = rd(pos + 2)
                 pos += 3
                 if retrig is not None:      # base+$744,x <- A+transp ($1145)
@@ -728,6 +740,7 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
                 rows.append(DmcRow(note=a, duration=st.dur, instr=st.instr,
                                    vol=st.vol, soft=soft,
                                    glide_speed=speed, glide_to=t,
+                                   clock_note=_clk,
                                    **_take()))
                 if peek_end():
                     return rows
@@ -1681,6 +1694,10 @@ def _decode_filter_def(mem, base: int, n: int) -> dict:
 def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     _PEEK_DEPTH_MAP.clear()          # per-member; no leak across pool members
     _FETCH_EVENTS.clear()
+    _PLAYCLK_ADDR.clear()
+    _pca = cfg.extra_params.get('playclk_addr')
+    if _pca:
+        _PLAYCLK_ADDR.append(int(_pca, 16))
     path = os.path.join(hvsc_root, cfg.sid_path)
     mem, s = _load_image(path)
     # INIT-UNPACKER member (factory-detected): every data table lives
@@ -2111,7 +2128,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # pw_bound_shift is consumed above (extract-only); keep it out of USF so
     # the params block carries only musical content, never the derivation knob.
     m.extra_params = {k: v for k, v in getattr(cfg, 'extra_params', {}).items()
-                      if k != 'pw_bound_shift'}
+                      if k not in ('pw_bound_shift', 'playclk_addr')}
     if m.extra_params.get('dual_freq_generator'):
         # Dual-generator members (factory._dual_freq_gen_probe) force pwphase to
         # P0/P0+1 on every dual frame (P0 = $19 + ph_add), so the pulse

@@ -131,6 +131,12 @@ def _row_to_usf(r: DmcRow, cmd_flags: bool = False) -> NoteRow:
         flags.append(f'glide={r.glide_speed}')
     if r.glide_to is not None:
         flags.append(f'glide_to={_pitch(r.glide_to)}')
+    if getattr(r, 'clock_note', False):
+        # the row's start pitch IS the engine's free-running play-tick
+        # counter (the play wrapper's parity byte lives inside this played
+        # sector — Dresden's rising-glide trick). Stated pitch = the stale
+        # file byte; the composer substitutes its own clock at this byte.
+        flags.append('note_clock')
     if getattr(r, 'runon', False):
         # run-on row: no $7F end-marker follows in the source stream — the
         # engine's sector position is NOT reset after this row (feeds the
@@ -182,6 +188,12 @@ def _row_to_usf_stated(r: DmcRow, cmd_flags: bool) -> NoteRow:
         flags.append(f'glide={r.glide_speed}')
     if r.glide_to is not None:
         flags.append(f'glide_to={_pitch(r.glide_to)}')
+    if getattr(r, 'clock_note', False):
+        # the row's start pitch IS the engine's free-running play-tick
+        # counter (the play wrapper's parity byte lives inside this played
+        # sector — Dresden's rising-glide trick). Stated pitch = the stale
+        # file byte; the composer substitutes its own clock at this byte.
+        flags.append('note_clock')
     if getattr(r, 'runon', False):
         flags.append('runon')       # no $7F follows: sectpos not reset
     dur = r.duration if r.dcmd else None

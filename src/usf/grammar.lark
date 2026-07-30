@@ -740,6 +740,12 @@ fx_flag: "tie"                  -> fx_tie
        // end-of-pattern marker after this row — the engine's pattern-position
        // counter is NOT reset and accumulates into the next orderlist entry.
        | "runon"                 -> fx_runon
+       // clock-driven pitch (DMC Dresden_Party): this row's start pitch is
+       // the engine's free-running play-tick counter (one INC per play()
+       // call, 8-bit wrap) — the note rises one step per elapsed tick each
+       // time the row plays. The stated pitch is the source byte's stale
+       // file value; playback substitutes the live clock.
+       | "note_clock"            -> fx_note_clock
 
 // digi
 digi_body: "sample" ":" SAMPLE_PATH

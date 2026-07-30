@@ -1253,6 +1253,9 @@ class _T(Transformer):
     def fx_runon(self, _):
         return 'runon'
 
+    def fx_note_clock(self, _):
+        return 'note_clock'
+
     def fx_softcmd(self, items):
         return f'soft_cmd={int(items[0])}'
 

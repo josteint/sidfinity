@@ -8,6 +8,27 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 140 (2026-07-30): play-clock byte INSIDE a played sector (C19 30th occ) — Dresden_Party FULL (+1)
+Next-partial PVCF/Dresden_Party: deep V3 note-init freq-LO-only
+divergence (~45% in). Root cause: the appended play wrapper's phase
+parity counter ($6FFF, INC per play / AND #$01; init seeds $FF) sits
+INSIDE V3's pattern data — a mode-0 glide row's start-note byte IS the
+live counter (pitch rises one step per play tick each lap; the stale
+file byte $2E decodes as a plausible ordinary glide = the disguise).
+The freq-HI matched by coincidence (orig's off-table stable-prefix vol
+slot $0F == our real fhi[46]). FIX (mechanism reproduction, Ed family):
+`_playclk_probe` (static: INC/LDA operand pair at the play vector +
+init seed) → extract-internal `playclk_addr` (filtered from USF —
+engine-positional); walk flags the row (`note_clock`, grammar+parser
+extended, corpus check 12001/12001); composer emits the flagged row's
+stream byte as a labeled $FF seed, INCs every labeled byte at the head
+of each play call, re-seeds at init. Off-table freq for counter notes:
+nothing new needed (flo/fhi adjacency + co-located window already
+matched). Census: 6 wrapper-shape carriers, only Dresden's counter in
+song data; Dresden_Party_95_II + 2_Speed (FULL siblings) re-verified
+FULL, Radio_Napalm/X-Filter at pre-existing baselines. GATES: corpus
+check, smoke 6/6, full regression green. f1 now 5354 FULL / 47 partial.
+
 ## ✅ ROUND 139 (2026-07-30): C37 3rd carrier via OBSERVATION detection — Cafe_Odd FULL (+1, both subs); r138 probe misfire fixed
 Next-partial PVCF/Cafe_Odd (base $E000, re-assembled): sub 1 diverged in
 INIT ($D418 $FA vs $FF). Root cause = a C37 SAVE-STATE RESUME wrapper in
