@@ -8,6 +8,21 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 142 (2026-07-30): pulse-base ADC re-pointed into SID-mirror space (C19 31st occ) — Mathematica_tune_3 FULL (+1)
+Next-partial PVCF/Mathematica_tune_3 (canon layout): note-init PW-lo off
+by the instrument's base nibble ($6F vs $60). dmc_canon_diff: canon
+$1376 `ADC $175F,X` → `ADC $D75F,X` — the pulse-step base read lands in
+SID-MIRROR space (X=0 = ENV3, X=1/2 = write-only mirrors = decayed
+bus). The $175F STORE is unpatched (off-table cpwbase co-location
+intact); FIX = `_pw_base_read_probe` (uniform _WEDGE_PROBES row, fires
+only for $D400-$D7FC operands — hardware-stable, layout-independent) →
+composer param `pw_base_sid_read` swaps the two ADC sites (fx_pulse +
+pulse_tail) to the absolute read; identical values under the identical
+write history. Also on board: an init wedge (`LDA #$35/STA $01` banking
+poke + forced A=0 — walk no-op). Census: 1 carrier in 10,689. FULL
+210182/210182. GATES: smoke 6/6, full regression green. f1 now 5356
+FULL / 45 partial.
+
 ## ✅ ROUND 141 (2026-07-30): C18 static-table schedule refinement — Hexzakk FULL (+1)
 Next-partial PVCF/Hexzakk (6× CIA $0CCB, re-assembled base $1000): V3
 "wrong note" at frame ~13 was NOT off-table (`dmc_offtable_probe`

@@ -3467,8 +3467,31 @@ def _play_repeat_parity_probe(path: str, base: int,
     return 'P2_P' if even_med > odd_med else 'P_P2'
 
 
+def _pw_base_read_probe(path: str, base: int,
+                        post_init_sub: 'int | None' = None):
+    """Pulse-step BASE read re-pointed into SID-MIRROR space (C19,
+    Mathematica_tune_3): canon $1376 `ADC $175F,X` patched to `ADC $D75F,X`
+    — X=0 reads ENV3, X=1/2 read write-only SID mirrors (the decayed bus).
+    Probe the canon site's operand; fire ONLY when it points into the SID
+    address space ($D400-$D7FF): hardware-stable and layout-independent, so
+    the composer reproduces the exact absolute read. Any other repoint
+    target (a RAM var in the ORIG's layout) is NOT reproducible verbatim
+    and keeps the default (member stays partial, honest residue)."""
+    mem, s = _load(path, post_init_sub)
+    site = base + 0x376
+    if mem[site] != 0x7D:                 # ADC abs,X intact
+        return None
+    op = mem[site + 1] | (mem[site + 2] << 8)
+    if op == (base + 0x75F) & 0xFFFF:     # canon
+        return None
+    if not 0xD400 <= op <= 0xD7FC:        # SID space only (see docstring)
+        return None
+    return f'{op:04X}'
+
+
 _WEDGE_PROBES = [
     ('play_phases',                     lambda p, c: _play_repeat_parity_probe(p, c.base, c.post_init_sub)),
+    ('pw_base_sid_read',                lambda p, c: _pw_base_read_probe(p, c.base, c.post_init_sub)),
     ('master_vol_every_play',           lambda p, c: _d418_play_wrapper(p, c.base, c.post_init_sub)),
     ('master_vol_reassert_filter_tail', lambda p, c: _d418_filter_tail_probe(p, c.base, c.post_init_sub)),
     ('hold_gateoff',                    lambda p, c: _hold_gateoff_probe(p, c.base, c.post_init_sub)),

@@ -1836,6 +1836,17 @@ fx_dual_up:
     fx_entry = str(usf.params.fields.get('effect_entry_variant', '') or '')
     voice_fx_target = ('vib_half' if fx_entry == 'vibflip' else 'wavestep') \
         if notestart_arm else 'frame_entry'
+    # pw_base_sid_read (C19, Mathematica_tune_3): the canon pulse-step base
+    # read `ADC $175F,X` is re-pointed into SID-MIRROR space ($D75F,X:
+    # X=0 reads ENV3, X=1/2 read write-only mirrors = the decayed bus).
+    # Reproduce the exact absolute read — hardware semantics, identical
+    # under the identical preceding write stream. cpwbase itself stays
+    # (the STORE was not re-pointed; off-table windows still co-locate it).
+    _pbr = str(usf.params.fields.get('pw_base_sid_read', '') or '')
+    pw_base_adc = (f'        adc ${_pbr},x                ; pulse base: SID-'
+                   'mirror read (C19 wedge)\n' if _pbr else
+                   '        adc cpwbase,x                ; + cached base '
+                   '(0 while idling)\n')
     # rphase_variant='pulse_tail' (C18 entry variant, R-phase twin of
     # effect_entry_variant): the R (non-tick) play phase re-runs the pulse
     # program TAIL — a SECOND pulse advance per music tick — instead of a plain
@@ -1862,7 +1873,7 @@ fx_dual_up:
                       '        and #$f0\n'
                       'pt_base:\n'
                       '        clc\n'
-                      '        adc cpwbase,x                ; + cached step base\n'
+                      f'        {pw_base_adc.strip()}\n'
                       '        sta tmp\n'
                       '        sta pwstep,x\n'
                       '        jmp pw_sweep                 ; sweep+filter+glide+wave+write\n\n'
@@ -3314,8 +3325,7 @@ fx_pulse:
         sta wjmp                     ; STA $171F, before the nibble select)
         lda isteps,y                 ; per-phase step nibble
         clc
-        adc cpwbase,x                ; + cached base (0 while idling)
-        sta tmp
+{pw_base_adc}        sta tmp
         sta pwstep,x                 ; live shadow of orig $175C (current PW
                                      ; step) — off-table hi reads sonify it
 pw_sweep:                            ; shared by fx_pulse + pulse_tail (R phase)
