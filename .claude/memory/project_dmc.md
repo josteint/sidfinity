@@ -8,6 +8,37 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ⏸ ROUND 143 (2026-07-30): Mathematika_II — instrument-switch-AT-FETCH variant root-caused; composer mode + probe = next session's work
+Next-partial PVCF/Mathematika_II (RE-ASSEMBLED, base $1000, canon table
+addrs $1647/$16A7 — canon_diff says reassembled; state at CANON offsets:
+wavepos $177A,x, fxf $177D,x, fbl/fbh $172F/$1732,x). Schedule R3_P —
+but the "R3" wrapper is `LDX #$02 / JMP $1591` = the WAVESTEP entry
+(an advancing F3; C18 R-positive class). ESTABLISHED FACTS (per-play
+aligned at flat 33048 = play 3013, V3 row: pattern 8 row 15, note 36,
+stated i20=DRUM raw, prev row i15 also drum):
+- Play 3012 (P, fetch): BOTH sides identical — new instr ADSR $00/$EA
+  + hard restart $FFFF/$81 (prep). Play 3013 ("R3"=wavestep): orig
+  emits fbh=$0A = NEW drum's step 0 (trace: $15FA LDA $1A2F,Y Y=$2B=43
+  = i20's wave_start, drum branch), OURS emits $04 = OLD i16 program's
+  current cell (our pool pos 50). Play 3014 (P): ours catches up
+  ($0A00) but stays ONE DRUM STEP behind orig from then on (3015 orig
+  $0D=step1, ours $0A=step0).
+- ⇒ the orig switches fxf+wave program to the NEW instrument AT THE
+  FETCH play; our composer switches cinst/fxf/wavepos at note-init
+  (3014). Melodic transitions mask it (fbh=fhi[note] both ways, no
+  step between); DRUM transitions expose it.
+- UNRESOLVED: the orig's switch SITE not found in the trace window
+  (no `9D 7D 17` fxf store frames 1638-1645 yet fxf=$E3=i20 flags at
+  3013?!) and the wavepos walk 40..42-loop → 43 escape mechanics
+  unclear. NEXT: pc-watch/trace the fetch play only (play 3012 ≈ raw
+  frame ~1641) WIDER, find the fxf/wavepos writers; then composer
+  param (`instr_switch_at_fetch`?) gated in ev_n_hard (switch
+  cinst/fxf/wavepos at the stated-slot fetch) + a probe (static
+  fingerprint of this build, or C23-style observation). ⚠ the
+  offtable probe mis-fired AGAIN here (idx 141 = $1734 fbhi cache
+  self-echo — 8th mis-fire, same class as r141's 7th).
+NO code changes landed this round (tree clean at r142's commit).
+
 ## ✅ ROUND 142 (2026-07-30): pulse-base ADC re-pointed into SID-mirror space (C19 31st occ) — Mathematica_tune_3 FULL (+1)
 Next-partial PVCF/Mathematica_tune_3 (canon layout): note-init PW-lo off
 by the instrument's base nibble ($6F vs $60). dmc_canon_diff: canon
