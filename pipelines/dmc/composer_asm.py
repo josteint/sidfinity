@@ -586,7 +586,22 @@ def _row_secwidth(row) -> int:
     (the dur_cmd/instr_cmd/vol_cmd/soft_cmd fx_flags). Mirrors _row_event's kind logic."""
     flags = {f.split('=')[0]: (f.split('=')[1] if '=' in f else True)
              for f in row.fx_flags}
-    extra = (('dur_cmd' in flags) + ('instr_cmd' in flags) + ('vol_cmd' in flags)
+
+    def _cnt(k):
+        # bare flag = 1 command byte; '=N' = N consecutive command bytes (a
+        # garbage-window row can carry DOUBLED prefixes — two $Fx vol bytes
+        # before one note; impossible in editor-authored sectors, routine in
+        # sonified stack/zp windows — r137d, Deprave)
+        if k not in flags:
+            return 0
+        v = flags[k]
+        if v is True:
+            return 1
+        try:
+            return max(1, int(v))
+        except (TypeError, ValueError):
+            return 1
+    extra = (_cnt('dur_cmd') + _cnt('instr_cmd') + _cnt('vol_cmd')
              + int(flags.get('soft_cmd', 0) or 0))
     if row.pitch.is_rest:
         return 1 + extra                     # $7E rest / $7D switch

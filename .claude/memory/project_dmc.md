@@ -8,6 +8,24 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 137d (2026-07-29): DEPRAVE_7_TUNE_3 FULL (+1) — 222826/222826 exact. The r128 hard-residue member fully lands; final piece = DOUBLED-PREFIX command COUNTS
+The "drum-path" residual decoded as the C11 SECTPOS live read (wnote $82
+→ fhi idx 130 = $1729, V1's own sectpos) with our shadow off by exactly
+2: the composer's row-width derivation counted stated commands as
+BOOLEANS while a sonified-garbage-window row can carry DOUBLED prefixes
+(two $Fx vol bytes before one note — impossible in editor-authored
+sectors, routine in stack/zp windows). FIX: `p_d/p_i/p_v` became COUNTS
+(truthiness keeps every boolean consumer intact); fx_flags emit
+`dur_cmd=N`/`instr_cmd=N`/`vol_cmd=N` for N>1 (bare = 1, grammar +
+parser extended — usf_corpus_check 12001/12001); the composer's
+`_cnt()` width math consumes them. Grammar/parser touched ⇒ full gate
+set: 9-member C29 class census FULL, smoke, full regression, corpus
+check — all green. THE COMPLETE DEPRAVE STACK (r137-r137d):
+dispatch-depth fetch serve (zp+stack) → per-read-site peek map →
+playidx-paired lap-aware serving (decimal playidx!) → doubled-prefix
+counts. The r128 "live CPU stack = irreducible residue" boundary is now
+FULLY overturned — the third and sharpest expiry precedent.
+
 ## ⏸ ROUND 137c (2026-07-29): Deprave — PLAYIDX-paired lap-aware serving LANDED + VERIFIED ALIGNED (all 3 voices 100% event hits); residual UNMOVED at 219359 = a V1 DRUM-PATH value (next session's lead)
 The r137b ordinal-pairing failure root-caused TWICE: (1) pairing key must
 be PLAYIDX derived from cumulative row durations (dur 0 = 256 plays), NOT

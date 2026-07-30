@@ -727,8 +727,13 @@ fx_flag: "tie"                  -> fx_tie
        // value did not change. Emitted only when an engine sonifies its
        // pattern-position counter (DMC sectpos $1729 read off-table): the
        // composer derives each row's byte width from row kind + these flags.
+       // bare flag = 1 command byte; '=N' = N consecutive command bytes (a
+       // sonified-garbage-window row can carry doubled prefixes — r137d)
+       | "dur_cmd" "=" INT       -> fx_dcmd_n
        | "dur_cmd"                 -> fx_dcmd
+       | "instr_cmd" "=" INT     -> fx_icmd_n
        | "instr_cmd"                 -> fx_icmd
+       | "vol_cmd" "=" INT       -> fx_vcmd_n
        | "vol_cmd"                 -> fx_vcmd
        | "soft_cmd" "=" INT      -> fx_softcmd
        // run-on row: the source stream hits the next fetch with NO

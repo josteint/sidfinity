@@ -590,13 +590,14 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
     # event belong to the NEXT row's fetch (each INCs $1729,x). Recorded as
     # byte FACTS of the sector (not change-vs-sticky), so the same sector
     # always yields the same flags regardless of entry context.
-    p_d = p_i = p_v = False
-    p_s = 0
+    p_d = p_i = p_v = 0              # COUNTS (a garbage-window row can carry
+    p_s = 0                          # doubled prefixes — r137d; truthiness
+                                     # keeps every boolean consumer intact)
 
     def _take():
         nonlocal p_d, p_i, p_v, p_s
         d, i, v, s = p_d, p_i, p_v, p_s
-        p_d = p_i = p_v = False
+        p_d = p_i = p_v = 0
         p_s = 0
         return {'dcmd': d, 'icmd': i, 'vcmd': v, 'softcmd': s}
 
@@ -662,7 +663,7 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
         # VOL prefix (canon $F0+; family 2 has none)
         if fmt.vol_min is not None and b >= fmt.vol_min:
             st.vol = b & 0x0F
-            p_v = True
+            p_v += 1
             pos += 1
             continue
         # soft-start toggle (canon $7C; family 2 has none)
@@ -734,14 +735,14 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
         # duration prefix
         if b >= fmt.dur_min:
             st.dur = b & 0x3F
-            p_d = True
+            p_d += 1
             pos += 1
             continue
         # instrument prefix (a dispatched terminator falls here for
         # canon = instr 31, the ghost path) / note
         if b >= fmt.instr_lo:
             st.instr = b & 0x1F
-            p_i = True
+            p_i += 1
             pos += 1
             continue
         # note

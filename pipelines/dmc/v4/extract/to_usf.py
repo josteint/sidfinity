@@ -100,11 +100,14 @@ def _row_to_usf(r: DmcRow, cmd_flags: bool = False) -> NoteRow:
         # ($1729-$172B) — the composer derives each row's orig byte width
         # (base + stated commands) to keep a live sectpos,x shadow.
         if r.dcmd:
-            flags.append('dur_cmd')
+            flags.append('dur_cmd' if int(r.dcmd) <= 1
+                         else f'dur_cmd={int(r.dcmd)}')
         if r.icmd:
-            flags.append('instr_cmd')
+            flags.append('instr_cmd' if int(r.icmd) <= 1
+                         else f'instr_cmd={int(r.icmd)}')
         if r.vcmd:
-            flags.append('vol_cmd')
+            flags.append('vol_cmd' if int(r.vcmd) <= 1
+                         else f'vol_cmd={int(r.vcmd)}')
         if r.softcmd:
             flags.append(f'soft_cmd={r.softcmd}')
     if getattr(r, 'tempo', None) is not None:
@@ -159,11 +162,14 @@ def _row_to_usf_stated(r: DmcRow, cmd_flags: bool) -> NoteRow:
         flags.append(f'vol={r.vol}')
     if cmd_flags:
         if r.dcmd:
-            flags.append('dur_cmd')
+            flags.append('dur_cmd' if int(r.dcmd) <= 1
+                         else f'dur_cmd={int(r.dcmd)}')
         if r.icmd:
-            flags.append('instr_cmd')
+            flags.append('instr_cmd' if int(r.icmd) <= 1
+                         else f'instr_cmd={int(r.icmd)}')
         if r.vcmd:
-            flags.append('vol_cmd')
+            flags.append('vol_cmd' if int(r.vcmd) <= 1
+                         else f'vol_cmd={int(r.vcmd)}')
         if r.softcmd:
             flags.append(f'soft_cmd={r.softcmd}')
     if getattr(r, 'tempo', None) is not None:
