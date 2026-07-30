@@ -1326,6 +1326,66 @@ def _wavestep_arm_refine(path: str, base: int, observed: str,
     return '_'.join(toks)
 
 
+def _fphase_effect_repeat(path: str, base: int,
+                          post_init_sub: 'int | None' = None):
+    """Decode a C18 F-phase that runs the per-voice wave-step with REPEATS
+    (PVCF 'massive multispeed' — Sound_Test, STIL: 'an 11-speeder, sounds like
+    samples'). The play-vector wrapper's effects branch is `JSR SUB xk`
+    (SUB != base+3, so it is not a whole-play repeat), and SUB is
+    `(LDX #v / JSR FX xm)...` with FX a SINGLE wave-step routine — so voice v's
+    wave program advances m*k steps per effects-call (the massive multispeed).
+    Returns the repeat spec 'k:VxC,VxC' (1-based voice; e.g. Sound_Test's
+    `JSR $1006 x5`, `$1006 = LDX#0/JSR $15A2 / LDX#2/JSR $15A2 x5` -> '5:1x1,3x5'),
+    or None when the wrapper is not this nested-repeat shape (the default:
+    each F voice once, byte-identical). Static (C24/C18 JSR-count method)."""
+    mem, s = _load(path, post_init_sub)
+    play = s['play']
+    if mem[play] == 0x4C:                       # play vector may JMP to wrapper
+        play = mem[play + 1] | (mem[play + 2] << 8)
+    # outer: the first run of >=2 consecutive identical `JSR SUB` (SUB != base+3)
+    sub = outer = None
+    for a in range(play, min(play + 0x40, 0xFFFA)):
+        if mem[a] != 0x20:
+            continue
+        t = mem[a + 1] | (mem[a + 2] << 8)
+        run, q = 1, a + 3
+        while q + 2 < 0x10000 and mem[q] == 0x20 and \
+                (mem[q + 1] | (mem[q + 2] << 8)) == t:
+            run += 1
+            q += 3
+        if run >= 2 and t != (base + 3) & 0xFFFF:
+            sub, outer = t, run
+            break
+    if sub is None:
+        return None
+    # inner: SUB = (LDX #v / JSR FX xm)...  FX must be a single routine
+    inner, fx, v, a = [], None, None, sub
+    for _ in range(24):
+        op = mem[a]
+        if op == 0xA2:                          # LDX #v (voice select)
+            v = mem[a + 1]
+            a += 2
+        elif op == 0x20:                        # JSR FX (count the run)
+            t = mem[a + 1] | (mem[a + 2] << 8)
+            if fx is None:
+                fx = t
+            if t != fx or v is None or v > 2:
+                return None
+            run, q = 1, a + 3
+            while mem[q] == 0x20 and (mem[q + 1] | (mem[q + 2] << 8)) == t:
+                run += 1
+                q += 3
+            inner.append((v + 1, run))
+            v, a = None, q
+        elif op == 0x60:                        # RTS = end of SUB
+            break
+        else:
+            return None
+    if not inner or fx is None or fx == (base + 3) & 0xFFFF:
+        return None
+    return f'{outer}:' + ','.join(f'{vv}x{cc}' for vv, cc in inner)
+
+
 def _playclk_probe(path: str, base: int,
                    post_init_sub: 'int | None' = None):
     """PLAY-CLOCK-IN-SONG-DATA wrapper (C19 'Ed'-animator family, Dresden):
@@ -3894,6 +3954,17 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str,
                 ph = ph3
                 cfg.extra_params.setdefault('noteinit_deferred', '1')
             cfg.extra_params['play_phases'] = ph
+            # F-phase per-voice REPEAT (C18/C24, PVCF 'massive multispeed' —
+            # Sound_Test): the effects branch runs `JSR SUB xk`, SUB advancing
+            # each voice's wave-step m times, so the wave program steps m*k per
+            # E-call. Static decode -> 'k:VxC,..'; the F phase is pure wave-step
+            # (effects only), so it enters the arm (noteinit_deferred).
+            if any(t and t[0] == 'F' for t in ph.split('_')):
+                fr = _fphase_effect_repeat(os.path.join(hvsc_root, sid_path),
+                                           cfg.base, post_init_sub)
+                if fr is not None:
+                    cfg.extra_params['fphase_repeat'] = fr
+                    cfg.extra_params.setdefault('noteinit_deferred', '1')
             # Per-member: does the F phase DEFER note-init (the 2-frame arm)?
             # Only F-token schedules have the ambiguity (the arm lives on an F
             # call). Observe it — not derivable from the schedule/multispeed.

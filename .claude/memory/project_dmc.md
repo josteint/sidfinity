@@ -8,27 +8,35 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
-## 🔎 LEAD (2026-07-30, investigated, NOT fixed): PVCF/Sound_Test — C18 phase-wrapper with PER-VOICE REPEAT effects (needs new machinery)
-Next-partial after Scratch_It. `Sound_Test` (canon base $1000, CIA ~100 Hz,
-play vector $2114) is a C18 play-vector phase wrapper that alternates:
-- P phase: `JSR $1003` → $1096 = the standard full play body (note-fetch +
-  3 voices via $10C1 + filter tail).
-- E phase: `JSR $1006` ×5. $1006 = wave-step $15A2 on V1 (X=0) ×1 + V3 (X=2)
-  ×5. So per E-call: V1 effects ×5, V3 effects ×25.
-$15A2 is a per-voice WAVE-TABLE walker (wave bytes $19FE,Y; ≥$90 = jump-back
-control; freq from $1658/$16B8 → shadow $1740/$1743,X → emit $1614). pc-trace
-frames 2-4: 62 $15A2/$1614 emits in ~2.5 frames = ~25 emits/frame = 6× a
-normal DMC tune (len_a/len_b = 397406/65186 = 6.1). The observer detects the
-right VOICES (`P_F13`) but the composer emits each F-voice ONCE, so it
-diverges at the E-phase's 2nd V3 step (flat pos 47). TO FIX needs: (1) observer
-counts per-voice $15A2 executions per E-call (V1×5, V3×25) → a repeat-carrying
-F token; (2) composer F-token emits the repeats; (3) VERIFY our voice_fx
-wave-step reproduces $15A2 byte-for-byte over 25 consecutive steps (unproven —
-the current F13 already diverges structurally). OPEN anomaly: writelog V1
-freq-lo 1753/s > V3 1173/s, opposite of the V1×5/V3×25 model — $1614 emit
-likely refreshes >1 voice or V1's path differs; needs $1614 RE. Assessment:
-multi-hour new-subsystem effort (per-voice-repeat phase machinery) + wave-step
-fidelity risk, for a niche sound-test tune. Not a clean lever like a wedge.
+## ✅ ROUND 145 (2026-07-30): F-phase per-voice REPEAT — massive-multispeed effects (C18) — Sound_Test FULL (+1)
+Next-partial after Scratch_It: PVCF/Sound_Test. STIL (PVCF's own words): "an
+11-speeder, sounds like samples", used in the Reflex trackmo 'Reflection'.
+Play wrapper $2114 alternates P (full play $1096) with an effects branch
+`JSR $1006 x5`; `$1006 = LDX#0/JSR $15A2 (V1x1) / LDX#2/JSR $15A2 x5 (V3x5)`
+=> per E-call the wave program steps V1x5, V3x25 in the INTERLEAVED order
+(V1,V3x5)x5 (interleave is part of the write stream — a flat total diverges).
+Observer got the voices (`P_F13`) but emitted each F voice ONCE, diverging at
+the E-phase's 2nd V3 step (len_a/len_b = 397406/65186 = 6.1x). STIL confirmed
+it's a DELIBERATE massive multispeed (wave-step, NOT digi — "sounds like"
+samples), so Mode-1 write-stream reproducible.
+- ⚠ The player is 94% NON-CANON (only 240/4096 bytes match the canon DMC
+  player; a re-assembled custom PVCF multispeed player, dataflow build route).
+  P-body/$10C1/$1006/$15A2 all differ from canon. Yet the fix is TINY: our
+  canon wave-step reproduces the custom $15A2 BYTE-FOR-BYTE, because the DMC
+  data format (wave/freq tables) is shared and the P-phase already matched
+  (proving the data extract). The 94%-custom scare didn't matter.
+- FIX: `factory._fphase_effect_repeat` statically decodes the nested JSR
+  structure (outer `JSR SUB xk`, SUB=`(LDX #v/JSR FX xm)`) -> `fphase_repeat`
+  '5:1x1,3x5'; composer expands the F-token to `outer x [voice x inner_count]`
+  wave-step calls (interleave ORDER preserved). Sibling of C24
+  play_unit_repeat (per-voice repeat in the play BODY) — the C18 F-phase
+  analog. Ledger C18.
+- Census: probe fires on EXACTLY 1 of 10,676 DMC members (Sound_Test) =>
+  zero regression exposure; default absent = each F voice once, byte-identical.
+  Class-lever check came back NEGATIVE (singleton; look-alikes are handled
+  play_repeat/unit_repeat or Compod no_jumptable) — landed anyway per
+  completeness. FULL 397406/397406. GATES: smoke 6/6, full regression green.
+  f1 now 5360 FULL / 41 partial.
 
 ## ✅ ROUND 144 (2026-07-30): $D418-every-play wrapper INDIRECT topology (C19 32nd occ) — Scratch_It FULL (+1)
 Next-partial PVCF/Scratch_It (canon base $7000, 2× CIA $2663 = 100 Hz):

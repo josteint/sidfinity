@@ -1836,6 +1836,21 @@ fx_dual_up:
     fx_entry = str(usf.params.fields.get('effect_entry_variant', '') or '')
     voice_fx_target = ('vib_half' if fx_entry == 'vibflip' else 'wavestep') \
         if notestart_arm else 'frame_entry'
+    # fphase_repeat (C18/C24, PVCF 'massive multispeed' — Sound_Test): the F
+    # (effects) phase runs the per-voice wave-step with REPEATS. The wrapper's
+    # effects branch is `JSR SUB xk`, and SUB is `(LDX #v / JSR fx xm)...`, so a
+    # voice's wave program advances m*k steps per E-call (an 11-speeder). Encoded
+    # "outer:V x cnt,V x cnt" (1-based voice), applied to the F token whose voice
+    # set matches. Absent => each F voice once (byte-identical default).
+    _fphr = str(usf.params.fields.get('fphase_repeat', '') or '')
+    _fphase_outer, _fphase_inner = 0, []       # inner: list of (voice_1b, count)
+    if _fphr and ':' in _fphr:
+        _o, _seq = _fphr.split(':', 1)
+        _fphase_outer = int(_o)
+        for _pair in _seq.split(','):
+            _v, _c = _pair.split('x')
+            _fphase_inner.append((int(_v), int(_c)))
+    _fphase_voices = ''.join(str(_v) for _v, _ in _fphase_inner)
     # pw_base_sid_read (C19, Mathematica_tune_3): the canon pulse-step base
     # read `ADC $175F,X` is re-pointed into SID-MIRROR space ($D75F,X:
     # X=0 reads ENV3, X=1/2 read write-only mirrors = the decayed bus).
@@ -1908,6 +1923,15 @@ fx_dual_up:
                     body += (f'        ldx #{int(v) - 1}\n'   # rphase_variant=
                              f'        {r_call}\n')           # pulse_tail it runs
                 body += '        rts\n'                        # the $135D pulse tail
+            elif _fphase_inner and t[1:] == _fphase_voices:
+                # F<voices> with a per-voice REPEAT structure (fphase_repeat):
+                # outer x [ (voice x inner_count) ... ] wave-step calls.
+                body = ''
+                for _o in range(_fphase_outer):
+                    for _v, _cnt in _fphase_inner:
+                        body += (f'        ldx #{_v - 1}\n'
+                                 '        jsr voice_fx\n') * _cnt
+                body += '        rts\n'
             else:                     # F<voices>: per-voice frame entry only
                 body = ''
                 for v in t[1:]:
