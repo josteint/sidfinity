@@ -8,6 +8,25 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 141 (2026-07-30): C18 static-table schedule refinement — Hexzakk FULL (+1)
+Next-partial PVCF/Hexzakk (6× CIA $0CCB, re-assembled base $1000): V3
+"wrong note" at frame ~13 was NOT off-table (`dmc_offtable_probe`
+mis-fired on the freq-lo CACHE $1741 — by-value trap; this member's
+layout is +$10-shifted, hand-crafted watch addrs are the exact
+`dmc_state_addr` trap). Ground truth (pc-trace): the wave step read pool
+pos 117 (offset 9) where ours sat at an offset-5 step — our V3's wave
+program lagged one advance. Cause: the play wrapper is the C18 SMC
+JSR-OPERAND-TABLE idiom (counter mod 6 → table [03,03,06,06,06,06] →
+JSR $1003/$1006); the true schedule is P F123 F123 F123 F123 P (call 5
+= F123), but the pc-trace observer classified call 5 as R123 — an R
+never advances the wave, and instr 14's program holds equal values for
+several steps, so the drift stayed invisible until the program's next
+value change. FIX: `factory._smc_jsr_table_refine` — static decode of
+the wrapper (period, per-call targets, seed), then force same-target
+calls to their MAJORITY token (base+3 group must be P). Census: Hexzakk
+is the ONLY carrier of the shape in 10,689. FULL 1148445/1148445.
+GATES: smoke 6/6, full regression green. f1 now 5355 FULL / 46 partial.
+
 ## ✅ ROUND 140 (2026-07-30): play-clock byte INSIDE a played sector (C19 30th occ) — Dresden_Party FULL (+1)
 Next-partial PVCF/Dresden_Party: deep V3 note-init freq-LO-only
 divergence (~45% in). Root cause: the appended play wrapper's phase

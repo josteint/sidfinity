@@ -1214,6 +1214,78 @@ def _forced_subtune_probe(path: str, base: int,
     return None
 
 
+def _smc_jsr_table_refine(path: str, base: int, observed: str,
+                          post_init_sub: 'int | None' = None):
+    """Refine an OBSERVED play-phase schedule against the statically-decoded
+    SMC-JSR-TABLE wrapper (C18's first listed idiom; Hexzakk r141).
+
+    The wrapper shape: `INC c / LDA c / CMP #N / BNE +5 / LDA #0 / STA c /
+    LDX c / LDA tab,X / STA <jsr-operand-lo> / JSR base+t / RTS` — the
+    N-entry table holds jump-table LO bytes, so the true per-call TARGET
+    sequence is static ground truth. The pc-trace observer classifies each
+    call's ROLE (P/F/R) from chip-state heuristics and can misclassify a
+    single call (Hexzakk: one of four F123 calls read as R123 — an R never
+    advances the wave program, so a multi-step wave drifted a step behind,
+    invisible until the program's next value change). The refiner keeps the
+    observer's ROLE vocabulary but forces every call that JSRs the SAME
+    table target to the SAME token (majority vote within the group) — the
+    engine runs one routine per target, so per-call divergence within a
+    group is observation noise by construction.
+
+    Returns the refined schedule string, or None when the wrapper doesn't
+    match / lengths disagree (keep the observation)."""
+    mem, s = _load(path, post_init_sub)
+    play = s['play']
+    if play == base + 3 or play + 26 > 0xFFFF:
+        return None
+    def op16(a):
+        return mem[a] | (mem[a + 1] << 8)
+    if not (mem[play] == 0xEE and mem[play + 3] == 0xAD and
+            op16(play + 1) == op16(play + 4) and
+            mem[play + 6] == 0xC9 and mem[play + 8] == 0xD0 and
+            mem[play + 10] == 0xA9 and mem[play + 11] == 0x00 and
+            mem[play + 12] == 0x8D and op16(play + 13) == op16(play + 1) and
+            mem[play + 15] == 0xAE and op16(play + 16) == op16(play + 1) and
+            mem[play + 18] == 0xBD and
+            mem[play + 21] == 0x8D and mem[play + 24] == 0x20):
+        return None
+    n = mem[play + 7]
+    if not 2 <= n <= 16:
+        return None
+    if op16(play + 22) != play + 25:      # STA must patch the JSR operand lo
+        return None
+    if mem[play + 26] != (base >> 8):     # JSR hi byte = the player page
+        return None
+    tab = op16(play + 19)
+    ctr = op16(play + 1)
+    targets = [mem[tab + i] for i in range(n)]
+    # counter seed: init wrapper `LDA #ss / STA ctr`, else the file byte
+    seed = mem[ctr]
+    init = s['init']
+    for a in range(init, min(init + 0x30, 0xFFFB)):
+        if mem[a] == 0xA9 and mem[a + 2] == 0x8D and op16(a + 3) == ctr:
+            seed = mem[a + 1]
+            break
+    obs = [t for t in observed.split('_') if t]
+    if len(obs) != n:
+        return None
+    # per-call table index: INC first, reset at N
+    call_idx = [(seed + 1 + k) % n for k in range(n)]
+    groups = {}
+    for k, ti in enumerate(call_idx):
+        groups.setdefault(targets[ti], []).append(k)
+    out = list(obs)
+    for tgt, calls in groups.items():
+        toks = [obs[k] for k in calls]
+        best = max(set(toks), key=toks.count)
+        if tgt == 0x03 and best != 'P' and best != 'P2':
+            return None                   # base+3 must be the full play
+        for k in calls:
+            out[k] = best
+    refined = '_'.join(out)
+    return refined if refined != observed else None
+
+
 def _playclk_probe(path: str, base: int,
                    post_init_sub: 'int | None' = None):
     """PLAY-CLOCK-IN-SONG-DATA wrapper (C19 'Ed'-animator family, Dresden):
@@ -3724,6 +3796,12 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str,
         ph = _observe_play_phases_pctrace(
             os.path.join(hvsc_root, sid_path), s['start'] - 1, s['play'])
         if (ph and '_' in ph and 'P' in ph.split('_')):
+            # static SMC-JSR-table wrapper: force same-target calls to one
+            # token (majority) — kills single-call F/R misreads (Hexzakk).
+            ph2 = _smc_jsr_table_refine(os.path.join(hvsc_root, sid_path),
+                                        cfg.base, ph, post_init_sub)
+            if ph2 is not None:
+                ph = ph2
             cfg.extra_params['play_phases'] = ph
             # Per-member: does the F phase DEFER note-init (the 2-frame arm)?
             # Only F-token schedules have the ambiguity (the arm lives on an F
