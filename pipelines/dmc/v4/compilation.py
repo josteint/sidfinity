@@ -79,6 +79,19 @@ def _is_player_base(mem, load: int, a: int) -> bool:
     return load <= a and _is_player_head(mem, a)
 
 
+def _is_canon_base_unaligned(mem, load: int, b: int) -> bool:
+    """A canonical DMC jump table (`JMP b+$1D` init / `JMP b+$85` play) at `b`
+    WITHOUT the page-alignment `_is_player_head` requires — for a base named by
+    an EXPLICIT wrapper lo/hi table, where a non-page-aligned base is legitimate
+    (Pievspie/Mission_Moon $5E24). The exact-offset canon signature is strict
+    enough that a spurious lo/hi pairing cannot validate (both resulting bytes
+    would have to form `4C b+1D .. 4C b+85`)."""
+    return (load <= b and b + 6 < 0x10000
+            and mem[b] == 0x4C and mem[b + 3] == 0x4C
+            and (mem[b + 1] | (mem[b + 2] << 8)) == b + 0x1D
+            and (mem[b + 4] | (mem[b + 5] << 8)) == b + 0x85)
+
+
 def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
     """Return a compilation spec or None.
 
@@ -119,9 +132,14 @@ def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
         else:
             p += 1
 
-    # classify the tables: the base-hi table's values all point (as a page
-    # number, val<<8) at a player base; the song table's values are small
-    # song numbers. Need at least the base-hi table.
+    # classify the tables: a base table's values point at player bases; a song
+    # table's values are small song numbers. The base table is normally a page
+    # HI-byte table (base = val<<8). When the bases are NOT page-aligned, the
+    # wrapper carries a SEPARATE lo + hi table (Pievspie/Mission_Moon: $5DE4 lo
+    # / $5DE6 hi -> $5E24, $5000) — the observe path can't reach those (its
+    # `--pc-watch` low-byte gate + page-aligned pre-gate are page-aligned by
+    # construction), so PAIR the two `LDA abs,X` tables here and validate every
+    # resulting base (a wrong lo/hi assignment fails `_is_player_base`).
     base_tab = song_tab = None
     for t in ldax:
         vals = [mem[(t + x) & 0xFFFF] for x in range(songs)]
@@ -131,7 +149,23 @@ def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
         elif all(v < 8 for v in vals):
             if song_tab is None:
                 song_tab = vals
-    if base_tab is None:
+    full_bases = None
+    if base_tab is not None:                       # page-aligned: base = hi<<8
+        full_bases = [v << 8 for v in base_tab]
+    elif len(ldax) >= 2:                            # non-page-aligned lo/hi pair
+        for lo_t in ldax:
+            for hi_t in ldax:
+                if lo_t == hi_t:
+                    continue
+                lv = [mem[(lo_t + x) & 0xFFFF] for x in range(songs)]
+                hv = [mem[(hi_t + x) & 0xFFFF] for x in range(songs)]
+                cand = [lv[x] | (hv[x] << 8) for x in range(songs)]
+                if all(_is_canon_base_unaligned(mem, load, b) for b in cand):
+                    full_bases = cand
+                    break
+            if full_bases is not None:
+                break
+    if full_bases is None:
         return _observe_dispatch_2pass(sid_path, hvsc_root)
     if song_tab is None:
         # single-player-per-subtune dispatch with no song remap: every subtune
@@ -140,13 +174,12 @@ def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
 
     # ordered distinct bases in wrapper first-seen order
     ordered_bases = []
-    for v in base_tab:
-        b = v << 8
+    for b in full_bases:
         if b not in ordered_bases:
             ordered_bases.append(b)
     base_idx = {b: i for i, b in enumerate(ordered_bases)}
     try:
-        mp = [(base_idx[base_tab[x] << 8], song_tab[x]) for x in range(songs)]
+        mp = [(base_idx[full_bases[x]], song_tab[x]) for x in range(songs)]
     except (KeyError, IndexError):
         return _observe_dispatch_2pass(sid_path, hvsc_root)
     # Only a genuine compilation: the dispatch must actually select >=2
