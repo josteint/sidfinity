@@ -791,6 +791,13 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
         song.idle_notes = tuple(models[pidx].idle_notes)
         song.idle_masks = tuple(models[pidx].idle_masks)
         song.durrel_init = tuple(models[pidx].durrel_init)
+        # ...and on its own player's idle wave program (wave-table pos 0). The
+        # file-level `idle_wave` above is the START player's; a packed player
+        # whose wave table differs at pos 0 makes its subtunes' idle voices
+        # walk a different lead-in wave (Mission_Moon sub 1). model_to_usf
+        # emits a per-subtune override only where it differs, so agreement
+        # keeps the emitted image byte-identical.
+        song.idle_wave = models[pidx].idle_wave
         # ...and on its own player's $D417 routing leftover (§4.2 priming).
         song.d417_shadow = models[pidx].d417_shadow
         # ...and its own player's half-rate slide-clock phase ($1019

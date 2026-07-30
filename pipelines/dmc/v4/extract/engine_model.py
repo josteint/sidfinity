@@ -163,6 +163,14 @@ class DmcSong:
     # hand every subtune the start player's phase, flipping player 2's
     # wavestep/slide alternation). None = the file-level value serves.
     dual_phase: int | None = None
+    # Per-subtune idle wave program (the cleared-cache wave walk from wave-table
+    # position 0 — what a voice's effects walk before its first note). It is the
+    # wave analog of idle_notes/idle_masks: FILE-LEVEL for a single player, but a
+    # COMPILATION packs N players whose wave tables differ at position 0, so each
+    # subtune's idle voices must walk ITS OWN player's idle wave (Mission_Moon:
+    # player 1's V2 idles, and on the START player's idle wave its freq-base
+    # cache diverges). `(ctrl, freq, loop)`; None = the model-level value serves.
+    idle_wave: tuple | None = None
     # C37 layer 2 — the save-state resume wrapper pastes DIFFERENT wave
     # table / filter-def bytes per subtune. Raw collection (consumed by
     # the clone-and-remap pass, C31 single-player form):

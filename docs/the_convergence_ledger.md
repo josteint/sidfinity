@@ -874,16 +874,20 @@ practice, not code to factor).
   leftovers → ride `subtune{init{voice N{note/gate_mask/dur_reload}}}` (NO
   schema addition — same file-level-vs-per-subtune split as `speed_ctr_init`),
   with the composer's table widening GATED so existing members stay
-  byte-identical. ⚠ INCOMPLETE — `idle_wave` is ALSO per-subtune but is NOT yet
-  rode per-subtune: the merge sets per-song idle_notes/masks/durrel
-  (`compilation.py:791`) but idle_wave stays FILE-LEVEL (`wave_programs[0]` =
-  the wave walk from wave-table pos 0). Two players whose wave tables differ at
-  pos 0 → the non-base player's idle voice walks the WRONG wave, its freq-base
-  cache (fbl) diverges, and an off-table freq read of fbl mis-plays
-  (Pievspie/Mission_Moon sub 1; PROVEN: forcing merged idle_wave=player1's →
-  both subtunes FULL). FIX NEEDED = per-subtune idle_wave (extend `per_sub_prime`
-  to a per-subtune idle wave START into a pool holding both players' idle waves,
-  or a per-subtune `wave_programs[0]`).
+  byte-identical. `idle_wave` (the cleared-cache lead-in wave a voice walks
+  before its first note) is the SAME per-player fact and is now rode per-subtune
+  too: the merge sets per-song `idle_wave` (compilation.py), to_usf emits it as
+  the pre-existing `MusicSubtune.wave_programs[0]` override ONLY where it differs
+  from the file-level idle wave, and the composer APPENDS each distinct override
+  to the wave pool and primes that subtune's voices' `wavepos` to its position
+  (`sub_iwpos`, reusing the `per_sub_prime` subtune*3+voice init addressing).
+  Two players whose wave tables differ at pos 0 otherwise made the non-base
+  player's idle voice walk the WRONG wave → its freq-base cache (fbl) diverged →
+  an off-table freq read of fbl mis-played (Pievspie/Mission_Moon sub 1: fbl+1
+  idx 233 read $8F vs orig $F7 — landed FULL). Gated so single-player /
+  same-idle-wave-compilation members stay byte-identical; INCOMPATIBLE with the
+  layout-preserving / positional wave pools (which pin wavepos to the orig's
+  live $177A), where it is IGNORED (collapsed-idle residue, never a build fail).
 - FULL ENTRY: [`ledger/C31.md`](ledger/C31.md) — read it before applying.
 
 ### C35 — one FILE, more than one COMPOSER (`origin_engine`)

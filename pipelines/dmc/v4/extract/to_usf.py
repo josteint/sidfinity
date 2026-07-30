@@ -603,6 +603,12 @@ def _emit_otrk_fields(m) -> dict:
     return fields
 
 
+def _iw_key(iw):
+    """Normalize an `(ctrl, freq, loop)` idle-wave triple to a comparable key
+    (ctrl/freq may be tuples or lists depending on the extract path)."""
+    return (tuple(iw[0]), tuple(iw[1]), iw[2]) if iw is not None else None
+
+
 def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
     # Wave-table normal form (§4) is OPT-IN per writer: only the audited
     # single-player writer (write_dmc_usf) passes wave_norm=True. Every
@@ -761,8 +767,20 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
             sid=InitSid(
                 master_vol=song.master_vol,
                 filter=InitFilter(res_routing=shadow) if shadow else None))
+        # per-subtune idle wave (compilations whose packed players' wave tables
+        # differ at position 0 — the cleared-cache lead-in wave a voice walks
+        # before its first note; ledger C31). Emitted as `MusicSubtune`'s
+        # wave_programs[0] override ONLY where it differs from the file-level
+        # idle wave, so agreement keeps the emitted image byte-identical.
+        sub_wprog = None
+        if song.idle_wave is not None and \
+                _iw_key(song.idle_wave) != _iw_key(m.idle_wave):
+            sub_wprog = {0: {'ctrl': list(song.idle_wave[0]),
+                             'freq': list(song.idle_wave[1]),
+                             'loop': song.idle_wave[2]}}
         subtunes.append(MusicSubtune(
             id=song.id, tempo=song.speed, voices=voices, init=sub_init,
+            wave_programs=sub_wprog,
             # per-subtune composer-param overrides (compilations whose packed
             # players disagree on a wedge knob — ledger C31); None otherwise
             params=(Params(fields=dict(song.params)) if song.params else None)))

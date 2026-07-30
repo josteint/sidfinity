@@ -8,6 +8,32 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 148 (2026-07-30): PER-SUBTUNE idle_wave — Pievspie/Mission_Moon FULL (+1) — C31
+Landed the r147 sub-1 lead: the compilation merge collapsed `idle_wave` (the
+cleared-cache lead-in wave a voice walks before its first note) to the START
+player, so sub 1's V2 idled on player 0's wave → its fbl freq-base cache
+diverged → the off-table freq read idx 233 (fbl+1) read $8F vs orig $F7.
+- FIX (3 layers, mirrors the per-subtune idle_notes/masks/durrel machinery):
+  merge sets per-song `DmcSong.idle_wave` (compilation.py); to_usf emits it as
+  the PRE-EXISTING `MusicSubtune.wave_programs[0]` override (added for
+  Super_Tau-Zeta's V5 idle but never consumed by the V4 composer) ONLY where it
+  differs from the file-level idle; composer APPENDS each distinct override to
+  the wave pool (`add_prog`) → `sub_iwpos[s]` pool position, and primes each
+  subtune's voices' `wavepos` from an `iwpos` table in `ini_v`, reusing
+  `per_sub_prime`'s subtune*3+voice addressing (per_sub_iwave forces it on).
+  Mission_Moon: sub 1 partial→FULL, sub 0 stays FULL (no divergently-idling
+  voice). Ledger C31.
+- GATED: absent unless a compilation's packed players disagree on the idle wave,
+  so single-player + same-idle-wave members are BYTE-IDENTICAL. INCOMPATIBLE
+  with the layout/positional wave pools (pin wavepos to orig's live $177A) →
+  there the override is IGNORED (collapsed-idle honest residue, never a build
+  fail). GATES: golden byte-identity over a 48-member sample (single-player +
+  2SID + 5 same-idle-wave compilations) = 43 identical + 3 pre-existing
+  unsupported + 2 changed: Mission_Moon (partial→FULL, the fix) and Balloonacy
+  (a differing-idle-wave 4-player compilation: FULL→FULL, all 7 subtunes, sub 2
+  even matched +5 writes — verdict-preserved). smoke 6/6; full regression green.
+- f1: 5362 FULL / 39 partial (was 5361/40).
+
 ## 🔶 ROUND 147 (2026-07-30, PARTIAL): compilation detection for NON-page-aligned lo/hi-pair wrapper — Pievspie/Mission_Moon sub 0 FULL; sub 1 proven lead
 Next-partial Pievspie/Mission_Moon (2 subtunes, VBLANK, load $5000; NO STIL/
 BUGlist entry). It's a COMPILATION (C31) the factory MISSED. Init wrapper $5DF3

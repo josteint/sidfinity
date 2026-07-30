@@ -1090,6 +1090,30 @@ class _Model:
             self.iwst.append(first(
                 inst.waveform, inst.wave_freq or [0] * len(inst.waveform),
                 inst.loop, getattr(inst, 'wave_table_pos', None)))
+        # PER-SUBTUNE idle wave (ledger C31 — a compilation packs N players
+        # whose wave tables differ at position 0; each subtune's idle voices
+        # must walk ITS OWN player's lead-in wave). The file-level wave_programs
+        # [0] above sits at pool position 0 and serves every subtune that
+        # inherits it (wavepos is cleared to 0); a subtune that OVERRIDES it
+        # gets its idle wave appended as a distinct pool program, and init
+        # primes that subtune's voices' wavepos to the appended position.
+        # `sub_iwpos[s]` = the pool position subtune s idles from (0 = inherit).
+        # Gated: absent unless a subtune overrides -> byte-identical emission.
+        # Incompatible with the layout-preserving / positional pools, which pin
+        # wavepos to the orig's live $177A (a non-orig idle position would break
+        # the DMC_WAVEPOS_ROW redirect) — there, IGNORE the override and keep the
+        # collapsed file-level idle wave (byte-identical to the pre-fix build, so
+        # a currently-FULL layout-pool compilation can never regress; a member
+        # that genuinely needs it stays honest residue, not a build failure).
+        self.sub_iwpos = None
+        _sub_ip = [(getattr(s, 'wave_programs', None) or {}).get(0)
+                   for s in usf.subtunes]
+        if any(p and p.get('ctrl') for p in _sub_ip) and \
+                not (self.wavepos_layout or self.wavepos_positional):
+            self.sub_iwpos = [
+                add_prog(p['ctrl'], p['freq'], p.get('loop', 0))
+                if (p and p.get('ctrl')) else 0
+                for p in _sub_ip]
         if self.wavepos_layout:
             size = max(_ctrl_at) + 1
             self.wctrl = bytearray(_ctrl_at.get(k, 0) for k in range(size))
@@ -2380,12 +2404,28 @@ fx_dual_up:
         sub_prime.append(row)
     per_sub_prime = any(r != [idle, imask, iguard, idurl, icinst]
                         for r in sub_prime)
+    # PER-SUBTUNE idle wave start (m.sub_iwpos, ledger C31): a compilation whose
+    # packed players' wave tables differ at position 0 needs each subtune's idle
+    # voices primed to walk ITS player's lead-in wave (appended to the pool).
+    # It also DRIVES the per-subtune (subtune*3 + voice) init addressing below,
+    # so per_sub_iwave forces the widened `lda inote,y` form even when the
+    # note/mask/instr priming itself agrees across subtunes.
+    sub_iwpos = getattr(m, 'sub_iwpos', None)
+    per_sub_iwave = sub_iwpos is not None
+    if per_sub_iwave:
+        per_sub_prime = True
+    iwpos = []
     if per_sub_prime:
         idle = [b for r in sub_prime for b in r[0]]
         imask = [b for r in sub_prime for b in r[1]]
         iguard = [b for r in sub_prime for b in r[2]]
         idurl = [b for r in sub_prime for b in r[3]]
         icinst = [b for r in sub_prime for b in r[4]]
+        # per-(subtune, voice) idle wave pool position — all 3 voices of a
+        # subtune share it (the idle wave is per-subtune, not per-voice); 0 for
+        # a subtune that inherits the file-level idle wave at pool position 0.
+        iwpos = [(sub_iwpos[si] if per_sub_iwave else 0)
+                 for si in range(len(usf.subtunes)) for _ in range(3)]
     if usf.freq_table:
         assert len(usf.freq_table) == 192, len(usf.freq_table)
         flo, fhi = usf.freq_table[:96], usf.freq_table[96:]
@@ -2508,6 +2548,10 @@ fx_dual_up:
         # nonzero (the all-zero case keeps the constant init form, so every
         # existing member's image is byte-identical)
         data.append('icinst:\n' + _byt(icinst))
+    if per_sub_iwave:
+        # per-(subtune, voice) idle wave pool position (ledger C31); emitted
+        # only for a compilation whose packed players disagree on the idle wave
+        data.append('iwpos:\n' + _byt(iwpos))
     data.append('igla:\n' + _byt(igla))
     data.append('iglb:\n' + _byt(iglb))
     data.append('freqlo:\n' + _byt(flo))
@@ -2765,6 +2809,14 @@ fx_dual_up:
                    '        adc tmp\n'
                    '        tay\n' if per_sub_prime else '')
     prime_step = '        iny\n' if per_sub_prime else ''
+    # per-subtune idle wave prime (see `iwpos` above): only emitted for a
+    # compilation whose packed players disagree on the idle wave. Points each
+    # idling voice's wavepos at ITS subtune's idle wave in the pool (0 =
+    # inherit the file-level idle wave at pool position 0). `ps` is 'y' here
+    # (per_sub_iwave forces per_sub_prime). Absent otherwise -> byte-identical.
+    iwpos_prime = (f'        lda iwpos,{ps}                  ; per-subtune idle '
+                   'wave pool position\n'
+                   '        sta wavepos,x\n' if per_sub_iwave else '')
     # sticky-instrument seed init (see `icinst` above): all-zero slots keep
     # the historical constant form byte-for-byte; a nonzero seed switches to
     # the icinst table (emitted below only in that case).
@@ -2961,7 +3013,7 @@ ini_v:
         sta gla,x                    ; read tracks orig from init; glsp=0 so
         lda iglb,x                   ; fx_glide stays gated off until an arm)
         sta glb,x
-{cinst_seed}{prime_step}        inx
+{iwpos_prime}{cinst_seed}{prime_step}        inx
         cpx #$03
         bne ini_v
         ; ---- universal reset: silence-clear (ascending, as the family) ----
