@@ -422,7 +422,7 @@ practice, not code to factor).
   entry reachability BOTH WAYS (a held note's F looks like R; an R whose
   vibrato runs ADVANCES and looks like F — effects-tail-entry reachability is
   R-positive, Real_Hardcore); variant F/R entry points exist (vib_half,
-  pulse_tail) — full entry lists them. When the wrapper is the SMC JSR-TABLE idiom, the per-call TARGET sequence is static ground truth — force same-target calls to ONE (majority) token; a single-call F/R misread otherwise starves a multi-step wave program one advance per cycle, invisible until the program's next value change (Hexzakk).
+  pulse_tail) — full entry lists them. When the wrapper is the SMC JSR-TABLE idiom, the per-call TARGET sequence is static ground truth — force same-target calls to ONE (majority) token; a single-call F/R misread otherwise starves a multi-step wave program one advance per cycle, invisible until the program's next value change (Hexzakk). Same failure via a DIRECT `LDX #v / JMP base+$591` wrapper call (an idle voice's ADVANCING arm entry misread as R) — static-flip the R token to F + force the arm mode (Mathematika_II, Radio_Napalm).
 - FULL ENTRY: [`ledger/C18.md`](ledger/C18.md) — read it before applying.
 
 ### C19 — hand-patched player WEDGE inside the canon body

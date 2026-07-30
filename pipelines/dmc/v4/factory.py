@@ -1286,6 +1286,46 @@ def _smc_jsr_table_refine(path: str, base: int, observed: str,
     return refined if refined != observed else None
 
 
+def _wavestep_arm_refine(path: str, base: int, observed: str,
+                         post_init_sub: 'int | None' = None):
+    """Refine an OBSERVED schedule whose wrapper calls the canon WAVESTEP
+    entry directly (r143, Mathematika_II): the play wrapper dispatches
+    `LDX #v / JMP base+$591` — the $1591 arm entry, an ADVANCING wave step.
+    A voice that IDLES during the observation window makes that call look
+    like a register refresh, so the pc-trace observer emits an R token —
+    but an R never advances the wave program, and a multi-step (drum)
+    program then lags one step per cycle behind the orig, invisible until
+    the program's next value change. STATIC truth: scan the wrapper window
+    for `A2 vv 4C <base+$591>`; when found and the observed schedule
+    carries an R token for exactly those voices, flip it to F and return
+    (schedule, noteinit_deferred='1') — the F-as-wavestep-arm mode
+    (voice_fx = wavestep) is the literal orig call. None = no match."""
+    mem, s = _load(path, post_init_sub)
+    play = s['play']
+    # the wrapper can BE the play vector, or the jump table's play entry can
+    # be re-pointed at it (Mathematika_II: $1003 `JMP $2528`) — follow one JMP
+    if mem[play] == 0x4C:
+        play = mem[play + 1] | (mem[play + 2] << 8)
+    tgt = (base + 0x591) & 0xFFFF
+    voices = set()
+    for a in range(play, min(play + 0x40, 0xFFFA)):
+        if (mem[a] == 0xA2 and mem[a + 2] == 0x4C and
+                (mem[a + 3] | (mem[a + 4] << 8)) == tgt and mem[a + 1] < 3):
+            voices.add(mem[a + 1] + 1)
+    if not voices:
+        return None
+    want = ''.join(str(v) for v in sorted(voices))
+    toks = [t for t in observed.split('_') if t]
+    hit = False
+    for i, t in enumerate(toks):
+        if t == 'R' + want:
+            toks[i] = 'F' + want
+            hit = True
+    if not hit:
+        return None
+    return '_'.join(toks)
+
+
 def _playclk_probe(path: str, base: int,
                    post_init_sub: 'int | None' = None):
     """PLAY-CLOCK-IN-SONG-DATA wrapper (C19 'Ed'-animator family, Dresden):
@@ -3825,6 +3865,13 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str,
                                         cfg.base, ph, post_init_sub)
             if ph2 is not None:
                 ph = ph2
+            # direct-JMP wavestep-arm wrapper: an idle voice made the call
+            # look like R; the static wrapper target is the truth (r143).
+            ph3 = _wavestep_arm_refine(os.path.join(hvsc_root, sid_path),
+                                       cfg.base, ph, post_init_sub)
+            if ph3 is not None:
+                ph = ph3
+                cfg.extra_params.setdefault('noteinit_deferred', '1')
             cfg.extra_params['play_phases'] = ph
             # Per-member: does the F phase DEFER note-init (the 2-frame arm)?
             # Only F-token schedules have the ambiguity (the arm lives on an F
@@ -4110,6 +4157,14 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84',
                 os.path.join(hvsc_root, sid_path), s['start'] - 1, s['play'])
             if pf and '_' in pf and 'P' in pf.split('_') and 'S' not in pf:
                 play_phases = pf
+        # direct-JMP wavestep-arm wrapper: an idle voice made the call look
+        # like R; the static wrapper target is the truth (r143). Sets the
+        # arm mode via _WAVESTEP_ARM_HINT (consumed by the caller below).
+        if play_phases:
+            ph3 = _wavestep_arm_refine(os.path.join(hvsc_root, sid_path),
+                                       base, play_phases)
+            if ph3 is not None:
+                play_phases = ph3 + '!arm'
     delta = base - 0x1000
 
     def at(canon_addr):                 # canonical $1xxx addr -> mem index
@@ -4170,6 +4225,12 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84',
     # so the variant passes the compare; the verify is the safety net. ----
     extra = {}
     if play_phases:
+        if play_phases.endswith('!arm'):
+            # wavestep-arm refinement (r143): the flipped F token IS the
+            # $1591 arm entry — force the 2-frame-arm mode directly (the
+            # footprint observer below can't see it: the voice idled).
+            play_phases = play_phases[:-4]
+            extra['noteinit_deferred'] = '1'
         extra['play_phases'] = play_phases
         # Per-member: does the F phase DEFER note-init (the 2-frame arm)?
         # Only F-token schedules carry the ambiguity; observe it (not derivable
