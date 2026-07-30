@@ -8,6 +8,28 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 144 (2026-07-30): $D418-every-play wrapper INDIRECT topology (C19 32nd occ) — Scratch_It FULL (+1)
+Next-partial PVCF/Scratch_It (canon base $7000, 2× CIA $2663 = 100 Hz):
+sub 0 diverged at flat pos 26 (the FIRST play write). Orig play() re-asserts
+`$D418=$1F` (mvol $F | LP-filter bit) at the top of EVERY call; ours emitted
+0 (orig $1F ×91 vs our ×0 in 1 s; the changing `$BF` filter-mode events
+matched ×5 both — the filter program was already right). This is the known
+`master_vol_every_play` wedge (PVCF/Zyron/Signor), but in an INVERTED
+topology the probe missed: the play vector `$7003` (= base+3, the canon play
+JT slot) is re-pointed `JMP $82F0`, and the appended wrapper `$82F0` does
+`LDA #$1F / STA $D418 / JMP $7085` (real play body) — NOT inline at the play
+vector, NOT exiting `base+3`. FIX: `_d418_play_wrapper` now also follows ONE
+JMP from the play vector, anchoring on the reloc-invariant `A9 ?? 8D 18 D4 4C`
+shape with an in-image non-self-loop exit; inline branch byte-identical.
+Composer unchanged (`playd418` chunk already emits the indirect form — our
+Bernds_Tune rebuild proves it). Census: exactly 2 indirect carriers in
+10,676 — Scratch_It + Bayliss/Follow_That_Storm; the latter is a RE-ASSEMBLED
+non-canon-geometry member (init b+$50, play body b+$7B) that fails EARLIER at
+jt-detection (`no_jumptable`) — a separate lever (canon-detection must follow
+the wrapper JMP AND handle re-assembled geometry; noted, not chased). FULL
+303880/303880 state ✓. GATES: smoke 6/6, full regression green. f1 now 5359
+FULL / 42 partial.
+
 ## ✅ ROUND 143 (2026-07-30, completed): wavestep-arm wrapper misread as R (C18) — Mathematika_II + Radio_Napalm FULL (+2)
 Next-partial PVCF/Mathematika_II (RE-ASSEMBLED, base $1000, canon table
 addrs $1647/$16A7 — canon_diff says reassembled; state at CANON offsets:

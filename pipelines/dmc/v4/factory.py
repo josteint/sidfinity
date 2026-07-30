@@ -2655,16 +2655,37 @@ def _dual_freq_gen_probe(path: str, base: int, freq_lo: int,
 
 def _d418_play_wrapper(path: str, base: int,
                        post_init_sub: 'int | None' = None):
-    """$D418 play-vector wrapper probe: the PSID play address points at
-    `LDA #imm / STA $D418 / JMP base+3` (PVCF / Zyron / Signor) — a constant
-    master-vol|filter-mode write on every play() call before the canon play
-    body. Returns imm, or None when the play vector isn't this shape."""
+    """$D418 play-vector wrapper probe: the play entry runs
+    `LDA #imm / STA $D418 / JMP <play body>` (PVCF / Zyron / Signor) — a
+    constant master-vol|filter-mode write on every play() call before the canon
+    play body. Two topologies, both anchored on the reloc-invariant
+    `STA $D418`:
+      (a) inline   — the PSID play address IS the wrapper, exiting `JMP base+3`
+                     (into the canon play jump-table slot);
+      (b) indirect — the PSID play address is `JMP <appended wrapper>` (the
+                     canon play jump-table slot re-pointed), the wrapper doing
+                     the $D418 write then `JMP <real play body>` inside the
+                     image (Scratch_It: play $7003 = JMP $82F0, wrapper $82F0 =
+                     `LDA #$1F / STA $D418 / JMP $7085`).
+    Returns imm, or None when the play entry isn't this shape."""
     mem, s = _load(path, post_init_sub)
     p = s['play']
+    # (a) inline: PSID play IS the wrapper, exit `JMP base+3`.
     if (mem[p] == 0xA9 and bytes(mem[p + 2:p + 5]) == b'\x8d\x18\xd4'
             and mem[p + 5] == 0x4C
             and mem[p + 6] | (mem[p + 7] << 8) == base + 3):
         return mem[p + 1]
+    # (b) indirect: PSID play is `JMP <wrapper>`; the wrapper does the $D418
+    # write then `JMP <real play body>` (a valid in-image target, no self-loop).
+    if mem[p] == 0x4C:
+        w = mem[p + 1] | (mem[p + 2] << 8)
+        lo, hi = s['load'], min(s['load'] + len(s['payload']), 0x10000)
+        if (lo <= w and w + 8 <= hi and mem[w] == 0xA9
+                and bytes(mem[w + 2:w + 5]) == b'\x8d\x18\xd4'
+                and mem[w + 5] == 0x4C):
+            tgt = mem[w + 6] | (mem[w + 7] << 8)
+            if tgt != w and lo <= tgt < hi:
+                return mem[w + 1]
     return None
 
 
