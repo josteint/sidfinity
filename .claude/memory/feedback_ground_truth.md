@@ -157,3 +157,14 @@ init-copied bytes (trustworthy py65 per this file's own rule), and genuine
 environment reads are served separately by the C29 `--peek-post-init` path.
 **Ask of every candidate: does it OBSERVE the real machine, or SIMULATE an
 idealized one the real machine can't produce?**
+
+**Mechanical tripwire (2026-07-31): `tools/py65_guard.py`** — a warn-only
+`PreToolUse` hook (`.claude/settings.json`, matcher `Bash|Write`) that fires on
+an inline `from py65` / `import py65` in a Bash heredoc/`-c` or a Write, and
+injects the "is this an OBSERVATION? use siddump native-capture" reminder. It is
+NON-blocking (py65 is load-bearing in ~50 extract files — a hard ban would break
+extraction) and precise: running a committed py65-importing tool
+(`python3 tools/dmc_family_batch.py`) carries no inline import, so it never
+fires. Prompted by nearly reaching for a py65 harness to measure which addresses
+DMC `$101D` writes during the Mega_Mix medley fix (r150) — the answer was
+`siddump --pc-watch`.
