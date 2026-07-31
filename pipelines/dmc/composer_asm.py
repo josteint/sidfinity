@@ -1510,6 +1510,18 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # gate = a different audible envelope), so it rides the composer, not the
     # extract. Default $02 → byte-identical.
     note_guard_hex = f'{int(usf.params.fields.get("note_guard_init", 2)) & 0xFF:02X}'
+    # pulse UP-sweep reversal bound (C19 wedge, Rygar/Complications: the canon
+    # `CMP $1759,x` at $1393 — pwh vs bound B — has its operand re-pointed to
+    # $1710,x = the per-voice filter route-bit CONST $01/$02/$04). So the PW
+    # up-sweep reverses when pwh == the route bit instead of at bound B: a voice
+    # whose PW starts above its route bit and sweeps up never hits it, so the
+    # PW ramps the full 16-bit range (wraps) instead of oscillating in the small
+    # bound-A..bound-B window — a deliberately wide PWM. Reproduce faithfully by
+    # comparing against `fbit,x` (the composer's $01/$02/$04 route-bit table).
+    # Changes the PW write stream → composer param, not extract. Default → the
+    # canon `cmp cpwmax,x`, byte-identical.
+    pw_up_cmp = ('fbit' if str(usf.params.fields.get('pw_up_reverse', ''))
+                 == 'routebit' else 'cpwmax')
     # hard-restart envelope preset: 'preset' (canon) writes AD=$0F SR=$0F
     # (the original's sub_17FB) on the note-fetch frame; 'none' (family 2)
     # writes only the $08 TEST bit (its relocated instrument table clobbers
@@ -3551,7 +3563,7 @@ pw_sweep:                            ; shared by fx_pulse + pulse_tail (R phase)
         lda pwh,x
         adc #$00
         sta pwh,x
-        cmp cpwmax,x
+        cmp {pw_up_cmp},x
         bne fx_filter
         lda #$01
         sta pwdir,x

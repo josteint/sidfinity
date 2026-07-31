@@ -8,6 +8,34 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 154 (2026-07-31): Rygar/Complications — PULSE UP-REVERSAL bound repoint (+1) — C19 35th occ
+Next-partial Rygar/Complications (single, canon base $1000, VBLANK; NO
+STIL/BUGlist — no Rygar entries in either doc). sub 0 partial, DEEP first-div
+(flat pos 13358, ~frame 820): V3 PW orig `$0B70` vs rebuild `$0AD0`.
+- MECHANISM: the PW swept identically (step $50, up from $0800) on both sides,
+  then the REBUILD reversed at pwh=$0B (cpwmax=bound B=$0B) while the ORIG kept
+  sweeping UP past $0B → $0C..$10.. (never reversing up). Bound B measured
+  correct ($175B=$0B) but the orig IGNORES it.
+- ROOT (byte-diff orig vs canon player): canon `$1393: DD 59 17` (`CMP $1759,x`
+  = pwh vs bound B in the pulse UP-sweep) is patched to `DD 10 17` (`CMP
+  $1710,x`). $1710,x = the per-voice filter route-bit CONST ($01/$02/$04). So
+  the up-reversal fires at pwh==route-bit; V3's PW starts pwh=$08 > route-bit
+  $04, so it never hits it → PW ramps the full 16-bit range (wraps) = a
+  deliberately wide PWM. (The many $18xx↔$0Axx diffs are normal instrument-table
+  relocation, not wedges.)
+- FIX: `factory._pw_up_reverse_probe` (STATIC reloc-aware opcode probe: anchors
+  the pwh LDA/STA operands == base+$753 + the CMP opcode; returns 'routebit' iff
+  the CMP operand is base+$710) → composer `pw_up_reverse='routebit'` → the
+  shared `pw_sweep` block emits `cmp fbit,x` (the $01/$02/$04 route-bit table)
+  instead of `cmp cpwmax,x`. Regression-safe by construction: no param → `cmp
+  cpwmax,x` textually unchanged → byte-identical. CENSUS over 5833 f1: 2
+  carriers, both →$710 — Complications (partial→FULL 53531/53531) +
+  Control/Hexen_Remake (FULL, re-verified STILL FULL 72842/72842: emitting the
+  faithful reversal only matches the orig it already ran). smoke 6/6.
+- Ledger C19 35th occ. TELL: a DEEP PW divergence where the orig sweeps
+  monotonically PAST its (correct) bound B while the rebuild reverses — memwatch
+  confirms bound B is right, so byte-diff the $1393 CMP operand vs canon $1759.
+
 ## ✅ ROUND 153 (2026-07-31): Rayden/NOFX_tune_2 — POST-NOTE GUARD immediate wedge (+1) — C19 34th occ
 Next-partial Rayden/NOFX_tune_2 (single, canon base $1000, VBLANK; NO
 STIL/BUGlist — no Rayden entries in STIL at all). sub 0 partial, first-div flat

@@ -1088,6 +1088,31 @@ def _note_guard_probe(path: str, base: int,
     return None
 
 
+def _pw_up_reverse_probe(path: str, base: int,
+                         post_init_sub: 'int | None' = None):
+    """Pulse UP-sweep reversal-bound repoint probe (STATIC opcode probe, C19 —
+    Rygar/Complications). The canon pulse up-sweep at base+$381.. adds the step
+    to the PW accumulator then reverses when pwh == bound B: `LDA $1753,x /
+    ADC #$00 / STA $1753,x / CMP $1759,x` (base+$38B..base+$395). A wedge
+    re-points the CMP operand from $1759,x (bound B) to $1710,x = the per-voice
+    filter route-bit const ($01/$02/$04), so the up-sweep reverses when pwh ==
+    the route bit instead of at bound B (a voice starting above its route bit
+    ramps the full 16-bit PW range). Anchor on the surrounding canon shape (the
+    pwh LDA/STA operands == base+$753, the CMP opcode) so a non-canon layout
+    fails open; return 'routebit' iff the CMP operand is base+$710, else None
+    (canon base+$759 or any other target -> build unchanged / honest residue)."""
+    mem, _ = _load(path, post_init_sub)
+    b = base
+    if (mem[b + 0x38B] == 0xBD                          # LDA $1753,x (pwh)
+            and (mem[b + 0x38C] | (mem[b + 0x38D] << 8)) == b + 0x753
+            and mem[b + 0x390] == 0x9D                  # STA $1753,x (pwh)
+            and (mem[b + 0x391] | (mem[b + 0x392] << 8)) == b + 0x753
+            and mem[b + 0x393] == 0xDD                  # CMP abs,x
+            and (mem[b + 0x394] | (mem[b + 0x395] << 8)) == b + 0x710):
+        return 'routebit'
+    return None
+
+
 _PW_HI_WRITE = re.compile(rb'\xBD(..)\x99\x02\xD4\xBD(..)\x99\x03\xD4',
                           re.DOTALL)
 
@@ -3725,6 +3750,7 @@ _WEDGE_PROBES = [
     ('master_vol_reassert_filter_tail', lambda p, c: _d418_filter_tail_probe(p, c.base, c.post_init_sub)),
     ('hold_gateoff',                    lambda p, c: _hold_gateoff_probe(p, c.base, c.post_init_sub)),
     ('note_guard_init',                 lambda p, c: _note_guard_probe(p, c.base, c.post_init_sub)),
+    ('pw_up_reverse',                   lambda p, c: _pw_up_reverse_probe(p, c.base, c.post_init_sub)),
     ('play_unit_repeat',                lambda p, c: _play_unit_repeat_probe(p, c.base, c.post_init_sub)),
     ('pulsewidth_hi_const',             lambda p, c: _pw_hi_const_probe(p, c.base, c.post_init_sub)),
     ('dual_freq_generator',             lambda p, c: _dual_freq_gen_probe(p, c.base, c.freq_lo_addr, c.post_init_sub)),
