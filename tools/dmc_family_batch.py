@@ -74,8 +74,10 @@ def run_member(rel: str) -> dict:
                                               frames_clear_adsr)
         from pipelines.dmc.v4.extract.to_usf import (write_dmc_usf,
                                                      write_dmc_2sid_usf,
-                                                     write_dmc_compilation_usf)
-        from pipelines.dmc.v4.compilation import detect_compilation
+                                                     write_dmc_compilation_usf,
+                                                     write_dmc_medley_usf)
+        from pipelines.dmc.v4.compilation import (detect_compilation,
+                                                  detect_medley)
         from pipelines.dmc.composer_asm import build_dmc_sid
         from pipelines.hubbard.verify_cycle import (
             writelog_capture, writelog_per_irq_capture,
@@ -94,14 +96,20 @@ def run_member(rel: str) -> dict:
         # model. If the merge fails (freq mismatch / filter incompat / >28-instr
         # overflow — an unmergeable compilation), fall back to the single-player
         # path so a working member never regresses on detection.
-        comp = None if cfgs2 is not None else detect_compilation(rel, hvsc_root=hvsc)
+        # TIME-MEDLEY (ledger C31 variant, Praiser/Mega_Mix): >=2 packed players
+        # time-switched from the PLAY vector over a frame countdown (one PSID
+        # song). Checked before compilation/single — it is neither 2SID nor an
+        # init-vector dispatch. Strict static shape + build+verify gate.
+        med = detect_medley(rel, hvsc_root=hvsc) if cfgs2 is None else None
+        comp = (None if (cfgs2 is not None or med is not None)
+                else detect_compilation(rel, hvsc_root=hvsc))
         # A heterogeneous compilation packs engines of DIFFERENT families /
         # composers (Music Assembler, or a DMC V5 player beside V4 ones), so
         # it cannot be merged into one DMC model (ledger C31/C35).
         _kinds = (comp.get('kinds') or []) if comp else []
         hetero = bool(comp and any(k != 'dmc' for k in _kinds))
         cfg = None
-        if cfgs2 is None and comp is None:
+        if cfgs2 is None and comp is None and med is None:
             try:
                 cfg = dmc_v4_config(rel, hvsc_root=hvsc)
             except DMCV4Unsupported as e:
@@ -147,6 +155,9 @@ def run_member(rel: str) -> dict:
                 elif cfgs2 is not None:
                     usf = parse_file(
                         write_dmc_2sid_usf(cfgs2, td, hvsc_root=hvsc))
+                elif med is not None:
+                    usf = parse_file(
+                        write_dmc_medley_usf(rel, med, td, hvsc_root=hvsc))
                 elif comp is not None:
                     usf = parse_file(
                         write_dmc_compilation_usf(rel, comp, td, hvsc_root=hvsc))
@@ -235,13 +246,14 @@ def run_member(rel: str) -> dict:
             try:
                 subs, ok, first_diff, flat_div = build_and_verify()
             except Exception as ce:
-                if comp is None:
+                if comp is None and med is None:
                     raise
-                # an unmergeable / uncomposable compilation (freq mismatch,
-                # filter incompat, >28-instr overflow, wrapper mis-decode):
-                # fall back to the single-player path so a member that built
-                # before never regresses on compilation detection.
+                # an unmergeable / uncomposable compilation or medley (freq
+                # mismatch, filter incompat, >28-instr overflow, wrapper
+                # mis-decode): fall back to the single-player path so a member
+                # that built before never regresses on detection.
                 comp = None
+                med = None
                 try:
                     cfg = dmc_v4_config(rel, hvsc_root=hvsc)
                 except DMCV4Unsupported as e:
@@ -274,6 +286,7 @@ def run_member(rel: str) -> dict:
             build_path = ('multisid' if cfgs2 is not None
                           else ('hetero_masm' if 'masm' in _kinds
                                 else 'hetero_v5') if hetero
+                          else 'medley' if med is not None
                           else 'compilation' if comp is not None else 'single')
             return {'path': rel, 'status': 'full' if ok else 'partial',
                     'subs': subs, 'first_diff': first_diff,

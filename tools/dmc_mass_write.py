@@ -49,8 +49,10 @@ def write_member(item) -> tuple:
         from pipelines.dmc.v4.factory import dmc_v4_config, dmc_v4_config_2sid
         from pipelines.dmc.v4.extract.to_usf import (write_dmc_usf,
                                                      write_dmc_2sid_usf,
-                                                     write_dmc_compilation_usf)
-        from pipelines.dmc.v4.compilation import detect_compilation
+                                                     write_dmc_compilation_usf,
+                                                     write_dmc_medley_usf)
+        from pipelines.dmc.v4.compilation import (detect_compilation,
+                                                  detect_medley)
         from pipelines.dmc.composer_asm import build_dmc_sid
         from src.usf.parser import parse_file
         hvsc = os.path.join(ROOT, 'hvsc84')
@@ -80,6 +82,10 @@ def write_member(item) -> tuple:
             cfgs = dmc_v4_config_2sid(rel, hvsc_root=hvsc)
             usf_path = write_dmc_2sid_usf([_prime(c) for c in cfgs], out_dir,
                                           hvsc_root=hvsc)
+        elif build_path == 'medley':
+            usf_path = write_dmc_medley_usf(
+                rel, detect_medley(rel, hvsc_root=hvsc), out_dir,
+                hvsc_root=hvsc)
         elif build_path == 'compilation':
             usf_path = write_dmc_compilation_usf(
                 rel, detect_compilation(rel, hvsc_root=hvsc), out_dir,

@@ -163,14 +163,30 @@ accumulator) to match the write stream, not an SMC/verbatim hack.
 
 ---
 
-## After green: productionize (also TODO)
+## Productionized (2026-07-31) — DONE
 
-Currently the wrapper only runs via the manual recipe. To make the pipeline
-build it automatically:
-1. **Detect**: play vector → a counter-dispatch wrapper that double-plays and
-   time-switches over ≥2 canonical player bases. Route to a medley build path.
-2. **Probe the schedule**: read the counter inits ($03/$04 per segment) and the
-   segment→player+song map from the wrapper; emit `medley='0:40:1F,1:64:19'`.
-3. **Wire**: hook into `dmc_build_one.py` build dispatch + the family batch +
-   `dmc_mass_write` (record the build path). Golden byte-identity (non-medley
-   unchanged), smoke, regression, commit.
+The pipeline now builds the medley automatically:
+1. **Detect** — `compilation.detect_medley(sid_path)`: follow the PLAY vector to
+   the countdown wrapper (`_parse_medley_wrapper`: two `DEC zp` = counter lo/hi,
+   an `LDA zp` dispatch = the segment flag), collect the re-init routines (the
+   cold init + the wrapper's `JSR` targets that parse via `_parse_reinit`:
+   `LDA #song / JSR canon_base / 3×(LDA #imm/STA zp) / RTS`), require ≥2 distinct
+   canonical bases, dense seg-flags. Returns `{bases, segments:[(base_idx, song,
+   lo, hi)], play_repeat, kinds}`.
+2. **Probe** — the segment schedule falls straight out of the re-init routines
+   (counter lo/hi from the STAs keyed by the wrapper's DEC'd addrs; play_repeat
+   = the `JSR base+3` count). `write_dmc_medley_usf` emits the `medley` param
+   (`0:40:1F,1:64:19`) + `play_repeat` on the merged model.
+3. **Wire** — `dmc_build_one.build`, `dmc_family_batch.run_member`, and
+   `dmc_mass_write.write_member` all take a `medley` branch (checked after 2SID,
+   before compilation/single; records `build_path='medley'`; falls back to
+   single on a build exception). `build_dmc_sid` reports PSID `songs=1` for a
+   medley (the N segment-subtunes are internal).
+
+**Census** (run `detect_medley` over every `engine IN ('DMC','DMC_V6.x')` path):
+it fires on EXACTLY 1 of 10,676 DMC members — Mega_Mix, the sole carrier. Zero
+false-positives.
+**Gates**: sub 0 FULL via `dmc_build_one --verify`; batch `run_member` = full,
+`build_path=medley`; mass-write replay stores self-consistent artifacts (C20
+4th-layer verify-from-stored FULL + 5th-layer rebuild-from-stored byte-identical);
+smoke 6/6; golden MD5 (10 diverse members) byte-identical; full regression green.

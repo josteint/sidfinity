@@ -57,14 +57,20 @@ def build(rel: str, out_sid: str, out_usf: str | None):
     from pipelines.dmc.v4.factory import dmc_v4_config, dmc_v4_config_2sid
     from pipelines.dmc.v4.extract.to_usf import (write_dmc_usf,
                                                  write_dmc_2sid_usf,
-                                                 write_dmc_compilation_usf)
-    from pipelines.dmc.v4.compilation import detect_compilation
+                                                 write_dmc_compilation_usf,
+                                                 write_dmc_medley_usf)
+    from pipelines.dmc.v4.compilation import detect_compilation, detect_medley
     from pipelines.dmc.composer_asm import build_dmc_sid
     from src.usf.parser import parse_file
     hv = os.path.join(ROOT, 'hvsc84')
     td = tempfile.mkdtemp()
     cfgs2 = dmc_v4_config_2sid(rel, hvsc_root=hv)
-    comp = None if cfgs2 is not None else detect_compilation(rel, hvsc_root=hv)
+    # TIME-MEDLEY (ledger C31 variant): checked before the compilation/single
+    # paths (it is neither 2SID nor an init-vector dispatch). Strict static
+    # shape + build+verify gate — a false detection cannot false-FULL (C13).
+    med = detect_medley(rel, hvsc_root=hv) if cfgs2 is None else None
+    comp = (None if (cfgs2 is not None or med is not None)
+            else detect_compilation(rel, hvsc_root=hv))
     builder = build_dmc_sid
     _kinds = (comp.get('kinds') or []) if comp else []
     if comp is not None and any(k != 'dmc' for k in _kinds):
@@ -87,6 +93,11 @@ def build(rel: str, out_sid: str, out_usf: str | None):
         usf_src = write_dmc_2sid_usf(cfgs2, td, hvsc_root=hv)
         nch = len(cfgs2)
         path = _path_note('multisid', [c.base for c in cfgs2], None)
+    elif med is not None:
+        usf_src = write_dmc_medley_usf(rel, med, td, hvsc_root=hv)
+        nch = 1
+        path = _path_note('medley', med['bases'],
+                          [(bi, song) for bi, song, _lo, _hi in med['segments']])
     elif comp is not None:
         try:
             usf_src = write_dmc_compilation_usf(rel, comp, td, hvsc_root=hv)

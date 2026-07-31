@@ -196,6 +196,165 @@ def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
             'kinds': [_base_kind(mem, b) for b in ordered_bases]}
 
 
+# ---------------------------------------------------------------------------
+# TIME-MEDLEY detection (ledger C31, medley variant — Praiser/Mega_Mix)
+# ---------------------------------------------------------------------------
+# A time-sequenced medley packs >=2 canonical DMC players and, unlike a C31
+# compilation (per-subtune dispatch on the INIT vector), TIME-switches between
+# them from the PLAY vector: the play vector points at a wrapper that runs a
+# 2-byte frame countdown, double-plays the ACTIVE player, and on countdown
+# expiry JSRs a per-segment re-init routine that inits the next player and
+# reloads the counter. One PSID song; a full cycle loops. Reproduced by the
+# composer's gated `playmedley` wrapper (params.fields['medley']).
+
+
+def _parse_reinit(mem, load: int, r: int):
+    """Parse a medley segment RE-INIT routine at `r`:
+
+        LDA #song                    ; A9 song
+        JSR player_base              ; 20 ll hh   (canonical DMC jump table)
+        (LDA #imm / STA zp) x3        ; the two counter bytes + the segment flag
+        RTS                          ; 60
+
+    Returns {'song', 'base', 'stores': [(zp, imm), ...]} or None. Which store is
+    counter-lo / counter-hi / seg-flag is decided by the WRAPPER (which byte it
+    DECs first), so the raw ordered stores are returned here."""
+    if mem[r] != 0xA9:                       # LDA #song
+        return None
+    song = mem[r + 1]
+    if mem[r + 2] != 0x20:                    # JSR base
+        return None
+    base = mem[r + 3] | (mem[r + 4] << 8)
+    if not _is_canon_base_unaligned(mem, load, base):
+        return None
+    p = r + 5
+    stores = []
+    for _ in range(6):                        # bounded: expect exactly 3
+        if mem[p] == 0xA9 and mem[p + 2] == 0x85:   # LDA #imm / STA zp
+            stores.append((mem[p + 3], mem[p + 1]))
+            p += 4
+        elif mem[p] == 0x60:                  # RTS
+            break
+        else:
+            return None
+    if mem[p] != 0x60 or len(stores) != 3:
+        return None
+    return {'song': song, 'base': base, 'stores': stores}
+
+
+def _parse_medley_wrapper(mem, w: int):
+    """Parse the play-vector wrapper at `w`. Returns
+    {'lo': zp, 'hi': zp, 'seg': zp, 'play_repeat': N, 'reinits': [addr, ...]}
+    or None. The wrapper DECs the counter-lo byte first, the counter-hi byte on
+    lo-wrap, dispatches on a segment flag, double-plays the active player
+    (`JSR base+3` x N), and JSRs a re-init on expiry."""
+    decs = []          # zp addrs DEC'd, in order (lo then hi)
+    lda_zp = []        # zp addrs LDA'd
+    jsr_tgts = []      # JSR targets
+    p = w
+    for _ in range(96):
+        op = mem[p]
+        if op == 0xC6:                        # DEC zp
+            decs.append(mem[p + 1]); p += 2
+        elif op == 0xA5:                      # LDA zp
+            lda_zp.append(mem[p + 1]); p += 2
+        elif op == 0x20:                      # JSR abs
+            jsr_tgts.append(mem[p + 1] | (mem[p + 2] << 8)); p += 3
+        elif op == 0x60:                      # RTS — wrapper ended
+            break
+        elif op in (0xC9, 0xA9, 0xD0, 0xF0, 0x10, 0x30, 0x90, 0xB0, 0x85):
+            p += 2                             # imm / branch / STA zp
+        elif op in (0x4C, 0x8D, 0xAD, 0xBD, 0x9D):
+            p += 3
+        elif op in (0xAA, 0xA8, 0x8A, 0x98, 0xE8, 0xCA, 0xEA, 0x18, 0x38):
+            p += 1
+        else:
+            p += 1
+    if len(decs) < 2:
+        return None
+    lo_addr, hi_addr = decs[0], decs[1]
+    seg_cands = [z for z in lda_zp if z not in (lo_addr, hi_addr)]
+    if not seg_cands:
+        return None
+    seg_addr = seg_cands[0]
+    return {'lo': lo_addr, 'hi': hi_addr, 'seg': seg_addr,
+            'jsr_tgts': jsr_tgts}
+
+
+def detect_medley(sid_path: str, hvsc_root: str = 'hvsc84'):
+    """Return a time-medley spec or None.
+
+    Spec: {'bases':     [b0, b1, ...],          # distinct player bases
+           'segments':  [(base_idx, song, lo, hi), ...],  # schedule order
+           'play_repeat': N,                     # inner plays per PSID play()
+           'kinds':     ['dmc', ...]}
+
+    None when the file is not a time-medley (the overwhelmingly common case).
+    Detection is STATIC on the rigid wrapper/re-init shape, and validated end to
+    end by build+verify (a false detection cannot false-FULL — the merged build
+    diverges, ledger C13). Distinct from `detect_compilation` (INIT-vector
+    per-subtune dispatch) and 2SID (parallel chips): a medley switches players
+    on the PLAY vector over a frame countdown and exposes ONE PSID song."""
+    mem, s = em._load_image(os.path.join(hvsc_root, sid_path))
+    load = s['load']
+    if s.get('songs', 1) != 1:                # a medley presents as one song
+        return None
+
+    wrap = _follow_jmps(mem, s['play'])
+    info = _parse_medley_wrapper(mem, wrap)
+    if info is None:
+        return None
+
+    # Re-init routines: the cold init (init vector) + every wrapper JSR target
+    # that parses as a re-init. Each yields one segment.
+    r0 = _follow_jmps(mem, s['init'])
+    cand = [r0] + info['jsr_tgts']
+    seen, reinits = set(), []
+    for r in cand:
+        if r in seen:
+            continue
+        seen.add(r)
+        if _parse_reinit(mem, load, r) is not None:
+            reinits.append(r)
+    if len(reinits) < 2:
+        return None
+
+    # Which store is lo / hi / seg-flag: keyed by the wrapper's DEC'd addresses.
+    lo_a, hi_a, seg_a = info['lo'], info['hi'], info['seg']
+    segs = {}                                  # seg flag -> (base, song, lo, hi)
+    for r in reinits:
+        pr = _parse_reinit(mem, load, r)
+        sd = dict(pr['stores'])
+        if not (lo_a in sd and hi_a in sd and seg_a in sd):
+            return None
+        segs[sd[seg_a]] = (pr['base'], pr['song'], sd[lo_a], sd[hi_a])
+
+    order = sorted(segs)
+    if order != list(range(len(order))) or len(order) < 2:
+        return None                            # seg flags must be a dense 0..n-1
+
+    bases_seq = [segs[i][0] for i in order]
+    distinct = []
+    for b in bases_seq:
+        if b not in distinct:
+            distinct.append(b)
+    if len(distinct) < 2:                       # must select >=2 DISTINCT players
+        return None
+    bidx = {b: i for i, b in enumerate(distinct)}
+
+    # play_repeat = inner plays per PSID play() = JSR base+3 count for one player.
+    play3 = [distinct[0] + 3]
+    play_repeat = sum(1 for t in info['jsr_tgts'] if t in play3)
+    if play_repeat < 1:
+        return None
+
+    segments = [(bidx[segs[i][0]], segs[i][1], segs[i][2], segs[i][3])
+                for i in order]
+    return {'bases': distinct, 'segments': segments,
+            'play_repeat': play_repeat,
+            'kinds': [_base_kind(mem, b) for b in distinct]}
+
+
 def _base_kind(mem, b: int) -> str:
     """Engine kind of a detected player base (works on the file image OR a
     post-init RAM view): 'dmcv5' when the play vector (+3) targets base+$A1

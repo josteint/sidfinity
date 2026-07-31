@@ -893,6 +893,24 @@ practice, not code to factor).
   same-idle-wave-compilation members stay byte-identical; INCOMPATIBLE with the
   layout-preserving / positional wave pools (which pin wavepos to the orig's
   live $177A), where it is IGNORED (collapsed-idle residue, never a build fail).
+- TIME-MEDLEY VARIANT (r150, Praiser/Mega_Mix): the dispatch is on the PLAY
+  vector + a frame COUNTDOWN, not the init vector + subtune — one file packs ≥2
+  players, exposes ONE looping PSID song, time-switching player1(seg0)→player2
+  (seg1)→loop. SEPARATE static detector (`detect_medley`/`_parse_medley_wrapper`/
+  `_parse_reinit`) — `detect_compilation` scans the init vector (here just P1's
+  cold init). Extract each base, `merge_models` ONE SUBTUNE PER SEGMENT, carry
+  the schedule as the composer's gated `medley='seg:lo:hi,...'` + `play_repeat`;
+  `playmedley` reproduces countdown/double-play/re-init; `songs=1`. Sole carrier
+  in 10,676 (0 false-pos); strict shape + build+verify gate (C13). NEW per-player
+  fact the merge collapses: the $D417 routing accumulator (shadow17 = $1018).
+  Native measure ($101D writes ONLY $1719-$1794 → $1018 CARRIES; orig P1 $1018
+  and P2 $2818 are separate, so P1's routing bit persists across P2's segment,
+  cycle 2 starts at $04). Merge shares one shadow17 → lost. FIX = reproduce the
+  separate accumulators: SAVE the outgoing segment's shadow17 before its
+  switch-init, RESTORE the incoming's after (medcarry[] seeded from medrout[] so
+  a first entry is a no-op — P2's routing prime is $02). Self-consistent, no
+  measured constant. Same family as d417_shadow/idle_wave/record_offset but
+  per-SEGMENT + runtime-preserved.
 - FULL ENTRY: [`ledger/C31.md`](ledger/C31.md) — read it before applying.
 
 ### C35 — one FILE, more than one COMPOSER (`origin_engine`)

@@ -1134,6 +1134,39 @@ def write_dmc_2sid_usf(cfgs, out_dir: str, hvsc_root: str = 'hvsc84') -> str:
     return out
 
 
+def write_dmc_medley_usf(sid_path: str, spec: dict, out_dir: str,
+                         hvsc_root: str = 'hvsc84') -> str:
+    """TIME-MEDLEY member (ledger C31, medley variant — Praiser/Mega_Mix).
+
+    The file packs >=2 canonical DMC players; the PLAY vector's wrapper
+    time-switches between them over a frame countdown, exposing ONE PSID song
+    that loops. Extract each packed player standalone (factory base_override),
+    merge into one unified model with ONE SUBTUNE PER SEGMENT (in schedule
+    order), and carry the schedule as the composer's gated `medley` param +
+    `play_repeat` (the inner-plays-per-frame count). The composer's `playmedley`
+    wrapper reproduces the countdown, double-play, per-segment re-init and the
+    per-player shadow17 carry."""
+    from pipelines.dmc.v4.factory import dmc_v4_config
+    from pipelines.dmc.v4.compilation import merge_models
+    models = [extract(dmc_v4_config(sid_path, hvsc_root=hvsc_root,
+                                    base_override=b), hvsc_root=hvsc_root)
+              for b in spec['bases']]
+    b0 = models[0]
+    hdr = {'title': b0.title, 'author': b0.author, 'released': b0.released,
+           'clock': b0.clock, 'sid_model': b0.sid_model, 'start_song': 1}
+    subtune_map = [(bidx, song) for bidx, song, _lo, _hi in spec['segments']]
+    merged = merge_models(models, subtune_map, hdr)
+    merged.play_repeat = spec['play_repeat']
+    merged.extra_params['medley'] = ','.join(
+        f'{i}:{lo:02X}:{hi:02X}'
+        for i, (_bidx, _song, lo, hi) in enumerate(spec['segments']))
+    usf = model_to_usf(merged)
+    base = os.path.splitext(os.path.basename(sid_path))[0]
+    out = os.path.join(out_dir, base + '.usf')
+    write_file(usf, out)
+    return out
+
+
 def heterogeneous_to_usf(dmc_model, sfx_engine, subtune_kinds,
                          start_song: int) -> UsfFile:
     """Combine a DMC merged model + a dmc_sfx SfxEngine into one heterogeneous

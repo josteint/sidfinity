@@ -4187,9 +4187,13 @@ def build_dmc_sid(usf: UsfFile) -> bytes:
     # 63% of the DMC corpus is flagged 8580.
     clock = {'PAL': 1, 'NTSC': 2, 'both': 3}.get(usf.psid.clock, 0)
     sidm = {6581: 1, 8580: 2, 'both': 3}.get(usf.psid.sid, 0)
+    # A time-medley model carries one subtune PER SEGMENT (the composer needs
+    # each segment's init/tunetab), but the PSID exposes ONE looping song — the
+    # medley wrapper time-switches internally. Report songs=1 to match the orig.
+    n_songs = 1 if usf.params.fields.get('medley') else len(usf.subtunes)
     header = build_header(
         load=0, init=LOAD, play=LOAD + 3,
-        songs=len(usf.subtunes), start_song=usf.psid.start_song,
+        songs=n_songs, start_song=usf.psid.start_song,
         speed=speed, title=usf.psid.title, author=usf.psid.author,
         released=usf.psid.released, flags=(clock << 2) | (sidm << 4))
     return header + bytes([LOAD & 0xFF, LOAD >> 8]) + code
