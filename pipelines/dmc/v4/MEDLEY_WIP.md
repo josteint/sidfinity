@@ -1,12 +1,14 @@
 # DMC time-medley — WIP (Praiser/Mega_Mix)
 
-**Status (2026-07-31):** composer `playmedley` wrapper written + gated (committed
-WIP in `composer_asm.py`); reproduces the medley **byte-exact through the full
-tune content** (0 mismatches at songlength 290 s AND at one full cycle 315 s).
-**One** write differs at 315.6 s (0.6 s into the loop repeat, in the ×1.1
-margin) → verdict `partial`. Root fully traced; fix is a "soft re-init" (below).
-NOT productionized (no detection/probe/wiring yet — only builds via the manual
-recipe below).
+**Status (2026-07-31):** ✅ **sub 0 FULL** over the full songlength×1.1 window
+(play_match=505746=len_a, state_match=True) AND byte-exact across TWO loop-backs
+(500 s capture: 792634=len_a=len_b). The 1-write residual is RESOLVED by a
+per-segment **shadow17 save/restore** in the `playmedley` wrapper (below). The
+composer change is gated on `params.fields['medley']` → every non-medley member
+is byte-identical (golden MD5 over 10 diverse members: single / family-2 /
+page3-reloc / C29-oob / 2SID / hetero-compilation / two per-subtune-fact
+compilations = all identical). Still builds only via the manual recipe below —
+productionization (detection/probe/wiring) is the remaining step.
 
 Ledger: this is a NEW structure adjacent to C31 — a **time-sequenced medley**
 (one PSID subtune time-switches ≥2 packed players), distinct from C31 (per-
@@ -77,12 +79,33 @@ medhi` BSS are likewise gated.
 
 ---
 
-## The 1-write residual — FULLY TRACED
+## The 1-write residual — FULLY TRACED, then RESOLVED (2026-07-31)
 
 Divergence: flat write 500293, siddump frame 15780, cyc $1293 →
 `$D417 = $04` (orig) vs `$00` (ours). Res nibble matches ($0); routing nibble
 differs (orig routes **voice 3** = $04, ours routes none). Streams re-converge
 immediately (exactly ONE write in 505 685).
+
+### The actual mechanism (measured, native siddump — the earlier guess refined)
+
+Native measurement (`siddump --pc-watch 2708,270B --pc-watch-abs`, snapshotting
+player-1's state region before/after the `JSR $1000` at the loop-back) settled
+the reset/carry partition exactly: **`$101D` writes ONLY `$1719-$1794`** (zero
+zp writes, nothing in `$0100-$1718`, nothing above `$1794`). So `$1018` =
+shadow17 (the $D417 routing accumulator) is NOT reset — it CARRIES. And the
+divergent `$04` is present at the loop-back **before AND after** init: it is
+player-1's cycle-1-end routing accumulator, carried through player-2's segment
+because in the orig `$1018` (player 1) and `$2818` (player 2) are **separate
+addresses** — player 2 never touches player 1's `$1018`.
+
+Our compilation merge collapses both players' `$1018` into ONE shared
+`shadow17`, so at the loop-back OURS holds player-2's residual, not `$04`. That
+is exactly why the doc's earlier "carry shadow17" experiment still left 1
+mismatch — it carried the merged (player-2) value, the wrong one. The full
+carry set (canon addr outside `$1719-$1794`) is {shadow17 `$1018`, spdctr
+`$1718`, vsteph `$1795`, slal `$1798`, slah `$179B`}, but only shadow17 is
+non-zero at the loop-back, and the baseline (reset-everything) has exactly ONE
+divergence = shadow17 — so shadow17 is the sole functional carried var.
 
 Mechanism (from `siddump --pc-trace`):
 - Player 1's filter tail `$10A0-$10AC` recomputes **`$D417 = [$1018] | [$1723]`
@@ -105,50 +128,38 @@ loop-back just has to preserve it.
 
 ---
 
-## The fix (TODO) — a "soft re-init" for the medley loop-back
+## The fix (DONE) — per-segment shadow17 save/restore in `playmedley`
 
-Reproduce the orig `$101D` init's exact carry/reset partition. **Bracket proven
-empirically:**
-- carry **nothing** (current clean `jsr init`) → **1** mismatch.
-- carry the **whole** state block across the loop-back → **5293** mismatches
-  (the position vars — trkpl/trkph/patl/path, otrk, patix, pend, curnote,
-  vactive… — carry player 2's values, inconsistent with player 1's reloaded
-  orderlist).
+Rather than a "soft re-init" that splits reset/carry inside one init, the clean
+and self-consistent fix **reproduces the orig's separate per-player
+accumulators**: give each segment its own carried `shadow17`. At every segment
+switch the `playmedley` wrapper now:
+- **SAVEs** the outgoing segment's `shadow17` to `medcarry[old_seg]` (before the
+  `jsr init` that would wipe it),
+- runs the clean `jsr init` (resets everything, re-primes `shadow17` from the
+  song's tunetab routing byte),
+- **RESTOREs** the incoming segment's `shadow17` from `medcarry[new_seg]`.
 
-So the answer is the **precise middle**. At the loop-back (only — the *forward*
-switch to player 2 uses a clean init and already matches):
-- **RESET** (as the orig init does): `vactive, gatemask, curnote, trkpl, trkph,
-  patl, path, transp, dur, pend, patix, trkg, otrk, sectpos` + reload orderlist
-  pointers (song 0). Note: `gatemask`/`curnote` priming at the loop-back is the
-  orig's *work-file leftover* = player 2's residual, NOT song 0's idle_notes —
-  this is the per-cycle analog of the C31 idle_notes fact; may need measuring.
-- **CARRY**: `shadow17`($1018), `fres`($1723), `fclaim` + filter sweep
-  (`fstep/fframe/fsz/fdu/fbase/fcut/frep/fstop`), `curinst/cinst/volovr`, pulse
-  (`pwl..pwstep`), vib (`vibdir..vdep`), wave (`wavepos/fxf/wctrl/guard`),
-  `fbl/fbh/accl/acch`, `gla/glb/glsp`, `wnote/durrel/ioff`, `wjmp`,
-  `slal/slah`, `dtmpl/dtmph`.
+`medcarry[]` is **seeded** at the segment-0 cold start from `medrout[]` (each
+song's routing prime), so a segment's FIRST entry restores == the init prime (a
+no-op — critical because player 2's routing prime is `$02`, not 0, and a naive
+BSS-0 restore would clobber it), and only a RE-entry re-asserts the player's own
+carried value. At the loop-back the incoming (player-1) slot holds `$04` —
+saved at the forward switch, where our stream matches the orig byte-for-byte, so
+the value is correct **with no measured constant**.
 
-Individual-var carries (`shadow17`, `fres`, `curinst`, `cinst`, filter block) all
-left 1 mismatch — the routing bit is produced by the *combination* (a V3 note
-routes filter-on only when the whole effect-state carries) while the position
-state must simultaneously reset. So implement the whole effect/position split,
-not one var.
+Verdict: sub 0 FULL over songlength×1.1 AND byte-exact across two loop-backs
+(500 s). Non-medley members byte-identical (all gated on `medley_segs`). Only
+`shadow17` needs it; the mechanism generalizes to the full carry set
+({spdctr, vsteph, slal, slah}) if a future medley exercises them (all 0 here).
 
-**Recommended way to nail the reset set precisely:** natively measure which
-state addresses the orig `$101D` init actually writes (it clears those, carries
-the rest) — e.g. `siddump --pc-watch 101d` capturing before/after, or a py65 run
-of the init from a dirtied RAM. The static disasm undercounts (misses
-subroutines): it found only `$100C, $1716-$1718, $173B, $D400, $D418` writes.
+**Bracket that motivated it (historical):** carry-nothing = 1 mismatch,
+carry-everything = 5293 (position vars carry player-2's values). The save/restore
+is the precise answer: reset all position/effect, carry only the per-player
+routing accumulator — reproducing the orig's `$1018`/`$2818` address separation.
 
-State-block layout is in `composer_asm.py` at label `state0:` (≤256 bytes, so a
-single X-indexed copy loop works). The forward switch stays a clean `jsr init`.
-
-**Core tenet note:** exact-through-songlength already satisfies the tenet ("the
-whole song"). The soft re-init is tenet-legal (reproduce the mechanism to match
-the write stream — not an SMC/verbatim hack). If it proves too costly, the
-fallback is a verify-policy for looping tunes (a member exact through songlength
-+ one full loop, diverging only in the ×1.1 tail on looped content, is FULL) —
-but that touches the ratified ×1.1 rule and is a user decision.
+**Core tenet note:** tenet-legal — reproduces the mechanism (per-player
+accumulator) to match the write stream, not an SMC/verbatim hack.
 
 ---
 

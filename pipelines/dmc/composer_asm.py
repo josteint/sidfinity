@@ -2020,6 +2020,19 @@ fx_dual_up:
             medley_segs.append((int(_song), int(_lo, 16), int(_hi, 16)))
         _n = len(medley_segs)
         _dbl = play_entry               # playrepeat (double) or playframe
+        # Per-segment SOFT RE-INIT (the loop-back fidelity fix). Each packed
+        # player keeps its OWN $D417 routing-shadow accumulator (canon $1018 =
+        # shadow17); the orig's player-1 init ($101D) does NOT clear it (measured
+        # native: $101D writes only $1719-$1794), so it PERSISTS across the other
+        # player's segment. The compilation merge collapses both players' $1018
+        # into one shared shadow17, so a naive re-init would lose the carried
+        # value (Mega_Mix's cycle-2 diverged by exactly the V3 routing bit $04).
+        # Reproduce the orig's per-player accumulator: SAVE the outgoing segment's
+        # shadow17 before its switch-init, RESTORE the incoming segment's after
+        # (init otherwise re-primes shadow17 from the song's tunetab routing).
+        # medcarry[] is seeded from medrout[] (each song's routing prime) at the
+        # segment-0 cold start, so a FIRST entry restores == the init prime (a
+        # no-op) and only a RE-entry re-asserts the player's own carried value.
         play_wrapper = (
             'playmedley:\n'
             '        lda medseg                   ; C31 time-medley dispatch\n'
@@ -2031,6 +2044,12 @@ fx_dual_up:
             '        sta medlo\n'
             '        lda medhi0\n'
             '        sta medhi\n'
+            f'        ldx #${_n - 1:02X}                     ; seed per-segment shadow17\n'
+            'medseed:                             ; carry slots from routing prime\n'
+            '        lda medrout,x\n'
+            '        sta medcarry,x\n'
+            '        dex\n'
+            '        bpl medseed\n'
             'medrun:\n'
             '        dec medlo                    ; mirror orig $03 DEC-per-play\n'
             '        lda medlo\n'
@@ -2042,6 +2061,8 @@ fx_dual_up:
             '        lda medhi\n'
             '        bpl meddone                  ; segment still running\n'
             '        ldx medseg                   ; --- segment expired: switch ---\n'
+            '        lda shadow17                 ; SAVE outgoing routing shadow\n'
+            '        sta medcarry,x               ; (orig keeps a per-player $1018)\n'
             '        inx\n'
             f'        cpx #${_n:02X}\n'
             '        bne medadv\n'
@@ -2054,9 +2075,14 @@ fx_dual_up:
             '        sta medhi\n'
             '        lda medsong,x                ; re-init to the next song ($2718)\n'
             '        jsr init\n'
+            '        ldx medseg                   ; RESTORE incoming routing shadow\n'
+            '        lda medcarry,x               ; ($101D carries $1018; our init\n'
+            '        sta shadow17                 ; wipes it -> re-assert the carry)\n'
             'meddone:\n'
             '        rts\n\n') + play_wrapper
         play_entry = 'playmedley'
+        medley_routing = [m.subtunes[_seg[0]]['routing'] & 0xFF
+                          for _seg in medley_segs]
     # $D418 play-vector wrapper (PVCF / Zyron / Signor, 6 members): the
     # original's PSID play vector points at `LDA #imm / STA $D418 / JMP
     # base+3` — a constant master-vol|filter-mode assertion on EVERY play()
@@ -2622,6 +2648,9 @@ fx_dual_up:
         data.append('medsong:\n' + _byt([s[0] for s in medley_segs]))
         data.append('medlo0:\n' + _byt([s[1] for s in medley_segs]))
         data.append('medhi0:\n' + _byt([s[2] for s in medley_segs]))
+        # per-segment shadow17 ($D417 routing) seed = the song's routing prime;
+        # seeds medcarry so a segment's FIRST entry restores its init value.
+        data.append('medrout:\n' + _byt(medley_routing))
     data.append('igla:\n' + _byt(igla))
     data.append('iglb:\n' + _byt(iglb))
     data.append('freqlo:\n' + _byt(flo))
@@ -3032,7 +3061,11 @@ ovrp_d:
     medley_var = ('' if not medley_segs else
                   f'medseg:   .byt ${len(medley_segs):02X}\n'
                   'medlo:    .dsb 1, 0\n'
-                  'medhi:    .dsb 1, 0\n')
+                  'medhi:    .dsb 1, 0\n'
+                  # per-segment carried shadow17 ($D417 routing) save slots — the
+                  # orig keeps each packed player's own $1018 accumulator; the
+                  # merge shares one shadow17, so this restores it per segment.
+                  f'medcarry: .dsb {len(medley_segs)}, 0\n')
 
     asm = f"""
 SLIDE_PHASE = ${slide_phase:02X}
