@@ -1138,6 +1138,30 @@ def _master_vol_static_probe(path: str, base: int,
     return hits[0] if len(hits) == 1 else None
 
 
+def _filter_static_probe(path: str, base: int,
+                         post_init_sub: 'int | None' = None):
+    """Static-filter probe (STATIC opcode probe, C19 — SilverFox/Blood_2_game).
+    A re-assembled play routine keeps the canon filter tail's LOADS but NOPs the
+    two stores: canon `LDA $171C / STA $D416 / LDA $1018 / ORA $1723 /
+    STA $D417` becomes `LDA $171C / EA EA EA / LDA $1018 / ORA $1723 / EA EA EA`,
+    so the filter cutoff/res are set once at init and never written during play
+    (a static filter). Anchor on the whole reloc-invariant shape (cutoff
+    base+$71C, shadow base+$18, res base+$723, both store slots = EA EA EA) so a
+    canon member with real stores fails open; return '1' iff the NOPed pattern
+    is present, else None (build unchanged)."""
+    mem, _ = _load(path, post_init_sub)
+    b = base
+    cut, sh, res = b + 0x71C, b + 0x18, b + 0x723
+    for i in range(len(mem) - 15):
+        if (mem[i] == 0xAD and (mem[i + 1] | (mem[i + 2] << 8)) == cut
+                and mem[i + 3] == 0xEA and mem[i + 4] == 0xEA and mem[i + 5] == 0xEA
+                and mem[i + 6] == 0xAD and (mem[i + 7] | (mem[i + 8] << 8)) == sh
+                and mem[i + 9] == 0x0D and (mem[i + 10] | (mem[i + 11] << 8)) == res
+                and mem[i + 12] == 0xEA and mem[i + 13] == 0xEA and mem[i + 14] == 0xEA):
+            return '1'
+    return None
+
+
 _PW_HI_WRITE = re.compile(rb'\xBD(..)\x99\x02\xD4\xBD(..)\x99\x03\xD4',
                           re.DOTALL)
 
@@ -3777,6 +3801,7 @@ _WEDGE_PROBES = [
     ('note_guard_init',                 lambda p, c: _note_guard_probe(p, c.base, c.post_init_sub)),
     ('pw_up_reverse',                   lambda p, c: _pw_up_reverse_probe(p, c.base, c.post_init_sub)),
     ('master_vol_static',               lambda p, c: _master_vol_static_probe(p, c.base, c.post_init_sub)),
+    ('filter_static',                   lambda p, c: _filter_static_probe(p, c.base, c.post_init_sub)),
     ('play_unit_repeat',                lambda p, c: _play_unit_repeat_probe(p, c.base, c.post_init_sub)),
     ('pulsewidth_hi_const',             lambda p, c: _pw_hi_const_probe(p, c.base, c.post_init_sub)),
     ('dual_freq_generator',             lambda p, c: _dual_freq_gen_probe(p, c.base, c.freq_lo_addr, c.post_init_sub)),

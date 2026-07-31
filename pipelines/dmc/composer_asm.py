@@ -2444,6 +2444,15 @@ fx_dual_up:
     filter_tail = ('        lda fcut\n        sta $d416\n'
                    '        lda shadow17\n        ora fres\n'
                    '        sta $d417\n') * play_unit_repeat[3]
+    # filter_static (C19 wedge, SilverFox/Blood_2_game): a re-assembled play
+    # routine KEEPS the filter-tail loads (LDA $171C cutoff / LDA $1018 shadow /
+    # ORA $1723 res) but NOPs the two STA $D416 / STA $D417 stores, so the
+    # filter cutoff/res are set once at init and NEVER written during play (the
+    # internal cutoff sweep still runs, its result just isn't emitted). The
+    # default composer writes $D416/$D417 every frame (Blood_2: 2761 writes vs
+    # the orig's 3 = init only). Reproduce: emit no play-time filter tail.
+    if usf.params.fields.get('filter_static', None) is not None:
+        filter_tail = ''
     # $D418 re-assert-every-frame wedge (Groove class; factory
     # _d418_filter_tail_probe -> ledger C19 detection / C10
     # master-vol-every-frame form). The member re-writes $D418 = filter-mode |

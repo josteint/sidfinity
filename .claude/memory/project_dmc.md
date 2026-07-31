@@ -8,6 +8,29 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 156 (2026-07-31): SilverFox/Blood_2_game — STATIC FILTER (play-tail $D416/$D417 NOPed) (+1) — C19 37th occ
+Next-partial SilverFox/Blood_2_game (single, canon base $1000; NO STIL/BUGlist).
+sub 0 partial, first-div play pos 6: rebuild emits an EXTRA `$D416=$2A`/`$D417=
+$F3` where the orig has a note write (len_b 21366 vs len_a 15199).
+- FACTS: V1/V2/V3 write counts MATCH exactly (6622/7/7 — V2/V3 stopped early).
+  The ONLY divergence is the filter tail: orig writes $D416/$D417 3× TOTAL
+  (init only), rebuild 2761× (every frame). $D418 normal (162×, at note-init).
+- ROOT: the play routine is RE-ASSEMBLED (custom $1000-$10BF; the $1100+ note/
+  effect code is canon + table relocations). play=$1050 keeps the filter-tail
+  LOADS but NOPs the two stores: canon `LDA $171C / STA $D416 / LDA $1018 / ORA
+  $1723 / STA $D417` → `LDA $171C / EA EA EA / LDA $1018 / ORA $1723 / EA EA EA`.
+  So the filter cutoff/res are static (set at the init $D400-$D417 clear), never
+  written during play.
+- FIX: `factory._filter_static_probe` (anchors the whole 15-byte reloc-invariant
+  NOPed-tail shape — cutoff base+$71C, shadow base+$18, res base+$723, both
+  store slots EA EA EA; scans anywhere since the play is re-assembled) →
+  composer `filter_static` → play body emits no filter tail. Regression-safe by
+  construction: no param → canon per-frame $D416/$D417 tail, byte-identical.
+  CENSUS over 5833 f1: 1 carrier (Blood_2_game, was partial), 0 FULL ⇒ 0
+  exposure. FULL 15199/15199 state ✓; smoke 6/6.
+- Ledger C19 37th occ. TELL: orig writes $D416/$D417 only ~2-3× TOTAL (init)
+  while the rebuild writes them per-frame — count filter writes.
+
 ## ✅ ROUND 155 (2026-07-31): Signor/Logic_Intro — STATIC $D418 (init-wrapper primes once) (+1) — C19 36th occ
 Next-partial Signor/Logic_Intro (single, canon base $1000; NO STIL/BUGlist —
 no Signor in either doc). sub 0 partial, first-div play pos 9: rebuild emits an
