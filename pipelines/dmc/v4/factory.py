@@ -1065,6 +1065,29 @@ def _hr_prep_skip_probe(path: str, base: int,
     return None
 
 
+def _note_guard_probe(path: str, base: int,
+                      post_init_sub: 'int | None' = None):
+    """Post-note guard immediate probe (STATIC opcode probe, C19 —
+    Rayden/NOFX_tune_2). The note-init sets the post-note guard with
+    `LDA #$02 / STA $1786,x` at base+$2F8..base+$2FC; while the guard is >0 it
+    is DEC'd each frame and the end-of-note gate-off logic (L_132D at
+    base+$32D) is skipped, so a fresh note stays gated for 3 frames minimum.
+    A wedge patches the immediate ($02 -> $00 here), so the gate drops on the
+    first frame after note-init (min gate-on = imm+1 frames). Anchor on the
+    surrounding canon shape (LDA# opcode + the STA-abs,x opcode + its operand =
+    the guard address base+$786, reloc-aware) so a non-canon layout fails open;
+    return the immediate iff it differs from the canon $02, else None (build
+    unchanged)."""
+    mem, _ = _load(path, post_init_sub)
+    b = base
+    if (mem[b + 0x2F8] == 0xA9                          # LDA #imm
+            and mem[b + 0x2FA] == 0x9D                  # STA abs,x
+            and (mem[b + 0x2FB] | (mem[b + 0x2FC] << 8)) == b + 0x786
+            and mem[b + 0x2F9] != 0x02):
+        return mem[b + 0x2F9]
+    return None
+
+
 _PW_HI_WRITE = re.compile(rb'\xBD(..)\x99\x02\xD4\xBD(..)\x99\x03\xD4',
                           re.DOTALL)
 
@@ -3701,6 +3724,7 @@ _WEDGE_PROBES = [
     ('master_vol_every_play',           lambda p, c: _d418_play_wrapper(p, c.base, c.post_init_sub)),
     ('master_vol_reassert_filter_tail', lambda p, c: _d418_filter_tail_probe(p, c.base, c.post_init_sub)),
     ('hold_gateoff',                    lambda p, c: _hold_gateoff_probe(p, c.base, c.post_init_sub)),
+    ('note_guard_init',                 lambda p, c: _note_guard_probe(p, c.base, c.post_init_sub)),
     ('play_unit_repeat',                lambda p, c: _play_unit_repeat_probe(p, c.base, c.post_init_sub)),
     ('pulsewidth_hi_const',             lambda p, c: _pw_hi_const_probe(p, c.base, c.post_init_sub)),
     ('dual_freq_generator',             lambda p, c: _dual_freq_gen_probe(p, c.base, c.freq_lo_addr, c.post_init_sub)),

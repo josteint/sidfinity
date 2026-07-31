@@ -1501,6 +1501,15 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
                        '        lda #$00\n'
                        '        sta $d405,y                  ; AD = 0\n'
                        '        sta $d406,y                  ; SR = 0\n')
+    # post-note guard immediate (C19 wedge, Rayden/NOFX_tune_2: the note-init
+    # `LDA #$02` at canon $12F8 patched to another byte). The guard is set at
+    # note-init and DEC'd each frame while >0; the end-of-note gate-off logic
+    # is skipped until it hits 0, so the value = (min gate-on frames − 1). Canon
+    # $02 → gate-on lasts 3 frames; the wedge $00 → the gate drops on the first
+    # frame after note-init. A per-note articulation timing (shorter/longer
+    # gate = a different audible envelope), so it rides the composer, not the
+    # extract. Default $02 → byte-identical.
+    note_guard_hex = f'{int(usf.params.fields.get("note_guard_init", 2)) & 0xFF:02X}'
     # hard-restart envelope preset: 'preset' (canon) writes AD=$0F SR=$0F
     # (the original's sub_17FB) on the note-fetch frame; 'none' (family 2)
     # writes only the $08 TEST bit (its relocated instrument table clobbers
@@ -3497,8 +3506,8 @@ ni_vib:
         sta wavepos,x
 {ni_chase}        lda iflag,y
         sta fxf,x
-{ni_vib_depth}        lda #$02
-        sta guard,x                  ; gate logic off for 2 frames
+{ni_vib_depth}        lda #${note_guard_hex}
+        sta guard,x                  ; gate logic off for N frames (canon $02)
 {cym_ni}ni_wave:
 {ni_wave_tail}
 

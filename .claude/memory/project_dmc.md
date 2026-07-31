@@ -8,6 +8,34 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 153 (2026-07-31): Rayden/NOFX_tune_2 — POST-NOTE GUARD immediate wedge (+1) — C19 34th occ
+Next-partial Rayden/NOFX_tune_2 (single, canon base $1000, VBLANK; NO
+STIL/BUGlist — no Rayden entries in STIL at all). sub 0 partial, first-div flat
+pos 36: V3 ctrl orig `$20` (sawtooth, GATE OFF) vs rebuild `$21` (gate on) on
+the first wave-step after V3's note-init.
+- ROOT: canon `$12F8: A9 02 / STA $1786,x` (post-note guard = 2) is patched to
+  `A9 00`. The guard is DEC'd each frame and gates whether the end-of-note
+  gate-off logic (`L_132D`) runs; canon skips it for the first ~3 frames (guard
+  2→1→0), so a fresh note stays gated 3 frames min. With guard=0 the gate-off
+  runs immediately → the ctrl steps to `wavectrl & $FE` (gate cleared) ONE frame
+  after note-init instead of three. Wave cell = `$21`; the `$FE` mask clears the
+  gate → `$20`. MEASURED via memwatch: orig gate mask $1011 flips FF→FE right
+  as wave ctrl steps $41→$21, guard $1788 (V3) is 0 at note-init not 2.
+- This changes the ctrl WRITE-STREAM (gate bit over the note's frames), so a
+  COMPOSER param (contrast r152's durrel = a musical VALUE → extract). Min
+  gate-on = imm+1 frames — a per-note articulation timing.
+- FIX: `factory._note_guard_probe` (STATIC opcode probe, reloc-aware: LDA#
+  opcode + STA-abs,x + operand==base+$786; returns the immediate iff !=$02) →
+  composer `note_guard_init` param → note-init emits `lda #$<imm>` not `#$02`.
+  Regression-safe by construction: no param → `lda #$02` textually unchanged →
+  byte-identical. CENSUS over 5833 f1: exactly 1 carrier (NOFX_tune_2, guard=0,
+  was partial), 0 FULL carriers ⇒ 0 exposure. NOFX_tune_2 FULL 26607/26607
+  state ✓; smoke 6/6.
+- Ledger C19 34th occ. TELL: ctrl $20/$21 (gate-bit) divergence on the first
+  wave-step after a note-init + wave-table cell already carries the gate bit
+  ($21) → the mask is clearing it, memwatch the guard ($1786,x) / gate mask
+  ($100F,x).
+
 ## ✅ ROUND 152 (2026-07-31): Rayden DURREL-RAMP driver — DECONSTRUCT to per-row durations (+3) — C19 extract-only
 Next-partial Rayden/Mr_Siegfrieds_stultified_shit (single, canon base $1000,
 VBLANK; NO STIL/BUGlist). sub 0 partial: V3's note plays FOREVER (never
