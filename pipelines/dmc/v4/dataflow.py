@@ -273,6 +273,37 @@ def locate(mem: bytearray, base: int, play: int | None = None,
                 break
         state[name] = rd16(site) if site is not None else None
 
+    # SPLIT-RELOCATION CROSS-CHECK for curnote (ledger C13). The idle-note seed
+    # is the value a FREEWHEELING voice reads at its note-fetch/wave-step, which
+    # WRITES curnote via the canon $1482 `TYA / STA $1012,X`. The loop above
+    # anchors curnote on the FIRST $1012 reference — the glide-init
+    # `LDA $1012,X` at $1168 (a READ). A uniformly-relocated member carries the
+    # same operand at both sites, but an INCONSISTENTLY-relocated member SPLITS
+    # them: Psych858o/Pulsate left the glide-init operands at canon+1 ($1013)
+    # while the audible note-fetch/wave-step path sits at the freq-table delta
+    # ($0C13). The audible voices freewheel on the note-fetch curnote (V3 never
+    # re-fetches a note → its idle seed is what the write stream sonifies), so on
+    # a DISAGREEMENT prefer the note-fetch STA operand. Identical for every
+    # consistent member (both sites carry the same address) → byte-identical, no
+    # regression; verify-gated when it does fire. The note-fetch STA is the
+    # UNIQUE `STA $1012,X` whose PRECEDING instruction is TYA ($98) — the sibling
+    # `STA $1012,X` at $11A6 follows a `STA $1747,X` ($9D), so it never matches.
+    if state.get('curnote') is not None:
+        nf_site = None
+        for w in (6, 9, 12):
+            for toks, off in _sigs_op(0x1012, w):
+                if off >= 1 and toks[off] == 0x9D and toks[off - 1] == 0x98:
+                    s = _locate_site(vI, vseq, (toks, off))
+                    if s is not None:
+                        nf_site = s
+                        break
+            if nf_site is not None:
+                break
+        if nf_site is not None:
+            nf_cur = rd16(nf_site)
+            if nf_cur != state['curnote']:
+                state['curnote'] = nf_cur
+
     # track-loop hook. Base rule (historical): the canon STA $1726,x site is
     # located ⟹ loop-to-0 (False); absent ⟹ the JSR form (True = read-next
     # track byte). This is correct for canon-STA and read-next members and must

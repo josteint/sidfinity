@@ -8,6 +8,37 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 151 (2026-07-31): SPLIT-RELOCATION curnote detection — Psych858o/Pulsate FULL (+1) — C13
+Next-partial Psych858o/Pulsate (single, base $0C00, VBLANK; NO STIL/BUGlist).
+sub 0 partial: V3 freq $323C vs ours $1000 at frame 1, state_match=True.
+- `dmc_offtable_probe` MIS-FIRED (7th time — by-value coincidence: it reported
+  an off-table idx-234 read of $1332=$3C, but pc-watch showed V3's wave-step
+  ($11C4) lands IN-TABLE at idx $43 = freqlo[67] = $3C legitimately).
+- ROOT: the member is INCONSISTENTLY RELOCATED — code at delta -$400 (base
+  $0C00) but the DATA/STATE block at -$3FF (freq $1248=$1647-$3FF, fbl
+  $1330=$172F-$3FF, curnote $0C13=$1012-$3FF). The audible note-fetch/wave-step
+  path references state at -$3FF ($0C13 curnote, `ADC $0C13,X`); the GLIDE-INIT
+  routine ($0D5F) references it at CANON+1 ($1013 curnote, $172D transp, $1745
+  gla) — a mis-relocated dead path. The dataflow curnote locator anchors on the
+  FIRST $1012 ref = the glide-init `LDA $1012,X` (canon $1168) → found $1013.
+  So V3's idle-note SEED (V3 FREEWHEELS — never re-fetches a note, so the seed IS
+  sonified via the arp `ADC $0C13,X`) read mem[$1015]=$D0=208 instead of
+  mem[$0C15]=$36=54 → constant +$9A note error → off-table freq. V1/V2 fine (they
+  overwrite their basenote each frame, seed inert).
+- FIX (dataflow.py `locate`): CROSS-CHECK curnote against the NOTE-FETCH's
+  `TYA / STA $1012,X` (canon $1482, the freewheel-curnote WRITE site, uniquely
+  id'd by its TYA predecessor); on DISAGREEMENT prefer it. Regression-safe:
+  consistent members carry the same operand at both sites → byte-identical.
+- BLAST RADIUS (whole f1 corpus, 4932 located): 6 members change, ALL now FULL —
+  Pulsate (partial→FULL, the fix) + 5 re-assembled high-base members
+  (Wacky_Waste $8000, 2_Floors_up/Holiday_Season $A000, No_Bounds $0900,
+  Nono_Pixie $8000) whose OLD un-relocated curnote ($1012/$1013) was INERT (seed
+  unsonified, FULL anyway); NEW resolves the correct relocated address, all
+  stay/become FULL. 0 regressions. dmc_smoke 6/6.
+- f1: 5365 FULL / 36 partial (+1 Pulsate vs the r128c batch). Ledger C13.
+  Corpus: these 6 members' stored .usf/.sid now stale (idle_notes changed) —
+  re-sync at next fresh batch (already code_hash-stale pending, r150).
+
 ## ✅ ROUND 150 (2026-07-31): TIME-MEDLEY structure — Praiser/Mega_Mix FULL + productionized (+1) — new C31 variant
 Next-partial Praiser/Mega_Mix: a NEW structure — a **time-sequenced medley**.
 One PSID song, wrapper at $2700 (init/play vectors) DOUBLE-PLAYS an active

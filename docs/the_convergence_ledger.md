@@ -368,7 +368,13 @@ practice, not code to factor).
   loop-to-0 store + author TEXT overwriting the re-dispatch JMP — the text
   EXECUTES (BVC into the dispatch, A=$00) and injects a spurious note-0
   row each wrap (`loop_note_inject`); pc-watch decided what static reading
-  couldn't.
+  couldn't. A per-member STATE-address locator is dispatch too: a re-assembled
+  member can SPLIT its state block (audible note-fetch/wave-step path at one
+  delta, a dead glide-init at another) — locate curnote from the note-fetch
+  WRITE site (`TYA/STA $1012,X`), not the first-occurrence glide-init READ, and
+  cross-check (no-op when they agree ⇒ byte-identical). Pulsate: idle-seed read
+  the wrong array → a freewheeling voice's +$9A note error; probe MIS-FIRED
+  by-value while pc-watch showed the wave-step IN-TABLE.
 - FULL ENTRY: [`ledger/C13.md`](ledger/C13.md) — read it before applying.
 
 ### C14 — command-per-row tracker effects (note + fx + param per row)
