@@ -3743,6 +3743,36 @@ def _apply_wedge_probes(path: str, cfg) -> None:
             cfg.extra_params[key] = v
 
 
+def _durrel_ramp_probe(path: str, base: int,
+                       post_sub: 'int | None' = None) -> 'list | None':
+    """Rayden's custom global duration-ramp driver (ledger C19). A non-canon
+    routine cycles a 4-entry table and writes the value to ALL three voices'
+    durrel ($173E/$173F/$1740, base-relocated) on each V1 note-advance, so the
+    per-note duration becomes a GLOBAL period-4 beat instead of the canon
+    per-voice $80-$BF command. Static-opcode probe: the three consecutive
+    `STA durrel_v,abs` stores are the signature (canon writes durrel via
+    `STA $173E,X`, never three absolute stores); the table is the operand of the
+    `LDA table,X` that loads the value just before them. Returns the 4-entry
+    duration table, or None. The extract deconstructs it to per-row durations
+    (see engine_model.extract); nothing here reaches the composer."""
+    mem, _ = _load(path, post_sub)
+    d = base - 0x1000
+    a0, a1, a2 = 0x173E + d, 0x173F + d, 0x1740 + d
+    sig = bytes([0x8D, a0 & 0xFF, a0 >> 8,
+                 0x8D, a1 & 0xFF, a1 >> 8,
+                 0x8D, a2 & 0xFF, a2 >> 8])
+    i = bytes(mem).find(sig)
+    if i < 0:
+        return None
+    tbl = None
+    for p in range(max(0, i - 16), i):
+        if mem[p] == 0xBD:                       # LDA abs,X (reads the table)
+            tbl = mem[p + 1] | (mem[p + 2] << 8)
+    if tbl is None:
+        return None
+    return [mem[(tbl + k) & 0xFFFF] for k in range(4)]
+
+
 def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
                   base_override: 'int | None' = None,
                   post_init_sub: 'int | None' = None) -> DMCV4Config:
@@ -3811,6 +3841,10 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
         cfg.extra_params['cymbal_burst'] = cb[0]
     if cb is not None and cb[1] != 0x81:
         cfg.extra_params['cymbal_ctrl'] = cb[1]
+    # durrel-ramp driver (Rayden's custom global note-duration beat).
+    dr = _durrel_ramp_probe(path, cfg.base, post_init_sub)
+    if dr is not None:
+        cfg.extra_params['durrel_ramp'] = ','.join(str(x) for x in dr)
     # hard-restart SMC-toggle wedge sets TWO keys.
     hr = _hr_patch_probe(path, cfg.base, post_init_sub)
     if hr is not None:

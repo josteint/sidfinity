@@ -2319,6 +2319,31 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
                 for r in rows:
                     if r.icmd and r.instr >= 16:
                         r.tempo = r.instr & 0x0F
+    # DURREL-RAMP driver (ledger C19 / Rayden's custom DMC build): a non-canon
+    # routine cycles a 4-entry table and writes the value to ALL voices' durrel
+    # ($173E-$1740) on each V1 note-advance, so the note duration is a GLOBAL
+    # period-4 beat (canon durrel is per-voice, set by an $80-$BF command). All
+    # voices advance in lockstep (one row per beat), and every pattern is
+    # 4-beat-aligned (row count % 4 == 0), so pattern-row i always plays for
+    # ramp[i % 4] regardless of its orderlist position (no drift, no variants).
+    # DECONSTRUCT the SMC ramp to per-row musical durations (Core Tenet:
+    # reproduce the write stream, not the code; Principle Rule 1: the ramp is
+    # space-saving mechanism, its per-note durations are the content) — the
+    # engine-blind composer plays them via its ordinary duration path, no ramp
+    # code enters the rebuild. Applied ONLY to rows with no $8x command
+    # (duration 0/None); an $8x-driven member (Rock_Remake / Sealed_Universe)
+    # keeps its stated durations -> byte-identical. Gated to 4-aligned members;
+    # a non-aligned ramp member would need the global beat index (none exist in
+    # HVSC) and is left as honest residue, caught by verify.
+    _ramp = cfg.extra_params.get('durrel_ramp')
+    if _ramp:
+        ramp = [int(x) for x in _ramp.split(',')]
+        pats = [p for song in m.songs for v in song.voices for p in v.patterns]
+        if pats and all(len(p) % 4 == 0 for p in pats):
+            for p in pats:
+                for i, r in enumerate(p):
+                    if r.duration in (0, None):
+                        r.duration = ramp[i % 4]
     return m
 
 

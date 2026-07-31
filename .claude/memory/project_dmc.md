@@ -8,6 +8,38 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 152 (2026-07-31): Rayden DURREL-RAMP driver — DECONSTRUCT to per-row durations (+3) — C19 extract-only
+Next-partial Rayden/Mr_Siegfrieds_stultified_shit (single, canon base $1000,
+VBLANK; NO STIL/BUGlist). sub 0 partial: V3's note plays FOREVER (never
+advances) — our extract decoded EVERY row dur=0 → held 256-tick notes.
+First-div f14 (V3 misses a drum note the orig plays).
+- ROOT: Rayden's DMC build APPENDS a non-canon global DURATION-RAMP driver
+  ($1025): on each V1 note-advance an SMC index cycles a 4-entry table
+  ($101C=[5,4,3,2]) and writes it to ALL voices' durrel ($173E-$1740). So the
+  note duration is a GLOBAL period-4 beat, not the canon per-voice $80-$BF
+  command; all voices advance in LOCKSTEP (one row/beat). The sector has NO $8x
+  commands → extract dur=0 → notes never advance. DIAGNOSIS took the full
+  which-copy/re-measure path (user's "go with A"): the CANON durrel writer $17E0
+  NEVER fires (pc-watch) → found the real writer $103A → the ramp routine.
+- ⚠ FIRST INSTINCT = a composer param reproducing the ramp = **PRINCIPLE §8 LEAK**
+  (a Rayden-specific emitter path selected by content). Re-reading the canon
+  (user prompt) routed it to EXTRACT-ONLY DECONSTRUCTION — Core Tenet (reproduce
+  the write stream, not the SMC code) + C19's boundary (a wedge changing a
+  derived musical VALUE → extract). Note durations are CONTENT; the ramp is
+  space-saving MECHANISM (Principle Rule 1).
+- FIX (extract-only, NO schema/composer change): `_durrel_ramp_probe` (static
+  3×`STA durrel_v,abs` signature + the `LDA table,X` operand) →
+  `extra_params['durrel_ramp']`; `extract()` stamps each row's `duration` =
+  table[i%4] (EXISTING field). Every pattern is 4-BEAT-ALIGNED (row%4==0) so
+  pattern-row i is always beat-phase i%4 → NO drift, NO C32 variants. Gated to
+  rows with dur==0 (no $8x); composer plays the durations via its ordinary path.
+- CENSUS: 6 Rayden carriers. 3 partial→FULL (Mr_Siegfrieds/Revel_99/Roing_Rown,
+  all no-$8x). 2 $8x-driven stay FULL BYTE-IDENTICAL (Rock_Remake/Sealed_Universe
+  — all rows have $8x, dur!=0, untouched). 1 residue (Embarassed_Emotions,
+  nonstandard play=$0000, unrelated). Non-carriers probe None.
+- f1: 5368 FULL / 33 partial (+3 vs the r128c batch). Ledger C19 (extract-only
+  deconstruction). Corpus code_hash stale pending next fresh batch.
+
 ## ✅ ROUND 151 (2026-07-31): SPLIT-RELOCATION curnote detection — Psych858o/Pulsate FULL (+1) — C13
 Next-partial Psych858o/Pulsate (single, base $0C00, VBLANK; NO STIL/BUGlist).
 sub 0 partial: V3 freq $323C vs ours $1000 at frame 1, state_match=True.
