@@ -1999,6 +1999,64 @@ fx_dual_up:
     else:
         play_entry = 'playframe'
         play_wrapper = ''
+    # MEDLEY (ledger C31 — a TIME-sequenced multi-player medley, e.g. Praiser/
+    # Mega_Mix): the orig's play VECTOR is a counter-dispatch wrapper ($272A)
+    # that plays player A for a segment, then re-inits to player B, looping. The
+    # compilation merge already unifies the packed players into one N-song model;
+    # here the composer reproduces that wrapper's WRITE STREAM (core tenet — the
+    # composer may reproduce the mechanism): a 2-byte frame counter mirroring the
+    # orig's $03/$04 (DEC lo each play, DEC hi on lo-wrap, switch when hi<0) that
+    # `jsr {dbl}`-plays the CURRENT song and, on segment expiry, advances the
+    # segment (looping), reloads that segment's counter, and `jsr init`s the next
+    # song — exactly the orig's $2718 re-init. The segment table
+    # `medley='song:lo:hi,...'` is probed from the wrapper's counter-init sites.
+    # medseg/medlo/medhi live OUTSIDE the state block (init must not clear them);
+    # medseg's BSS sentinel = n_segments triggers the one-time segment-0 start.
+    medley_spec = usf.params.fields.get('medley')
+    medley_segs = []
+    if medley_spec:
+        for _s in str(medley_spec).split(','):
+            _song, _lo, _hi = _s.split(':')
+            medley_segs.append((int(_song), int(_lo, 16), int(_hi, 16)))
+        _n = len(medley_segs)
+        _dbl = play_entry               # playrepeat (double) or playframe
+        play_wrapper = (
+            'playmedley:\n'
+            '        lda medseg                   ; C31 time-medley dispatch\n'
+            f'        cmp #${_n:02X}                     ; sentinel = not started\n'
+            '        bne medrun\n'
+            '        lda #$00\n'
+            '        sta medseg                   ; start segment 0\n'
+            '        lda medlo0\n'
+            '        sta medlo\n'
+            '        lda medhi0\n'
+            '        sta medhi\n'
+            'medrun:\n'
+            '        dec medlo                    ; mirror orig $03 DEC-per-play\n'
+            '        lda medlo\n'
+            '        cmp #$FF\n'
+            '        bne mednb\n'
+            '        dec medhi                    ; $04 DEC on $03 wrap\n'
+            'mednb:\n'
+            f'        jsr {_dbl}                    ; double-play the CURRENT song\n'
+            '        lda medhi\n'
+            '        bpl meddone                  ; segment still running\n'
+            '        ldx medseg                   ; --- segment expired: switch ---\n'
+            '        inx\n'
+            f'        cpx #${_n:02X}\n'
+            '        bne medadv\n'
+            '        ldx #$00                     ; loop the schedule\n'
+            'medadv:\n'
+            '        stx medseg\n'
+            '        lda medlo0,x                 ; reload the next segment counter\n'
+            '        sta medlo\n'
+            '        lda medhi0,x\n'
+            '        sta medhi\n'
+            '        lda medsong,x                ; re-init to the next song ($2718)\n'
+            '        jsr init\n'
+            'meddone:\n'
+            '        rts\n\n') + play_wrapper
+        play_entry = 'playmedley'
     # $D418 play-vector wrapper (PVCF / Zyron / Signor, 6 members): the
     # original's PSID play vector points at `LDA #imm / STA $D418 / JMP
     # base+3` — a constant master-vol|filter-mode assertion on EVERY play()
@@ -2558,6 +2616,12 @@ fx_dual_up:
         # per-(subtune, voice) idle wave pool position (ledger C31); emitted
         # only for a compilation whose packed players disagree on the idle wave
         data.append('iwpos:\n' + _byt(iwpos))
+    if medley_segs:
+        # time-medley segment schedule (ledger C31): per segment the song to
+        # play + its 2-byte counter init (mirrors the orig wrapper's $03/$04)
+        data.append('medsong:\n' + _byt([s[0] for s in medley_segs]))
+        data.append('medlo0:\n' + _byt([s[1] for s in medley_segs]))
+        data.append('medhi0:\n' + _byt([s[2] for s in medley_segs]))
     data.append('igla:\n' + _byt(igla))
     data.append('iglb:\n' + _byt(iglb))
     data.append('freqlo:\n' + _byt(flo))
@@ -2960,6 +3024,15 @@ ovrp_d:
     # byte-neutral — and emitted ONLY for the ghost member so no other build
     # carries an unused label.
     ptail_label = 'ptail:\n' if need_ptail else ''
+    # time-medley state (ledger C31): medseg's initial value = n_segments is the
+    # "not started" sentinel the playmedley wrapper checks to run the one-time
+    # segment-0 setup. These live OUTSIDE state0..state_end so init's state clear
+    # (and the mid-play `jsr init` on a segment switch) never wipes them. Absent
+    # for every non-medley member -> byte-identical.
+    medley_var = ('' if not medley_segs else
+                  f'medseg:   .byt ${len(medley_segs):02X}\n'
+                  'medlo:    .dsb 1, 0\n'
+                  'medhi:    .dsb 1, 0\n')
 
     asm = f"""
 SLIDE_PHASE = ${slide_phase:02X}
@@ -3762,7 +3835,7 @@ wnote:    .dsb 3, 0                  ; orig arp-note shadow (= $1783)
 durrel:   .dsb 3, 0                  ; orig duration-reload shadow (= $173E)
 ioff:     .dsb 3, 0                  ; orig instrument-offset shadow (= $174D)
 {rest_var}{d418_var}{sectpos_bss}state_end:
-{cursong_var}{hr_test_var}{dual_vars}        .byt $00
+{cursong_var}{medley_var}{hr_test_var}{dual_vars}        .byt $00
 """
     return _reloc_sid_regs(asm, reg_delta, keep_regs)
 

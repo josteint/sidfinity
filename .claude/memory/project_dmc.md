@@ -8,6 +8,29 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## 🔶 ROUND 150 (2026-07-31, WIP): TIME-MEDLEY structure — Praiser/Mega_Mix (1 write from FULL) — new C31-adjacent class
+Next-partial Praiser/Mega_Mix: a NEW structure — a **time-sequenced medley**.
+One PSID subtune, wrapper at $2700 (init/play vectors) DOUBLE-PLAYS an active
+player and TIME-SWITCHES between packed players $1000 (seg0) + $2800 (seg1) via
+a $03/$04 frame counter, looping. Distinct from C31 (per-subtune dispatch) and
+C27 (parallel chips). NO STIL/BUGlist entry.
+- BUILT (committed WIP, gated): composer `playmedley` wrapper reproduces the
+  $272A counter + double-play + jsr-init segment switch, reusing the C31
+  merge (2-song model) + play_repeat=2 + a `medley='0:40:1F,1:64:19'` param
+  (all gated on the param → non-medley members byte-identical). Reproduces the
+  medley **byte-exact through the full content**: 0 mismatches at songlength
+  290s AND one full cycle 315s.
+- RESIDUAL (1 write, verdict partial): $D417=$04 vs $00 at 315.6s (0.6s into
+  the loop repeat, in the ×1.1 margin). FULLY TRACED: $D417=$1018|$1723
+  (routing shadow | res); the orig player-1 init $101D is MINIMAL (resets
+  note/position machinery, INHERITS player 2's effect/filter/routing work-RAM);
+  our universal init wipes it → our cycle 2 is periodic, orig's is aperiodic by
+  one routing bit. FIX = a "soft re-init" carrying the effect state / resetting
+  position (bracket proven: carry-none=1 diff, carry-all=5293). Tenet-legal.
+- FULL diagnosis + fix plan + reproduction recipe + productionization TODO:
+  **`pipelines/dmc/v4/MEDLEY_WIP.md`** (READ FIRST to continue). NOT productionized
+  (no detection/probe/wiring). f1 unchanged (member still partial).
+
 ## ✅ ROUND 149 (2026-07-30): per-instrument record_offset — sonified ioff survives the merge renumber — Pinov_Vox/Goldrake FULL (+1) — C31/C11
 Next-partial Pinov_Vox/Goldrake (2-player COMPILATION $8500/$9000; NO STIL/
 BUGlist entry). sub 0 (player 0) FULL, sub 1 (player 1) partial: V3 freq hi
