@@ -2452,8 +2452,25 @@ fx_dual_up:
     # filter's mode in `d418mode` (set at note-init instead of writing $D418)
     # and re-asserts it here. Default None -> canonical (note-init writes
     # $D418), byte-identical.
+    # The init's $D418 priming write (canon $105C). Default writes A = master
+    # vol; the static variant below overrides it with a fixed mode|vol immediate.
+    d418_init = 'sta $d418                    ; priming (matches the family init)'
+    # master_vol_static (C19 wedge, Signor/Logic_Intro): an appended init WRAPPER
+    # writes $D418 = a fixed mode|vol ONCE (LDA #imm / STA $D418), and BOTH canon
+    # $D418 stores (init $105C + filter note-init $12A8) are NOPed — so $D418 is
+    # set once at init and NEVER touched during play (a static filter mode+vol
+    # for the whole tune). Reproduce: prime the fixed byte at init + emit no
+    # filter note-init $D418 write. Distinct from the reassert-per-frame wedge.
+    d418_static = usf.params.fields.get('master_vol_static', None)
     d418_filter_tail = usf.params.fields.get('master_vol_reassert_filter_tail', None)
-    if d418_filter_tail is not None:
+    if d418_static is not None:
+        d418_init = (f'lda #${int(d418_static) & 0xFF:02X}\n'
+                     '        sta $d418                    ; static mode|vol, '
+                     'set once at init (no play-time $D418 writes)')
+        ni_d418 = ''                     # filter note-init does NOT write $D418
+        d418_prime = ''
+        d418_var = ''
+    elif d418_filter_tail is not None:
         d418_init_mode = int(d418_filter_tail) & 0xFF
         ni_d418 = ('        sta d418mode                 ; mode tracked; '
                    '$D418 re-asserted per-frame in filter tail\n')
@@ -3126,7 +3143,7 @@ ini_ptr:
         sta spd
         lda tunetab+1,y              ; +7 = master vol
         sta mvol
-        sta $d418                    ; priming (matches the family init)
+        {d418_init}
         lda tunetab+2,y              ; +8 = $D417 routing-shadow priming
         sta shadow17
 {rest_load}{d418_prime}{sphase_const}{prime_setup}        ldx #$00

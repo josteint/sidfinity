@@ -8,6 +8,33 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 155 (2026-07-31): Signor/Logic_Intro — STATIC $D418 (init-wrapper primes once) (+1) — C19 36th occ
+Next-partial Signor/Logic_Intro (single, canon base $1000; NO STIL/BUGlist —
+no Signor in either doc). sub 0 partial, first-div play pos 9: rebuild emits an
+EXTRA `$D418=$3F` where the orig has none (len_b 66686 vs len_a 66160).
+- MECHANISM: orig writes $D418 exactly TWICE (both at init: host-stub $0F, then
+  $3F), NEVER during play. Rebuild writes it 501× (canon writes $D418=mode|vol
+  at every filter note-init).
+- ROOT (byte-diff orig vs canon): BOTH canon $D418 stores are NOPed — init
+  master-vol `$105C: STA $D418`→`EA EA EA` AND filter note-init `$12A8: STA
+  $D418`→`EA EA EA`. The PSID init vector is an APPENDED WRAPPER ($1E88: `JSR
+  $1000 / LDA #$3F / STA $D418 / RTS`) that primes $D418=$3F (mode 3 | vol $0F)
+  ONCE. So $D418 is a STATIC filter-mode+vol for the whole tune. (The $18xx↔$0Axx
+  diffs are normal instrument-table relocation.)
+- FIX: `factory._master_vol_static_probe` (anchors BOTH canon-$D418-store NOPs at
+  base+$5C and base+$2A8, then reads the immediate from the sole remaining `LDA
+  #imm / STA $D418` in the image) → composer `master_vol_static=$3F` → the init
+  primes `LDA #$3F / STA $D418` (instead of `STA $D418`=master vol) and the
+  filter note-init emits NO $D418. Third sibling of `master_vol_every_play` /
+  `master_vol_reassert_filter_tail`. Regression-safe by construction: no param →
+  canon init+per-note-init $D418, byte-identical. CENSUS over 5833 f1: 1 carrier
+  (Logic_Intro, was partial), 0 FULL ⇒ 0 exposure. FULL 66134/66134 state ✓;
+  smoke 6/6.
+- Ledger C19 36th occ. TELL: rebuild emits $D418=mode|vol at a filter note-init
+  where orig has none, and orig's TOTAL $D418 count is ~2 (init only) — count
+  $D418 writes across the song; then byte-diff the canon stores at base+$5C /
+  base+$2A8.
+
 ## ✅ ROUND 154 (2026-07-31): Rygar/Complications — PULSE UP-REVERSAL bound repoint (+1) — C19 35th occ
 Next-partial Rygar/Complications (single, canon base $1000, VBLANK; NO
 STIL/BUGlist — no Rygar entries in either doc). sub 0 partial, DEEP first-div

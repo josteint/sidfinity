@@ -1113,6 +1113,31 @@ def _pw_up_reverse_probe(path: str, base: int,
     return None
 
 
+def _master_vol_static_probe(path: str, base: int,
+                             post_init_sub: 'int | None' = None):
+    """Static-$D418 probe (STATIC opcode probe, C19 — Signor/Logic_Intro). The
+    canon engine writes $D418 twice: at init (master vol, `STA $D418` at
+    base+$5C) and at every filter note-init (mode|vol, `STA $D418` at
+    base+$2A8). This member NOPs BOTH (`EA EA EA`) and instead an appended init
+    WRAPPER writes $D418 = a fixed mode|vol immediate ONCE (`LDA #imm /
+    STA $D418`), so $D418 is set once at init and NEVER touched during play (a
+    static filter mode + master vol for the whole tune). Anchor on both NOPs
+    (specific), then read the immediate from the sole remaining `LDA #imm /
+    STA $D418` in the image (both canon writes gone ⇒ the wrapper's is the only
+    STA $D418). Returns the immediate, else None (build unchanged)."""
+    mem, s = _load(path, post_init_sub)
+    b = base
+    if not (mem[b + 0x5C] == 0xEA and mem[b + 0x5D] == 0xEA and mem[b + 0x5E] == 0xEA
+            and mem[b + 0x2A8] == 0xEA and mem[b + 0x2A9] == 0xEA
+            and mem[b + 0x2AA] == 0xEA):
+        return None
+    lo, hi = s['load'], s['load'] + len(s['payload'])
+    hits = [mem[i + 1] for i in range(lo, hi - 4)
+            if mem[i] == 0xA9 and mem[i + 2] == 0x8D
+            and mem[i + 3] == 0x18 and mem[i + 4] == 0xD4]
+    return hits[0] if len(hits) == 1 else None
+
+
 _PW_HI_WRITE = re.compile(rb'\xBD(..)\x99\x02\xD4\xBD(..)\x99\x03\xD4',
                           re.DOTALL)
 
@@ -3751,6 +3776,7 @@ _WEDGE_PROBES = [
     ('hold_gateoff',                    lambda p, c: _hold_gateoff_probe(p, c.base, c.post_init_sub)),
     ('note_guard_init',                 lambda p, c: _note_guard_probe(p, c.base, c.post_init_sub)),
     ('pw_up_reverse',                   lambda p, c: _pw_up_reverse_probe(p, c.base, c.post_init_sub)),
+    ('master_vol_static',               lambda p, c: _master_vol_static_probe(p, c.base, c.post_init_sub)),
     ('play_unit_repeat',                lambda p, c: _play_unit_repeat_probe(p, c.base, c.post_init_sub)),
     ('pulsewidth_hi_const',             lambda p, c: _pw_hi_const_probe(p, c.base, c.post_init_sub)),
     ('dual_freq_generator',             lambda p, c: _dual_freq_gen_probe(p, c.base, c.freq_lo_addr, c.post_init_sub)),
