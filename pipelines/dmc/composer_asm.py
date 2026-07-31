@@ -2816,6 +2816,99 @@ fx_dual_up:
         play_entry = 'playclk'
         cia_init = cia_init + ''.join(
             f'        lda #$FF\n        sta {l}\n' for l in clk_labels)
+    # master_vol_fade (C10 / song-end fade+restart wrapper, Slayer): an appended
+    # play wrapper counts play() invocations; at play N it fades the master
+    # volume `mvol` by 1 every STEP plays (the normal note-init `ora mvol /
+    # sta $d418` writes emit the faded values automatically). When mvol hits 0
+    # it writes $D418=$00 (silence, NO play body) for SIL plays, then re-inits
+    # (jmp init, A=0) to restart the whole song — matching the orig's counter →
+    # fade → silence → JMP <init> loop. Encoded
+    # "N:STEP:SIL:g0,g1,g2,n0,n1,n2,i0,i1,i2,s" (the fade schedule + 10 restart
+    # note-state bytes, all MEASURED from libsidplayfp by the factory probe —
+    # NEVER py65, since they feed the write stream; feedback_ground_truth). The
+    # fade vars live OUTSIDE state0..state_end (init's clear must not wipe the
+    # play counter), and the restart resets them by hand. Default None -> no
+    # wrapper, byte-identical.
+    fade_var = ''
+    _mvf = usf.params.fields.get('master_vol_fade', None)
+    if _mvf is not None:
+        _parts = str(_mvf).split(':')
+        _fn, _fstep, _fsil = int(_parts[0]), int(_parts[1]), int(_parts[2])
+        # 10 measured (libsidplayfp) restart note-state bytes: gatemask x3,
+        # curnote x3, instr x3, shadow17 — the canon init ($1050) LEAVES the
+        # $100F-$1018 block uncleared, so the replay resumes them from the
+        # last-song values. That block is exactly gatemask ($100F), curnote
+        # ($1012) and curinst ($1015 — the STICKY instrument number, orig
+        # $1015,x) plus shadow17 ($1018). It is NOT `cinst`: cinst mirrors the
+        # orig's ACTIVE pulse-record offset ($174D), which lives in the
+        # $1718-$179D block that $1050 DOES clear to 0. Priming cinst too
+        # over-restores it: a voice whose first replayed note is SOFT (a glide,
+        # no note-init to copy curinst->cinst) then runs fx_pulse against the
+        # survivor instrument instead of instrument 0, sweeping PW where the
+        # orig (cinst-offset 0) holds it flat (Slayer/Trip V3, r157). So prime
+        # curinst only; `jsr init` already cleared cinst to 0.
+        _ns = [int(x) & 0xFF for x in _parts[3].split(',')]
+        _prime = ''.join(
+            [f'        lda #${_ns[i]:02X}\n        sta gatemask+{i}\n' for i in range(3)]
+            + [f'        lda #${_ns[3 + i]:02X}\n        sta curnote+{i}\n' for i in range(3)]
+            + [f'        lda #${_ns[6 + i]:02X}\n        sta curinst+{i}\n' for i in range(3)]
+            + [f'        lda #${_ns[9]:02X}\n        sta shadow17\n'])
+        # Four composable phases, laid out for 6502 short-branch range (fdrun /
+        # fdrts near their branches; the restart is a separate `songrestart`
+        # module reached by JMP). Phase 0 counts plays to N (trigger); phase 1
+        # ramps mvol; phase 2 holds $D418=$00 silence then JMPs the restart.
+        play_wrapper = (
+            'playfade:\n'
+            '        lda fdphase\n'
+            '        bne fdnz\n'
+            '        inc fdctr                    ; --- phase 0: count to N ---\n'
+            '        bne fdc0\n'
+            '        inc fdctr+1\n'
+            'fdc0:\n'
+            f'        lda fdctr+1\n        cmp #${(_fn >> 8) & 0xFF:02X}\n        bne fdrun\n'
+            f'        lda fdctr\n        cmp #${_fn & 0xFF:02X}\n        bne fdrun\n'
+            '        dec mvol                     ; play N: first fade tick\n'
+            '        lda #$01\n        sta fdphase\n'
+            '        lda #$00\n        sta fdsub\n'
+            'fdrun:\n'
+            f'        jmp {play_entry}\n'
+            'fdnz:\n'
+            '        cmp #$02\n        beq fdsilence\n'
+            '        inc fdsub                    ; --- phase 1: mvol ramp ---\n'
+            f'        lda fdsub\n        cmp #${_fstep & 0xFF:02X}\n        bne fdrun\n'
+            '        lda #$00\n        sta fdsub\n'
+            '        dec mvol\n'
+            '        lda mvol\n        bne fdrun\n'
+            '        lda #$02\n        sta fdphase   ; mvol==0 -> silence\n'
+            '        lda #$00\n        sta fdsil\n        sta fdsil+1\n'
+            'fdsilence:\n'
+            '        lda #$00\n        sta $d418    ; --- phase 2: silence ---\n'
+            '        inc fdsil\n        bne fds0\n        inc fdsil+1\n'
+            'fds0:\n'
+            f'        lda fdsil\n        cmp #${_fsil & 0xFF:02X}\n        bne fdrts\n'
+            f'        lda fdsil+1\n        cmp #${(_fsil >> 8) & 0xFF:02X}\n        bne fdrts\n'
+            '        jmp songrestart\n'
+            'fdrts:\n'
+            '        rts\n\n'
+            # --- module 4: song restart. The orig's wrapper JMPs the SHARED
+            # init path (the same code a cold start runs — canon $1050 etc.);
+            # the only difference from a cold start is that this init CLEARS the
+            # effect/state block $1718-$179D but LEAVES the note-state block
+            # $100F-$1018 (gatemask / curnote / curinst / shadow17), so the
+            # replay resumes those from the last-song values. Reset the play
+            # counter, cold re-init (clears all state), then PRIME only those
+            # survivors to the values the ORIGINAL holds at the restart (measured
+            # from libsidplayfp, NOT the composer's own runtime state — those can
+            # diverge from the orig even when the write streams match). Everything
+            # else re-primes cold via `init`.
+            'songrestart:\n'
+            '        lda #$00\n        sta fdphase\n        sta fdctr\n        sta fdctr+1\n'
+            '        lda #$00\n        jsr init\n'
+            + _prime
+            + '        rts\n\n') + play_wrapper
+        play_entry = 'playfade'
+        fade_var = ('fdphase:  .dsb 1, 0\nfdctr:    .dsb 2, 0\n'
+                    'fdsub:    .dsb 1, 0\nfdsil:    .dsb 2, 0\n')
     data_asm = '\n'.join(data)
 
     # note-init cymbal (canon onset 0) vs frame-2 cymbal (family-2 onset 1).
@@ -3915,7 +4008,7 @@ wnote:    .dsb 3, 0                  ; orig arp-note shadow (= $1783)
 durrel:   .dsb 3, 0                  ; orig duration-reload shadow (= $173E)
 ioff:     .dsb 3, 0                  ; orig instrument-offset shadow (= $174D)
 {rest_var}{d418_var}{sectpos_bss}state_end:
-{cursong_var}{medley_var}{hr_test_var}{dual_vars}        .byt $00
+{cursong_var}{medley_var}{hr_test_var}{dual_vars}{fade_var}        .byt $00
 """
     return _reloc_sid_regs(asm, reg_delta, keep_regs)
 

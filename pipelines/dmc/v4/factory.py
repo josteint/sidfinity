@@ -1162,6 +1162,104 @@ def _filter_static_probe(path: str, base: int,
     return None
 
 
+def _master_vol_fade_probe(path: str, base: int,
+                           post_init_sub: 'int | None' = None):
+    """Song-end master-volume fade+restart wrapper (ledger C10/C19, Slayer). An
+    appended play wrapper counts play() invocations; at play N it fades the
+    master vol ($1717) by 1 every STEP plays (the note-init `ora mvol` writes
+    then emit the faded $D418), then writes $D418=$00 (silence) for SIL plays,
+    then re-inits (JMP <init>) to restart the whole song. STATIC GATE: the fade
+    decrement `DEC $101E / LDA $101E / STA $1717` + an `LDA #$00 / STA $D418`
+    silence write. MEASUREMENT IS SIDDUMP-NATIVE (libsidplayfp = ground truth,
+    NOT py65 — the schedule feeds the write stream, so it must come from the
+    real machine per feedback_ground_truth): `--pc-watch` the fade STA $1717 PC
+    gives each decrement's exact play-invocation index (N = first, STEP = the
+    delta), and the writelog's longest contiguous $D418=$00 run is SIL. Returns
+    "N:STEP:SIL", else None (build unchanged)."""
+    mem, s = _load(path, post_init_sub)
+    b = base
+    load, plen = s['load'], len(s['payload'])
+    lo1e, hi1e = (b + 0x1E) & 0xFF, (b + 0x1E) >> 8
+    lo17, hi17 = (b + 0x717) & 0xFF, (b + 0x717) >> 8
+    # static: the fade decrement `DEC $101E / LDA $101E / STA $1717` -> STA PC
+    dec_pc = None
+    for a in range(load, load + plen - 8):
+        if (mem[a] == 0xCE and mem[a + 1] == lo1e and mem[a + 2] == hi1e
+                and mem[a + 3] == 0xAD and mem[a + 4] == lo1e and mem[a + 5] == hi1e
+                and mem[a + 6] == 0x8D and mem[a + 7] == lo17 and mem[a + 8] == hi17):
+            dec_pc = a + 6
+            break
+    if dec_pc is None:
+        return None
+    if not any(mem[a] == 0xA9 and mem[a + 1] == 0x00 and mem[a + 2] == 0x8D
+               and mem[a + 3] == 0x18 and mem[a + 4] == 0xD4
+               for a in range(load, load + plen - 4)):
+        return None
+    try:
+        import subprocess
+        from src.songlengths import load_database, get_durations
+        from pipelines.hubbard.verify_cycle import writelog_capture
+        sub = post_init_sub if post_init_sub is not None else 0
+        try:
+            db = load_database(os.path.join('hvsc84', 'DOCUMENTS', 'Songlengths.md5'))
+            dur = get_durations(path, db)[sub] * 1.15 + 5.0
+        except Exception:
+            dur = 400.0
+        out = subprocess.run(
+            ['siddump', path, '--subtune', str(sub + 1), '--duration', f'{dur:.0f}',
+             '--pc-watch', f'{dec_pc:04X}', '0-0'],
+            capture_output=True, text=True).stdout
+        idxs = []
+        for line in out.splitlines():
+            for tok in line.split('|'):
+                if tok.startswith('PW:'):
+                    p = tok.split(':')
+                    if len(p) > 5:
+                        idxs.append(int(p[5]))
+        if len(idxs) < 2:
+            return None
+        n_fade, step = idxs[0], idxs[1] - idxs[0]
+        # SIL = the longest contiguous run of $D418=$00 writes (the silence
+        # phase writes it once per play, and it is the only $00 run: init/normal
+        # $D418 is $0F/$1F, the fade values are $1E..$11).
+        best = cur = 0
+        for fr in writelog_capture(path, subtune=sub, duration=dur):
+            for (_c, reg, val) in fr:
+                if reg == 24:
+                    cur = cur + 1 if val == 0 else 0
+                    best = max(best, cur)
+        if best < 1 or n_fade < 1 or step < 1:
+            return None
+        # Restart note-state: the canon init leaves $100F-$1018 (gatemask,
+        # curnote, instr, shadow17) UNCLEARED, so the replay resumes them from
+        # the last-song values. Measure them from libsidplayfp during the
+        # silence (frozen there, no play body): memwatch $100F-$1018 on every
+        # $D418 write, take the mode over the $D418=$00 (silence) snapshots.
+        addrs = [b + off for off in range(0x0F, 0x19)]
+        mw = subprocess.run(
+            ['siddump', path, '--subtune', str(sub + 1), '--duration', f'{dur:.0f}',
+             '--memwatch-on-write', 'd418',
+             ','.join(f'{a:04X}' for a in addrs)],
+            capture_output=True, text=True).stdout
+        from collections import Counter
+        tag = f'{b + 0x18:04X}'
+        counts: 'Counter[str]' = Counter()
+        for line in mw.splitlines():
+            for ev in line.split('|')[1:]:
+                kv = dict(p.split('=') for p in ev.split(':') if '=' in p)
+                if kv.get('d418'.upper()) == '00' or kv.get('D418') == '00':
+                    ns = ','.join(str(int(kv[f'{a:04X}'], 16)) for a in addrs
+                                  if f'{a:04X}' in kv)
+                    if ns.count(',') == 9:
+                        counts[ns] += 1
+        if not counts:
+            return None
+        note_state = counts.most_common(1)[0][0]
+        return f"{n_fade}:{step}:{best}:{note_state}"
+    except Exception:
+        return None
+
+
 _PW_HI_WRITE = re.compile(rb'\xBD(..)\x99\x02\xD4\xBD(..)\x99\x03\xD4',
                           re.DOTALL)
 
@@ -3802,6 +3900,7 @@ _WEDGE_PROBES = [
     ('pw_up_reverse',                   lambda p, c: _pw_up_reverse_probe(p, c.base, c.post_init_sub)),
     ('master_vol_static',               lambda p, c: _master_vol_static_probe(p, c.base, c.post_init_sub)),
     ('filter_static',                   lambda p, c: _filter_static_probe(p, c.base, c.post_init_sub)),
+    ('master_vol_fade',                 lambda p, c: _master_vol_fade_probe(p, c.base, c.post_init_sub)),
     ('play_unit_repeat',                lambda p, c: _play_unit_repeat_probe(p, c.base, c.post_init_sub)),
     ('pulsewidth_hi_const',             lambda p, c: _pw_hi_const_probe(p, c.base, c.post_init_sub)),
     ('dual_freq_generator',             lambda p, c: _dual_freq_gen_probe(p, c.base, c.freq_lo_addr, c.post_init_sub)),

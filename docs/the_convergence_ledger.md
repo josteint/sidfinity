@@ -123,6 +123,7 @@ practice, not code to factor).
 | close a `Params.fields` ESCAPE-HATCH key → typed field · untyped behavior-named scalar in the generic params bag (init-phase state / mechanism scalar), borderline §7 · NOT opaque-bytes (C7) / NOT a wedge knob (C19) · it's a byte-identity CARRIER REFACTOR not a schema addition (value already in USF) · census ALL consumers (often cross-engine SHARED + dead readers) · clone an existing typed field of the same trichotomy category · type by MUSICAL category NOT a composer grouping · gate regenerates + MD5-compares every consumer family (surfaces broken extract paths behind a FULL verdict) | C33 | methodology |
 | PC-triggered bus tap false-fires on DATA reads of the trigger address · "capture at PC X" watches cpuRead, bus can't tell fetch from data · plausible WRONG snapshot · discriminate EXECUTION by the ≥3-consecutive-ascending-reads bus signature · validate any new tap by CROSS-EMULATOR byte-identity (also proves non-perturbation) · writelog_capture frame indices are COMPACTED (writes-only frames) vs raw siddump frames · GAP: 2-byte indirect sites (`LDA (zp),y`) are INVISIBLE to the discriminator — watch a 3-byte site at the same call depth with --pc-watch-abs | C36 | logged |
 | subtune SAVE-STATE RESUME wrapper · header overstates songs, tune table has ONE record · appended init wrapper copies a per-subtune state snapshot + DATA POKES then forces song 0 · non-start subtune diverges at play pos 0, wrong first note/instrument · only init-wipe SURVIVORS matter (priming → init.voice_state; song-data pokes → per-subtune walk memory; wave/filter-table pokes → C31 clone-and-remap, def clones in unused nibble slots) | C37 | recurring (3×, all FULL) |
+| song-end master-vol FADE → silence → whole-song RESTART loop · appended PLAY wrapper counts play() to N → `dec` mvol every STEP (note-init `ora mvol/sta $D418` emits it) → `$D418=$00` silence for SIL plays → JMP re-init loop · diverges DEEP in the REPLAY · restart re-runs the SHARED init (clears $1718-$179D, LEAVES $100F-$1018 survivors) · MEASURE schedule + survivors from libsidplayfp not py65 (pc-watch fade STA=N/STEP, writelog $00-run=SIL, memwatch-on-write d418 over silence=note-state) · modular wrapper (count/ramp/silence/songrestart) · ⚠ prime EXACTLY the init-uncleared block (gatemask/curnote/curinst=$1015/shadow17) NOT cinst (the ACTIVE pulse-record $174D that init CLEARS — over-prime sweeps a soft-glide voice's PW) · fade = C10 parametric mvol, restart = C37 sibling (whole-song loop not per-subtune) | C38 | logged |
 
 ---
 
@@ -1037,3 +1038,36 @@ practice, not code to factor).
   `writelog_capture` frame indices are COMPACTED (writes-only frames) vs raw
   siddump frames — localize with same-process captures.
 - FULL ENTRY: [`ledger/C36.md`](ledger/C36.md) — read it before applying.
+
+### C38 — song-end master-vol FADE → silence → whole-song RESTART loop (appended play wrapper)
+- PRESENTS: a member verifies FULL through the whole first play + fade ramp +
+  silence, then diverges DEEP (~98%) in a REPLAY. An appended PLAY-vector
+  wrapper counts play() to N, `dec`s the master-vol shadow by 1 every STEP plays
+  (riding the note-init `ora mvol / sta $D418` filter-tail write — the wrapper
+  writes no $D418 during the fade), holds `$D418=$00` for SIL plays, then JMPs a
+  re-init to loop the WHOLE song. The restart re-runs the SHARED init (clears
+  $1718-$179D, LEAVES the note-state block $100F-$1018) so the replay resumes
+  from the end-of-song survivor note-state.
+- CANONICAL: static-gate detect (fade `DEC ctr / LDA ctr / STA mvol_shadow` +
+  `LDA #$00 / STA $D418`, relocation-aware). MEASURE the schedule + survivors
+  from libsidplayfp, NEVER py65 (they feed the write stream — [[feedback_ground_truth]]
+  third mode): `--pc-watch` the fade STA → N (first hit's play index) + STEP
+  (delta); writelog longest `$D418=$00` run → SIL; `--memwatch-on-write d418
+  <$100F-$1018>` mode over the silence snapshots → note-state. Compose a MODULAR
+  play-vector wrapper (count → `dec mvol` ramp → `$D418=$00` silence →
+  `songrestart` = reset counters + `jsr init` + prime); keep the fade counters
+  OUTSIDE the cleared state block so `init` can't wipe the play counter.
+- ⚠ PRIME EXACTLY the init-uncleared survivors ($100F-$1018 = gatemask/curnote/
+  curinst=$1015/shadow17) and NOTHING more. NOT `cinst` (the composer's mirror
+  of the orig's ACTIVE pulse-record offset $174D, which lives in the
+  $1718-$179D block init CLEARS to 0): a voice whose first REPLAYED note is SOFT
+  (a glide — running-effects path, never note-inits, never copies curinst→cinst)
+  then runs fx_pulse against the survivor instrument instead of instrument 0,
+  sweeping PW where the orig (cinst-offset 0) holds it flat (TELL: PW-lo
+  alternating across a glide note whose freq trajectory matches perfectly).
+  GENERAL: the survivor set is EXACTLY the init-uncleared range — prime only the
+  leftovers, never a byte init clears.
+- Fade = C10 parametric master-vol (NOT a global_track event list); restart =
+  C37 sibling (survivor-preserving re-init) but a WHOLE-SONG play()-counter loop,
+  not a per-subtune dispatch; distinct from C19 (static single-value poke).
+- FULL ENTRY: [`ledger/C38.md`](ledger/C38.md) — read it before applying.

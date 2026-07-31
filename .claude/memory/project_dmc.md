@@ -8,6 +8,53 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 157 (2026-07-31): Slayer song-end master-vol FADE → silence → whole-song RESTART loop (+4) — NEW ledger class C38
+Four Slayer f1 members (My_49th_Tune, Plantation, Trip, Worktunes/My_47th_Tune,
+all single/canon base $1000) share an APPENDED PLAY-vector wrapper implementing a
+song-end fade-out/restart loop. Play() vector → wrapper: (0) count play()s to N;
+(1) `dec` the master-vol shadow $1717 by 1 every STEP plays — the value is
+emitted for free by the note-init `ora mvol / sta $D418` filter tail, the wrapper
+writes no $D418 during the fade; (2) at mvol==0, `$D418=$00` silence for SIL
+plays; (3) `JMP $1807` = the SHARED init path (`$1000→$221A→$1807→$1870→$1050`,
+same as a cold start) to restart the whole song, looping forever.
+- KEY MECHANISM: the restart's init CLEARS the effect/state block ($1718-$179D:
+  pulse accum $1750, pending $174a, ACTIVE pulse-record offset $174d, …) but
+  LEAVES the note-state block $100F-$1018 (gatemask $100F, curnote $1012, curinst
+  $1015, shadow17 $1018) — so the replay resumes its first notes from the
+  end-of-song survivor note-state. Verified by disassembling the appended wrapper
+  + $1050 (`STA $1718,X` X=0..$85 clears $1718-$179D; never touches $100F-$1018).
+- COMPOSER: gated `master_vol_fade="N:STEP:SIL:g0..g2,n0..n2,i0..i2,s"` param → a
+  MODULAR play-vector wrapper (`playfade` count/ramp/silence + a separate
+  reusable `songrestart` module: reset counters → `jsr init` → prime survivors).
+  Fade counters live OUTSIDE state0..state_end so init's clear can't wipe the
+  play counter. Default None → no wrapper, byte-identical.
+- FACTORY `_master_vol_fade_probe`: static gate (fade `DEC $101E/LDA $101E/STA
+  $1717` + `LDA #$00/STA $D418`) then MEASURE from libsidplayfp (NEVER py65 —
+  feeds the write stream, feedback_ground_truth 3rd mode): `--pc-watch` the fade
+  STA → N/STEP; writelog longest `$D418=$00` run → SIL; `--memwatch-on-write
+  d418 $100F-$1018` mode over the silence snapshots → 10 note-state bytes.
+- THE TRIP FIX (this session, the last of the 4): Trip was 98.6% — diverged
+  DEEP in the replay at V3 PW-lo (orig $00, rebuild $40) on V3's first replayed
+  glide note. ROOT: the prime was priming `cinst` (the composer's mirror of the
+  ACTIVE pulse-record $174d) as well as curinst, from the same measured $1015
+  survivor. But $174d is in the init-CLEARED $1718-$179D block — the orig's is 0
+  at restart. V3's first replayed note is SOFT (a glide → running-effects path,
+  never note-inits, never copies curinst→cinst), so fx_pulse ran the survivor
+  instrument 4's pulse (step $40) instead of instrument 0 (step 0), sweeping PW
+  (alternating $40/$00) where the orig held it flat. FIX: prime `curinst` only
+  (`jsr init` already zeroed cinst). LESSON: the survivor set is EXACTLY the
+  init-uncleared range — prime only the leftovers, never a byte init clears.
+- VERDICTS: all 4 FULL (Trip 232080/232080 state✓; My_49th/My_47th/Plantation
+  FULL). CENSUS (base-agnostic raw scan mirroring the static gate over 5401 f1):
+  exactly these 4 carriers (all base $1000), 0 other members → 0 regression
+  exposure. Smoke 6/6. C20 fifth-layer: .usf carries master_vol_fade, rebuild
+  byte-identical for all 4. Composer change fully gated → every non-carrier
+  byte-identical.
+- Ledger NEW class C38 (song-end fade+restart loop w/ measured survivor prime).
+  Relations: fade = C10 parametric master-vol; restart = C37 sibling
+  (survivor-preserving re-init, but whole-song play()-counter loop not
+  per-subtune); distinct from C19 (static single-value poke).
+
 ## ✅ ROUND 156 (2026-07-31): SilverFox/Blood_2_game — STATIC FILTER (play-tail $D416/$D417 NOPed) (+1) — C19 37th occ
 Next-partial SilverFox/Blood_2_game (single, canon base $1000; NO STIL/BUGlist).
 sub 0 partial, first-div play pos 6: rebuild emits an EXTRA `$D416=$2A`/`$D417=
