@@ -3241,23 +3241,29 @@ def _noteinit_defer_probe(path: str, subtune: int = 0) -> 'str | None':
     init chunk ALWAYS carries the voice's same-chunk CTRL write; the
     deferred-wave build (re-assembled Heinmueck player, Redable_Rain) RTSes
     first — AD/SR only, the note's freq/PW/ctrl land on the NEXT play().
-    Cymbal (noise-burst) inits write freq+ctrl=$81 ON the init frame in BOTH
-    variants (the composer's cym_ni path already bursts + RTSes), so
-    burst-shaped chunks (ctrl $81 + both freq bytes) are excluded from the
-    classification. `noteinit_defer_wave='1'` needs >= 8 MELODIC init
-    chunks with FEWER THAN 20% carrying a ctrl write. A canon member's
-    melodic inits always carry ctrl (ratio ~100%), so it is cleanly
-    rejected — an exotic hard-restart preset or a noise-only member cannot
-    false-fire (they yield 0 melodic chunks = the canon default). The small
+    Cymbal (noise-burst) inits write freq+ctrl=$81 in BOTH variants (the
+    composer's cym_ni path already bursts + RTSes), so cymbal chunks are
+    excluded from the classification — BOTH the same-frame form (ctrl $81 +
+    both freq bytes) AND the DEFERRED/SPLIT form where the $81 burst lands in a
+    LATER frame while its AD/SR sat alone (an AD/SR-only chunk whose SAME
+    voice's next ctrl write is $81 is a cymbal note, not a deferred melodic
+    init — Wodnik/R1: all 8 of its AD/SR-only chunks land as $81 cymbals, so
+    excluding them drops inits to 0 = the canon default it needs).
+    `noteinit_defer_wave='1'` needs >= 8 MELODIC (non-cymbal) init chunks with
+    FEWER THAN 20% carrying a ctrl write. A canon member's melodic inits always
+    carry ctrl (ratio ~100%), so it is cleanly rejected. The small ratio
     tolerance (not a strict ==0) absorbs the occasional per-IRQ BUCKETING
-    COLLISION: on a high-multispeed CIA tune two consecutive play()s can land
-    in one capture bucket, merging a deferred init's AD/SR with the NEXT
-    play()'s wave-landing ctrl into one chunk — a false canon-init that a
-    strict gate reads as a disqualifier (Wodnik/Akademia: 46/47 pure-defer,
-    1 merged bucket; forcing defer_wave makes it 100% FULL). This CANNOT
-    regress a FULL member: a member built correctly WITHOUT defer_wave has
-    canon same-play inits (ratio ~100%), so it can never fall in the low-ratio
-    flip band; only defer-shaped PARTIALS flip.
+    COLLISION: two consecutive play()s in one capture bucket merge a deferred
+    init's AD/SR with the NEXT play()'s wave-landing ctrl (Akademia: 46/47
+    pure-defer, 1 merged bucket). The window ESCALATES to 30s when the 10s pass
+    is inconclusive (inits < 8 AND with_ctrl == 0): a genuine defer member with
+    LONG notes shows too few melodic inits in 10s (King_Leter: 2 in 10s, 13 in
+    30s) so `inits >= 8` never trips; a canon member's inits carry ctrl
+    (with_ctrl > 0) within 10s so it never escalates, and a cymbal-heavy member
+    (R1) escalates to inits=0 (all excluded) so it still can't fire. The cymbal
+    exclusion is what makes escalation regression-safe — WITHOUT it the escalation
+    fired defer on R1/R2/R4/R5 (canon cymbal members, FULL without defer) and
+    dropped them to 8.8% (the r170 regression this cymbal-following rule fixes).
 
     The SAME capture also classifies the hard-restart PREP chunks (AD=SR=
     $0F): the build writes ctrl $08 THEN $09 (TEST, then TEST|GATE) where
@@ -3275,40 +3281,69 @@ def _noteinit_defer_probe(path: str, subtune: int = 0) -> 'str | None':
 
     Returns a (possibly empty) dict of composer params."""
     from pipelines.hubbard.verify_cycle import writelog_per_irq_capture
+
+    def _count(frames):
+        # per-frame per-voice register dicts (for the cymbal-following lookahead)
+        fv = []
+        for fr in frames:
+            per = {}
+            for _cyc, reg, val in fr:      # reg = $D4xx offset (0-$18)
+                if 0 <= reg <= 0x14:
+                    v, r = divmod(reg, 7)
+                    per.setdefault(v, {})[r] = val
+            fv.append(per)
+        inits = with_ctrl = preps = preps_gate9 = 0
+        for fi, fr in enumerate(frames):
+            ctrls = {}
+            for _cyc, reg, val in fr:
+                if 0 <= reg <= 0x14 and reg % 7 == 4:
+                    ctrls.setdefault(reg // 7, []).append(val)
+            for v, regs in fv[fi].items():
+                if 5 not in regs or 6 not in regs:
+                    continue
+                if (regs[5], regs[6]) == (0x0F, 0x0F):
+                    preps += 1
+                    # HR prep writes ctrl $08 THEN $09; test the [$08,$09]
+                    # SUBSEQUENCE (a merged bucket prepends the prior play()'s
+                    # note ctrl [$41,$08,$09], which a strict == misreads).
+                    c = ctrls.get(v, [])
+                    if any(c[i:i + 2] == [0x08, 0x09]
+                           for i in range(len(c) - 1)):
+                        preps_gate9 += 1
+                    continue
+                if (regs[5], regs[6]) == (0x00, 0x00):
+                    continue
+                if regs.get(4) == 0x81 and 0 in regs and 1 in regs:
+                    continue               # cymbal burst — same-frame form
+                if 4 not in regs:
+                    # AD/SR-only: a DEFERRED/SPLIT cymbal note if this voice's
+                    # NEXT ctrl write is a $81 burst (not a melodic wave-land).
+                    cym = False
+                    for fj in range(fi + 1, min(fi + 3, len(fv))):
+                        nc = fv[fj].get(v, {})
+                        if 4 in nc:
+                            cym = (nc[4] == 0x81)
+                            break
+                    if cym:
+                        continue
+                inits += 1
+                if 4 in regs:
+                    with_ctrl += 1
+        return inits, with_ctrl, preps, preps_gate9
+
     try:
-        frames = writelog_per_irq_capture(path, subtune=subtune,
-                                          duration=10.0)
+        frames = writelog_per_irq_capture(path, subtune=subtune, duration=10.0)
     except Exception:
         return {}
-    inits = with_ctrl = preps = preps_gate9 = 0
-    for fr in frames:
-        per, ctrls = {}, {}
-        for _cyc, reg, val in fr:      # reg = $D4xx offset (0-$18)
-            if 0 <= reg <= 0x14:
-                v, r = divmod(reg, 7)
-                per.setdefault(v, {})[r] = val
-                if r == 4:
-                    ctrls.setdefault(v, []).append(val)
-        for v, regs in per.items():
-            if 5 not in regs or 6 not in regs:
-                continue
-            if (regs[5], regs[6]) == (0x0F, 0x0F):
-                preps += 1
-                # the HR prep writes ctrl $08 THEN $09; test for the [$08,$09]
-                # SUBSEQUENCE, not equality — a merged per-IRQ bucket (two
-                # play()s in one capture chunk) prepends the PRIOR play()'s note
-                # ctrl ([$41,$08,$09]), which a strict == misreads as canon.
-                c = ctrls.get(v, [])
-                if any(c[i:i + 2] == [0x08, 0x09] for i in range(len(c) - 1)):
-                    preps_gate9 += 1
-                continue
-            if (regs[5], regs[6]) == (0x00, 0x00):
-                continue
-            if regs.get(4) == 0x81 and 0 in regs and 1 in regs:
-                continue                   # cymbal burst — both variants
-            inits += 1
-            if 4 in regs:
-                with_ctrl += 1
+    inits, with_ctrl, preps, preps_gate9 = _count(frames)
+    # ESCALATE when the 10s pass is inconclusive for defer (see docstring): a
+    # genuine defer member with LONG notes shows too few melodic inits in 10s.
+    if inits < 8 and with_ctrl == 0:
+        try:
+            inits, with_ctrl, preps, preps_gate9 = _count(
+                writelog_per_irq_capture(path, subtune=subtune, duration=30.0))
+        except Exception:
+            pass
     out = {}
     if inits >= 8 and with_ctrl * 5 < inits:   # < 20% carry ctrl (see docstring)
         out['noteinit_defer_wave'] = '1'

@@ -618,7 +618,17 @@ practice, not code to factor).
   variant's ~100% / 0%); 0-regression is STRUCTURAL — a FULL-without-variant
   member is canon-shaped (a canon prep writes $08 ALONE; a canon init carries
   AD/SR+ctrl same-play) ⇒ can NEVER fall in the flip band, only variant-shaped
-  PARTIALS flip.
+  PARTIALS flip. ⚠ SPARSE defer members (LONG notes, King_Leter r170) need the
+  window ESCALATED (10s→30s when `inits<8 and with_ctrl==0`) — but naive
+  escalation REGRESSES cymbal siblings (R1/R2/R4/R5 FULL→8.8%): a cymbal note
+  LANDS as a `$81` burst and the capture SEPARATES its AD/SR from the burst, so
+  the standalone AD/SR is a false "melodic init". R1/King_Leter are per-chunk
+  IDENTICAL (`[ad,sr]`-only); the discriminator is the note's LANDING — the same
+  voice's NEXT ctrl write, `$81`=cymbal (EXCLUDE, extend the same-frame cymbal
+  exclusion to this deferred/split form) vs a melodic gate-on (real deferred
+  init). `with_ctrl` alone can't tell real-defer from split-canon; the landing
+  can (AMEND worked example — the escalation regression was the signal the
+  premise "AD/SR-only chunk = deferred init" was a blanket model).
 - FULL ENTRY: [`ledger/C23.md`](ledger/C23.md) — read it before applying.
 
 ### C24 — play-body UNIT repeat / whole-play N-repeat

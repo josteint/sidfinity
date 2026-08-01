@@ -8,6 +8,37 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 170 (2026-08-01): Wodnik/King_Leter — **FULL** (386046/386046)! +2 FULL — C23 refinement 3 (an AMEND worked example): sparse-defer escalation + the DEFERRED/SPLIT-CYMBAL exclusion
+King_Leter is a genuine defer member (forcing defer → 100%) with LONG notes: only
+2 melodic inits in 10s, so `inits>=8` never trips → built canon (partial). The
+naive fix (escalate the capture window 10s→30s) caught it BUT **regressed
+R1/R2/R4/R5** (Wodnik siblings, FULL without defer → 8.8%). The `/amend` skill
+(user reminder) caught it before commit. No STIL/BUGlist. +2 FULL (King_Leter +
+Maxell), 0-regression (flip census over 204 members: 2 new defer, 0 stopped).
+- AMEND ROOT CAUSE (Lens 1 — the premise was a blanket model): the r168 rule
+  "an AD/SR-only chunk is a deferred note-init" is FALSE for cymbal members.
+  R1's notes LAND as `$81` NOISE BURSTS, and the per-IRQ capture SEPARATES a
+  cymbal note's AD/SR from its burst into different frames → the standalone
+  AD/SR chunk is a false "melodic init". R1 & King_Leter are per-chunk IDENTICAL
+  (both `[ad,sr]`-only, no ctrl/freq); `with_ctrl` CANNOT discriminate them.
+- THE DISCRIMINATOR (ground-truth, Core Tenet): what the note LANDS AS — the
+  SAME voice's NEXT ctrl write after the AD/SR chunk. `$81`=cymbal (exclude, it's
+  handled by cym_ni) vs a melodic gate-on (real deferred init). Measured: R1 =
+  8/8 cymbal-followed → 0 real inits; King_Leter = 6 melodic + 2 cymbal → 6
+  real; Akademia = 98/98 melodic (unchanged).
+- FIX (`_noteinit_defer_probe`, overarching): (1) extend the same-frame cymbal
+  exclusion to the DEFERRED/SPLIT form — an AD/SR-only chunk whose voice's next
+  ctrl is `$81` is a cymbal note, excluded; (2) escalate to 30s when `inits<8
+  and with_ctrl==0`. The cymbal exclusion is WHAT MAKES escalation
+  regression-safe: R1 escalates to inits=0 (all cymbal) → no defer → canon FULL;
+  King_Leter escalates to 13 real → defer → FULL.
+- VERIFIED: King_Leter/Maxell FULL (defer); R1/R2/R4/R5 FULL again (canon, the
+  regression undone); Czad FULL (canon); Akademia/CH2/Szach/Papierosy/
+  Redable_Rain FULL (byte-identical, still fire). Ledger C23 (2026-08-01
+  refinement 3). LESSON: a regression from an escalation is the SIGNAL the
+  detection premise is a blanket model — the note's LANDING, not `with_ctrl`,
+  separates real-defer from split-canon.
+
 ## ✅ ROUND 169 (2026-08-01): Wodnik/CH2 — **FULL** (176680/176680)! +3 FULL — C23 refinement 2: the `hr_prep_gate` gate had the SAME bucketing-collision brittleness
 Next partial by hvsc path — another Wodnik member (same CIA deferred-note-init
 player as Akademia r168). No STIL / BUGlist. 0-regression (structural + flip
