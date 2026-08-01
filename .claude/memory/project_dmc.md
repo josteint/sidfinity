@@ -8,7 +8,42 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
-## ⏸ ROUND 165 (2026-08-01): Verdict/Verdict_01 — r164's "hard dynamic boundary" DISPROVED (re-test challenge); glide read FIXED; residue narrowed to ONE garbage instrument-record read
+## ✅ ROUND 166 (2026-08-01): Verdict/Verdict_01 — **FULL** (178259/178259)! The r165 residue (garbage instrument-record pulse read) reproduced via an orig#-laid-out record image
+r165's "narrow boundary" was ALSO fixable — the user's "push to full" (after
+re-anchoring on the canon) was right. My "hard boundary" claims were wrong
+THREE times (survivor framing → ghost garbage; dynamic target → static;
+unfixable pulse read → record image). 0-regression: For_Party FULL, DMC
+portfolio 5/5, smoke 6/6.
+- THE LAST DIVERGENCE: V1's pulse step reads `$18f3[ioff=$07]` (a MID-11-byte-
+  record byte) — the ghost frame de-links `ioff` (the $174D shadow) from cinst
+  for ~1 frame (until the deferred note-init reloads it). My COMPACTED SLOT-
+  ARRAY composer (parallel arrays indexed by slot) has no analog for a mid-
+  record byte read at a garbage byte-offset. The 3 voices' garbage ioffs
+  ($07/$11/$01) read records 0/1 at scattered bytes (10=flags, 9=wave_start,
+  4=pw-step nibble).
+- FIX (`irecimg`, composer_asm.py, GATED on `track_ff_reinit_ghost`): emit an
+  11-byte-record IMAGE laid out by orig# (= the orig's $18f0 image), each byte
+  RECONSTRUCTED from the composer's OWN instrument data (iad=b0, isr=b1,
+  b2=(ipwmin<<shift)|ipwinit, irawsp=b3/4/5, b6=(ipwbase<<4)|ifdef, b7=vib,
+  ivram=b8, iwst=b9, iflag=b10) — NOT HVSC-verbatim (Core Tenet clean-code
+  reproduction; the byte layout is recoverable from the musical fields:
+  pw_base=pw_steps&0x0F, nib=pw_steps&0xF0). fx_pulse (ghost only) reads the
+  step `$18f3[ioff+pwphase/2]` through it via ioff + nibble extraction (= orig
+  $1352-$1375). BYTE-IDENTICAL when ioff=curinst*11=orig#*11 (normal play), so
+  For_Party stays byte-identical → FULL. Padded 259 bytes (safe `irecimg+3,y`).
+- FULL VERDICT_01 SOLUTION = 3 layers: (1) C19 resume-shape wedge (r164:
+  restart burst via ghost machinery + shadow17 survivor + curinst orig→slot
+  remap), (2) glide_offtable C6 redirect for the ghost-garbage glide (r165),
+  (3) irecimg pulse-step reproduction (r166). All 0-regression, gated on the
+  ghost handler.
+- LESSON: every garbage-indexed read at the post-restart was reproducible from
+  the composer's own data — off-table freq via the EXISTING C6 redirect, the
+  pulse step via a reconstructed record image. When a "boundary" is a garbage
+  read of a STATIC table (freqtable, instrument records), it's serviceable; the
+  genuinely-hard case is DYNAMIC work-RAM (which this member never actually
+  hit). Corpus code_hash now stale pending a fresh batch.
+
+## ✅ ROUND 165 (2026-08-01): Verdict/Verdict_01 — r164's "hard dynamic boundary" DISPROVED (re-test challenge); glide read FIXED; residue narrowed to ONE garbage instrument-record read (RESOLVED by r166)
 Re-tested every r164 assumption (user: "I don't trust your analysis 100%").
 TWO r164 claims were WRONG; the "hard boundary" was solvable with an EXISTING
 mechanism. Match 123142 → 123144 (glide freq now matches). Still PARTIAL.

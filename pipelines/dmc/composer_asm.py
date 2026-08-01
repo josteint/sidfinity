@@ -1924,6 +1924,75 @@ fx_dual_up:
                    'mirror read (C19 wedge)\n' if _pbr else
                    '        adc cpwbase,x                ; + cached base '
                    '(0 while idling)\n')
+    # $FF-reinit GHOST members: the ghost frame leaves a garbage `ioff` (the
+    # $174D shadow) DE-linked from cinst for ~1 frame (until the deferred
+    # note-init reloads it), so the orig's pulse-step read `$18f3[ioff+
+    # pwphase/2]` reads a MID-11-byte-record byte our compacted slot arrays
+    # cannot reach. Reproduce the read from the composer's OWN instrument data:
+    # emit an 11-byte-record IMAGE laid out by orig# (= the $18f0 image) and
+    # read the pulse step through it via ioff — byte-identical when ioff =
+    # curinst*11 = orig#*11 (normal play), and the garbage frame reads the same
+    # image byte the orig read. Core Tenet: reproduce the write stream (the
+    # step nibble) with clean code from the composer's data, not HVSC bytes.
+    _ghost_pulse = bool(usf.params.fields.get('track_ff_reinit_ghost'))
+    irecimg_data = ''
+    if _ghost_pulse and not wide_pulse:
+        _bshift = int(usf.params.fields.get('pw_bound_shift', 4) or 4)
+        _byorig = {}
+        for _k, _i in enumerate(insts):
+            _byorig[_i.id - 1] = [
+                iad[_k] & 0xFF, isr[_k] & 0xFF,
+                ((ipwmin[_k] << _bshift) | ipwinit[_k]) & 0xFF,        # b2
+                irawsp[_k * istride] & 0xFF,
+                irawsp[_k * istride + 2] & 0xFF,
+                irawsp[_k * istride + 4] & 0xFF,                       # b3,4,5
+                ((ipwbase[_k] << 4) | ifdef[_k]) & 0xFF,               # b6
+                (((ivdel[_k] // 8) << 4) | ivwid[_k]) & 0xFF,          # b7
+                ivram[_k] & 0xFF, iwst[_k] & 0xFF, iflag[_k] & 0xFF]   # b8,9,10
+        _img = []
+        for _o in range(max(_byorig) + 1):
+            _img += _byorig.get(_o, [0] * 11)
+        _img = (_img + [0] * 259)[:259]      # pad so `irecimg+3,y` never OOB
+        irecimg_data = 'irecimg:\n' + _byt(_img)
+        pulse_step_read = (
+            '        lda pwphase,x                ; GHOST garbage-ioff pulse '
+            'step:\n'
+            '        lsr\n'
+            '        clc\n'
+            '        adc ioff,x                   ; $18f3[ioff+pwphase/2] via '
+            'the 11-byte\n'
+            '        tay                          ; record image (= orig '
+            '$1352-$1357);\n'
+            '        lda irecimg+3,y              ; byte-identical when '
+            'ioff=curinst*11\n'
+            '        sta wjmp\n'
+            '        lda pwphase,x                ; even phase -> hi nibble, '
+            'odd -> lo<<4\n'
+            '        and #$01\n'
+            '        beq fp_ev\n'
+            '        lda wjmp\n'
+            '        and #$0F\n'
+            '        asl\n'
+            '        asl\n'
+            '        asl\n'
+            '        asl\n'
+            '        jmp fp_st\n'
+            'fp_ev:\n'
+            '        lda wjmp\n'
+            '        and #$F0\n'
+            'fp_st:\n'
+            '        clc\n'
+            f'{pw_base_adc}')
+    else:
+        pulse_step_read = (
+            f'{pulse_index}'
+            '        lda irawsp,y                 ; raw speed byte -> wjmp '
+            '(orig $135A\n'
+            '        sta wjmp                     ; STA $171F, before the '
+            'nibble select)\n'
+            '        lda isteps,y                 ; per-phase step nibble\n'
+            '        clc\n'
+            f'{pw_base_adc}')
     # rphase_variant='pulse_tail' (C18 entry variant, R-phase twin of
     # effect_entry_variant): the R (non-tick) play phase re-runs the pulse
     # program TAIL — a SECOND pulse advance per music tick — instead of a plain
@@ -2776,6 +2845,8 @@ fx_dual_up:
         data.append(f'{name}:\n' + _byt(arr))
     data.append('isteps:\n' + _byt(isteps))
     data.append('irawsp:\n' + _byt(irawsp))
+    if irecimg_data:
+        data.append(irecimg_data)
     if wide_pulse:
         data.append('istepbase:\n' + _byt(istepbase))
     if _any_chase:
@@ -3691,11 +3762,7 @@ fx_g2:
         lda #$FE                     ; default: release after 3 gate frames
         sta gatemask,x
 fx_pulse:
-{pulse_index}        lda irawsp,y                 ; raw speed byte -> wjmp (orig $135A
-        sta wjmp                     ; STA $171F, before the nibble select)
-        lda isteps,y                 ; per-phase step nibble
-        clc
-{pw_base_adc}        sta tmp
+{pulse_step_read}        sta tmp
         sta pwstep,x                 ; live shadow of orig $175C (current PW
                                      ; step) — off-table hi reads sonify it
 pw_sweep:                            ; shared by fx_pulse + pulse_tail (R phase)
