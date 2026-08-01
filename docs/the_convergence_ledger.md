@@ -622,7 +622,15 @@ practice, not code to factor).
   abs(==the LDA operand) / AND #$01 / BEQ / (JSR T)* / JMP T` with MULTI > 2
   — even=single, odd=(k+1) body-runs (Heniek 1/3, a clean ×2 tail; per-IRQ
   17/51) → `P_P{multi}` (`P_P3`), the composer's `P2` token generalised to
-  `Pn`; probe FOLLOWS the play-vector JMP + detects both parity shapes.
+  `Pn`; probe FOLLOWS the play-vector JMP + detects both parity shapes. 6th
+  form (r162, Vegeta/Trzewiki): a periodic-COUNTER wrapper (NOT parity) `LDA
+  cz / CMP #M / BNE / LDA #$FF / STA cz / (JSR T)+ / INC cz / (JSR T)* / JMP T`
+  = BASE bodies/IRQ + `extra` every (M+1)th → a UNIFORM period-(M+1)
+  `play_phases` schedule M×`P{BASE}` + 1×`P{BASE+extra}` (Trzewiki `P4`×40 +
+  `P5`, reuses the composer Pn token, no composer change). FULLY STATIC (the
+  multi frame is deterministic from the CMP — no observation, unlike parity).
+  TELL: perfect flat prefix + a NON-INTEGER length multiple (×4.024); a
+  constant `play_repeat=BASE` is short by 1 body/period (Trzewiki −0.6%).
 - CANONICAL: `play_unit_repeat=[v0,v1,v2,filter]` list / `play_repeat=N`
   param, detected by static byte-probe (C19 method). Distinct from C18
   (phase behaviour across CALLS).

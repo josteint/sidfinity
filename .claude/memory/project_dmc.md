@@ -8,6 +8,37 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 162 (2026-08-01): Vegeta/Trzewiki — periodic-COUNTER play-repeat wrapper 4+1/41 (+1) — C24 6th form
+Next-partial Vegeta/Trzewiki (single, canon base $1000, VBLANK, songs=1; NO
+STIL/BUGlist — no Vegeta in either doc). sub 0 partial: state_match=True,
+PERFECT prefix (play_match=play_overlap=len_b=100552) but len_a=404530 ≈ 4.02×
+len_b — right content, played at ~1/4 the rate (the CIA-style Trap-C "diverge
+at pos 0" is the init-length artifact; the real verdict is the length tail).
+- ROOT: play vector $1FC3 is an appended periodic-COUNTER wrapper: `LDA $02 /
+  CMP #$28 / BNE $1FD0 / (special:) LDA #$FF / STA $02 / JSR $1003 / $1FD0:
+  INC $02 / JSR $1003 ×3 / JMP $1003`. So $02 (init'd 0) cycles 0..40: 4 body
+  calls every IRQ, +1 EXTRA every 41st frame (cz==$28), reset to $FF→0. Avg
+  165/41 = 4.024 bodies/IRQ = the 4.02× length. `_detect_play_repeat` returns
+  1 (play vector starts LDA, not JMP/JSR) and the C18 observer saw only 'P', so
+  the multispeed was invisible — like Heniek (r161) but a mod-41 COUNTER, not
+  parity (mod 2).
+- FIX (extract-only, `_play_repeat_counter_probe` on the shared `play_phases`
+  wedge, tried after the parity probe): static-match the wrapper shape → a
+  UNIFORM period-41 play_phases schedule `P4`×40 + `P5` (M×P{BASE} + 1×
+  P{BASE+extra}). FULLY STATIC — the special frame is deterministic at cz==M,
+  so no ground-truth observation needed (unlike the parity forms). Composer
+  UNCHANGED: reuses r161's Pn token (`P4`=`jsr playframe`×3/`jmp`, `P5`=×4/
+  `jmp`); the phasectr seed aligns play #0 = cz 0 = phase 0.
+- WHY the periodic +1 is required: a constant play_repeat=4 is short by exactly
+  1 body/period → len_b=402082 vs 404530 (−0.6% = length_fail). The fractional
+  4.024× can't be an integer play_repeat; the P5 supplies the missing 5th call.
+- VERDICT: Trzewiki FULL 404530/404530 state ✓. CENSUS over all 10,660 DMC
+  members: exactly 1 static match = Trzewiki → 0 regression exposure (parity
+  probe short-circuits first, unchanged). smoke 6/6; DMC portfolio 5/5 FULL.
+- Ledger C24 6th form (periodic-counter wrapper → uniform play_phases
+  schedule). Shared extract change (factory.py) → corpus code_hash stale
+  pending next fresh batch.
+
 ## ✅ ROUND 161 (2026-08-01): Vegeta/Heniek — SMC-immediate PARITY play-repeat wrapper 1/3 (+1) — C24 5th form
 Next-partial Vegeta/Heniek (single, canon base $1000, CIA speed=1; NO
 STIL/BUGlist — no Vegeta in either doc). sub 0 partial: state_match=True,

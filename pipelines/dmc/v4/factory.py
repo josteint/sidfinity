@@ -3889,6 +3889,76 @@ def _play_repeat_parity_probe(path: str, base: int,
     return hi_tok + '_P' if even_med > odd_med else 'P_' + hi_tok
 
 
+def _play_repeat_counter_probe(path: str, base: int,
+                               post_init_sub: 'int | None' = None):
+    """Whole-play N-repeat via a periodic-COUNTER wrapper (C24 sibling of the
+    parity probe). The play vector runs the full play body BASE times per IRQ,
+    plus ONE (or more) extra body call every (M+1)th IRQ — a mod-(M+1) resync
+    counter (Vegeta/Trzewiki: 4 bodies normally, 5 every 41st frame -> avg
+    4.024x, the length-tail cause):
+
+        LDA cz / CMP #M / BNE skip
+        LDA #$FF / STA cz / (JSR T)+        ; special: +extra bodies, cz -> $FF
+    skip: INC cz                            ; the counter increments each IRQ
+        (JSR T)* / JMP T                    ; BASE = njsr + 1 body calls
+
+    cz cycles 0..M (M+1 values); the special fires at cz==M (the LAST frame of
+    the period) and forces cz=$FF so INC lands on 0 -> a UNIFORM period M+1. So
+    the schedule is M x P{BASE} + 1 x P{BASE+extra} (period M+1), aligned with
+    the composer's phasectr seed (init sets cz=0, play #0 reads cz=0 = phase 0).
+    Fully STATIC (unlike the parity shape, WHICH frame is multi is deterministic
+    from the CMP, so no per-IRQ observation is needed); build+verify is the
+    final gate. Returns the schedule ('P4_...P4_P5') or None. Follows one JMP at
+    the play vector."""
+    mem, s = _load(path, post_init_sub)
+    play = s['play']
+    if mem[play] == 0x4C:                        # follow a JMP wrapper
+        play = mem[play + 1] | (mem[play + 2] << 8)
+    if not (0 <= play and play + 24 < 0x10000):
+        return None
+    # head: LDA cz / CMP #M / BNE rel
+    if not (mem[play] == 0xA5 and mem[play + 2] == 0xC9 and mem[play + 4] == 0xD0):
+        return None
+    cz = mem[play + 1]
+    M = mem[play + 3]
+    if not (2 <= M + 1 <= 255):                  # phasetab byte count / cpy #imm
+        return None
+    skip = play + 6 + mem[play + 5]              # BNE target (past the special)
+    # special block: LDA #$FF / STA cz / (JSR T)+ ... falling through to `skip`
+    if not (mem[play + 6] == 0xA9 and mem[play + 7] == 0xFF
+            and mem[play + 8] == 0x85 and mem[play + 9] == cz):
+        return None
+    T = None
+    i, extra = play + 10, 0
+    while i + 2 < skip and mem[i] == 0x20:       # count the special's extra JSRs
+        t = mem[i + 1] | (mem[i + 2] << 8)
+        if T is None:
+            T = t
+        elif t != T:
+            return None
+        extra += 1
+        i += 3
+    if extra < 1 or i != skip:                   # special must end exactly at skip
+        return None
+    # skip = INC cz, then the BASE body: (JSR T)* / JMP T
+    if not (mem[skip] == 0xE6 and mem[skip + 1] == cz):
+        return None
+    i, njsr = skip + 2, 0
+    while mem[i] == 0x20:                         # BASE-1 consecutive JSR T
+        if (mem[i + 1] | (mem[i + 2] << 8)) != T:
+            return None
+        njsr += 1
+        i += 3
+    if not (mem[i] == 0x4C and (mem[i + 1] | (mem[i + 2] << 8)) == T):
+        return None                              # ... terminated by JMP T
+    base_rep = njsr + 1
+    if base_rep < 2 or not (base <= T < base + 0x1000):
+        return None
+    lo_tok = 'P' if base_rep == 1 else 'P%d' % base_rep
+    hi_tok = 'P%d' % (base_rep + extra)
+    return '_'.join([lo_tok] * M + [hi_tok])
+
+
 def _pw_base_read_probe(path: str, base: int,
                         post_init_sub: 'int | None' = None):
     """Pulse-step BASE read re-pointed into SID-MIRROR space (C19,
@@ -3996,7 +4066,8 @@ def _measure_play_period(sid_path: str, subtune: int, dur: float = 4.0):
 
 
 _WEDGE_PROBES = [
-    ('play_phases',                     lambda p, c: _play_repeat_parity_probe(p, c.base, c.post_init_sub)),
+    ('play_phases',                     lambda p, c: (_play_repeat_parity_probe(p, c.base, c.post_init_sub)
+                                                      or _play_repeat_counter_probe(p, c.base, c.post_init_sub))),
     ('cia_rearm_per_play',              lambda p, c: _cia_rearm_probe(p, c.base, c.post_init_sub)),
     ('pw_base_sid_read',                lambda p, c: _pw_base_read_probe(p, c.base, c.post_init_sub)),
     ('master_vol_every_play',           lambda p, c: _d418_play_wrapper(p, c.base, c.post_init_sub)),
