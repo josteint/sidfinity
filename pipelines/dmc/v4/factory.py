@@ -3248,7 +3248,8 @@ def _sid_header_multi(sid_path: str):
 
 
 def _config_at_base(sid_path: str, hvsc_root: str, base: int,
-                    name: str, chip_addr: int = 0) -> DMCV4Config:
+                    name: str, chip_addr: int = 0,
+                    post_init_sub: 'int | None' = None) -> DMCV4Config:
     """Construct a DMCV4Config for a canonical/2entry DMC v4 player at a
     KNOWN base (used for multi-SID sub-players, where the dispatch wrapper
     overwrote one player's jump table so base-detection can't find it).
@@ -3270,11 +3271,15 @@ def _config_at_base(sid_path: str, hvsc_root: str, base: int,
     the gate on a mislocation."""
     try:
         cfg = _build_via_canon(sid_path, hvsc_root, base_override=base,
-                               chip_addr=chip_addr)
+                               chip_addr=chip_addr,
+                               post_init_sub=post_init_sub)
         cfg.name = name
         # `_build_via_canon` sits BELOW the caller that runs the C19 wedge
         # probes, so a sub-player built straight off it had every wedge knob
-        # defaulted (see _apply_wedge_probes). Probe against THIS chip's base.
+        # defaulted (see _apply_wedge_probes). Record the memory view (set by
+        # dmc_v4_config, not by _build_via_canon) so every probe reads it, then
+        # probe against THIS chip's base.
+        cfg.post_init_sub = post_init_sub
         _apply_wedge_probes(os.path.join(hvsc_root, sid_path), cfg)
         return cfg
     except DMCV4Unsupported:
@@ -3284,8 +3289,9 @@ def _config_at_base(sid_path: str, hvsc_root: str, base: int,
     # The bare fallback still runs the STANDALONE static probes — a knob left
     # at its default here is silently wrong music, not a refusal (the track
     # loop target decides whether the song repeats its whole orderlist or the
-    # tail from a stated position).
-    mem = _load(os.path.join(hvsc_root, sid_path))[0]
+    # tail from a stated position). A chip the init COPIES out of the file
+    # image reads from that subtune's post-init RAM (ledger C26 + C31).
+    mem = _load(os.path.join(hvsc_root, sid_path), post_init_sub)[0]
     cfg = DMCV4Config(
         sid_path=sid_path, name=name, base=base,
         op_instr=at(0x1227), op_wavectrl=at(0x159C), op_wavefreq=at(0x15B9),
@@ -3295,6 +3301,7 @@ def _config_at_base(sid_path: str, hvsc_root: str, base: int,
         vibdepth_addr=at(0x1888), d417_shadow_addr=at(0x1018),
         track_loop_target=_loop_target_probe(mem, base),
         switch_retrig=_switch_retrig_probe(mem, base))
+    cfg.post_init_sub = post_init_sub
     _apply_wedge_probes(os.path.join(hvsc_root, sid_path), cfg)
     return cfg
 
@@ -3345,18 +3352,34 @@ def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
         bases = _observe_player_bases(path, n_chips)
         if bases is None:
             return None
-    # The observer finds a player wherever it RUNS, including one an init
-    # COPIES out of the image (Surgeon/Mothafucka relocates chip 2 to $E800,
-    # zero-fill in the file). Extracting that chip needs the C26 post-init
-    # RAM path, which this constructor does not do — its tables would read as
-    # zeros — so refuse the member here and let it fall back to the
-    # single-chip build it had before, rather than raising mid-extract.
-    if not all(mem[b] == 0x4C and mem[b + 3] == 0x4C for b in bases):
+    # A relocating init wrapper (ledger C26 + C31) copies players AND song
+    # data into RAM. Surgeon/Mothafucka relocates chip 2's player to $E800
+    # (zero-fill in the image) AND copies BOTH chips' sectors to $8000+ (also
+    # zero-fill) — so chip 1's player is in the image but its DATA is not.
+    # Extract EVERY chip from POST-INIT RAM whenever ANY chip's player is out
+    # of the image (the tell that init relocates); reading the raw image would
+    # decode the out-of-image data as zeros (garbage rows). The file's start
+    # song materialises every chip's copy at init (the copy runs before any
+    # per-subtune call gating), so it names the snapshot. When every player is
+    # in the image (the common 2SID build), the raw image is used
+    # (post_init_sub=None), byte-identical to before.
+    matr_sub = max(0, s.get('start', 1) - 1)
+    relocating = not all(mem[b] == 0x4C and mem[b + 3] == 0x4C for b in bases)
+    psubs = [matr_sub if relocating else None for b in bases]
+    # Every layer that reads memory for a relocated chip must use its post-init
+    # view (locate + wedge probes via _config_at_base, keep-regs below). A chip
+    # that is neither a valid in-image player NOR materialised in post-init RAM
+    # is a shape this constructor can't extract — refuse and let the
+    # single-chip fallback stand, rather than raising mid-extract.
+    chip_mem = {b: (mem if ps is None else _load(path, ps)[0])
+                for b, ps in zip(bases, psubs)}
+    if not all(chip_mem[b][b] == 0x4C and chip_mem[b][b + 3] == 0x4C
+               for b in bases):
         return None
     base0 = os.path.splitext(os.path.basename(sid_path))[0]
     addrs = [0xD400, _sid_header_multi(path)[1], _sid_header_multi(path)[2]]
     cfgs = [_config_at_base(sid_path, hvsc_root, b, f'{base0}_chip{i + 1}',
-                            chip_addr=addrs[i])
+                            chip_addr=addrs[i], post_init_sub=psubs[i])
             for i, b in enumerate(bases)]
     # CIA multispeed (C9: measure, don't assume). The dispatch wrapper is
     # driven by the timer it programs at init, and a C18 phase schedule
@@ -3373,7 +3396,7 @@ def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
             cia = cp
     for ci, cfg in enumerate(cfgs):
         cfg.cia_period = cia
-        keep = _multisid_keep_regs(mem, cfg.base, addrs[ci])
+        keep = _multisid_keep_regs(chip_mem[cfg.base], cfg.base, addrs[ci])
         if keep:
             cfg.extra_params['multisid_keep_regs'] = ','.join(keep)
     # C18: the wrapper may run the full play only every Nth call and dispatch

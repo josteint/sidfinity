@@ -8,6 +8,52 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 158 (2026-08-01): Surgeon/Mothafucka_2SID — RELOCATING WRAPPER multi-SID (+1) — C27 4th occ (C31 × C27)
+Next-partial Surgeon/Mothafucka_2SID (2SID, PSID v3, chip 2 @ $D500, CIA
+speed=1, songs=1; NO STIL/BUGlist — no Surgeon entries in either doc). Built
+`single (base $1000) chips=1` = a single-chip extraction of a 2-chip tune →
+first-div play pos 1 (orig chip-2 $D438 vs rebuild chip-1 $D418 — rebuild
+emitted NO chip-2 writes).
+- DIAGNOSIS: the init is a RELOCATING WRAPPER (C31 × C27, ledger C27 (f)). Two
+  things are copied out of the $0900-$4FB8 file image at init: (1) chip 2's
+  WHOLE player to $E800 (relocated copy, delta $D800, writes $D5xx); (2) BOTH
+  chips' SECTOR DATA to $8000+ (secp_hi=$80,$81…; file image zero-fill there,
+  post-init $8100 populated). `dmc_v4_config_2sid` REFUSED it (guarded on all
+  bases being in the image) → single fallback → chip 2 absent.
+- The subtler half: chip 1's PLAYER is in-image at $1000 (head $4C1D10) but its
+  DATA is NOT — so the in-image player-head check passed while the extract read
+  $8000+ sectors as zeros → V1 decoded to constant `note=0 instr=7 dur=0`
+  garbage (orig V1 plays inst 16/17's $FFFF noise drum; rebuild played inst 7's
+  $0008 pulse — wrong instrument, confirmed by freq-hi [3,6,8,10,13] == inst 7
+  wave_freq). Both the 2SID AND single-chip builds hit this (same file-image
+  read).
+- FIX (`dmc_v4_config_2sid`): when ANY chip's player is out of the image
+  (`relocating`), extract EVERY chip from POST-INIT RAM — `matr_sub` = start
+  song, `post_init_sub` threaded through `_config_at_base` → `_build_via_canon`
+  + all wedge probes (`cfg.post_init_sub` set before `_apply_wedge_probes`) +
+  `_multisid_keep_regs` (per-chip mem view). In-image members use the raw image
+  (`post_init_sub=None`), byte-identical. Chip 0 built via the bare fallback
+  (canon offsets; `_build_via_canon` rejected `nonstandard_instr_base` but the
+  canon offsets resolve correctly here — the verify gates any false FULL).
+- VERDICT: sub 0 FULL 129876/129876 state✓ (chip 2 was already perfect once
+  extracted; chip 1's post-init data fixed the garbage). CENSUS (all 19
+  multi-SID DMC members verified): Mothafucka is the ONLY out-of-image member
+  → partial→FULL; the other 18 are in-image (byte-identical path) with
+  unchanged status (16 FULL, 4_Ever_Young pre-existing 0/3 partial,
+  Popel_Premiere pre-existing merge-assert ERR — a per-chip `master_vol_static`
+  the merge doesn't handle). 0 regressions by construction (an OOB chip was
+  refused→single→partial before, can only improve). Cow_Anus/Nice_Dream_2SID
+  re-verified STILL FULL; smoke 6/6.
+- Ledger C27 4th occ (paragraph (f) rewritten: refuse → post-init RAM for all
+  chips). Blast radius = the multi-SID path only (`_config_at_base`/
+  `dmc_v4_config_2sid` have no other callers); single-chip untouched.
+- KNOWN follow-ups (NOT this round, both pre-existing, both in-image): (a)
+  Popel_Premiere merge asserts on a per-chip `master_vol_static` wedge — the
+  merge needs to carry it per-chip (C31 per-chip-param class). (b) 4_Ever_Young
+  0/3 deep partial. (c) `_config_at_base` has no dataflow fallback (bare
+  fallback = canon offsets) — fine for canon-offset members, would miss a
+  re-assembled relocating multi-SID member (verify-gated, no false FULL).
+
 ## ✅ ROUND 157 (2026-07-31): Slayer song-end master-vol FADE → silence → whole-song RESTART loop (+4) — NEW ledger class C38
 Four Slayer f1 members (My_49th_Tune, Plantation, Trip, Worktunes/My_47th_Tune,
 all single/canon base $1000) share an APPENDED PLAY-vector wrapper implementing a

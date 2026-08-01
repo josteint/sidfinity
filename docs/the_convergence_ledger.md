@@ -683,7 +683,12 @@ practice, not code to factor).
   constant (the zp track pointer). PER-CHIP PARAMS ARE A CLASS (keep_regs +
   `play_phases`/`noteinit_deferred`): a wrapper can run ONE chip per call →
   COMPLEMENTARY schedules (`P_S`/`S_P`), each chip at half the timer rate;
-  accept an 'S' phase only on that structural evidence.
+  accept an 'S' phase only on that structural evidence. RELOCATING WRAPPER
+  (C31 × multi-SID, Mothafucka_2SID): init copies players AND SONG DATA out of
+  the file image (chip 1's player at $1000 but its sectors at $8000+, zero-fill
+  in the image → garbage rows) — when ANY chip's player is out of the image,
+  extract EVERY chip from POST-INIT RAM (`post_init_sub` threaded through
+  `_config_at_base`), in-image members byte-identical.
 - FULL ENTRY: [`ledger/C27.md`](ledger/C27.md) — read it before applying.
 
 ### C28 — multi-SID VERDICT: compare each chip's stream independently
