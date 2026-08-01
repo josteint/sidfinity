@@ -8,6 +8,39 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 168 (2026-08-01): Wodnik/Akademia — **FULL** (151466/151466)! C23 refinement: the `noteinit_defer_wave` gate was too strict for a high-multispeed CIA member
+Next partial by hvsc path. Reassembled CIA 2×-multispeed member (base $0ff4
+prefix absorbed to $1000), same Wodnik/Heinmueck deferred-note-init player as
+the existing `noteinit_defer_wave` carriers. No STIL / BUGlist entry.
+0-regression (structural, see below) + smoke green.
+- DIVERGENCE (per-IRQ, pos ~44): the orig's note-init is DEFERRED (AD/SR on the
+  init play, freq/PW/ctrl land the NEXT play), the rebuild lands the wave
+  same-play → the PW sweep phase is permanently offset by one step. Diagnosed by
+  splitting both streams by play() invocation: orig play1 = V1 prep only, play2
+  = V2/V3, play4 = V1 wave lands; rebuild lands V1 on play2.
+- ROOT CAUSE — a probe GATE bug, not a new mechanism: the member IS a genuine
+  `noteinit_defer_wave` member (forcing the param → 100% FULL), but
+  `_noteinit_defer_probe` required `with_ctrl == 0` (EVERY melodic init chunk
+  lacks a ctrl write). Akademia is 46/47 pure-defer but ONE per-IRQ frame
+  (frame 622, ~2× the writes) MERGED two consecutive play()s — a deferred
+  init's AD/SR + the next play's wave-landing ctrl in one bucket = a false
+  canon-init → the strict gate rejected the whole member, built it canon =
+  partial.
+- FIX (`_noteinit_defer_probe`, 1 line): relax `with_ctrl == 0` →
+  `with_ctrl * 5 < inits` (< 20% carry ctrl). Tolerates the occasional
+  bucketing collision. Measured over 30 members: canon members cluster at
+  95-100% carry-ctrl, defer members at 0-2% — the 20% threshold sits in the
+  empty gap with enormous margin. Akademia's frame-622 collision is proven an
+  ARTIFACT (all-defer reproduction = 100% match).
+- 0-REGRESSION IS STRUCTURAL: a member built correctly WITHOUT defer_wave has
+  canon same-play inits (AD/SR + ctrl together) ⇒ ratio ~100% ⇒ can NEVER fall
+  in the low-ratio flip band; only defer-shaped PARTIALS flip. Verified: across
+  the portfolio + wedge-FULLs + existing defer carriers (Redable_Rain /
+  Papierosy / Metallica / Shaki / Zak_Davida, all still FULL) + a random
+  family-1 sample, Akademia is the ONLY flip. Ledger C23 (2026-08-01
+  refinement). NOTE the strict `==0` was itself WRONG for any defer member with
+  even one collision — the tolerance is the correct model.
+
 ## ✅ ROUND 167 (2026-08-01): Wayne/Dark_Side — **FULL** (131890/131890)! C19 40th occ: the $FE track-STOP handler re-pointed at the KERNAL RESET vector
 Next partial by hvsc path (`dmc_next_partial`). Diverged in the ~10% tail (pos
 131850/131890): the orig writes a lone `$D418=$00` at a NEW frame then produces

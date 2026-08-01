@@ -602,9 +602,17 @@ practice, not code to factor).
   static canon-offset probe can't address — a RE-ASSEMBLED build's note-init
   that RTSes before the wave step (init frame = AD/SR only, note lands next
   play) + a prep that writes ctrl $08-then-$09. Classify per-IRQ chunks
-  ALL-OR-NOTHING from the original's writelog (`_noteinit_defer_probe` →
+  from the original's writelog (`_noteinit_defer_probe` →
   `noteinit_defer_wave`/`hr_prep_gate`); gate to dataflow-path members,
-  skip under a C18 phase wrapper.
+  skip under a C18 phase wrapper. ⚠ NOT strict all-or-nothing for the
+  defer-wave gate — a HIGH-MULTISPEED CIA member (Wodnik/Akademia, r168) has
+  the occasional per-IRQ BUCKETING COLLISION (two play()s merged into one
+  capture bucket → a deferred init's AD/SR sits with the next play's wave ctrl
+  = a false canon-init); use `with_ctrl*5 < inits` (< 20%), not `== 0`. The two
+  populations separate with huge margin (canon 95-100% carry ctrl, defer 0-2%);
+  0-regression is STRUCTURAL (a FULL-without-defer member has canon same-play
+  inits ⇒ ratio ~100% ⇒ can never fall in the low-ratio flip band, only
+  defer-shaped PARTIALS flip).
 - FULL ENTRY: [`ledger/C23.md`](ledger/C23.md) — read it before applying.
 
 ### C24 — play-body UNIT repeat / whole-play N-repeat

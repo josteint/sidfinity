@@ -3245,10 +3245,19 @@ def _noteinit_defer_probe(path: str, subtune: int = 0) -> 'str | None':
     variants (the composer's cym_ni path already bursts + RTSes), so
     burst-shaped chunks (ctrl $81 + both freq bytes) are excluded from the
     classification. `noteinit_defer_wave='1'` needs >= 8 MELODIC init
-    chunks with NONE carrying a ctrl write. A canon member's melodic inits
-    always carry ctrl, so any such chunk disqualifies — an exotic
-    hard-restart preset or a noise-only member cannot false-fire (they
-    yield 0 melodic chunks = the canon default).
+    chunks with FEWER THAN 20% carrying a ctrl write. A canon member's
+    melodic inits always carry ctrl (ratio ~100%), so it is cleanly
+    rejected — an exotic hard-restart preset or a noise-only member cannot
+    false-fire (they yield 0 melodic chunks = the canon default). The small
+    tolerance (not a strict ==0) absorbs the occasional per-IRQ BUCKETING
+    COLLISION: on a high-multispeed CIA tune two consecutive play()s can land
+    in one capture bucket, merging a deferred init's AD/SR with the NEXT
+    play()'s wave-landing ctrl into one chunk — a false canon-init that a
+    strict gate reads as a disqualifier (Wodnik/Akademia: 46/47 pure-defer,
+    1 merged bucket; forcing defer_wave makes it 100% FULL). This CANNOT
+    regress a FULL member: a member built correctly WITHOUT defer_wave has
+    canon same-play inits (ratio ~100%), so it can never fall in the low-ratio
+    flip band; only defer-shaped PARTIALS flip.
 
     The SAME capture also classifies the hard-restart PREP chunks (AD=SR=
     $0F): the build writes ctrl $08 THEN $09 (TEST, then TEST|GATE) where
@@ -3287,7 +3296,7 @@ def _noteinit_defer_probe(path: str, subtune: int = 0) -> 'str | None':
             if 4 in regs:
                 with_ctrl += 1
     out = {}
-    if inits >= 8 and with_ctrl == 0:
+    if inits >= 8 and with_ctrl * 5 < inits:   # < 20% carry ctrl (see docstring)
         out['noteinit_defer_wave'] = '1'
     if preps >= 8 and preps_gate9 == preps:
         out['hr_prep_gate'] = '1'
