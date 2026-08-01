@@ -1376,9 +1376,31 @@ def _forced_subtune_probe(path: str, base: int,
     init = s['init']
     if init == base or not (0 <= init and init + 4 <= 0xFFFF):
         return None
-    # base must be the standard tune-select dispatch: JMP base+$1D
-    if not (mem[base] == 0x4C and
-            (mem[base + 1] | (mem[base + 2] << 8)) == (base + 0x1D) & 0xFFFF):
+    if mem[base] != 0x4C:                          # base must be a JMP dispatch
+        return None
+    canon = (mem[base + 1] | (mem[base + 2] << 8)) == (base + 0x1D) & 0xFFFF
+    if not canon:
+        # RE-ASSEMBLED base -> JMP elsewhere (Fatamorcana_intro: $1000 -> JMP
+        # $1807, and the wrapper interposes reg-transfers a fixed shape can't
+        # parse: init $1E52 = `LDA #$03 / TAX / TAY / JMP $1000`). The static
+        # forms below trust the canon base+$1D dispatch is record-indexed; here
+        # OBSERVE instead (C18): run the real init(A=sub) under py65 and read A
+        # at base. Gate on an `LDA #imm` at the vector (a forcing candidate) so
+        # py65 stays off non-forcing wrappers. Fire iff the observed A is UNIFORM
+        # AND NON-IDENTITY (a forced record). REGRESSION-SAFE by construction: a
+        # member FULL walking record 0 has A==sub (identity) at base -> the
+        # observation returns list(range(songs)) -> no fire; verify-gated
+        # besides. Census the newly-firing set before landing (see project_dmc).
+        if mem[init] != 0xA9:
+            return None
+        seen = _init_song_observe(path, base, s.get('songs', 1))
+        if seen and len(set(seen)) == 1 and seen != list(range(len(seen))):
+            forced = seen[0]
+            # CONFIRM the init body actually USES A (else it's a wrapper whose
+            # LDA#imm is not a record index / an init that ignores A -> forcing
+            # would regress a member that plays record 0 regardless).
+            if _init_forced_changes_state(path, base, forced):
+                return forced
         return None
     if mem[init] == 0xA9:                          # LDA #imm at the vector
         nxt = init + 2                             # LDA #imm must REACH base
@@ -1705,6 +1727,54 @@ def _init_song_observe(path: str, base: int, songs: int):
             return None
         out.append(a_at_base)
     return out
+
+
+def _init_forced_changes_state(path: str, base: int, forced: int) -> bool:
+    """Run the init BODY (entering at `base`, BYPASSING the forcing wrapper) to
+    COMPLETION twice — A=0 and A=forced — and report whether the two post-init
+    RAM images DIFFER. The forced-subtune observation (`A == forced` reaches
+    base) is only meaningful if the init actually USES A to pick the tune
+    record: a member whose init IGNORES A plays record 0 no matter what, so
+    forcing `forced` would be a false positive that regresses it. Entering at
+    `base` (not the wrapper, which overrides A) with A=0 vs A=forced makes the
+    track pointers (and downstream state) differ iff A selects the record.
+    py65 is trustworthy here (pure init, no divergent-memory playback)."""
+    import sys as _sys
+    _sys.path.insert(0, os.path.join(os.path.dirname(__file__),
+                                     '..', '..', '..', 'tools', 'py65_lib'))
+    from py65.devices.mpu6502 import MPU
+    from seed_disassembly import parse_psid
+    spec = parse_psid(path)
+
+    def _run(sub):
+        mpu = MPU()
+        m = bytearray(0x10000)
+        for i, b in enumerate(spec['payload']):
+            if spec['load'] + i < 0x10000:
+                m[spec['load'] + i] = b
+        mpu.memory = m
+        mpu.stPush(0x00)
+        mpu.stPush(0x00)                    # RTS sentinel -> PC = $0001
+        mpu.pc = base                       # enter the init BODY, not the wrapper
+        mpu.a = sub
+        mpu.x = mpu.y = 0
+        for _ in range(3_000_000):
+            if mpu.pc == 0x0001:
+                break
+            try:
+                mpu.step()
+            except Exception:
+                return None
+        else:
+            return None
+        return bytes(mpu.memory)
+
+    a0 = _run(0)
+    af = _run(forced)
+    if a0 is None or af is None:
+        return False
+    # compare the player + data image (skip zero page / stack / IO)
+    return a0[0x0400:0x8000] != af[0x0400:0x8000]
 
 
 def _state_resume_probe(path: str, base: int,

@@ -8,6 +8,33 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 173 (2026-08-01): Yuro/Fatamorcana_intro — **FULL** (19006/19006)! +3 FULL — C19/C31 forced-tune-record wedge, 5th FORM: non-canon dispatch + reg-transfers, OBSERVE-then-confirm
+First non-Wodnik partial in a while (Yuro). Init `$1E52 = LDA #$03 / TAX / TAY /
+JMP $1000` forces the played record to song 3 (header says songs=1), but the
+extract walked record 0 → all note values wrong from the start. No STIL/BUGlist.
++3 FULL (Fatamorcana + Ass_It/Game-Music_1 + Odysseus/Long_Way_tune_6), 0-regr.
+- WHY `_forced_subtune_probe` MISSED IT: (1) its base guard requires the canon
+  `JMP base+$1D` dispatch, but this RE-ASSEMBLED member's base is `JMP $1807`;
+  (2) the wrapper interposes `TAX / TAY` between the `LDA #imm` and `JMP base`
+  that no fixed static shape parses.
+- FIX (C18 observe-don't-parse + a confirmation): for a NON-canon-dispatch base
+  (base is a JMP but not base+$1D) with an `LDA #imm` wrapper, OBSERVE — run the
+  real init(A=sub) under py65, read A at base (`_init_song_observe`); fire iff
+  UNIFORM + NON-IDENTITY. ⚠ THE OBSERVATION ALONE FALSE-FIRES: a wrapper whose
+  `LDA #imm` is NOT a record index (or an init that IGNORES A) reads A=imm at
+  base but plays record 0 — census found large bogus forced values (99/90/49…),
+  though those all ERROR `no_jumptable` (non-$1000 base, never reach the probe).
+  CONFIRM with `_init_forced_changes_state(base, forced)`: enter the init BODY
+  at `base` (BYPASSING the forcing wrapper, which overrides A) with A=0 vs
+  A=forced and require the post-init RAM to DIFFER — i.e. the init actually USES
+  A to pick the record. Regression-safe: a FULL member walking record 0 has A==0
+  at base (identity → no fire); an init that ignores A → states equal → no fire.
+- 0-REGRESSION: census of the 9 observation-fires — 4 buildable (all were 0%:
+  Fatamorcana/Game-Music_1/Long_Way → FULL, No_Trade stays partial with correct
+  forced=1 but a deeper blocker), 5 error out. 5 known-FULL members (Dark_Side,
+  Akademia, Nocturno, For_Party, Second) byte-identical. Ledger C19 (forced-
+  tune-record wedge, 5th form) / C31.
+
 ## ✅ ROUND 172 (2026-08-01): Wodnik/Logarytm — **FULL** (96488/96488)! +2 FULL — C23 refinement 5: escalate the defer window PROGRESSIVELY (late melodic section)
 Next partial by hvsc path. Logarytm's melodic section starts LATE (~43s in):
 inits=0 at 30s, 29 by 90s — so r170's single 30s escalation missed it (canon
