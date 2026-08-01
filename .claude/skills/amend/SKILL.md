@@ -69,7 +69,12 @@ already want — see [[feedback_reanchor_at_decisions]]).
 
 ## STEP 1 — localise the first divergence on GROUND TRUTH
 
-Never design from a prior task description or a py65 trace — both go stale.
+Never design from a prior task description, a **prior-session `disassembly.s`
+annotation or round-note**, or a py65 trace — all go stale. (Verdict_01: an
+annotated `flags[$0C]=$01` anchored a whole wrong "re-trigger" framing; the file
+byte is actually `$00`, 30 s to re-check.) Re-derive every load-bearing fact from
+the artifact itself — the file bytes, the *current* disasm, the writelog — not
+from the note that describes it.
 
 - `tools/find_first_divergence.py ORIG.sid REBUILD.sid --subtune N` — the first
   `(reg,val)` mismatch + the voice/role. For CIA/multispeed members use the
@@ -142,6 +147,19 @@ divergence correctly resolved, with 0 regressions?** Two legitimate outcomes:
    deferring members; only 4 went FULL, the other 9 exposed a freq-drift blocker
    — a clean, honest, forward step.)
 Drop the "is it worth it / only N reach FULL" hedging ([[feedback_completeness_over_dominant_cause]]).
+
+**The mirror trap — declaring residue prematurely.** Lens 3 fights the
+*over*-chase-FULL bias; its exact mirror is the *under*-chase bias: giving up on
+a divergence as "hard residue / can't reproduce / not worth it for a singleton".
+This skill's thesis — *a regression is a signal to investigate the model, not
+proof your fix is wrong* — has a twin: **a hard-boundary conclusion is a signal
+to investigate the model, not proof it's unfixable.** A boundary is a
+MEASUREMENT that proves unreachability from ground truth, never an inference; and
+"not worth it" is a SCHEDULING decision (defer freely) that is never a
+conclusion of unfixability. Full discipline + the five tells you're
+over-claiming: [[feedback_residue_claim_is_measured]] (DMC Verdict_01 mis-claimed
+"hard boundary" 3× — each fell to one siddump measurement, the last reaching
+FULL).
 
 ---
 
