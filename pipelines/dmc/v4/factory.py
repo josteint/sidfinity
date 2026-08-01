@@ -2018,6 +2018,42 @@ def _track_ff_reinit_probe(path: str, base: int,
     return f'{jmp_tgt:04X}'
 
 
+def _track_fe_reset_probe(path: str, base: int,
+                          post_init_sub: 'int | None' = None):
+    """$FE track-STOP handler re-pointed at the KERNAL RESET vector (STATIC
+    opcode probe, C19 — Wayne/Dark_Side). Canon handler (base+$E9):
+    `A9 00 / 9D 0C 10 (STA $100C,x = clear the voice-active flag) / 60 (RTS)`
+    — the per-voice STOP: the voice freewheels its last note, the OTHER voices
+    keep playing. The wedge overwrites the first 3 bytes with `4C E2 FC`
+    (JMP $FCE2 = KERNAL RESET): the FIRST voice to reach its `$FE` stop resets
+    the machine, whose IOINIT does `STX $D418` with X=0 (KERNAL $FDC4) — a lone
+    `$D418=$00` (silence) — then the CPU idles in the BASIC loop, so the whole
+    song HALTS with no further SID writes. Anchor the walker's `$FE` test
+    (`C9 FE D0 06` at base+$E5) AND the JMP-to-$FCE2 handler; fail-open on
+    anything else. Value = the JMP target (song-end silence marker).
+
+    Write-stream effect (CORE TENET — reproduce the stream, not the reset): at
+    the frame the first voice hits `$FE`, emit a single `$D418=$00` and produce
+    no more writes ever. The composer keys on this param to swap the per-voice
+    stop for a halt-the-song handler."""
+    if base is None:
+        return None
+    mem, _ = _load(path, post_init_sub)
+    site = base + 0xE9
+    if site + 3 > 0x10000:
+        return None
+    # walker's $FE test immediately before the handler (canon layout)
+    if (mem[base + 0xE5] != 0xC9 or mem[base + 0xE6] != 0xFE or
+            mem[base + 0xE7] != 0xD0 or mem[base + 0xE8] != 0x06):
+        return None
+    if mem[site] != 0x4C:                       # JMP (canon: LDA #$00)
+        return None
+    jmp_tgt = mem[site + 1] | (mem[site + 2] << 8)
+    if jmp_tgt != 0xFCE2:                        # only the KERNAL RESET vector
+        return None
+    return f'{jmp_tgt:04X}'
+
+
 def _reinit_ghost_state_map(base: int) -> dict:
     """canon_addr -> (composer_label, voice_index) for every per-voice state
     slot a ghost unit can poke, relocated for `base`. The $1718-$179D block is
@@ -4121,6 +4157,7 @@ _WEDGE_PROBES = [
     ('fclaim_clear_dead',               lambda p, c: _fclaim_clear_dead_probe(p, c.base, c.post_init_sub)),
     ('track_ff_reinit',                 lambda p, c: _track_ff_reinit_probe(p, c.base, c.post_init_sub)),
     ('track_ff_reinit_ghost',           lambda p, c: _track_ff_reinit_ghost_probe(p, c.base, c.post_init_sub)),
+    ('track_fe_reset',                  lambda p, c: _track_fe_reset_probe(p, c.base, c.post_init_sub)),
     ('v3_instr_tempo',                  lambda p, c: _v3_instr_tempo_probe(p, c.base, c.post_init_sub)),
     ('filterdef_anim',                  lambda p, c: _filterdef_anim_probe(p, c.base, c.op_filtdef, c.post_init_sub)),
     ('d417_tail_anim',                  lambda p, c: _d417_tail_anim_probe(p, c.base, c.op_filtdef, c.op_wavefreq, c.post_init_sub)),

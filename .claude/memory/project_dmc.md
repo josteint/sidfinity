@@ -8,6 +8,45 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 167 (2026-08-01): Wayne/Dark_Side — **FULL** (131890/131890)! C19 40th occ: the $FE track-STOP handler re-pointed at the KERNAL RESET vector
+Next partial by hvsc path (`dmc_next_partial`). Diverged in the ~10% tail (pos
+131850/131890): the orig writes a lone `$D418=$00` at a NEW frame then produces
+NO more writes (song HALTS silent — identical held snapshots); the rebuild kept
+playing normally. No STIL / BUGlist entry for this SID. 0-regression (10-member
+golden set byte-identical incl. the 2 non-carrier Wayne siblings Knives_Intro /
+Power_of_Magic; DMC smoke + portfolio green).
+- MECHANISM (C19 wedge, sole carrier in 10,683 DMC-family members): canon $FE
+  (track-STOP) handler at base+$E9 = `A9 00 / 9D 0C 10 (STA $100C,x = clear the
+  voice-active flag) / 60 (RTS)` — a PER-VOICE stop (that voice freewheels its
+  last note, the OTHER voices keep playing). This member (RE-ASSEMBLED, not
+  canon-layout → `dmc_canon_diff` blind) overwrites the first 3 bytes with
+  `4C E2 FC` = **`JMP $FCE2` (KERNAL RESET)**, leaving `0C 10 60` dead. So the
+  FIRST voice to reach its `$FE` resets the machine; the reset's IOINIT does
+  `STX $D418` with X=0 (KERNAL $FDC4) = a lone `$D418=$00` (silence), then the
+  CPU idles in the BASIC loop → no more SID writes.
+- DIAGNOSIS PATH (frame-numbering morass avoided): `effect_chain_profiler
+  --frames --register D418` → the `STA $D418` PC is `$FDC4` (KERNAL); disasm the
+  KERNAL there (`STX $D418`, part of IOINIT); a binary scan of the player for
+  `JMP/JSR $E000-$FFFF` finds `JMP $FCE2` at $10E9; disasm base+$D0..$100 → the
+  DMC orderlist walker with the $FE handler wedged (canon at $10E9 = clear
+  $100C,x). All three voices' extracted orderlists end in `stop` ($FE), so the
+  composer's walker DOES reach the $FE handler — only its BODY needed changing.
+- FIX (CORE TENET — reproduce the WRITE STREAM, not the reset):
+  `factory._track_fe_reset_probe` anchors the walker's `$FE` test (`C9 FE D0 06`
+  at base+$E5) + the `JMP $FCE2` handler (reloc-aware, target restricted to
+  $FCE2) → registered in `_WEDGE_PROBES` → composer param `track_fe_reset`.
+  composer_asm: when the param is present, the `$FE` handler emits one
+  `$D418=$00`, `inc halted`, then `pla / pla` (drop the `jsr voice` return) +
+  `jmp pf_exit` (skip remaining voices + filter tail); `playframe` starts with
+  `lda halted / bne pf_exit` so every later play() RTSes with no writes.
+  `halted` is a byte OUTSIDE state0..state_end (init's clear never wipes it;
+  init runs once — no restart for this member). No param → the canonical
+  per-voice stop, byte-identical.
+- Distinct from `track_ff_reinit*` (r117/r164-166: the $FF LOOP handler
+  re-pointed at INIT = a whole-song RESTART); this is the $FE STOP handler
+  re-pointed at RESET = a whole-song SILENCE+HALT. Ledger C19 40th occurrence.
+  Corpus code_hash now stale pending a fresh batch.
+
 ## ✅ ROUND 166 (2026-08-01): Verdict/Verdict_01 — **FULL** (178259/178259)! The r165 residue (garbage instrument-record pulse read) reproduced via an orig#-laid-out record image
 r165's "narrow boundary" was ALSO fixable — the user's "push to full" (after
 re-anchoring on the canon) was right. My "hard boundary" claims were wrong

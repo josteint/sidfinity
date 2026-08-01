@@ -3304,6 +3304,43 @@ ovrp_d:
                   # merge shares one shadow17, so this restores it per segment.
                   f'medcarry: .dsb {len(medley_segs)}, 0\n')
 
+    # track_fe_reset (C19 wedge, Wayne/Dark_Side): the orig's $FE track-STOP
+    # handler is re-pointed at the KERNAL RESET vector ($FCE2). Canonically $FE
+    # clears the voice-active flag (that voice freewheels, the OTHER voices keep
+    # playing); the wedge resets the machine, whose IOINIT writes a lone
+    # `$D418=$00` (silence) and then idles in the BASIC loop — so the WHOLE song
+    # halts with no further SID writes. We do NOT reproduce the reset (CORE
+    # TENET: reproduce the write stream, not the mechanism): the $FE handler
+    # emits one `$D418=$00`, sets a `halted` flag, and unwinds the frame; every
+    # later play() sees `halted` and returns before writing anything. `halted`
+    # lives OUTSIDE state0..state_end so init's clear never wipes it (init runs
+    # once — the song does not restart). Default: the canonical per-voice stop,
+    # byte-identical for every non-carrier.
+    fe_reset = bool(usf.params.fields.get('track_fe_reset'))
+    if fe_reset:
+        fe_handler = (
+            '        lda #$00                     ; $FE reset wedge (JMP '
+            '$FCE2): KERNAL clears $D418\n'
+            '        sta $d418                    ; -> lone $D418=$00 '
+            '(silence)\n'
+            '        inc halted                   ; halt: every later play() '
+            'writes nothing\n'
+            '        pla\n'
+            '        pla                          ; drop the jsr voice return\n'
+            '        jmp pf_exit                  ; skip remaining voices + '
+            'filter tail\n')
+        fe_halt_check = '        lda halted\n        bne pf_exit\n'
+        pf_exit_label = 'pf_exit:\n'
+        halted_var = 'halted:   .byt $00\n'
+    else:
+        fe_handler = ('        lda #$00                     ; $FE stop: voice '
+                      'off (state freewheels)\n'
+                      '        sta vactive,x\n'
+                      '        rts\n')
+        fe_halt_check = ''
+        pf_exit_label = ''
+        halted_var = ''
+
     asm = f"""
 SLIDE_PHASE = ${slide_phase:02X}
 CIA_PERIOD = ${cia_period:04X}
@@ -3377,12 +3414,12 @@ ini_sid:
 
 ;; ===================== play (once per frame) =====================
 {play_wrapper}playframe:
-        dec spdctr
+{fe_halt_check}        dec spdctr
         bpl pf_notick
         lda spd
         sta spdctr
 pf_notick:
-{voice_calls}{ptail_label}{filter_tail}        rts
+{voice_calls}{ptail_label}{filter_tail}{pf_exit_label}        rts
 
 {reinit_ghost_routine}
 ;; ===================== per-voice tick/fetch =====================
@@ -3412,10 +3449,7 @@ trkrd:
         lda ($f8),y                  ; ptr: $FD,T transpose commands (sticky, at
         cmp #$FE                     ; marks) + 2-byte [gid,otrk] pattern entries
         bne trk1                     ; + $FF loop. gid <= $FC (pool <= 253).
-        lda #$00                     ; $FE stop: voice off (state freewheels)
-        sta vactive,x
-        rts
-trk1:
+{fe_handler}trk1:
         cmp #$FF
         bne trk1b
 {trk_ff}trk1b:
@@ -4101,7 +4135,7 @@ wnote:    .dsb 3, 0                  ; orig arp-note shadow (= $1783)
 durrel:   .dsb 3, 0                  ; orig duration-reload shadow (= $173E)
 ioff:     .dsb 3, 0                  ; orig instrument-offset shadow (= $174D)
 {rest_var}{d418_var}{sectpos_bss}state_end:
-{cursong_var}{medley_var}{hr_test_var}{dual_vars}{fade_var}        .byt $00
+{cursong_var}{medley_var}{hr_test_var}{dual_vars}{fade_var}{halted_var}        .byt $00
 """
     return _reloc_sid_regs(asm, reg_delta, keep_regs)
 
