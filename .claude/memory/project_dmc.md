@@ -8,6 +8,24 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 171 (2026-08-01): Wodnik/Lalamido — **FULL** (302182/302182)! C23 refinement 4: the defer `inits>=8` count is a SPARSITY floor, lower it to `>=2`
+Next partial by hvsc path (another Wodnik defer member). Lalamido has just 2
+melodic note-starts in the WHOLE song (very long held notes) — canon build
+0.02%, defer 100% — so even the r170 30s escalation yields inits=2, under the
+old floor of 8. No STIL/BUGlist. +1 FULL, minimal blast radius.
+- KEY (builds on r170's cymbal exclusion): once deferred/split cymbals are
+  excluded, a CANON member has ZERO qualifying chunks (its melodic inits carry
+  ctrl; its cymbals are excluded), so ANY non-cymbal AD/SR-only init is already
+  a genuine defer signal — the `inits>=8` was a sparsity FLOOR, not a confidence
+  gate. Drop to `inits>=2`; the ratio `with_ctrl*5<inits` still forces
+  with_ctrl==0 at inits 2-4 (one ctrl > 20%), so a stray split can't fire.
+- 0-REGRESSION: census over 243 members (whole Wodnik+Heinmueck + broad sample)
+  = exactly 1 member fires at >=2 but not >=8 (Lalamido → FULL), 0 canon
+  false-positives. Every other member byte-identical. Ledger C23 (refinement 4).
+- NOTE the Wodnik CIA deferred-init family has now yielded 7 FULLs across
+  r168-171 (Akademia, CH2, Szach, Czad, King_Leter, Maxell, Lalamido) as the
+  C23 detection hardened across its collision/cymbal/sparsity variants.
+
 ## ✅ ROUND 170 (2026-08-01): Wodnik/King_Leter — **FULL** (386046/386046)! +2 FULL — C23 refinement 3 (an AMEND worked example): sparse-defer escalation + the DEFERRED/SPLIT-CYMBAL exclusion
 King_Leter is a genuine defer member (forcing defer → 100%) with LONG notes: only
 2 melodic inits in 10s, so `inits>=8` never trips → built canon (partial). The

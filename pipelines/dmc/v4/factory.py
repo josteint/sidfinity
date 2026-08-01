@@ -3249,9 +3249,11 @@ def _noteinit_defer_probe(path: str, subtune: int = 0) -> 'str | None':
     voice's next ctrl write is $81 is a cymbal note, not a deferred melodic
     init — Wodnik/R1: all 8 of its AD/SR-only chunks land as $81 cymbals, so
     excluding them drops inits to 0 = the canon default it needs).
-    `noteinit_defer_wave='1'` needs >= 8 MELODIC (non-cymbal) init chunks with
+    `noteinit_defer_wave='1'` needs >= 2 MELODIC (non-cymbal) init chunks with
     FEWER THAN 20% carrying a ctrl write. A canon member's melodic inits always
-    carry ctrl (ratio ~100%), so it is cleanly rejected. The small ratio
+    carry ctrl (ratio ~100%) AND its deferred cymbals are excluded, so it has
+    ZERO qualifying chunks — the >= 2 is a SPARSITY floor (very-long-note defer
+    members show only a couple of note-starts all song), not a confidence gate. The small ratio
     tolerance (not a strict ==0) absorbs the occasional per-IRQ BUCKETING
     COLLISION: two consecutive play()s in one capture bucket merge a deferred
     init's AD/SR with the NEXT play()'s wave-landing ctrl (Akademia: 46/47
@@ -3345,7 +3347,15 @@ def _noteinit_defer_probe(path: str, subtune: int = 0) -> 'str | None':
         except Exception:
             pass
     out = {}
-    if inits >= 8 and with_ctrl * 5 < inits:   # < 20% carry ctrl (see docstring)
+    # >= 2 (not 8): after the cymbal exclusion a CANON member has ZERO non-cymbal
+    # AD/SR-only inits (its melodic inits carry ctrl; its deferred cymbals are
+    # excluded), so ANY such chunk is a genuine defer signal — the count is a
+    # sparsity floor, not a confidence gate. Very-sparse defer members (long
+    # held notes) exist: Lalamido has just 2 melodic inits in the whole song
+    # (canon build 0.02%, defer 100%). `with_ctrl*5 < inits` still requires
+    # with_ctrl==0 at inits 2-4 (one ctrl exceeds 20%), so a stray split cannot
+    # fire. Census: 0 non-Wodnik/Heinmueck members fire at >=2 but not >=8.
+    if inits >= 2 and with_ctrl * 5 < inits:   # < 20% carry ctrl (see docstring)
         out['noteinit_defer_wave'] = '1'
     if preps >= 8 and preps_gate9 * 5 > preps * 4:   # > 80% show [$08,$09]
         out['hr_prep_gate'] = '1'
