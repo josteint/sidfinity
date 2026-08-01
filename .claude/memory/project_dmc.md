@@ -8,6 +8,23 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 174 (2026-08-01): Zyron/One_Man_and_Boris — **FULL** (122971/122971)! C19 wedge: filter-tail cutoff LOAD operand repointed fcut→fbase
+Next partial by hvsc path (canon-LAYOUT member — `dmc_canon_diff` found it: 1 NEW
+cluster `$10A0 repoint LDA a @operand`). Diverged deep (~70%) on a single $D416
+(filter cutoff hi): orig $00 vs rebuild $22. No STIL/BUGlist. 2 carriers, +2 FULL
+(One_Man_and_Boris + Gop/Buddhas_Garden, both partial→FULL), 0-regr.
+- MECHANISM: canon filter tail at base+$A0 = `LDA $171C (fcut, swept cutoff) /
+  STA $D416`; the wedge repoints the LOAD operand ONE BYTE DOWN to `LDA $171B`
+  (fbase = the filter-def base index def#<<4), so $D416 sources the DEF INDEX
+  (a per-def constant that steps when the filter def changes), not the cutoff.
+- FIX: `_filter_cut_from_fbase_probe` (static: base+$A0 = `AD` LDA-abs with
+  operand==base+$71B AND followed by `STA $D416`) → composer `filter_cut_from_
+  fbase` loads `fbase` instead of `fcut` for the $D416 store. Regression-safe by
+  construction: canon has operand +$71C (fcut) → probe returns None → byte-
+  identical; the probe fires ONLY on the exact fbase-repointed filter-tail shape.
+- FOUND BY `dmc_canon_diff` (canon-layout member) — contrast the recent
+  re-assembled Wodnik/Yuro members where canon-diff was blind. Ledger C19.
+
 ## ✅ ROUND 173 (2026-08-01): Yuro/Fatamorcana_intro — **FULL** (19006/19006)! +3 FULL — C19/C31 forced-tune-record wedge, 5th FORM: non-canon dispatch + reg-transfers, OBSERVE-then-confirm
 First non-Wodnik partial in a while (Yuro). Init `$1E52 = LDA #$03 / TAX / TAY /
 JMP $1000` forces the played record to song 3 (header says songs=1), but the

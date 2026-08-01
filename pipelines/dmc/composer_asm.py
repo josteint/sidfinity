@@ -2525,7 +2525,14 @@ fx_dual_up:
             _vc.append('        inx')
         _vc += ['        jsr voice'] * play_unit_repeat[_vi]
     voice_calls = '\n'.join(_vc) + '\n'
-    filter_tail = ('        lda fcut\n        sta $d416\n'
+    # filter_cut_from_fbase (C19 wedge, Zyron/One_Man_and_Boris): the filter
+    # tail's cutoff load `LDA $171C` (fcut) is repointed one byte down to
+    # `LDA $171B` (fbase = the filter-def base index def#<<4), so $D416 sources
+    # the DEF INDEX, not the swept cutoff — a per-def constant that steps when
+    # the filter def changes. Reproduce by loading fbase instead of fcut.
+    _fcut_lbl = 'fbase' if usf.params.fields.get('filter_cut_from_fbase') \
+        else 'fcut'
+    filter_tail = (f'        lda {_fcut_lbl}\n        sta $d416\n'
                    '        lda shadow17\n        ora fres\n'
                    '        sta $d417\n') * play_unit_repeat[3]
     # filter_static (C19 wedge, SilverFox/Blood_2_game): a re-assembled play

@@ -4275,6 +4275,34 @@ def _measure_play_period(sid_path: str, subtune: int, dur: float = 4.0):
     return span / total if total and span > 0 else None
 
 
+def _filter_cut_from_fbase_probe(path: str, base: int,
+                                 post_init_sub: 'int | None' = None):
+    """Filter-tail cutoff LOAD operand repointed fcut->fbase (STATIC opcode
+    probe, C19 — Zyron/One_Man_and_Boris). The canon filter tail at base+$A0 is
+    `AD 1C 17` = `LDA $171C` (fcut, the swept cutoff) `/ STA $D416`; the wedge
+    repoints the operand one byte down to `AD 1B 17` = `LDA $171B` (fbase = the
+    filter-def base index def#<<4), so $D416 sources the def index, not the
+    cutoff. Anchor the exact canon site (LDA abs at base+$A0 immediately
+    followed by `STA $D416`) and require the operand == base+$71B. Return '1'.
+    Regression-safe: the canon fcut operand returns None -> byte-identical."""
+    if base is None:
+        return None
+    mem, _ = _load(path, post_init_sub)
+    site = base + 0xA0
+    if site + 5 > 0x10000:
+        return None
+    if mem[site] != 0xAD:                          # LDA abs
+        return None
+    # must be the filter-cutoff tail: LDA abs / STA $D416
+    if not (mem[site + 3] == 0x8D and
+            (mem[site + 4] | (mem[site + 5] << 8)) == 0xD416):
+        return None
+    operand = mem[site + 1] | (mem[site + 2] << 8)
+    if operand == (base + 0x71B) & 0xFFFF:         # fbase (canon fcut = +$71C)
+        return '1'
+    return None
+
+
 _WEDGE_PROBES = [
     ('play_phases',                     lambda p, c: (_play_repeat_parity_probe(p, c.base, c.post_init_sub)
                                                       or _play_repeat_counter_probe(p, c.base, c.post_init_sub))),
@@ -4307,6 +4335,7 @@ _WEDGE_PROBES = [
     ('filterdef_anim',                  lambda p, c: _filterdef_anim_probe(p, c.base, c.op_filtdef, c.post_init_sub)),
     ('d417_tail_anim',                  lambda p, c: _d417_tail_anim_probe(p, c.base, c.op_filtdef, c.op_wavefreq, c.post_init_sub)),
     ('filterdef_anim3',                 lambda p, c: _filterdef_anim3_probe(p, c.base, c.op_filtdef, c.post_init_sub)),
+    ('filter_cut_from_fbase',           lambda p, c: _filter_cut_from_fbase_probe(p, c.base, c.post_init_sub)),
 ]
 
 
