@@ -8,6 +8,96 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ⏸ ROUND 163 (2026-08-01, PARKED): Verdict/Verdict_01 — $FF→init RESTART, "resume" shape (C19) — root cause found, fix incomplete
+Next-partial Verdict/Verdict_01 (single, canon $1000, VBLANK; NO STIL/BUGlist).
+sub 0 partial: PERFECT prefix to 69% (play_match=123141) then diverges at a
+MID-SONG SONG RESTART (~157s, play idx 7239). Full annotated disassembly at
+`tmp/verdict_01/disassembly.s` (routine map + memory map + per-frame restart
+timeline — READ IT to resume).
+- MECHANISM (C19 "$FF handler re-pointed at init", a NEW shape vs Greenhorn's
+  `_track_ff_reinit_probe`): wedge at `$10DD` = `LDA #0 / JSR $1000(init) /
+  JMP $10D2(canon re-fetch)` (canon = `STA otrk,x=0 / JMP $10D2`). So at V1's
+  first track-$FF, init RESTARTS the whole song (otrk→0, SID+$1718-blk cleared,
+  $100F-$1018 note-state PRESERVED), init RETURNS, then re-fetches V1 in the
+  same frame (unlike Greenhorn's `jmp init` which pops the voice call).
+- ROOT CAUSE (siddump memwatch/pc-watch, ground truth — NOT py65): the restart's
+  first note-init reads the SURVIVOR curinst ($0C = an arp instrument, flags
+  $18FA[$0C*11]=$01 bit0-SET → the $15D5 arp variant → the $2FAE/$B79C/$5864
+  sweep). DMC's note-init is DEFERRED one step, so the first note-init at idx
+  7239 uses curinst=$0C BEFORE the row's instrument-select sets curinst=$05 (idx
+  7240, flags→$07). Cold reads orderlist[0] identically but with its OWN survivor
+  curinst ($01 = a static instrument), so the SAME row plays static melodic at
+  cold, arp sweep at restart. curnote=$49 survivor is correctly preserved (mine
+  matches); the curinst renumber map is consistent (orig $0C↔mine $08, $05↔$04).
+- WIP BUILT (uncommitted, verify-gated singleton — advances match 123100→123142):
+  `_track_ff_reinit_resume_probe` (factory) → `track_ff_reinit_resume` composer
+  branch (`stx savex / save gatemask+curnote+curinst / jsr init / restore / jmp
+  f_newpat`). Reproduces flow+survivors but its re-fetch applies the row's
+  instrument-select ($05→$04) BEFORE the deferred re-trigger note-init, so V1
+  plays the WRONG instrument (static $470C=freqtable[$49] not the survivor-$0C
+  arp).
+- REFINED (WIP updated): the restart plays NO fresh $11A6 note (pc-watch); it
+  RE-TRIGGERS the wrapping note via the note-init effect with the SURVIVOR
+  curinst. Composer branch now does `set pend / jmp frame_entry` (re-trigger)
+  instead of `jmp f_newpat` — the note-init effect now RUNS (writes AD/SR), but
+  STILL plays instrument $04, because MY COMPOSER'S curinst AT THE WRAP is
+  $04(=$05) while the orig's is $0C — a HIDDEN curinst divergence (my curinst is
+  effectively one note ahead at the orderlist wrap; the pre-wrap write streams
+  match so it's invisible until the restart re-triggers it). curnote=$49 is
+  correct.
+- TRUE REMAINING BLOCKER (definitive, siddump memwatch at 150s/155s, well BEFORE
+  the 157s restart): my composer's `curinst` ($3154) = $FE/$FF while the orig's
+  $1015 = $0C — the desync is PERVASIVE, not at the wrap. Yet the write stream
+  matches to 69%. So my composer sonifies the correct instrument through a
+  DIFFERENT variable (`cinst`/`ioff`), and its `curinst` variable has diverged
+  from the orig's $1015 semantics entirely (curinst is effectively dead state in
+  my composer — it only matters at a restart, which re-triggers using it).
+  => THE FIX is representational: make my composer's `curinst` a FAITHFUL mirror
+  of the orig's $1015 (set on every instrument-select, held across soft notes)
+  so the restart survivor re-trigger reads the right instrument. This is a
+  composer-wide curinst-tracking change (risk of regressing FULL members), for a
+  1-in-10,676 singleton — NOT worth it now. Parked: WIP composer branch + probe
+  are correct in direction (re-trigger via pend/frame_entry runs the note-init
+  effect) but blocked on the curinst-mirror. py65 note: the $177d "contradiction"
+  earlier was ME conflating the memwatch (D404-write index) and pc-watch
+  (playidx) counters — not a real anomaly.
+- ⚑ AMEND-SKILL PASS (2026-08-01, ran `/amend`): DISPROVED the "hidden curinst
+  divergence" — it was a WRONG-ADDRESS artifact (I measured the WIP build's
+  label $3154 against a reverted build). FRESH-build measurement (amend Step
+  3#4): my composer's curinst / ioff / **fxf (=$177d instr-flags)** ALL match the
+  orig to the wrap (ioff=$84 both; renumber $0C↔$08 consistent; fxf SEQUENCE
+  identical for the whole song). So THERE IS NO STATE DESYNC — the blocker is
+  purely reproducing the RESTART-FRAME note. The orig's fxf after the init clear
+  goes `00 → 01 → 07` (an arp/drum note-init, bit0 SET); my rebuild stops at `00`
+  (a static note). NEITHER re-fetch (`jmp f_newpat`, curinst→$04) NOR re-trigger
+  (`pend`+`frame_entry`, curinst=$08 survivor) reproduces the orig's fxf=$01
+  note. OPEN CONTRADICTION for next session: the fxf VALUE sequence matches
+  everywhere else, so the flag extraction is right, yet the restart plays a
+  different-flag instrument than the orig — pin which curinst→instrument the
+  orig's restart note-init actually uses (pc-watch showed 7241 curinst=$05→
+  ioff=$37; is $18FA[$37] bit0 SET? and does reb iflag[$04] match it?). The
+  re-trigger WIP advanced play_match 123125→123166 but NOT the first divergence.
+  Reverted; verified singleton (build+verify gate). Regression-safe by
+  construction if resumed (the resume probe is a 1-carrier static shape).
+- ⚑ INSTRUMENT-FLAG READ (resolves the re-trigger dead-end): orig instr flags
+  $18FA[inst*11]: inst $05=$07 (arp bit0), $0C=$00 (STATIC), $06=$01 (arp),
+  $10=$08. The WRAPPING note's instrument $0C is STATIC ($00) — so the restart
+  is NOT continuing the wrapping note; the RE-TRIGGER approach is WRONG. The
+  orig's restart plays the PATTERN's notes from orderlist[0] with ARP
+  instruments $06 (fxf=$01) then $05 (fxf=$07) — i.e. the RE-FETCH approach
+  (`jmp f_newpat`) is the right frame, but my re-fetch's first note came out
+  STATIC (fxf=$00). So the NARROWED blocker: the restart's re-fetched
+  orderlist[0] notes select instruments $06/$05 (arp) in the orig but a static
+  instrument in my rebuild. Since COLD orderlist[0] matches (first 69% FULL) but
+  RESTART orderlist[0] plays instruments $06/$05 that COLD does not, the
+  survivor note-state (curnote=$49 + deferred note-init) makes the SAME
+  orderlist[0] play a different opening — a note-init-DEFERRAL × survivor
+  interaction (ledger C23 territory). NEXT: pc-trace the orig's re-fetch at the
+  restart to see the exact pattern bytes + deferred note-init order that yields
+  $06 then $05, and reproduce it in the re-fetch path (NOT a re-trigger).
+- Census: singleton shape (only Verdict_01 has `JSR init / JMP base+$D2` at
+  base+$DD). No regression risk (verify-gated, singleton). smoke not re-run.
+
 ## ✅ ROUND 162 (2026-08-01): Vegeta/Trzewiki — periodic-COUNTER play-repeat wrapper 4+1/41 (+1) — C24 6th form
 Next-partial Vegeta/Trzewiki (single, canon base $1000, VBLANK, songs=1; NO
 STIL/BUGlist — no Vegeta in either doc). sub 0 partial: state_match=True,
