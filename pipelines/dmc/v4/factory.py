@@ -3338,14 +3338,21 @@ def _noteinit_defer_probe(path: str, subtune: int = 0) -> 'str | None':
     except Exception:
         return {}
     inits, with_ctrl, preps, preps_gate9 = _count(frames)
-    # ESCALATE when the 10s pass is inconclusive for defer (see docstring): a
-    # genuine defer member with LONG notes shows too few melodic inits in 10s.
-    if inits < 8 and with_ctrl == 0:
+    # ESCALATE the window progressively while the pass is INCONCLUSIVE for defer
+    # (< 2 melodic inits AND no ctrl-carrying = canon signal): a genuine defer
+    # member with long held notes / a LATE melodic section shows too few (or
+    # zero) melodic inits early — King_Leter has 2 in 10s, Lalamido reaches 2 by
+    # 30s, Logarytm's melodic section starts ~43s (0 in 30s, 29 by 90s). Stop as
+    # soon as decisive: inits >= 2 (fire) OR with_ctrl > 0 (a late CANON melodic
+    # section — its inits carry ctrl, so it correctly never fires).
+    for _dur in (30.0, 90.0):
+        if not (inits < 2 and with_ctrl == 0):
+            break
         try:
             inits, with_ctrl, preps, preps_gate9 = _count(
-                writelog_per_irq_capture(path, subtune=subtune, duration=30.0))
+                writelog_per_irq_capture(path, subtune=subtune, duration=_dur))
         except Exception:
-            pass
+            break
     out = {}
     # >= 2 (not 8): after the cymbal exclusion a CANON member has ZERO non-cymbal
     # AD/SR-only inits (its melodic inits carry ctrl; its deferred cymbals are

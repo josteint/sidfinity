@@ -8,6 +8,26 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 172 (2026-08-01): Wodnik/Logarytm — **FULL** (96488/96488)! +2 FULL — C23 refinement 5: escalate the defer window PROGRESSIVELY (late melodic section)
+Next partial by hvsc path. Logarytm's melodic section starts LATE (~43s in):
+inits=0 at 30s, 29 by 90s — so r170's single 30s escalation missed it (canon
+build partial, defer 100%). No STIL/BUGlist. +2 FULL (Logarytm + Ziazi, both
+were partial), 0 regression.
+- FIX: replace the single 30s escalation with a PROGRESSIVE ladder 10s→30s→90s,
+  escalating only while INCONCLUSIVE (`inits<2 and with_ctrl==0`) and stopping
+  as soon as decisive — inits>=2 (fire) OR with_ctrl>0 (a late CANON melodic
+  section correctly never fires, its inits carry ctrl). Window-independent
+  0-regression (the cymbal-exclusion + canon-carries-ctrl argument holds at any
+  window length).
+- 0-REGRESSION: flip census over 204 members = 2 NEW defer (Logarytm + Ziazi,
+  both partial→FULL — Ziazi's melodic is also late), 0 stopped firing. Ziazi
+  without defer = 55.94% (partial), with = 100%. Ledger C23 (refinement 5).
+- ⚠ This is the 3rd window-tuning refinement (30s r170, floor-2 r171, ladder
+  r172). If an EVEN-later-melodic member appears, the definitive window-
+  independent answer is the write-log ORACLE (build both defer/canon per
+  dataflow member, keep whichever matches the orig) — heavier, deferred, NOTED
+  for the next time this recurs.
+
 ## ✅ ROUND 171 (2026-08-01): Wodnik/Lalamido — **FULL** (302182/302182)! C23 refinement 4: the defer `inits>=8` count is a SPARSITY floor, lower it to `>=2`
 Next partial by hvsc path (another Wodnik defer member). Lalamido has just 2
 melodic note-starts in the WHOLE song (very long held notes) — canon build
