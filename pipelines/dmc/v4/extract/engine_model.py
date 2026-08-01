@@ -1712,11 +1712,25 @@ def _decode_instrument(mem, base: int, iid: int,
         wave_ctrl=wc, wave_freq=wf, wave_loop=wl)
 
 
-def _decode_filter_def(mem, base: int, n: int) -> dict:
-    r = [mem[base + n * 16 + k] for k in range(16)]
+def _decode_filter_def(mem, base: int, n: int,
+                       fsz_tab: 'int | None' = None,
+                       fdu_tab: 'int | None' = None) -> dict:
+    """Decode filter def `n`. res/init/repeat/stop are the def record's first
+    4 bytes (`base = op_filtdef`). The 6 (step-size, step-duration) pairs are
+    read from the step-size + step-duration TABLES, indexed `def*16 + step`
+    (fbase = filter_def*16 in the player). Canon lays those tables at
+    `base + 4` and `base + 10` — but they are PACKER-PATCHED OPERANDS the
+    packer can relocate INDEPENDENTLY (Vai/Hardtechno's duration table sits at
+    op_filtdef+165, not +10, and reads all zeros = never-advancing steps), so
+    the caller passes the addresses resolved from the player's `LDA fsz,Y` /
+    `LDA fdu,Y` operands. None = the canon +4/+10 layout (byte-identical)."""
+    r = [mem[base + n * 16 + k] for k in range(4)]
+    sz = base + 4 if fsz_tab is None else fsz_tab
+    du = base + 10 if fdu_tab is None else fdu_tab
     return {'res': r[0] >> 4, 'mode': r[0] & 0x0F, 'init': r[1],
             'repeat': r[2], 'stop': r[3],
-            'steps': [(_signed8(r[4 + k]), r[10 + k]) for k in range(6)]}
+            'steps': [(_signed8(mem[sz + n * 16 + k]), mem[du + n * 16 + k])
+                      for k in range(6)]}
 
 
 # ---------------------------------------------------------------------------
@@ -1756,6 +1770,19 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     wavectrl = _rd16(mem, cfg.op_wavectrl)
     wavefreq = _rd16(mem, cfg.op_wavefreq)
     filtdef = _rd16(mem, cfg.op_filtdef)
+    # Filter step-size / step-duration TABLES are packer-patched operands in
+    # the play body's filter routine (canon $13E6 `LDA fsz,Y / STA $1721 /
+    # LDA fdu,Y` — base-relative $3E6, the two `LDA abs,Y` at +1 / +7). The
+    # packer can relocate the duration table INDEPENDENTLY of the def records
+    # (Vai/Hardtechno: fdu at op_filtdef+165, all zeros = never-advancing
+    # steps), so read the operands rather than assuming +4/+10. Gate on the
+    # canon `LDA abs,Y` ($B9) opcodes at both sites so a re-assembled routine
+    # falls back to the canon +4/+10 layout (None -> byte-identical).
+    _fr = cfg.base + 0x3E6
+    fsz_tab = fdu_tab = None
+    if mem[_fr] == 0xB9 and mem[_fr + 6] == 0xB9:
+        fsz_tab = _rd16(mem, _fr + 1)
+        fdu_tab = _rd16(mem, _fr + 7)
     tunetab = _rd16(mem, cfg.op_tunetab)
     secp_lo = _rd16(mem, cfg.op_secp_lo)
     secp_hi = _rd16(mem, cfg.op_secp_hi)
@@ -2059,7 +2086,8 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
             fmem[filtdef:filtdef + 272] = bytes(post)
         for d in range(17):
             if filtdef + d * 16 + 16 <= 0x10000:
-                m.filter_defs[d] = _decode_filter_def(fmem, filtdef, d)
+                m.filter_defs[d] = _decode_filter_def(fmem, filtdef, d,
+                                                      fsz_tab, fdu_tab)
     else:
         fmem = mem
     # C37 layer 2 — the state-resume copy can EDIT file-level tables (wave
@@ -2117,7 +2145,8 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
             if dmem is not None and cand.filter_on:
                 dno = cand.filter_def
                 if any(dno * 16 <= p < dno * 16 + 16 for p in _fdpk):
-                    cdef = _decode_filter_def(dmem, filtdef, dno)
+                    cdef = _decode_filter_def(dmem, filtdef, dno,
+                                              fsz_tab, fdu_tab)
                     if cdef != m.filter_defs.get(dno):
                         newdef = cdef
             base_i = m.instruments[iid]

@@ -8,6 +8,42 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 160 (2026-08-01): Vai/Hardtechno + Sad_End — filter step-DURATION table is an independently-relocated operand (+2) — NEW ledger C39
+Next-partial Vai/Hardtechno (single, canon base $1000, VBLANK; NO STIL/BUGlist
+— no Vai in either doc). sub 0 partial, first-div frame 4: filter cutoff hi
+$D416 orig $B0 vs rebuild $4F (everything else matches, same length).
+- SYMPTOM: filter cutoff frames 1-3 MATCH (144,240,80) then orig steps +$60/frame
+  mod 256 ($B0,$10,$70,$D0,$30,$90… — a fast wrap) while rebuild ramps −1/frame
+  ($4F,$4E,$4D…). The rebuild switched to the def's step 1 (−1); the orig never
+  advances step 0.
+- ROOT (ground truth `siddump --memwatch-on-write D416 1719,171A,171B,1721,1722`):
+  the orig's `fdu` ($1722 step-duration cache) = **$00**, not $02 → step 0 dur=0
+  → `fstep` never advances → +$60 (step-size $60) forever. The player (canon
+  $13E6: `LDA fsz,Y / STA $1721 / LDA fdu,Y / STA $1722`; fbase=filter_def*16)
+  reads step SIZES from op_filtdef+4 ($1A2E, correct) but step DURATIONS from a
+  SEPARATE table at **$1ACF = op_filtdef+165**, all zeros. The extraction's
+  `_decode_filter_def` ASSUMED a 16-byte record with durs interleaved at
+  record+10 ($1A34 = garbage $02). So the packer relocated the DURATION table
+  INDEPENDENTLY of the def records — the project's KEY lesson (packer-patched
+  operands → extract by DATAFLOW, never a fixed offset), hit on a table the
+  extraction had hardcoded.
+- FIX (`engine_model.py`): resolve `fsz_tab`/`fdu_tab` from the play body's
+  filter-routine operands (base+$3E6 `LDA abs,Y` at +1/+7), gated on the canon
+  $B9 opcodes (re-assembled → None → fall back to record+4/+10, byte-identical).
+  `_decode_filter_def(…, fsz_tab, fdu_tab)` reads steps as
+  `(signed8(mem[fsz_tab + def*16 + k]), mem[fdu_tab + def*16 + k])`.
+- VERDICT: Hardtechno FULL 99646/99646 state ✓; Sad_End (2nd carrier, fdu at
+  op_filtdef−145) FULL 56177/56177 state ✓. CENSUS over 7457 canon-head filter
+  members: exactly 2 with fsz!=+4 or fdu!=+10 (both Vai, both fixed) → the other
+  7455 byte-identical (fsz=+4, fdu=+10). No FULL member can regress (a
+  filter-using FULL member has fdu=+10 already, so the new read is identical; the
+  new read is ground truth, so it can only make the write stream more correct).
+  smoke 6/6; DMC regression portfolio 5/5 FULL.
+- Ledger NEW class C39 (a data table the extraction reads at a FIXED offset from
+  another table is a packer-patched OPERAND that can relocate independently —
+  resolve it from the play code). Shared extract change → corpus code_hash stale
+  pending next fresh batch.
+
 ## ✅ ROUND 159 (2026-08-01): Bomberman_preview — CONDITIONAL per-subtune song remap (+1) — C19 38th occ
 Next-partial The_Magical_Garfield/Bomberman_preview (single, canon base $1000,
 VBLANK, 4 subtunes; NO STIL/BUGlist — no Magical_Garfield in either doc). sub 0

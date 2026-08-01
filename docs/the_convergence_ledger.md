@@ -124,6 +124,7 @@ practice, not code to factor).
 | PC-triggered bus tap false-fires on DATA reads of the trigger address · "capture at PC X" watches cpuRead, bus can't tell fetch from data · plausible WRONG snapshot · discriminate EXECUTION by the ≥3-consecutive-ascending-reads bus signature · validate any new tap by CROSS-EMULATOR byte-identity (also proves non-perturbation) · writelog_capture frame indices are COMPACTED (writes-only frames) vs raw siddump frames · GAP: 2-byte indirect sites (`LDA (zp),y`) are INVISIBLE to the discriminator — watch a 3-byte site at the same call depth with --pc-watch-abs | C36 | logged |
 | subtune SAVE-STATE RESUME wrapper · header overstates songs, tune table has ONE record · appended init wrapper copies a per-subtune state snapshot + DATA POKES then forces song 0 · non-start subtune diverges at play pos 0, wrong first note/instrument · only init-wipe SURVIVORS matter (priming → init.voice_state; song-data pokes → per-subtune walk memory; wave/filter-table pokes → C31 clone-and-remap, def clones in unused nibble slots) | C37 | recurring (3×, all FULL) |
 | song-end master-vol FADE → silence → whole-song RESTART loop · appended PLAY wrapper counts play() to N → `dec` mvol every STEP (note-init `ora mvol/sta $D418` emits it) → `$D418=$00` silence for SIL plays → JMP re-init loop · diverges DEEP in the REPLAY · restart re-runs the SHARED init (clears $1718-$179D, LEAVES $100F-$1018 survivors) · MEASURE schedule + survivors from libsidplayfp not py65 (pc-watch fade STA=N/STEP, writelog $00-run=SIL, memwatch-on-write d418 over silence=note-state) · modular wrapper (count/ramp/silence/songrestart) · ⚠ prime EXACTLY the init-uncleared block (gatemask/curnote/curinst=$1015/shadow17) NOT cinst (the ACTIVE pulse-record $174D that init CLEARS — over-prime sweeps a soft-glide voice's PW) · fade = C10 parametric mvol, restart = C37 sibling (whole-song loop not per-subtune) | C38 | logged |
+| a data table the extract reads at a FIXED OFFSET from another table is a packer-patched OPERAND that can relocate INDEPENDENTLY · DMC filter step-DURATION table assumed at op_filtdef+10 (interleaved) but read via its own `LDA fdu,Y` operand → some members put it elsewhere (Vai/Hardtechno +165, all zeros = never-advancing filter steps) · TELL: a table-driven value right at the start then a DIFFERENT CONTOUR · resolve the table from the PLAY operand (gated on the canon opcode, fallback = the assumed offset, byte-identical) · distinct from C2 (index runs off the table END; here the BASE is wrong) | C39 | logged |
 
 ---
 
@@ -1076,3 +1077,23 @@ practice, not code to factor).
   C37 sibling (survivor-preserving re-init) but a WHOLE-SONG play()-counter loop,
   not a per-subtune dispatch; distinct from C19 (static single-value poke).
 - FULL ENTRY: [`ledger/C38.md`](ledger/C38.md) — read it before applying.
+
+### C39 — a fixed-offset table read is a packer-patched OPERAND that can relocate independently
+- PRESENTS: a table-driven value (DMC filter cutoff) follows the RIGHT initial
+  values then diverges into a DIFFERENT CONTOUR — the rebuild advances a program
+  step the orig doesn't (or vice-versa). The extraction reads table B (filter
+  step DURATIONS) at a hard-coded offset from table A (filter-def records,
+  durs at record+10), but the player reads B via its OWN operand, which the
+  packer relocated INDEPENDENTLY (Vai/Hardtechno: fdu at op_filtdef+165, all
+  zeros → filter steps never advance, +$60/frame forever).
+- TELL: ground-truth `siddump --memwatch-on-write <reg> <step-caches>` shows a
+  size/duration cache that does NOT match the decoded record byte ($1722 fdu=$00
+  vs record+10 byte $02). Right start + wrong contour = wrong table BASE, not a
+  wrong index.
+- CANONICAL: resolve B's address from the PLAY body operand (gated on the canon
+  opcode; fallback to the assumed offset = byte-identical). Census the corpus for
+  members where B is not at A+offset — that set is the fix's whole exposure
+  (filter durs: exactly 2, both Vai). No FULL member regresses (a filter-using
+  FULL had durs at +10 already; the operand read is ground truth). Distinct from
+  C2 (index off the table END; here the base moved).
+- FULL ENTRY: [`ledger/C39.md`](ledger/C39.md) — read it before applying.
