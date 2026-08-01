@@ -3261,8 +3261,17 @@ def _noteinit_defer_probe(path: str, subtune: int = 0) -> 'str | None':
 
     The SAME capture also classifies the hard-restart PREP chunks (AD=SR=
     $0F): the build writes ctrl $08 THEN $09 (TEST, then TEST|GATE) where
-    canon writes $08 alone — `hr_prep_gate='1'` when >= 8 prep chunks all
-    show the exact [$08, $09] ctrl sequence.
+    canon writes $08 alone — `hr_prep_gate='1'` when > 80% of the (>= 8) prep
+    chunks show the [$08, $09] ctrl SUBSEQUENCE. Two collision-tolerances vs
+    the original strict all-or-nothing, both for the same per-IRQ BUCKETING
+    COLLISION as `noteinit_defer_wave` (two play()s in one capture bucket):
+    (1) the per-chunk test is a subsequence, not equality, so a merged chunk
+    that PREPENDS the prior play()'s note ctrl ([$41,$08,$09]) still counts;
+    (2) the aggregate is > 80%, not ==, absorbing the rare bucket that SPLITS
+    the $08 and $09. Canon preps write $08 ALONE (0% show [$08,$09]), so a
+    canon member is cleanly rejected and CANNOT flip — the two populations
+    separate at 0% vs ~95-100% with a wide empty gap (measured across the
+    whole Wodnik family + canon controls).
 
     Returns a (possibly empty) dict of composer params."""
     from pipelines.hubbard.verify_cycle import writelog_per_irq_capture
@@ -3285,7 +3294,12 @@ def _noteinit_defer_probe(path: str, subtune: int = 0) -> 'str | None':
                 continue
             if (regs[5], regs[6]) == (0x0F, 0x0F):
                 preps += 1
-                if ctrls.get(v) == [0x08, 0x09]:
+                # the HR prep writes ctrl $08 THEN $09; test for the [$08,$09]
+                # SUBSEQUENCE, not equality — a merged per-IRQ bucket (two
+                # play()s in one capture chunk) prepends the PRIOR play()'s note
+                # ctrl ([$41,$08,$09]), which a strict == misreads as canon.
+                c = ctrls.get(v, [])
+                if any(c[i:i + 2] == [0x08, 0x09] for i in range(len(c) - 1)):
                     preps_gate9 += 1
                 continue
             if (regs[5], regs[6]) == (0x00, 0x00):
@@ -3298,7 +3312,7 @@ def _noteinit_defer_probe(path: str, subtune: int = 0) -> 'str | None':
     out = {}
     if inits >= 8 and with_ctrl * 5 < inits:   # < 20% carry ctrl (see docstring)
         out['noteinit_defer_wave'] = '1'
-    if preps >= 8 and preps_gate9 == preps:
+    if preps >= 8 and preps_gate9 * 5 > preps * 4:   # > 80% show [$08,$09]
         out['hr_prep_gate'] = '1'
     return out
 

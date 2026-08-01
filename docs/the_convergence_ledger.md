@@ -604,15 +604,21 @@ practice, not code to factor).
   play) + a prep that writes ctrl $08-then-$09. Classify per-IRQ chunks
   from the original's writelog (`_noteinit_defer_probe` →
   `noteinit_defer_wave`/`hr_prep_gate`); gate to dataflow-path members,
-  skip under a C18 phase wrapper. ⚠ NOT strict all-or-nothing for the
-  defer-wave gate — a HIGH-MULTISPEED CIA member (Wodnik/Akademia, r168) has
-  the occasional per-IRQ BUCKETING COLLISION (two play()s merged into one
-  capture bucket → a deferred init's AD/SR sits with the next play's wave ctrl
-  = a false canon-init); use `with_ctrl*5 < inits` (< 20%), not `== 0`. The two
-  populations separate with huge margin (canon 95-100% carry ctrl, defer 0-2%);
-  0-regression is STRUCTURAL (a FULL-without-defer member has canon same-play
-  inits ⇒ ratio ~100% ⇒ can never fall in the low-ratio flip band, only
-  defer-shaped PARTIALS flip).
+  skip under a C18 phase wrapper. ⚠ NEITHER gate is strict all-or-nothing —
+  a HIGH-MULTISPEED CIA member (the Wodnik family, r168-169) has the occasional
+  per-IRQ BUCKETING COLLISION (two play()s merged into one capture bucket).
+  DEFER-WAVE (Akademia, r168): the merge puts a deferred init's AD/SR with the
+  next play's wave ctrl = a false canon-init, per-chunk INDISTINGUISHABLE ⇒ use
+  the RATIO `with_ctrl*5 < inits` (< 20% carry ctrl), not `== 0`. HR-PREP-GATE
+  (CH2, r169): the merge PREPENDS the prior note's ctrl → `[$41,$08,$09]`, which
+  a strict `== [$08,$09]` misreads as canon, but the `[$08,$09]` SUBSEQUENCE
+  survives ⇒ test the SUBSEQUENCE + relax the aggregate to `preps_gate9*5 >
+  preps*4` (> 80% show it, absorbing the rare bucket that SPLITS $08/$09). Both:
+  the two populations separate with a huge empty gap (canon 0% / ~100% vs the
+  variant's ~100% / 0%); 0-regression is STRUCTURAL — a FULL-without-variant
+  member is canon-shaped (a canon prep writes $08 ALONE; a canon init carries
+  AD/SR+ctrl same-play) ⇒ can NEVER fall in the flip band, only variant-shaped
+  PARTIALS flip.
 - FULL ENTRY: [`ledger/C23.md`](ledger/C23.md) — read it before applying.
 
 ### C24 — play-body UNIT repeat / whole-play N-repeat

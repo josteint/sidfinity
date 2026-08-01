@@ -8,6 +8,36 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 169 (2026-08-01): Wodnik/CH2 — **FULL** (176680/176680)! +3 FULL — C23 refinement 2: the `hr_prep_gate` gate had the SAME bucketing-collision brittleness
+Next partial by hvsc path — another Wodnik member (same CIA deferred-note-init
+player as Akademia r168). No STIL / BUGlist. 0-regression (structural + flip
+analysis + smoke). +3 FULL: CH2 (target) + Szach (183194) + Czad (60743).
+- DIVERGENCE (pos 27): orig writes V1 ctrl $08 THEN $09 (the hr_prep_gate
+  TEST→TEST|GATE prep), rebuild writes only $08 (canon prep) then skips to AD.
+  So `hr_prep_gate` didn't fire even though CH2 is the same player as the r168
+  carriers. `noteinit_defer_wave` DID fire (the r168 gate relaxation caught it).
+- ROOT CAUSE — the SAME per-IRQ bucketing collision as r168, now on the
+  `hr_prep_gate` gate: the strict gate required EVERY prep chunk to show the
+  EXACT ctrl list `[$08,$09]` (`preps_gate9 == preps`). On this high-multispeed
+  member a merged bucket PREPENDS the prior play's note ctrl → `[$41,$08,$09]`
+  or `[$10,$08,$09]`, which `== [$08,$09]` misreads as canon (CH2: 131/138
+  exact). Forcing hr_prep → 100% FULL, confirming the off-chunks are artifacts.
+- FIX (`_noteinit_defer_probe`, 2 complementary tolerances — the hr_prep
+  collision is per-chunk RECOVERABLE, unlike defer_wave's): (1) test the
+  `[$08,$09]` SUBSEQUENCE not equality (the merge prepend doesn't destroy the
+  subsequence — recovers CH2 131→138, Szach 19→20 to 100%); (2) relax the
+  aggregate to `preps_gate9 * 5 > preps * 4` (> 80%) to also absorb the rare
+  bucket that SPLITS $08/$09 (Czad 178/179). Docstring updated.
+- 0-REGRESSION IS STRUCTURAL (same as r168): canon preps write $08 ALONE (0%
+  show `[$08,$09]`), so a FULL-without-hr_prep member (its orig writes $08
+  alone — else the missing $09 makes it partial) can NEVER reach the > 80%
+  band. Flip analysis over the whole Wodnik family + canon controls + golden
+  set: ONLY CH2/Szach/Czad flip (all → FULL), every existing carrier
+  (Akademia/Papierosy/Redable_Rain, TRUE→TRUE) + canon member (FALSE→FALSE)
+  unchanged = byte-identical. Ledger C23 (2026-08-01 refinement 2).
+- NB the Wodnik family (~90 members) is a rich seam of this CIA deferred-init
+  player; several more are likely partial on adjacent gate/timing issues.
+
 ## ✅ ROUND 168 (2026-08-01): Wodnik/Akademia — **FULL** (151466/151466)! C23 refinement: the `noteinit_defer_wave` gate was too strict for a high-multispeed CIA member
 Next partial by hvsc path. Reassembled CIA 2×-multispeed member (base $0ff4
 prefix absorbed to $1000), same Wodnik/Heinmueck deferred-note-init player as
