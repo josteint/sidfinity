@@ -8,6 +8,26 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ⏸ PARKED (2026-08-01): Zyron/Solar_Energy — song-end length tail (rebuild plays past the orig's stop); parked near context limit, fix NOT started
+Next partial by hvsc path after r174. Diagnosed but NOT fixed (parked for a fresh
+session — the fix is a non-trivial orderlist-end investigation, not a quick wedge).
+- SIGNATURE: rebuild matches ALL orig writes then runs LONGER — play_match =
+  len_a = 294035, len_b = 296726 (+2691), state_match=True, NO content divergence
+  (a pure length tail on a 379.5s VBLANK song, ~0.9%).
+- ORIG STOPS at siddump frame 18801 (writes constant at 275814 across dur
+  379/420/500s — it produces NO more writes after 18801 and holds). $D418 held at
+  $1F at the end — NOT a $D418=$00 reset (contrast Dark_Side r167's KERNAL reset).
+  The rebuild CONTINUES past 18801 (a voice keeps writing).
+- canon-layout; `dmc_canon_diff` = 1 cluster, 0 NEW (handled) → NOT a code wedge.
+  So the divergence is DATA/orderlist: the orig's voices all go quiet at song-end
+  while the rebuild's freewheel keeps writing. NEXT STEPS: (1) capture the rebuild
+  tail, find WHICH voice produces the extra 2691 writes; (2) disasm how that voice
+  goes silent in the orig (canonical $FE per-voice stop still FREEWHEELS via
+  frame_entry in our composer, so the orig must reach a state where the freewheel
+  emits nothing — a held wave step vs the rebuild's advancing one, or an
+  orderlist end the extract mis-read as a loop); (3) diff the voice's USF
+  orderlist tail (stop vs loop). Likely C34 (one-row law) or an orderlist-end fix.
+
 ## ✅ ROUND 174 (2026-08-01): Zyron/One_Man_and_Boris — **FULL** (122971/122971)! C19 wedge: filter-tail cutoff LOAD operand repointed fcut→fbase
 Next partial by hvsc path (canon-LAYOUT member — `dmc_canon_diff` found it: 1 NEW
 cluster `$10A0 repoint LDA a @operand`). Diverged deep (~70%) on a single $D416
