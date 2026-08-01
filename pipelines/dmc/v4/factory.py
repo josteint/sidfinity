@@ -2031,7 +2031,7 @@ def _reinit_ghost_state_map(base: int) -> dict:
     m = {}
     rows = list(DMC_OFFTABLE_STATE) + [DMC_WAVEPOS_ROW]
     rows += [(0x100F, 'gatemask', 3), (0x1012, 'curnote', 3),
-             (0x1015, 'curinst', 3)]
+             (0x1015, 'curinst', 3), (0x1018, 'shadow17', 1)]
     for a, lbl, nb in rows:
         for i in range(nb):
             m[a + shift + i] = (lbl, i)
@@ -2186,31 +2186,60 @@ def _track_ff_reinit_ghost_probe(path: str, base: int,
                                  post_init_sub: 'int | None' = None):
     """Shape-B $FF-track-reinit WITH a ghost-unit tail (C19, 22nd occ shape B —
     Hallen/For_Party_V_95). The canon $FF handler `A9 00 / 9D 26 17 / 4C D2 10`
-    is patched to `A9 00 / 4C <init>` (JMP straight to init; the canon re-fetch
-    tail left as dead code) — vs shape A's byte-preserving neutered-JSR form.
-    Because the wrap voice is not the last play unit, the restart also runs the
-    remaining voices as GHOST units (see `_simulate_reinit_ghosts`).
+    is patched to one of two forms, both of which restart the whole song via
+    init AND run one or more voices as GHOST units (see `_simulate_reinit_ghosts`):
 
-    STATIC anchor for the shape (LDA #$00 + JMP away from the canon re-fetch),
+      * JMP-init (Hallen/For_Party): `A9 00 / 4C <init>` — JMP straight to init;
+        init's RTS pops the wrap voice's call, so the play body's remaining
+        `inx : jsr voice` iterations run as ghost units with X past the 3-voice
+        range ($19/$1A). (The canon re-fetch tail is left as dead code.)
+
+      * JSR-init RESUME (Verdict/Verdict_01, C19 new occ): `A9 00 / 20 <init> /
+        4C <base+D2>` — JSR init (its clear loop leaves X=$18) then JMP the
+        CANONICAL re-fetch in the SAME frame. So the re-fetch runs as a ghost
+        unit at X=$18 *and* the play body's two remaining iterations run at
+        X=$19/$1A — one more ghost unit than the JMP-init form. Distinct from
+        shape A's `track_ff_reinit` (JSR to a NEUTERED RTS byte + JMP AWAY from
+        the re-fetch): here the JSR target is the REAL init and the JMP target
+        is exactly the re-fetch (base+$D2).
+
+    Both forms share the same capture + the same composer `reinit_ghost` branch:
+    we reproduce the captured V1-reg burst (the aliased ghost writes), NOT the
+    out-of-bounds aliasing (CORE TENET — different memory map ⇒ different
+    garbage). STATIC anchor identifies the shape and confirms it leads to init,
     then the ghost sim GATES on the wrap being in the verify window (its burst
     capture returns None past-window) and captures the burst + pokes. Returns
     the `track_ff_reinit_ghost` spec, or None (not shape B / past window / no
-    ghost tail — every non-For_Party carrier stays byte-identical)."""
+    ghost tail — every non-carrier member stays byte-identical)."""
     if base is None:
         return None
     mem, _ = _load(path, post_init_sub)
     site = base + 0xDD
-    if site + 5 > 0x10000:
+    if site + 8 > 0x10000:
         return None
-    if mem[site] != 0xA9 or mem[site + 1] != 0x00 or mem[site + 2] != 0x4C:
+    if mem[site] != 0xA9 or mem[site + 1] != 0x00:
         return None
-    jmp_tgt = mem[site + 3] | (mem[site + 4] << 8)
-    if jmp_tgt == base + 0xD2:                    # canonical re-fetch loop
-        return None
-    # the JMP must lead to init: the member's init vector (base = `JMP body`)
-    # or that body itself. A false lead yields a partial, never a wrong FULL.
+    # a target leads to init iff it is the init vector (base = `JMP body`) or
+    # the body that vector jumps to. A false lead yields a partial, never a
+    # wrong FULL (build+verify gated).
     init_body = mem[base + 1] | (mem[base + 2] << 8) if mem[base] == 0x4C else None
-    if jmp_tgt != base and jmp_tgt != init_body:
+    leads_to_init = (lambda tgt: tgt == base
+                     or (init_body is not None and tgt == init_body))
+    op = mem[site + 2]
+    if op == 0x4C:                                # JMP-init form
+        jmp_tgt = mem[site + 3] | (mem[site + 4] << 8)
+        if jmp_tgt == base + 0xD2:               # canonical re-fetch loop
+            return None
+        if not leads_to_init(jmp_tgt):
+            return None
+    elif op == 0x20:                             # JSR-init RESUME form
+        if not leads_to_init(mem[site + 3] | (mem[site + 4] << 8)):
+            return None
+        if mem[site + 5] != 0x4C:
+            return None
+        if (mem[site + 6] | (mem[site + 7] << 8)) != base + 0xD2:
+            return None                          # must JMP the re-fetch in-frame
+    else:
         return None
     return _simulate_reinit_ghosts(path, base, post_init_sub)
 

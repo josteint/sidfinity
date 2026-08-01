@@ -8,7 +8,58 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
-## ⏸ ROUND 163 (2026-08-01, PARKED): Verdict/Verdict_01 — $FF→init RESTART, "resume" shape (C19) — root cause found, fix incomplete
+## ⏸ ROUND 164 (2026-08-01): Verdict/Verdict_01 — C19 "$FF→init RESTART, resume shape" wedge SOLVED (restart burst reproduced); residue = C6/C11 DYNAMIC off-table survivor-glide
+r163's "curinst-mirror" theory was WRONG (disproved this round). The restart is
+an EMERGENT PLAYER BUG, reproduced cleanly via the EXISTING ghost machinery.
+Match 123100 → 123142 (69.07% → 69.10%); Verdict_01 STILL PARTIAL, blocked on a
+C6/C11 hard boundary. 0-regression (For_Party FULL, DMC portfolio 5/5, smoke 6/6).
+- MECHANISM (pc-trace ground truth, NOT the stale r162 disasm annotations): the
+  `$10DD` wedge `LDA #0 / JSR $1000(init) / JMP $10D2(re-fetch)` — **init clobbers
+  X** (its clear loop ends X=$18), so the `JMP $10D2` re-fetch AND the play body's
+  two remaining `inx : jsr voice` iterations run at X=$18/$19/$1A = THREE
+  out-of-bounds GHOST units. All three write V1 (their `$170D[x]`=0 after the init
+  clear → Y=0 → $D400), freq = `freqtable[$1A1D[wp] + $1012[$18/$19/$1A]]` where
+  `$1012[$18..]` = `$102A-$102C` = FILE-IMAGE constants in the $1020-$104F data gap
+  → a MEMBER-CONSTANT burst ($2FAE/$B79C/$5864, PW $F0, ctrl $00/$40/$40),
+  independent of surviving musical state. This is EXACTLY C19 shape B (For_Party)
+  + one extra ghost unit (JSR-init vs JMP-init). NOT a re-trigger, NOT a re-fetch
+  note (both prior-session dead-ends); the writes are garbage-index residue.
+- FIX (0-regression, reuses the ghost path — no new composer branch):
+  1. `_track_ff_reinit_ghost_probe` (factory) extended to recognize the RESUME
+     anchor (`A9 00 / 20 <init> / 4C <base+D2>`, JSR to real init + JMP the canon
+     re-fetch) alongside shape B's `A9 00 / 4C <init>`; both route to the same
+     `_simulate_reinit_ghosts` capture + `track_ff_reinit_ghost` composer branch.
+  2. `_reinit_ghost_state_map` += `shadow17` ($1018) — a survivor the orig init
+     PRESERVES but the composer's init RE-PRIMES (from tunetab+8); it was the
+     $D417 divergence ($04 survivor vs $05 re-primed). For_Party WARM==COLD → no
+     poke → byte-identical.
+  3. Composer ghost-poke emission: REMAP the `curinst` poke orig#→slot (USF
+     id=orig#+1; `ioffval[slot]=orig#*11`). The poke carries the raw orig
+     survivor ($0C) but curinst is the COMPACTED slot (12 insts) → $0C indexed
+     ioffval OOB. For_Party remaps identity → byte-identical.
+- TRUE REMAINING BLOCKER (first divergence, V1 freq $30 vs $00 at the post-restart
+  replay frame): a **C6/C11 DYNAMIC off-table glide-arrival read**. The survivor
+  glide (glsp[0]=$03, glb[0]=$A7 — glb is OFF-TABLE) runs `fx_gl_chk: cmp
+  freqhi,y` with y=$A7 → orig `$16A7+$A7 = $174E = ioff[1] = $11` (engine state!),
+  so the glide NEVER reaches its target → keeps accl=$30 → arp variant freq
+  lo = fbl(0)+accl = $30. My composer's `cmp freqhi+$A7` reads a different
+  (layout-dependent) byte → snaps early → freq $00. To reproduce: (a) restore the
+  curinst[1]/[2] SURVIVORS ($0A/$03 — WARM==COLD so unpoked, but my init clears
+  them since the extract judged the cold seed "dead"; ioff[1] derives from
+  curinst[1]); (b) serve the off-table glide compare `freqhi[$A7]→ioff[1]` via a
+  C11 redirect (the `m.glide_offtable` mechanism exists but the survivor target
+  isn't an offtable_freq record). AND the read is DYNAMIC — ioff[1] tracks V2's
+  LIVE playback (V2 note-inits during the glide), so V1's glide reads V2's live
+  engine state (cross-voice off-table coupling). This is the ledger's documented
+  "dynamic work-RAM residue" hard boundary. PARKED as residue: deep + risky
+  (touches the glide redirect) + uncertain (the whole 31% replay is dominated by
+  this buggy survivor glide) for a 1-in-10,676 singleton.
+- Ledger C19 39th occ (the JSR-init RESUME shape B'); C6/C11 note (survivor
+  off-table glide-arrival read = dynamic residue). Full pc-trace analysis lives in
+  this entry; the r162 disasm at tmp/verdict_01/disassembly.s has a WRONG
+  annotation (flags[$0C] said $01, file byte is $00 — corrected here).
+
+## ⏸ ROUND 163 (2026-08-01, PARKED, SUPERSEDED by r164): Verdict/Verdict_01 — $FF→init RESTART, "resume" shape (C19) — root cause found, fix incomplete
 Next-partial Verdict/Verdict_01 (single, canon $1000, VBLANK; NO STIL/BUGlist).
 sub 0 partial: PERFECT prefix to 69% (play_match=123141) then diverges at a
 MID-SONG SONG RESTART (~157s, play idx 7239). Full annotated disassembly at

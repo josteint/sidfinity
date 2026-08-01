@@ -3146,10 +3146,21 @@ ovrp_d:
             gl.append(f'        lda #${_v}')
             gl.append(f'        sta $d4{_r.lower()}              '
                       '; ghost unit V1-reg burst')
+        # a `curinst` poke carries the ORIG instrument NUMBER (raw survivor
+        # RAM); the composer's curinst is the COMPACTED slot (the ioffval
+        # index — only used instruments are emitted). Remap orig# -> slot via
+        # the USF id (= orig#+1). A survivor referencing a compacted-out
+        # instrument has no slot: keep raw (verify-gated). Identity when no
+        # compaction, so the JMP-init ghost members stay byte-identical.
+        _orig_to_slot = {i.id - 1: k for k, i in enumerate(usf.instruments)}
         for _pk in _pokes_s.split(';'):
             if not _pk:
                 continue
             _lab, _vc, _val = _pk.split(',')
+            if _lab == 'curinst':
+                _slot = _orig_to_slot.get(int(_val, 16))
+                if _slot is not None:
+                    _val = f'{_slot:02X}'
             gl.append(f'        lda #${_val}')
             gl.append(f'        sta {_lab}+{_vc}'.ljust(37)
                       + '; ghost state poke')
