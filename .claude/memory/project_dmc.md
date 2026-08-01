@@ -8,7 +8,39 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
-## ⏸ ROUND 164 (2026-08-01): Verdict/Verdict_01 — C19 "$FF→init RESTART, resume shape" wedge SOLVED (restart burst reproduced); residue = C6/C11 DYNAMIC off-table survivor-glide
+## ⏸ ROUND 165 (2026-08-01): Verdict/Verdict_01 — r164's "hard dynamic boundary" DISPROVED (re-test challenge); glide read FIXED; residue narrowed to ONE garbage instrument-record read
+Re-tested every r164 assumption (user: "I don't trust your analysis 100%").
+TWO r164 claims were WRONG; the "hard boundary" was solvable with an EXISTING
+mechanism. Match 123142 → 123144 (glide freq now matches). Still PARTIAL.
+0-regression (For_Party FULL). CORRECTIONS:
+- glsp[0]=$03 / glb[0]=$A7 are NOT "survivors" (r164) — they're GHOST-FRAME
+  ALIASED GARBAGE: glsp via the ghost unit's `INC $1729,x` at X=$18 (=$1741);
+  glb via `STA $172f,x` at X=$18 (=$1747). Ground-truth memwatch: glsp[0]
+  transitions 0→$03 exactly at the restart frame, from the ghost INC.
+- the off-table glide target ($174E) is EFFECTIVELY STATIC ($11 for one frame,
+  then $37 stable from frame 7878 = V2's real instrument $05×11) — NOT the
+  "dynamic work-RAM" r164 claimed. (ioff[1]=$11 at WARM is itself garbage:
+  $11 ≠ curinst[1]($0A)×11.)
+- FIX: the glide-arrival compare `cmp freqhi,glb=$A7` reads off-table into the
+  state block ($16A7+$A7=$174E=ioff[1]); the EXISTING `m.glide_offtable` C6
+  redirect (DMC_OFFTABLE_STATE already maps $174E→ioff+1) serves it. Enabled
+  for `track_ff_reinit_ghost` members (byte-identical for in-table glides, so
+  For_Party stays FULL). r164's "C6/C11 dynamic hard boundary" was just this
+  redirect not being wired for the ghost-garbage glide.
+- TRUE REMAINING BLOCKER (narrow, NOT dynamic): ONE garbage INSTRUMENT-RECORD
+  read — V1's pulse step. At frame 7877 ioff[0]=$07 (ghost garbage), the orig
+  reads `$18f3[$07]=$18FA` = instrument-0's FLAGS byte (a MID-11-byte-record
+  read) = $08 → high nibble 0 → pulse step 0 → pwl stays $29. My composer
+  reads `isteps[cinst=0]` (slot 0's REAL pw step) → pwl→$19. Root: my clean
+  SLOT-ARRAY layout has no analog for a mid-record byte read at a garbage
+  byte-offset. Contained: only 3 instrument reads at frame 7877 (1 garbage
+  pulse + 2 VALID wave reads at wavepos=$01, which match), and V1's note-init
+  sets ioff=$37 (valid) right after. Fixable only by reconstructing the
+  11-byte-record read from the slot arrays (bespoke, CORE-TENET tension) —
+  parked for the 1/10,676 singleton, but this is a MUCH narrower/different
+  boundary than r164 asserted.
+
+## ⏸ ROUND 164 (2026-08-01, framing CORRECTED by r165): Verdict/Verdict_01 — C19 "$FF→init RESTART, resume shape" wedge SOLVED (restart burst reproduced); residue = ~~C6/C11 DYNAMIC off-table survivor-glide~~ (r165: glide FIXED; residue is a garbage instrument-record read)
 r163's "curinst-mirror" theory was WRONG (disproved this round). The restart is
 an EMERGENT PLAYER BUG, reproduced cleanly via the EXISTING ghost machinery.
 Match 123100 → 123142 (69.07% → 69.10%); Verdict_01 STILL PARTIAL, blocked on a

@@ -701,6 +701,17 @@ class _Model:
                                 if any(((_t + _tr) & 0xFF) > 95
                                        for _tr in _trs):
                                     self.glide_offtable = True
+        # A $FF-reinit GHOST member (C19 shape B / resume): the ghost frame's
+        # out-of-bounds units alias INC/STA onto the glide state (glsp via
+        # `INC $1729,x` at X=$18 -> $1741; glb via `STA $172f,x` -> $1747), so
+        # V1 runs a GARBAGE glide whose target index is off-table and the
+        # arrival compare `cmp freqhi,glb` reads the state block (glb=$A7 ->
+        # $174E=ioff[1]). Serve that compare through the off-table redirect (the
+        # DMC_OFFTABLE_STATE map already covers $174E->ioff+1). Byte-identical
+        # for any glide whose target is IN-table (the redirect falls through to
+        # `lda freqhi,y`), so this only affects the off-table ghost glide.
+        if usf.params.fields.get('track_ff_reinit_ghost'):
+            self.glide_offtable = True
         # layout-preserving wave pool: every instrument carries its editor
         # wave-table position (only emitted for members whose off-table freq
         # reads sonify a live wave position $177A-$177C) — pack the pool at
