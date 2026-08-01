@@ -1118,6 +1118,21 @@ def _seed_consumed(v: DmcVoice) -> bool:
     return False
 
 
+def _rec_of(sub: int, forced) -> int:
+    """Tune-record index PSID subtune `sub` actually plays. `forced`:
+    None = identity (sub -> sub, the default walk); int = uniform force
+    (Sans_intro's `LDA #imm` prefix forces every play onto one record); list =
+    a per-subtune SONG REMAP (Bomberman_preview [5, 1, 2, 3]: an init wrapper
+    conditionally sends subtune 0 to record 5). One home for the mapping so the
+    four walk sites (off-image sectors / secp reads / track ptrs / decode) stay
+    consistent."""
+    if forced is None:
+        return sub
+    if isinstance(forced, (list, tuple)):
+        return forced[sub]
+    return forced
+
+
 def _offimage_sectors(mem, secp_lo: int, secp_hi: int, tunetab: int,
                       n_sub: int, load: int, loop_target: bool,
                       forced: int | None = None) -> list:
@@ -1139,7 +1154,7 @@ def _offimage_sectors(mem, secp_lo: int, secp_hi: int, tunetab: int,
     [] (byte-identical build)."""
     out = set()
     for sub in range(n_sub):
-        rec = tunetab + (sub if forced is None else forced) * 8
+        rec = tunetab + _rec_of(sub, forced) * 8
         for vi in range(3):
             tp = _rd16(mem, rec + vi * 2)
             pos = 0
@@ -1207,7 +1222,7 @@ def _undefined_secp_reads(mem, secp_lo: int, secp_hi: int, tunetab: int,
     _offimage_sectors track walk."""
     out = set()
     for sub in range(n_sub):
-        rec = tunetab + (sub if forced is None else forced) * 8
+        rec = tunetab + _rec_of(sub, forced) * 8
         for vi in range(3):
             tp = _rd16(mem, rec + vi * 2)
             pos = 0
@@ -1270,7 +1285,7 @@ def _offimage_track_ptrs(mem, tunetab: int, n_sub: int,
     track position bounds the window to [tp, tp+$FF]."""
     out = set()
     for sub in range(n_sub):
-        rec = tunetab + (sub if forced is None else forced) * 8
+        rec = tunetab + _rec_of(sub, forced) * 8
         for vi in range(3):
             tp = _rd16(mem, rec + vi * 2)
             if ((0xA000 <= tp + 0xFF and tp <= 0xBFFF)
@@ -1827,7 +1842,11 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # A hand-crafted init wrapper can HARD-FORCE the played record (cfg.
     # forced_subtune, factory C19 probe: Sans_intro's `LDA #$01` prefix forces
     # record 1 — record 0 is a $FE-stop dummy). Walk the played record then.
-    forced = getattr(cfg, 'forced_subtune', None)
+    # A per-subtune SONG REMAP (list) takes precedence over a uniform
+    # forced_subtune (int): Bomberman_preview's wrapper remaps ONLY subtune 0.
+    forced = getattr(cfg, 'subtune_songs', None)
+    if forced is None:
+        forced = getattr(cfg, 'forced_subtune', None)
     # C29 track-pointer class: a tune-table TRACK POINTER can itself leave the
     # image into banked ROM (Memomania sub 3: V1 ptr $F256 = KERNAL ROM). The
     # orderlist is then read from ROM, so overlay its CPU-eye window BEFORE the
@@ -1886,7 +1905,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # they surface
     used_instr = set()
     for sub in range(m.n_subtunes):
-        rec = tunetab + (sub if forced is None else forced) * 8
+        rec = tunetab + _rec_of(sub, forced) * 8
         # glide_neutered wedge: simulate the re-pointed store's data poke on
         # a per-song copy so the walk reads the engine's EFFECTIVE bytes
         # (each subtune plays standalone — no cross-song poke leakage).

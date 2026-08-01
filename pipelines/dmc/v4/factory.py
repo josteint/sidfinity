@@ -1409,6 +1409,56 @@ def _forced_subtune_probe(path: str, base: int,
     return None
 
 
+def _subtune_song_map_probe(path: str, base: int,
+                            post_init_sub: 'int | None' = None):
+    """PER-SUBTUNE song remap by an init wrapper (the CONDITIONAL sibling of
+    _forced_subtune_probe, ledger C31/C19). A uniform forced_subtune sends
+    EVERY play onto one record; a wrapper can instead remap only SOME subtunes
+    to a different tune record — Bomberman_preview's `STA c / LDA c / CMP #$00 /
+    BNE / LDA #$05 / JSR base` sends ONLY subtune 0 to song 5 (subtunes 1-3
+    pass straight through), a map [5, 1, 2, 3] the uniform probe can't express.
+    The extract otherwise walks record 0 (subtune 0's REAL data is at record 5),
+    so its V2/V3 tracks read as `$FE` stops -> the whole tune 0 mis-decodes.
+
+    OBSERVE (C18): the map is under a branch a byte scan can't see, so run the
+    FILE's init(A=sub) per header subtune and read the A entering `base` (pure
+    init, py65-trustworthy). Return the map iff it is NON-IDENTITY (else the
+    default walk) and NON-UNIFORM (else forced_subtune owns it). A static anchor
+    gate (an `LDA #imm / JSR base` or fall-through/JMP form in the wrapper, as
+    forced_subtune's) keeps the py65 observation off the canonical-init hot path.
+    Regression-safe: identity/uniform/no-wrapper -> None -> byte-identical."""
+    mem, s = _load(path, post_init_sub)
+    init = s['init']
+    songs = s.get('songs', 1)
+    if init == base or songs < 2 or not (0 <= init and init + 4 <= 0xFFFF):
+        return None
+    # base must be the standard tune-select dispatch (JMP base+$1D), as in
+    # _forced_subtune_probe — a non-dispatch base can't be record-indexed.
+    if not (mem[base] == 0x4C and
+            (mem[base + 1] | (mem[base + 2] << 8)) == (base + 0x1D) & 0xFFFF):
+        return None
+    # STATIC anchor gate (perf): an `LDA #imm` reaching base (fall-through /
+    # JMP base) OR an `LDA #imm / JSR base` in the wrapper window. Only then
+    # pay for the per-subtune py65 observation.
+    anchor = mem[init] == 0xA9 and (
+        init + 2 == base or
+        (mem[init + 2] == 0x4C and
+         (mem[init + 3] | (mem[init + 4] << 8)) == base))
+    if not anchor:
+        end = min(init + 0x30, base if base > init else init + 0x30, 0xFFFC)
+        for a in range(init, end):
+            if (mem[a] == 0xA9 and mem[a + 2] == 0x20 and
+                    (mem[a + 3] | (mem[a + 4] << 8)) == base):
+                anchor = True
+                break
+    if not anchor:
+        return None
+    seen = _init_song_observe(path, base, songs)
+    if seen is None or seen == list(range(songs)) or len(set(seen)) == 1:
+        return None
+    return seen
+
+
 def _smc_jsr_table_refine(path: str, base: int, observed: str,
                           post_init_sub: 'int | None' = None):
     """Refine an OBSERVED play-phase schedule against the statically-decoded
@@ -4104,6 +4154,11 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
     fs = _forced_subtune_probe(path, cfg.base, post_init_sub)
     if fs:
         cfg.forced_subtune = fs
+    # PER-SUBTUNE song remap (the conditional sibling of forced_subtune):
+    # Bomberman_preview's wrapper sends ONLY subtune 0 to song 5.
+    ssm = _subtune_song_map_probe(path, cfg.base, post_init_sub)
+    if ssm is not None:
+        cfg.subtune_songs = ssm
     # C37 save-state resume wrapper: every subtune plays the forced song,
     # differentiated only by the wrapper's surviving state copy.
     sr = _state_resume_probe(path, cfg.base, post_init_sub)

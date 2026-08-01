@@ -148,6 +148,15 @@ class DMCV4Config:
     # record normally (walk record = sub index). Extract-only: the composer
     # plays the walked content; the forced index is an engine artifact, not USF.
     forced_subtune: int = None
+    # PER-SUBTUNE song remap: an init wrapper that CONDITIONALLY sends some
+    # PSID subtunes to a different tune record (Bomberman_preview: `CMP #$00 /
+    # BNE / LDA #$05 / JSR base` remaps ONLY subtune 0 to song 5, subtunes 1-3
+    # straight through -> [5, 1, 2, 3]). A uniform `forced_subtune` cannot
+    # express it (and its probe deliberately refuses the conditional shape).
+    # `subtune_songs[k]` = the tune record PSID subtune k actually plays;
+    # takes precedence over forced_subtune. None = the PSID subtune indexes the
+    # record normally. Extract-only (factory-observed, ledger C31/C19).
+    subtune_songs: list = None
     # C37 subtune SAVE-STATE RESUME wrapper: {subtune: {addr: byte}} — the
     # per-subtune state-copy SURVIVORS (bytes the wrapper pastes BEFORE the
     # real init that the init wipe does NOT erase: sticky curnote/cache

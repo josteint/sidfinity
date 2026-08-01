@@ -8,6 +8,43 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 159 (2026-08-01): Bomberman_preview — CONDITIONAL per-subtune song remap (+1) — C19 38th occ
+Next-partial The_Magical_Garfield/Bomberman_preview (single, canon base $1000,
+VBLANK, 4 subtunes; NO STIL/BUGlist — no Magical_Garfield in either doc). sub 0
+partial (subs 1-3 FULL), first-div play pos 7: orig writes V2 SR/AD (note-init)
+then freq; rebuild skips straight to V2 freq — the rebuild MISSES the note-init
+(AD/SR) for V2/V3, which decoded as IDLE (bare `$FE` tracks, 0 patterns).
+- DIAGNOSIS (long — the "idle voice" symptom was downstream): orig note-starts
+  V2/V3 once at song start (chunk1 hard-restart $08/$0F/$0F, chunk2 note-init
+  AD/SR=$00 + freq=freqtable[idle_note], chunk3+ effects); rebuild's bare-$FE
+  voices fetch→vactive=0→rts (nothing) then effects. Canon player's $FE handler
+  IS `vactive=0/rts` (disassembled dmc4_player_embedded_1000.bin), so the orig
+  shouldn't note-init either — meaning the TRACKS were wrong. Ground truth
+  (`siddump --reinit-snapshot $1085 $1707-$170C`) = V1/V2/V3 track ptrs
+  $1B14/$1B34/$1B54 = tune **record 5**, but the extract walked record 0
+  ($1ADD/$1ADF/$1AE0, whose V2/V3 = leading $FE). ROOT: init=$2054 is a WRAPPER
+  `STA $2053 / LDA $2053 / CMP #$00 / BNE / LDA #$05 / JSR $1000` — remaps ONLY
+  subtune 0 → the player's song 5 (subs 1-3 pass straight → FULL). A CONDITIONAL
+  per-subtune song map [5,1,2,3] the uniform `forced_subtune` can't express (its
+  probe deliberately REFUSED this exact member, r139 — recorded as a future lead).
+- FIX (extract-only): `factory._subtune_song_map_probe` (same static-anchor gate
+  as forced_subtune's 3rd form → py65 observation OFF the hot path; runs
+  `_init_song_observe`, returns the observed A-per-subtune list iff NON-identity
+  + NON-uniform). `DMCV4Config.subtune_songs` (list) → `extract` generalizes
+  `forced` int→list via a new `_rec_of(sub, forced)` at the 4 walk sites (off-
+  image sectors / secp reads / track ptrs / decode). Standard dispatch does
+  `A*8→Y` so observed A = record index. Composer UNCHANGED (extract builds sub 0
+  from record 5's data; the remap is an engine artifact, §8).
+- VERDICT: all 4 subtunes FULL (sub 0 161157/161157 state ✓, subs 1-3
+  unchanged). CENSUS (static anchor gate over the DMC corpus): exactly 1
+  anchored member = the sole carrier (Bomberman) → 0 perf impact (1 py65
+  observe corpus-wide), 0 regression exposure. `_rec_of` byte-identical to the
+  old `(sub if forced is None else forced)` for None/int; probe returns None
+  for identity/uniform/no-wrapper. smoke 6/6.
+- Ledger C19 38th occ (forced-tune-record wedge's 4th form — conditional
+  per-subtune; OBSERVATION-based like C18/C31). Shared extract change
+  (engine_model.py) → corpus code_hash stale pending next fresh batch.
+
 ## ✅ ROUND 158 (2026-08-01): Surgeon/Mothafucka_2SID — RELOCATING WRAPPER multi-SID (+1) — C27 4th occ (C31 × C27)
 Next-partial Surgeon/Mothafucka_2SID (2SID, PSID v3, chip 2 @ $D500, CIA
 speed=1, songs=1; NO STIL/BUGlist — no Surgeon entries in either doc). Built
