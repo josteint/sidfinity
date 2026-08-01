@@ -8,6 +8,40 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 161 (2026-08-01): Vegeta/Heniek — SMC-immediate PARITY play-repeat wrapper 1/3 (+1) — C24 5th form
+Next-partial Vegeta/Heniek (single, canon base $1000, CIA speed=1; NO
+STIL/BUGlist — no Vegeta in either doc). sub 0 partial: state_match=True,
+PERFECT prefix (play_match=play_overlap=len_b=75831) but len_a=151550 ≈ 2×
+len_b — the rebuild plays at HALF the rate (right content, wrong rate).
+- ROOT: the play vector $0FD3 = `JMP $0FE8`, an APPENDED parity wrapper. $0FE9
+  is BOTH the `LDA #imm` operand at $0FE8 AND the counter (self-modifying):
+  each IRQ `A=imm / INC $0FE9 / AND #$01 / BEQ` → even imm = 1 play (`JMP
+  $1003`), odd imm = 3 plays (`JSR $1003 / JSR $1003 / JMP $1003`). So a 1/3
+  alternation (per-IRQ write counts 17/51, ratio 3.0) = avg 2 bodies/IRQ =
+  the 2× length. The factory forced play_repeat=1 (CIA) and the C18 observer
+  saw only 'P' → the doubling was invisible (like Bajerek r135, but a NEW
+  wrapper shape + MULTI=3 not 2).
+- FIX: extend `_play_repeat_parity_probe` to FOLLOW the play-vector JMP + detect
+  the SMC shape (`A9 / EE abs==play+1 / 29 01 / F0 / (20 T)* / 4C T`), MULTI =
+  JSR-count+1 from the static shape, parity from the observed per-IRQ split →
+  `P_P{multi}` (Heniek `P_P3`). Composer: generalised the play_phases `P2`
+  token to `Pn` = `(n-1)× jsr playframe / jmp playframe` (byte-identical for
+  P/P2). NOTE play_repeat=2 ALSO verifies FULL (the CIA verdict flattens the
+  play stream across IRQs, so [1,3] and [2,2] give the identical body
+  sequence when the avg is integer) — but `P_P3` reproduces the exact
+  structure + generalises to any multi (the 4th form's 1/2 avg-1.5 is
+  non-integer, needs `P_P2`).
+- VERDICT: Heniek FULL 151550/151550 state ✓ (2-write tail). CENSUS over DMC
+  corpus: Shape A (Bajerek `INC zp/LDA zp/LSR`) = 1 carrier (Lyon_Feniks/
+  Bajerek, still `P_P2`, byte-identical); Shape B (SMC) = 3 static matches,
+  2 observe-REJECTED (Gaston/Starburst_intro [pre-existing no_jumptable] +
+  Odysseus/Hear_Circa [FULL, unchanged] — no real parity split) + Heniek.
+  So +1, 0 regressions; the JMP-follow can only detect MORE genuine parity
+  members (observe + build+verify gate). smoke 6/6; portfolio 5/5 FULL.
+- Ledger C24 5th form (SMC-immediate parity wrapper, MULTI>2 → `Pn` token).
+  Shared composer change (Pn) byte-identical for P/P2. Corpus code_hash stale
+  pending next fresh batch.
+
 ## ✅ ROUND 160 (2026-08-01): Vai/Hardtechno + Sad_End — filter step-DURATION table is an independently-relocated operand (+2) — NEW ledger C39
 Next-partial Vai/Hardtechno (single, canon base $1000, VBLANK; NO STIL/BUGlist
 — no Vai in either doc). sub 0 partial, first-div frame 4: filter cutoff hi

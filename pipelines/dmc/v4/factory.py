@@ -3809,28 +3809,57 @@ def _multisid_keep_regs(mem, base: int, chip_addr: int) -> tuple:
 # measured the parameter", one layer further out than round 83b closed it.
 def _play_repeat_parity_probe(path: str, base: int,
                               post_init_sub: 'int | None' = None):
-    """Alternating whole-play repeat via a PARITY wrapper (C24 sibling, r135
-    — Bajerek): the appended play vector is `INC zp / LDA zp / LSR / BCS +3 /
-    JSR T / JMP T` (same zp, same T), so every OTHER call runs the whole play
-    body TWICE — 3 body-runs per 2 IRQs (a 3x tune faked from a 2x timer;
-    the factory forces play_repeat=1 for CIA members and the C18 reachability
-    observer sees only 'P' phases, so the doubling was invisible). Static
-    shape gate first; then OBSERVE which parity doubles from the orig's
-    per-IRQ write counts (C23 footprint rule — the phase alphabet's counter
-    seeds so call #1 executes tokens[0], so tokens[0] = play #0's class).
-    Returns a play_phases schedule ('P2_P' / 'P_P2') or None."""
+    """Alternating whole-play repeat via a PARITY wrapper (C24 sibling). Two
+    shapes, both a parity counter dispatching a SINGLE vs a MULTI play per IRQ:
+      A (r135, Bajerek): `INC zp / LDA zp / LSR / BCS +3 / JSR T / JMP T` —
+        odd = 2 body-runs (1 JSR + JMP), so 3 runs per 2 IRQs (1/2 alternation).
+      B (r161, Vegeta/Heniek): `LDA #imm / INC abs(==play+1) / AND #$01 /
+        BEQ +N / (JSR T)* / JMP T` — the SMC immediate at play+1 IS the parity
+        counter; even = single play (BEQ -> JMP T), odd = k JSR T + JMP T =
+        (k+1) body-runs (Heniek k=2 -> 1/3 alternation, an avg-2x tune).
+    The factory forces play_repeat=1 for CIA members and the C18 reachability
+    observer sees only 'P' phases, so the doubling was invisible. Static shape
+    gate → the MULTI count from the JSR count; then OBSERVE which parity is
+    multi from the orig's per-IRQ write counts (the phase counter seeds so
+    call #1 executes tokens[0], so tokens[0] = play #0's class). Returns a
+    play_phases schedule ('P2_P'/'P_P2'/'P_P3'/...) or None. Follows a JMP at
+    the play vector to the wrapper body."""
     mem, s = _load(path, post_init_sub)
     play = s['play']
-    w = bytes(mem[play:play + 13])
-    if not (len(w) == 13
-            and w[0] == 0xE6 and w[2] == 0xA5 and w[1] == w[3]      # INC/LDA zp
-            and w[4] == 0x4A                                        # LSR A
-            and w[5] == 0xB0 and w[6] == 0x03                       # BCS +3
-            and w[7] == 0x20 and w[10] == 0x4C):                    # JSR/JMP
+    if mem[play] == 0x4C:                  # JMP wrapper (Heniek: $0FD3 -> $0FE8)
+        play = mem[play + 1] | (mem[play + 2] << 8)
+    if not (0 <= play and play + 24 < 0x10000):
         return None
-    t_jsr = w[8] | (w[9] << 8)
-    t_jmp = mem[play + 11] | (mem[play + 12] << 8)
-    if t_jsr != t_jmp or not base <= t_jsr < base + 0x1000:
+    multi = None
+    # SHAPE A (Bajerek): INC zp / LDA zp / LSR / BCS +3 / JSR T / JMP T.
+    w = bytes(mem[play:play + 13])
+    if (w[0] == 0xE6 and w[2] == 0xA5 and w[1] == w[3] and w[4] == 0x4A
+            and w[5] == 0xB0 and w[6] == 0x03 and w[7] == 0x20 and w[10] == 0x4C
+            and (w[8] | (w[9] << 8)) == (mem[play + 11] | (mem[play + 12] << 8))
+            and base <= (w[8] | (w[9] << 8)) < base + 0x1000):
+        multi = 2
+    # SHAPE B (Heniek): LDA #imm / INC abs(==play+1) / AND #$01 / BEQ +N /
+    # (JSR T)* / JMP T. The BEQ (even) path is a bare JMP T = 1 body.
+    if multi is None and (mem[play] == 0xA9 and mem[play + 2] == 0xEE
+            and (mem[play + 3] | (mem[play + 4] << 8)) == play + 1
+            and mem[play + 5] == 0x29 and mem[play + 6] == 0x01
+            and mem[play + 7] == 0xF0):
+        beq = play + 9 + mem[play + 8]           # BEQ (relative) target
+        i, njsr, T = play + 9, 0, None
+        while mem[i] == 0x20:                     # count consecutive JSR T
+            tgt = mem[i + 1] | (mem[i + 2] << 8)
+            if T is None:
+                T = tgt
+            if tgt != T:
+                break
+            njsr += 1
+            i += 3
+        if (njsr >= 1 and mem[i] == 0x4C and (mem[i + 1] | (mem[i + 2] << 8)) == T
+                and 0 <= beq and mem[beq] == 0x4C
+                and (mem[beq + 1] | (mem[beq + 2] << 8)) == T
+                and base <= T < base + 0x1000):
+            multi = njsr + 1                      # k JSR + the JMP
+    if multi is None:
         return None
     # observe the doubling parity from the ground-truth per-IRQ capture
     # (one chunk per play() — the per-frame debug nwrites can't split a
@@ -3851,9 +3880,13 @@ def _play_repeat_parity_probe(path: str, base: int,
     odd_med = statistics.median([c for i, c in enumerate(counts[20:], 20)
                                  if i % 2 == 1])
     hi, lo = max(even_med, odd_med), min(even_med, odd_med)
-    if lo <= 0 or hi / lo < 1.6:          # require a clear ~2x parity split
+    # require a clear parity split roughly consistent with the static MULTI
+    # count (single ~= 1 body, multi ~= `multi` bodies), so a mis-parsed shape
+    # can't mint a schedule (build+verify is the final gate regardless).
+    if lo <= 0 or hi / lo < max(1.6, multi - 0.9):
         return None
-    return 'P2_P' if even_med > odd_med else 'P_P2'
+    hi_tok = 'P%d' % multi
+    return hi_tok + '_P' if even_med > odd_med else 'P_' + hi_tok
 
 
 def _pw_base_read_probe(path: str, base: int,

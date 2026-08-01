@@ -617,7 +617,12 @@ practice, not code to factor).
   indirection (`JSR T ×N :RTS` / `JSR T; JMP T`). A CIA member with a
   clean ×1.5 tail at an IDENTICAL measured rate = the ALTERNATING form
   (parity wrapper doubles every other call; per-play counts 34/17 vs flat
-  17) → observed parity → a `P2` token in the C18 phase alphabet.
+  17) → observed parity → a `P2` token in the C18 phase alphabet. 5th form
+  (r161, Vegeta/Heniek): the SMC-immediate parity wrapper `LDA #imm / INC
+  abs(==the LDA operand) / AND #$01 / BEQ / (JSR T)* / JMP T` with MULTI > 2
+  — even=single, odd=(k+1) body-runs (Heniek 1/3, a clean ×2 tail; per-IRQ
+  17/51) → `P_P{multi}` (`P_P3`), the composer's `P2` token generalised to
+  `Pn`; probe FOLLOWS the play-vector JMP + detects both parity shapes.
 - CANONICAL: `play_unit_repeat=[v0,v1,v2,filter]` list / `play_repeat=N`
   param, detected by static byte-probe (C19 method). Distinct from C18
   (phase behaviour across CALLS).
