@@ -82,7 +82,17 @@ residue buckets). Tell each agent the concrete checks:
 
 Collect the per-family feature lists into a **FEATURE × FAMILY matrix** (a quick
 `tools/`-style script or inline Python over `src/usf/types.py` fields + each
-`to_usf` is fine; build `tools/uready_matrix.py` if this becomes routine). Then
+`to_usf` is fine; build `tools/uready_matrix.py` if this becomes routine).
+
+**Feature-VALUE layer (mechanical, 2026-08-03):** run `python3
+tools/usf_principle_lint.py --full` — the §9.2 cardinality/disjointness
+census over the parsed corpus (DISJOINT = kind-in-disguise fingerprint,
+SINGLE-FAMILY = possible §7 artifact, NEAR-CONSTANT = dead dimension) plus
+the escape-hatch mass ratchet (untyped-carrier share vs the tracked
+baseline; growth is a WARN and a review finding). Its findings feed the
+classification below — each DISJOINT/SINGLE-FAMILY flag is either a real
+§7 leak (a decision for the human), a known Move-1 pending item, or an
+ALLOWLIST entry with a reason (the Principle's case law). Then
 classify every USF feature:
 
 - **Reused (≥2 families, same form):** a vindicated dimension. Good.

@@ -54,9 +54,15 @@ sys.path.insert(0, os.path.join(ROOT, 'src'))
 
 # Reviewed legitimately-constant tokens. Add entries ONLY with a reason.
 ALLOWLIST: dict[str, str] = {
-    # (empty at birth — every current flag is a real elidability finding,
-    #  scheduled for the writer-elision cleanup)
+    'lo': 'FC pulse-program bound (prog N: lo=.. hi=..); dict-carried (no '
+          'dataclass default to elide against) and a genuine musical bound '
+          '— the corpus is predominantly full-range 1..15 (2026-08-03)',
+    'hi': 'see lo — the paired upper pulse-program bound',
 }
+
+# Structural keywords the colon-tokenizer must not read as fields (their
+# "value" is the following content token, not a field value).
+SKIP_KEYS = {'stated'}          # `orderlist stated: <entries>`
 
 # Census thresholds: a key is flagged when its top value covers >= SHARE of
 # occurrences AND it occurs at least MIN_OCC times in the sample's output.
@@ -124,7 +130,8 @@ def _census(texts: list[str]) -> list[tuple[str, str, int, float]]:
             for k, v in _TOK_EQ.findall(line):
                 vals[k][v] += 1
             for k, v in _TOK_COLON.findall(line):
-                vals[k][v] += 1
+                if k not in SKIP_KEYS:
+                    vals[k][v] += 1
     flags = []
     for k, c in sorted(vals.items()):
         total = sum(c.values())

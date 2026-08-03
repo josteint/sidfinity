@@ -100,7 +100,8 @@ def _write_psid(p: PsidMeta) -> list[str]:
         lines.append(f'  sid2:       {p.sid2}')
     if p.sid3 is not None:
         lines.append(f'  sid3:       {p.sid3}')
-    lines.append(f'  start_song: {p.start_song}')
+    if p.start_song != 1:                 # elidability: absent = default 1
+        lines.append(f'  start_song: {p.start_song}')
     if p.speed:
         lines.append(f'  speed:      ${p.speed:08X}')
     lines.append('}')
