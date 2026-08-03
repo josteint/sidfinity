@@ -8,6 +8,26 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## 🔎 R179 (2026-08-04, overnight): hygiene batch LANDED — 5,832/5,833 FULL; the 1 partial is Lane_Crazy, root-caused to the phase-4 wave-pool identity growth (fix DESIGNED, awaiting review)
+Fresh batch DONE {'full': 5356, 'partial': 1} (5,832 FULL total after dedup
+incl. prior rows); batch_diff vs Jul-26: **82 gains ✓, 1 regression —
+Bayliss_Richard/Lane_Crazy** (4-player compilation; sub 0 FULL, subs 1-5 pos-1
+divergence). CAUSAL CHAIN (git-bisected, probe = build-path): `49a98c1c`
+(C11 phase-4 positional wave-pool emission, post-Jul-26-batch) made
+wave-table POSITION part of instrument identity → the 4 players' near-
+identical kits stopped deduping (42 → 44) → `_MAX_INSTR` 42 cap →
+UNMERGEABLE → silent single-player fallback. NOT r149 (record_offset key —
+already UNMERGEABLE at its parent). Landed tonight: the C8-gate overflow
+RETRY in merge (strict pass first = byte-identical for every fitting member;
+on overflow relax record_offset keying for players with NO ioff-window read
+— fires but insufficient here since the split is wave_start-driven).
+DESIGNED FIXES for review: (a) C8 widening of the pulse-step index (pooled
+per-instrument base byte over DEDUPED step blocks — capacity becomes
+distinct-blocks-bounded), or (b) wave_start position-observability gating in
+the dedup key (share when no wavepos-window read observes the position —
+the ioff-relax analog). Also: `build_path` flip census old→new showed only
+Lane_Crazy bad (Mission_Moon/Mega_Mix/Mothafucka flips are intended gains).
+
 ## 📋 CLEANUP PLAN (2026-08-03): tmp/cleanup_plan_2026-08-03.md — the ticked work list for the whole post-r178 cleanup
 Phases A-H: hygiene-batch acceptance (batch_diff; 1 partial appeared mid-run,
 unidentified) → writer elision cleanup (arp/vibrato/pwm defaults) → ONE

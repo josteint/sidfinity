@@ -897,8 +897,6 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
     # share one merged id carrying the UNION of their offtable_freq records
     # (Principle Rule 1 — cluster by behavior). A record collision refuses the
     # union, so the two land as distinct ids in the same base bucket.
-    pool = defaultdict(list)        # base key (no offtable) -> [new_iid, ...]
-    remap = defaultdict(dict)       # player_idx -> {old_iid: new_iid}
     # RECORD 0 FIRST. The engine's note-init cache is init-cleared to 0, so a
     # voice idling before its first note runs instrument record 0's pulse/wave
     # mechanism (RE_NOTES "idle-note voice_state priming") — which is why the
@@ -912,47 +910,79 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
     # member whose record 0 is already played keeps its exact pool size.
     placements = [(base_pidx, 0)] + [(pidx, old) for pidx in sorted(used)
                                      for old in sorted(used[pidx])]
-    for pidx, old in placements:
-        inst = models[pidx].instruments.get(old)
-        if inst is None:
-            continue
-        ni = copy.deepcopy(inst)
-        if conflict and ni.filter_on and (pidx, ni.filter_def) in fd_remap:
-            ni.filter_def = fd_remap[(pidx, ni.filter_def)]
-        # The ioff a note sonifies (off-table read idx 166-168) is the ORIG
-        # player-local record offset (inst# * 11), NOT the merged slot's. Stamp
-        # it now so it (a) rides the dedup KEY — two players' instruments that
-        # are identical but sit at different table positions sonify different
-        # ioff, so they must NOT share a slot — and (b) survives the renumber
-        # below (ledger C31/C11, the ioff analog of idle_wave).
-        ni.record_offset = _inst_offset(old)
-        bk = _inst_key(ni, drop=('offtable_freq',))
-        placed = None
-        for nid in pool[bk]:
-            u = _merge_offtable(merged.instruments[nid].offtable_freq,
-                                ni.offtable_freq)
-            if u is not None:
-                merged.instruments[nid].offtable_freq = u
-                placed = nid
-                break
-        if placed is not None:
-            remap[pidx][old] = placed
-            continue
-        new = len(merged.instruments)
-        pool[bk].append(new)
-        remap[pidx][old] = new
-        ni.id = new
-        # keep the orig offset ONLY when the renumber actually moved it — a
-        # non-renumbered instrument (base player, or a slot that happens to land
-        # on its orig #) derives the same value from its position, so leaving it
-        # None keeps the emitted image byte-identical to the pre-fix build.
-        if ni.record_offset == _inst_offset(new):
-            ni.record_offset = None
-        merged.instruments[new] = ni
-    if len(merged.instruments) > _MAX_INSTR:
+
+    def _place(relax: set) -> 'tuple[dict, dict] | None':
+        """One placement pass. `relax` = player indices whose instruments'
+        record_offset is DROPPED from the dedup key (and nulled): their
+        subtunes carry NO ioff-sonifying read (off-table idx 166-168), so
+        the orig table position is unobservable for them and identical
+        instruments may share a slot regardless of where they sat.
+        Returns (instruments, remap) or None when the cap overflows."""
+        insts: dict = {}
+        pool = defaultdict(list)    # base key (no offtable) -> [new_iid, ...]
+        remap_ = defaultdict(dict)  # player_idx -> {old_iid: new_iid}
+        for pidx, old in placements:
+            inst = models[pidx].instruments.get(old)
+            if inst is None:
+                continue
+            ni = copy.deepcopy(inst)
+            if conflict and ni.filter_on and (pidx, ni.filter_def) in fd_remap:
+                ni.filter_def = fd_remap[(pidx, ni.filter_def)]
+            # The ioff a note sonifies (off-table read idx 166-168) is the
+            # ORIG player-local record offset (inst# * 11), NOT the merged
+            # slot's. Stamp it so it (a) rides the dedup KEY — two players'
+            # identical instruments at different table positions sonify
+            # different ioff and must NOT share — and (b) survives the
+            # renumber (ledger C31/C11, the ioff analog of idle_wave).
+            # A `relax`ed player's position is unobservable — no stamp.
+            ni.record_offset = (None if pidx in relax
+                                else _inst_offset(old))
+            bk = _inst_key(ni, drop=('offtable_freq',))
+            placed = None
+            for nid in pool[bk]:
+                u = _merge_offtable(insts[nid].offtable_freq,
+                                    ni.offtable_freq)
+                if u is not None:
+                    insts[nid].offtable_freq = u
+                    placed = nid
+                    break
+            if placed is not None:
+                remap_[pidx][old] = placed
+                continue
+            new = len(insts)
+            pool[bk].append(new)
+            remap_[pidx][old] = new
+            ni.id = new
+            # keep the orig offset ONLY when the renumber actually moved it —
+            # a non-renumbered instrument derives the same value from its
+            # position, so leaving it None keeps the emitted image
+            # byte-identical to the pre-fix build.
+            if ni.record_offset == _inst_offset(new):
+                ni.record_offset = None
+            insts[new] = ni
+        return None if len(insts) > _MAX_INSTR else (insts, remap_)
+
+    # STRICT pass first (r149 semantics — every member that fits emits
+    # byte-identical output). On cap overflow, RETRY relaxing the players
+    # that provably never sonify ioff (Lane_Crazy 2026-08-03: r149's
+    # unconditional record_offset key shrank sharing 42 -> 44 and the member
+    # silently fell back to a single-player build — sub 0 FULL, subs 1-5
+    # garbage; the C8 gate pattern, applied to the dedup key).
+    result = _place(set())
+    if result is None:
+        _IOFF_WIN = {166, 167, 168}
+        flagged = {pidx for pidx in range(len(models))
+                   if any((rec[0] + rec[1]) & 0xFF in _IOFF_WIN
+                          for i_ in models[pidx].instruments.values()
+                          for rec in (i_.offtable_freq or []))}
+        relax = set(range(len(models))) - flagged
+        if relax:
+            result = _place(relax)
+    if result is None:
         raise ValueError(
-            f'merged compilation needs {len(merged.instruments)} instruments '
-            f'> {_MAX_INSTR} (composer pulse-step index cap)')
+            f'merged compilation needs > {_MAX_INSTR} instruments even after '
+            f'relaxing ioff-free players (composer pulse-step index cap)')
+    merged.instruments, remap = result
 
     # songs in PSID-subtune order; rewrite each row's instrument to the merged id
     merged.songs = []
