@@ -109,7 +109,11 @@ DMC_OFFTABLE_STATE = [
     # it stays mapped for dynamic readers but a glsp static-leftover read remains
     # residue. A DYNAMIC reader (Alien_WOW/Hardcore) is unaffected — its glide
     # arm overwrites the seed before the read; a STATIC-leftover reader (98_Mix)
-    # now reads the leftover.
+    # now reads the leftover. ⚠ the seed holds ONLY when the leftover SURVIVES
+    # the member's init: the canon clear loop wipes $1718-$179D (gla/glb
+    # included), so extract gates the igla/iglb emission on its init
+    # clear-range probe (m.glide_leftover_cleared, r177 Other_Side — the
+    # canon-init orig reads the CLEARED $00, not the file leftover).
     (0x174A, 'pend', 3),     # new-note pending flag
     (0x174D, 'ioff', 3),     # instrument record offset (orig inst# * 11, the
                              # exact 6502 carry-chain) — set at each voice's

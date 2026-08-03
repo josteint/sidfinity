@@ -261,6 +261,19 @@ class DmcModel:
                                      # freq, loop
     idle_notes: tuple = (0, 0, 0)    # $1012-$1014 work-file leftovers
     idle_masks: tuple = (0, 0, 0)    # $100F-$1011 gate-mask leftovers
+    glide_leftover_cleared: bool = False
+                                     # the member's init CLEAR LOOP provably
+                                     # covers gla/glb ($1744-$1749): the canon
+                                     # `STA base+$718,x / INX / CPX #$86` wipes
+                                     # $1718-$179D, so the work-file glide
+                                     # leftovers do NOT survive to frame 0 and
+                                     # the igla/iglb seeds must stay 0
+                                     # (Other_Side r177: seeding the file byte
+                                     # $5E where the orig's cleared gla reads
+                                     # $00). Re-assembled inits whose clear
+                                     # loop has a different shape (98_Mix's
+                                     # $0350 family) keep the leftover and the
+                                     # seeding behaviour.
     idle_guards: tuple = (0, 0, 0)   # $1786-$1788 post-note-guard leftovers
     durrel_init: tuple = (0, 0, 0)   # $173E-$1740 duration-reload leftovers
                                      # (init never writes $173E; the leftover
@@ -2325,6 +2338,18 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # per-read flags. Replaces the old ML-visible offtable_redirect/sectpos_shadow
     # params (which described HVSC memory geometry — Core Tenet corollary).
     m.offtable_canon = canon_geom
+    # Does the member's init CLEAR LOOP cover the gla/glb glide leftovers?
+    # Static probe of the canon clear shape `STA base+$718,x / INX / CPX #imm`
+    # (relocation-aware): imm >= $32 covers $1744-$1749 (gla+glb). When it
+    # does, the work-file leftovers do NOT survive init and to_usf suppresses
+    # the igla/iglb seeds (glide_note/glide_target priming) — the orig reads
+    # $00 there until a glide arm writes it (both served by the live
+    # redirect). Shape absent (a re-assembled init, 98_Mix's family) -> False
+    # = the proven seeding behaviour, byte-identical.
+    _st = (cfg.base + 0x718) & 0xFFFF
+    _clr = bytes([0x9D, _st & 0xFF, _st >> 8, 0xE8, 0xE0])
+    _j = bytes(mem).find(_clr)
+    m.glide_leftover_cleared = _j >= 0 and mem[_j + 5] >= 0x32
     # wavepos live serving: an off-table freq read on $177A-$177C (fhi idx
     # 211-213) sonifies a voice's LIVE wave position — it varies at the read
     # (neither the static capture nor the event-driven one can serve it), and

@@ -331,7 +331,12 @@ practice, not code to factor).
   var differs ⇒ non-tracking accumulator (hard). ALL read sites must honor a
   redirect (incl. the glide-ARRIVAL compare — served via the same map, gated,
   r97), sparse vars need seeding, shared scratch is shadowable by mirroring
-  all writers. Full entry has the remaining hard boundaries (dynamic
+  all writers. ⚠ a sparse-var SEED holds only if the leftover SURVIVES the
+  member's init: the canon clear loop wipes $1718-$179D (gla/glb included),
+  so canon-init members' frame-0 glide state is $00 — gate the igla/iglb
+  seeds on the init CLEAR-RANGE probe (`glide_leftover_cleared`, r177
+  Other_Side: seed $5E vs the orig's cleared $00; 98_Mix's re-assembled
+  $0342-clear family keeps the leftover + the seeding). Full entry has the remaining hard boundaries (dynamic
   work-RAM); the former "off-table glide target" boundary is RESOLVED (r97 —
   the 2nd re-measure expiry: dtmph now tracks 1:1, exact parse + live-served
   arrival landed 109/109 class FULL + Cleve_24).

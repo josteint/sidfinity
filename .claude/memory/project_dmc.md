@@ -8,6 +8,24 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 177 (2026-08-03): Tomace/Other_Side — **FULL** (142989/142989)! C11 refinement: the igla/iglb glide-leftover seed is gated on the member's INIT CLEAR RANGE
+Next partial after r176 (queue scan flipped a long stale stretch F→T on the
+way). No STIL (the "Other_Side" STIL hits are LukHash's unrelated tune), no
+BUGlist. V2/V3 first rows = note 0 + transpose −2 → off-table freq-lo idx 254
+→ gla+1 ($1745). The extract's 98_Mix-era seed emitted `glide_note: $5E` (the
+file-image leftover) but this CANON-init member's clear loop wipes
+$1718-$179D — orig's gla is $00 at the read (dmc_offtable_probe: LIVE, $00 at
+the divergence). Diverged at flat pos 9, frame 1.
+- FIX: `m.glide_leftover_cleared` (static probe: canon clear `STA base+$718,x
+  / INX / CPX #imm`, fires iff imm ≥ $32 = covers gla+glb) gates the `_gseed`
+  fill in to_usf. Non-matching clear shapes (98_Mix's $0342 family) keep the
+  proven seeding, byte-identical.
+- 0-REGR (measured, not reasoned): 35 stored seed carriers censused — 24
+  canon-clear (seed suppressed) ALL re-verified FULL incl. both Rayden 2SIDs
+  (their seeds were unobservable: first gla read follows a glide arm, live
+  redirect tracks it); 98_Mix (non-firing) re-verified FULL; the other 10
+  non-firing byte-identical by construction. Ledger C11 (refinement).
+
 ## ✅ ROUND 176 (2026-08-03): Flash/Itinerant — **FULL**! +3 FULL (Itinerant, Kan-Kan, Wind_of_Dead) — C29 6th occ: the PLAY-HEAD RE-BANKS $01, ROM-window overlay served BASIC ERROR TEXT over generated instrument records
 Next partial after r175 (queue wrapped to F/). No STIL/BUGlist entries. The
 Flash members' play wrapper opens `LDA #$35/STA $01` (BASIC+KERNAL OUT)

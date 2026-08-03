@@ -633,14 +633,22 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
     # init.voice_state priming under the signal form.
     _gseed = ([0, 0, 0], [0, 0, 0])
     _fill = {}
-    for k in sorted(m.instruments):
-        for rec in (m.instruments[k].offtable_freq or []):
-            off, note, lo, hi = rec[:4]
-            idx = (off + note) & 0xFF
-            if idx >= 96:
-                _fill[idx - 96] = hi          # hi window pos
-            if idx >= 192:
-                _fill[idx - 192] = lo         # lo window pos
+    # ...but ONLY when the leftovers actually SURVIVE the member's init: the
+    # canon clear loop wipes $1718-$179D (gla/glb included), so a canon-init
+    # member's frame-0 gla/glb is $00, not the file-image byte — seeding it
+    # writes a value the orig never holds (Other_Side r177: seed $5E vs the
+    # orig's cleared $00 at the first note-0+transpose wrap read). The probe
+    # (m.glide_leftover_cleared) is shape-anchored; re-assembled inits keep
+    # the proven seeding path.
+    if not getattr(m, 'glide_leftover_cleared', False):
+        for k in sorted(m.instruments):
+            for rec in (m.instruments[k].offtable_freq or []):
+                off, note, lo, hi = rec[:4]
+                idx = (off + note) & 0xFF
+                if idx >= 96:
+                    _fill[idx - 96] = hi          # hi window pos
+                if idx >= 192:
+                    _fill[idx - 192] = lo         # lo window pos
     for x in range(3):
         _gseed[0][x] = _fill.get(61 + x, 0)   # gla ($1744+x)
         _gseed[1][x] = _fill.get(64 + x, 0)   # glb ($1747+x)
