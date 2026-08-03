@@ -4,7 +4,8 @@ The Commodore 64 has a built-in programmable sound generator chip, the Sound Int
 
 A SID file contains music data together with machine code that drives the chip when run on a real or emulated C64. The format is a standard, but only at the container level: the musical content is arbitrary code, so a tune exists only as the side effects of executing it. Being operational rather than declarative, SID resists the symbolic analysis that [Music Information Retrieval↗](https://en.wikipedia.org/wiki/Music_information_retrieval) depends on.
 
-The goal of this project is to address this by defining a text format that represents SID music declaratively, as musical events rather than as code.
+> [!NOTE]
+> The goal of this project is to address this by defining a text format that represents SID music declaratively, as musical events rather than as code.
 
  
 
