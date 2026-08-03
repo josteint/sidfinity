@@ -1521,8 +1521,26 @@ def _overlay_offimage_windows(mem, path: str, bases, post_sub, s,
         if _ld + _i < 0x10000:
             ref[_ld + _i] = _b
     _imgspan = range(_ld, min(0x10000, _ld + len(s['payload'])))
-    _rom = ((0xA000, 0xBFFF), (0xE000, 0xFFFF))
     peek = _cpu_peek(path, wranges, subtune=post_sub)
+    # Play-time 6510 port: psiddrv sets $01 = iomap(play) before each play()
+    # — but the PLAYED CODE ITSELF may re-bank (Itinerant's play wrapper opens
+    # `LDA #$35 / STA $01`, banking BASIC+KERNAL OUT although iomap($0FC0) is
+    # $37). A ROM-range window is banked-in ROM only under the EFFECTIVE
+    # play-time port; with that ROM banked out the engine reads RAM there, so
+    # the peek's idle-time ($37) ROM bytes are the WRONG source (they overlaid
+    # BASIC error text over generated instrument records). Static probe: an
+    # `LDA #imm / STA $01` pair in the play-vector head overrides the psiddrv
+    # value; absent (every prior C29 carrier), the behaviour is unchanged.
+    play_port = _psid_play_iomap(s.get('play', 0) or 0)
+    _pv = s.get('play', 0) or 0
+    _head = bytes(ref[_pv:_pv + 16])
+    _i = _head.find(b'\x85\x01')
+    if _i >= 2 and _head[_i - 2] == 0xA9:
+        play_port = _head[_i - 1]
+    _rom = tuple(r for r, vis in (
+        ((0xA000, 0xBFFF), (play_port & 0x03) == 0x03),   # BASIC: LORAM+HIRAM
+        ((0xE000, 0xFFFF), (play_port & 0x02) != 0),      # KERNAL: HIRAM
+    ) if vis)
     _ram = [a for a in peek if a >= 2
             and not any(lo <= a <= hi for lo, hi in _rom)]
     stable = _postinit_values(path, _ram, subtune=post_sub)
@@ -1530,10 +1548,9 @@ def _overlay_offimage_windows(mem, path: str, bases, post_sub, s,
         if a in _imgspan or mem[a] != ref[a]:
             continue                     # defined — never clobber
         if a == 1:
-            # 6510 port: serve the PLAY-TIME bank value (psiddrv sets $01 =
-            # iomap(play) before each play call), not the peek's idle-time
-            # snapshot — they differ for players above $A000.
-            mem[a] = _psid_play_iomap(s.get('play', 0) or 0)
+            # 6510 port: serve the PLAY-TIME bank value, incl. the played
+            # code's own re-bank probed above.
+            mem[a] = play_port
         elif a < 2 or any(lo <= a <= hi for lo, hi in _rom):
             mem[a] = v
         else:

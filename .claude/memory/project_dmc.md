@@ -8,6 +8,28 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ ROUND 176 (2026-08-03): Flash/Itinerant — **FULL**! +3 FULL (Itinerant, Kan-Kan, Wind_of_Dead) — C29 6th occ: the PLAY-HEAD RE-BANKS $01, ROM-window overlay served BASIC ERROR TEXT over generated instrument records
+Next partial after r175 (queue wrapped to F/). No STIL/BUGlist entries. The
+Flash members' play wrapper opens `LDA #$35/STA $01` (BASIC+KERNAL OUT)
+though iomap($0FC0)=$37; init unpacks song data to $A2xx-$A7xx RAM (skip-zero
+unpacker). The C29 overlay's "undefined" gate (mem≠ref) can't see a zero
+write where the power-on seed is already $00 → those bytes were served the
+`--peek-post-init` value = BASIC ROM ERROR TEXT (idle $37 banking) → per-BYTE
+ASCII contamination of instrument records (V1 pulse swept +$45 vs orig +$40,
+V2/V3 swept vs held; AD/SR/waves/notes right since nonzero).
+- DIAGNOSIS: effect_chain_profiler $D402 → reader ops all consistent (base
+  $A2B3) → py65 post-init vs libsidplayfp RAM AGREED (data right!) → the
+  OVERLAY was the corruptor. peek showed "BY ZER(O) ILLEGAL DIRECT…" at $A2B3.
+- FIX (`_overlay_offimage_windows`): probe the play-vector head for
+  `A9 imm/85 01` → imm = effective play port (overrides `_psid_play_iomap`);
+  ROM ranges served from the peek ONLY if banked in under it (BASIC port&3==3,
+  KERNAL port&2); banked-out → memwatch-stability RAM branch. Offset-1 port
+  read also serves the re-banked value.
+- 0-REGR: census 10 play-head re-bank members (7×$35/2×$36/1×$37); 3 Flash
+  partial→FULL, 5 byte-identical, 2 error pre-existing. 8 other C29 carriers
+  (Memomania/Super_Seven/Trailways_A/Roots/Remix_1995/Pour_le_merite/
+  Abyssal_Karma/Centric) MD5-identical. Smoke 6/6. Ledger C29 (6th occ).
+
 ## ✅ ROUND 175 (2026-08-03): Zyron/Solar_Energy — **FULL** (294072/294072)! C19 wedge 43rd occ: $FF LOOP-hook store re-pointed OFF otrk = dead loop, tune HALTS at song-end
 The parked r174+1 member. The parked note's framing ("a voice keeps
 freewheel-writing") was wrong — the rebuild's +2691 tail was a full SONG
