@@ -198,7 +198,13 @@ def dmc_features(sid: str) -> tuple[str, set] | None:
         raise TimeoutError
 
     signal.signal(signal.SIGALRM, _bail)
-    signal.alarm(20)
+    # 90s, not 20: an observe-confirm wedge probe (track_loop_dead's
+    # full-song siddump) legitimately runs ~1 min on rare members, and the
+    # alarm's TimeoutError lands inside the probe's own `except Exception`
+    # — SILENTLY DROPPING the wedge key instead of failing the member
+    # (Solar_Energy lost `wedge:track_loop_dead` this way). Only ~4 members
+    # corpus-wide carry the heavy path, so the derivation cost is bounded.
+    signal.alarm(90)
     from pipelines.dmc.v4.factory import dmc_v4_config, DMCV4Unsupported
     from pipelines.dmc.v4.extract.engine_model import extract
     from pipelines.dmc.engine_constants import FREQ_LO, FREQ_HI
@@ -233,6 +239,49 @@ def dmc_features(sid: str) -> tuple[str, set] | None:
         f.add('knob:idle_wave')
     if bytes(m.freq_lo) != FREQ_LO or bytes(m.freq_hi) != FREQ_HI:
         f.add('struct:per_tune_tuning')
+    # --- r74-r177 classes (2026-08-03 — the criterion-4 GAP closure).
+    # GENERIC wedge dimensions: one per extra_params key, so every C19/C18/
+    # C23/C24 probe knob — current AND FUTURE — is a portfolio dimension the
+    # moment its probe lands. The 4-member regression of Jul 22-26 happened
+    # exactly because these were absent: no portfolio member carried the
+    # affected classes, so the per-round gate was blind to them.
+    for k in (cfg.extra_params or {}):
+        f.add(f'wedge:{k}')
+    for k in (getattr(m, 'extra_params', None) or {}):
+        f.add(f'wedge:{k}')
+    if getattr(cfg, 'loop_reset_pos', None) is not None:
+        f.add('knob:loop_reset')                      # C13 sync hook
+    if getattr(cfg, 'loop_note_inject', False):
+        f.add('knob:loop_note_inject')                # C13 third form
+    if getattr(cfg, 'switch_retrig', False):
+        f.add('knob:switch_retrig')                   # C19 $7D retrig
+    if getattr(cfg, 'transpose_neg_bias', 1) != 1:
+        f.add('knob:transpose_neg_bias')              # C19 28th occ
+    if getattr(cfg, 'forced_subtune', None) is not None \
+            or getattr(cfg, 'subtune_songs', None) is not None:
+        f.add('knob:forced_record')                   # C19/C31 forced record
+    if getattr(cfg, 'subtune_state_copy', None):
+        f.add('knob:state_copy')                      # C37 resume wrapper
+    if getattr(cfg, 'data_post_init', False):
+        f.add('knob:post_init_data')                  # C26 unpacker (the
+                                                      # C29-overlay members
+                                                      # live in this class)
+    if getattr(cfg, 'curnote_addr', None) is not None:
+        f.add('knob:dataflow_path')                   # re-assembled build
+    if getattr(m, 'play_repeat', 1) > 1:
+        f.add('knob:play_repeat')                     # C24 whole-play repeat
+    if getattr(m, 'wavepos_layout', False):
+        f.add('knob:wavepos_layout')                  # C11 layout pool
+    if getattr(m, 'wave_table_norm', None) is not None:
+        f.add('struct:wave_table_norm')               # C32 stated wave table
+    if getattr(m, 'offtable_vibdepth', None):
+        f.add('fx:offtable_vibdepth')
+    _recs = [r for i in m.instruments.values()
+             for r in (i.offtable_freq or [])]
+    if _recs:
+        f.add('fx:offtable_freq')                     # C6 off-table reads
+    if any(len(r) > 4 and r[4] for r in _recs):
+        f.add('fx:offtable_live')                     # C11 live redirects
     # --- instrument effect dimensions (union over decoded insts) ---
     for i in m.instruments.values():
         if i.drum:
