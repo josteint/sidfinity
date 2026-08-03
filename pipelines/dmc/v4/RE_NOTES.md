@@ -1,5 +1,10 @@
 # DMC V4 — RE notes / migration log
 
+> **This file ends at round 68 (2026-07-10).** Rounds ≥69 live in
+> `.claude/memory/project_dmc.md` (newest-first — its head IS the current
+> status); the transferable problem-class knowledge lives in the convergence
+> ledger (`docs/ledger/C*.md`). This file remains the r1-r68 RE narration.
+
 ## ✅ ROUND 68 (2026-07-10): NOTE-FETCH base-freq read ignored the LIVE off-table redirect — Secret_Loser +1 partial → FULL (0 regr) [ledger C11 / C6 — base-reload sites]
 First still-partial f1 member by hvsc path after Toccata_v2 (r67) flipped FULL:
 `MUSICIANS/B/Bakker_Nantco/Secret_Loser.sid` (vblank, single sub, 82114 writes).

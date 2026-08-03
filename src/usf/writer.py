@@ -245,10 +245,26 @@ def _write_init(state: InitState) -> list[str]:
     return lines
 
 
-def _write_pwm(p: PwmConfig) -> str:
-    parts = [f'mode={p.mode}', f'speed={p.speed}',
-             f'init={_hex(p.init, 4)}',
-             f'min_hi={p.min_hi}', f'max_hi={p.max_hi}']
+def _write_pwm(p: PwmConfig) -> 'str | None':
+    """Returns the `pwm: ...` line, or None when the config equals the
+    constructor default (caller skips the line; the parser's absent-line
+    value IS PwmConfig() via Instrument's default_factory, so object
+    equality round-trips exactly). Field-level: every field elides at its
+    dataclass default (the elidability principle, 2026-08-03 — the always-
+    emitted `speed=0 min_hi=0` were census-flagged default noise)."""
+    if p == PwmConfig():
+        return None
+    parts = []
+    if p.mode != 'none':
+        parts.append(f'mode={p.mode}')
+    if p.speed:
+        parts.append(f'speed={p.speed}')
+    if p.init:
+        parts.append(f'init={_hex(p.init, 4)}')
+    if p.min_hi:
+        parts.append(f'min_hi={p.min_hi}')
+    if p.max_hi:
+        parts.append(f'max_hi={p.max_hi}')
     # Emit phase1_* only when any of them is non-default (keeps Hubbard
     # USFs visually unchanged on round-trip).
     if p.phase1_dir != 'up' or p.phase1_bound != 0 or p.phase1_step != 0:
@@ -264,11 +280,18 @@ def _write_pwm(p: PwmConfig) -> str:
     return 'pwm:      ' + ' '.join(parts)
 
 
-def _write_arp(a: ArpConfig) -> str:
-    offs = ', '.join(str(o) for o in a.offsets)
-    parts = [f'offsets=[{offs}]', f'period={a.period}']
-    # Emit interval / phase_invert only when non-default — keeps
-    # existing USFs unchanged on round-trip.
+def _write_arp(a: ArpConfig) -> 'str | None':
+    """None when the config equals ArpConfig() — the census's biggest
+    finding (`arp: offsets=[] period=1` printed in ~11.3k files was the
+    no-arpeggio identity). Field-level elision at dataclass defaults."""
+    if a == ArpConfig():
+        return None
+    parts = []
+    if a.offsets:
+        offs = ', '.join(str(o) for o in a.offsets)
+        parts.append(f'offsets=[{offs}]')
+    if a.period != 1:
+        parts.append(f'period={a.period}')
     if a.interval != 12:
         parts.append(f'interval={a.interval}')
     if a.phase_invert:
@@ -276,8 +299,18 @@ def _write_arp(a: ArpConfig) -> str:
     return 'arp:      ' + ' '.join(parts)
 
 
-def _write_vibrato(v: VibratoConfig) -> str:
-    parts = [f'scale={v.scale}']
+def _write_vibrato(v: VibratoConfig) -> 'str | None':
+    """None when the config equals VibratoConfig(). NB DMC's inert vibrato
+    is `scale=0 onset=0`, which is NOT the constructor default (onset 6) —
+    that line shrinks to `vibrato: onset=0` here; making it vanish is an
+    EXTRACT-side question (should DMC leave onset at 6 when amplitude==0?)
+    parked for the deeper cleanup — it changes the parsed object, so it
+    needs the build-MD5 gate, not the writer-safety gate."""
+    if v == VibratoConfig():
+        return None
+    parts = []
+    if v.scale:
+        parts.append(f'scale={v.scale}')
     if v.onset != 6:
         parts.append(f'onset={v.onset}')
     # Descriptive parameters — emit only when non-default so existing
@@ -551,10 +584,18 @@ def _write_instrument(i: Instrument) -> list[str]:
         lines.append(f'  wave_start: {i.wave_start}')
     if getattr(i, 'wave_start_on_marker', False):
         lines.append('  wave_start_on_marker: 1')
-    lines.append(f'  {_write_pwm(i.pwm)}')
+    # pwm/arp/vibrato follow the envelope precedent: None = the config is
+    # its constructor default = the parser's absent-line value — skip.
+    pwm_line = _write_pwm(i.pwm)
+    if pwm_line is not None:
+        lines.append(f'  {pwm_line}')
     lines.append(f'  adsr:     {_hex(i.adsr[0])} {_hex(i.adsr[1])}')
-    lines.append(f'  {_write_arp(i.arp)}')
-    lines.append(f'  {_write_vibrato(i.vibrato)}')
+    arp_line = _write_arp(i.arp)
+    if arp_line is not None:
+        lines.append(f'  {arp_line}')
+    vib_line = _write_vibrato(i.vibrato)
+    if vib_line is not None:
+        lines.append(f'  {vib_line}')
     env_line = _write_envelope(i.envelope)
     if env_line is not None:
         lines.append(f'  {env_line}')
