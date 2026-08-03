@@ -8,6 +8,26 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## 🔎 R178 POST-MORTEM (2026-08-03): how 4 FULLs regressed unnoticed for a week — closeouts masked them (C20 sixth layer) + tools/batch_diff.py
+User question: "the march is alphabetical — how were there partials left at F
+after we reached Z?" Measured answer: 4 members (Flash Itinerant/Kan-Kan/
+Wind_of_Dead + Tomace/Other_Side) were FULL@r88 (Jul 22) and partial@Jul-26 —
+they REGRESSED mid-week, after the march passed their letters. MD5-bisect of
+each member's BUILD across the window pinned both culprits: `cdfa9c42`
+(C29 CPU-eye generalization, Super_Seven round — flipped Itinerant's bytes
+4c5226e3→20f013f1, the ROM-text contamination r176 fixed) and `d80c1b94`
+(r116 glide-arrival record creation — Other_Side FULL at its parent, the
+exact play_match=46 partial at the commit; the record fed r177's bad igla
+seed). The Jul-26 batch RECORDED the truth; the closeout's NET count (+57
+full) masked the −4, and the queue folded them in undifferentiated. NOT a
+verify-side change; NOT a stale-r88 palimpsest (checked: same code_hash on
+both r88 rows; the old build genuinely verifies partial under the current
+comparator — because those bytes ARE the post-cdfa9c42 contaminated ones;
+the true r88 bytes 4c5226e3/0536b4dd verify FULL). FIX: tools/batch_diff.py
+(reproduces the 4 exactly) + CLAUDE.md closeout rule + C20 sixth layer.
+Hygiene full-family batch running (tmp/dmc_batch_r177.log →
+tmp/dmc_wide_results.jsonl); acceptance = batch_diff vs the Jul-26 batch.
+
 ## 🏁 MILESTONE (2026-08-03, after r177): family-1 batch-known partial queue EMPTY — all 82 partials of the Jul-26 batch confirm FULL under current code
 Every entry of tmp/dmc_f1_partials.jsonl (seeded from the Jul-26 full batch,
 5401 members: 5319 full / 82 partial) re-verified FULL 2026-08-03; ticked

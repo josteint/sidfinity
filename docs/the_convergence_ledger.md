@@ -568,6 +568,14 @@ practice, not code to factor).
   evidence about the PATH, never about the member. Then restore the fifth-layer
   invariant too: regenerating a `.usf` leaves the neighbouring `.sid` built by
   older code, so rebuild it FROM the stored `.usf`.
+- SIXTH LAYER — NET AGGREGATE COUNTS MASK REGRESSIONS: a closeout printing
+  "+57 full" hid 4 full→partial regressions between two DMC batches
+  (cdfa9c42's overlay contaminated 3 Flash members; d80c1b94 broke
+  Other_Side) — both carrier-censused fixes whose EXPOSURE sets weren't
+  enumerated; the alphabetical queue had passed their letters, so they sat a
+  week. DETECTOR: `tools/batch_diff.py OLD NEW [--fail-on-regression]` at
+  EVERY closeout; triage regressions FIRST, separately from the tail.
+  Attribute by MD5-bisecting the member's BUILD across the window.
 - THIRD LAYER — the stored ARTIFACT is unreadable by the CURRENT grammar
   (schema drift). A typed-field move orphaned 1,182/11,943 stored .usf (9.9%)
   while regression stayed green — it builds from a ~116-member portfolio,
