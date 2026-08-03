@@ -65,6 +65,13 @@ residue buckets). Tell each agent the concrete checks:
   engine-name strings, `if engine ==`, `_emit_<engine>_*`, `_needs_<engine>`,
   and the schema shapes (`Kind`, `Ptr`, `_idx`, `: bytes`). Confirm round-trip
   reversibility (extract↔USF) is asserted somewhere.
+- C3 spec conformance (mechanical): run `python3 tools/usf_spec_lint.py` —
+  round-trip equality, canonical fixpoint, the default-noise elidability
+  census, §7 forbidden-shape scan. Errors are criterion-3 GAPs; census
+  warnings are elidability-cleanup findings to list in the report (each is
+  either a writer-elision fix or a reviewed ALLOWLIST entry with a reason —
+  never leave one unclassified). Added 2026-08-03 after the init.voice_state
+  default-emission showed a declared spec principle with no enforcing check.
 - C4: find the family's wide-batch result + pass-rate; the variant census; the
   regression canaries.
 - C5: which `UsfFile`/`Instrument` USF features the family's `to_usf` populates
