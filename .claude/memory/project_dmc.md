@@ -8,6 +8,16 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## 📋 CLEANUP PLAN (2026-08-03): tmp/cleanup_plan_2026-08-03.md — the ticked work list for the whole post-r178 cleanup
+Phases A-H: hygiene-batch acceptance (batch_diff; 1 partial appeared mid-run,
+unidentified) → writer elision cleanup (arp/vibrato/pwm defaults) → ONE
+mass-write sweeping otrk_ stale forms + verbose init + noise → portfolio
+re-derivation (the uready criterion-4 GAP: extend dmc_v4_features with
+r74-r177 classes) → the Principle counter-ratchet (cardinality census,
+escape-hatch mass metric, interpolation probe → uready Phase-2 value matrix)
+→ C33 burn-down of the 44 params.fields keys → full uready → f2 kickoff.
+Supersedes the individual NEXT notes in the entries below.
+
 ## 🔎 R178 POST-MORTEM (2026-08-03): how 4 FULLs regressed unnoticed for a week — closeouts masked them (C20 sixth layer) + tools/batch_diff.py
 User question: "the march is alphabetical — how were there partials left at F
 after we reached Z?" Measured answer: 4 members (Flash Itinerant/Kan-Kan/
