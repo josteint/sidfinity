@@ -179,7 +179,11 @@ init_filter_arm_frames: "filter_arm_frames" ":" number
 // src/usf/resolve.py, trichotomy §4.5), pwm_period (PWM accumulator),
 // pwm_dir (up/down), instr (starting instrument ref — also the
 // resolver's instrument seed), slide_v (cached freq-hi, skydive).
-init_voice: "voice" INT "{" init_field+ "}"
+// Fields are OPTIONAL — an absent field is its InitVoice dataclass default
+// (ctrl/dur_field/pwm_period/slide_v 0, pwm_dir 'up'; "absent = don't
+// prime"). The writer elides default values (2026-08-03); `voice N { }`
+// is the all-defaults voice, kept so the voice stays in init.voices.
+init_voice: "voice" INT "{" init_field* "}"
 init_field: CNAME ":" init_value
 init_value: number           -> init_number
           | CNAME            -> init_keyword

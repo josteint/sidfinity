@@ -120,15 +120,29 @@ def _write_params(p: Params) -> list[str]:
 
 
 def _write_init_voice(v: InitVoice) -> str:
+    # DEFAULT-VALUED FIELDS ARE ELIDED (2026-08-03): the parser constructs
+    # InitVoice(id=...) and sets only the fields present, so an absent field
+    # IS its dataclass default — "absent = don't prime", the trichotomy's own
+    # doctrine for priming state. Emitting `ctrl: $00 dur_field: $00 ...` on
+    # every voice was noise: it buried the one or two load-bearing values
+    # (DMC's note/gate_mask work-file leftovers) under five defaults, and fed
+    # the ML corpus five tokens of nothing. Elision is writer-only: the
+    # parsed object round-trips identically, so every built .sid is
+    # byte-identical by construction (gate: usf_corpus_check + the
+    # round-trip equality test below in tests).
     parts = []
-    if v.ctrl is not None:
+    if v.ctrl is not None and v.ctrl != 0:
         parts.append(f'ctrl: {_hex(v.ctrl)}')
-    parts.append(f'dur_field: {_hex(v.dur_field)}')
-    parts.append(f'pwm_period: {_hex(v.pwm_period)}')
-    parts.append(f'pwm_dir: {v.pwm_dir}')
+    if v.dur_field != 0:
+        parts.append(f'dur_field: {_hex(v.dur_field)}')
+    if v.pwm_period != 0:
+        parts.append(f'pwm_period: {_hex(v.pwm_period)}')
+    if v.pwm_dir != 'up':
+        parts.append(f'pwm_dir: {v.pwm_dir}')
     if v.instr is not None:
         parts.append(f'instr: {_format_instr_ref(v.instr)}')
-    parts.append(f'slide_v: {_hex(v.slide_v)}')
+    if v.slide_v != 0:
+        parts.append(f'slide_v: {_hex(v.slide_v)}')
     if v.note is not None:
         parts.append(f'note: {v.note}')
     if v.gate_mask is not None:
@@ -153,6 +167,8 @@ def _write_init_voice(v: InitVoice) -> str:
         parts.append(f'slide_rate: {_hex(v.slide_rate, 4)}')
     if getattr(v, 'pulse_width', None) is not None:
         parts.append(f'pulse_width: {_hex(v.pulse_width, 4)}')
+    if not parts:                      # all-defaults voice: keep the line (the
+        return f'  voice {v.id} {{ }}'  # object stays in init.voices on parse)
     return f'  voice {v.id} {{ ' + '  '.join(parts) + ' }'
 
 

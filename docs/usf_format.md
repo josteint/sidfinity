@@ -85,6 +85,15 @@ never mentions chips, an untransposed orderlist entry is a bare
 pattern id, an instrument without an effect omits the field cleanly.
 The written file contains only what the music uses.
 
+This extends to `init { voice N { … } }` (2026-08-03): every
+voice-state field is optional and an absent field IS its default
+(`ctrl`/`dur_field`/`pwm_period`/`slide_v` = 0, `pwm_dir` = `up`,
+reference fields absent) — the trichotomy's "absent = don't prime".
+The writer elides default values, so a DMC voice whose only priming
+is its work-file leftovers reads `voice 1 { note: 26  gate_mask: $FF }`,
+and an all-defaults voice is the bare `voice N { }` (kept so the
+voice stays in `init.voices` on parse).
+
 ## Multi-SID (2SID / 3SID) model
 
 A multi-SID tune is N independent single-chip tunes in one file:
