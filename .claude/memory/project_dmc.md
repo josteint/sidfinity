@@ -8,6 +8,18 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## 🏁 MILESTONE (2026-08-03, after r177): family-1 batch-known partial queue EMPTY — all 82 partials of the Jul-26 batch confirm FULL under current code
+Every entry of tmp/dmc_f1_partials.jsonl (seeded from the Jul-26 full batch,
+5401 members: 5319 full / 82 partial) re-verified FULL 2026-08-03; ticked
+checklist at tmp/dmc_f1_remaining.md. Rounds r167-r177 closed the tail
+(Wodnik C23 family, Flash C29 port re-bank, C19 wedges 40-43, C11 glide-seed
+gate) with heavy cascade (e.g. Cherch/Metallica/Shaki/… flipped by C23
+refinements without dedicated rounds). ⚠ NOT the authoritative closeout:
+coverage source of truth = a FRESH family batch (re-checks the 5319 FULLs for
+regressions; ~overnight on the X230). NEXT (2026-08-03): run the fresh batch,
+then mass-write (corpus_sync) + re-derive the regression portfolio
+(select_regression_portfolio --engine dmc_v4) per CLAUDE.md.
+
 ## ✅ ROUND 177 (2026-08-03): Tomace/Other_Side — **FULL** (142989/142989)! C11 refinement: the igla/iglb glide-leftover seed is gated on the member's INIT CLEAR RANGE
 Next partial after r176 (queue scan flipped a long stale stretch F→T on the
 way). No STIL (the "Other_Side" STIL hits are LukHash's unrelated tune), no
