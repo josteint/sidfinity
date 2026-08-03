@@ -357,6 +357,21 @@ def main():
             if (i + 1) % 25 == 0 or i + 1 == len(todo):
                 print(f'  {i+1}/{len(todo)}  {dict(stats)}', flush=True)
     print('DONE', dict(stats), flush=True)
+    # REGRESSION DIFF vs the previous batch (C20 sixth layer, 2026-08-03):
+    # net aggregate counts MASK regressions (+57 hid -4 between the Jul-22/
+    # Jul-26 batches — 4 members a mid-week fix broke sat unnoticed a week).
+    # Surface full->partial transitions LOUDLY at every closeout; a
+    # regression is a SIGNAL naming the exposure set a fix's census missed.
+    prev = os.path.join(ROOT, 'tmp', 'dmc_f1_prev_batch.jsonl')
+    if os.path.exists(prev):
+        import subprocess
+        print('--- batch_diff vs previous batch ---', flush=True)
+        subprocess.run([sys.executable,
+                        os.path.join(ROOT, 'tools', 'batch_diff.py'),
+                        prev, OUT])
+    else:
+        print(f'(no previous-batch baseline at {prev} — after triaging THIS '
+              f'batch, snapshot it there: cp {OUT} {prev})', flush=True)
 
 
 if __name__ == '__main__':
