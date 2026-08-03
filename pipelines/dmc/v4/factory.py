@@ -2088,6 +2088,102 @@ def _track_ff_reinit_probe(path: str, base: int,
     return f'{jmp_tgt:04X}'
 
 
+def _track_loop_dead_probe(path: str, base: int,
+                           post_init_sub: 'int | None' = None):
+    """$FF track-LOOP hook re-pointed OFF the track-position address = a DEAD
+    loop that HALTS the tune (STATIC opcode probe, C19 — Zyron/Solar_Energy).
+
+    The JSR-hook loop variant reads the byte AFTER `$FF` as the loop position
+    and stores it to otrk: the dispatch `C9 FF D0 08 A9 00 20 <hook>` (CMP #$FF
+    / BNE / LDA #0 / JSR hook) calls `INY / LDA (zp),y / STA base+$726,x / RTS`.
+    The wedge re-points that STA operand AWAY from otrk (base+$726) to a dead
+    address (Solar_Energy: STA $6726,x, hi-byte $17->$67), so the loop target
+    goes nowhere, otrk never advances, and the `JMP` back to the dispatch
+    re-reads the same `$FF` — play() spins uselessly the moment a voice reaches
+    its track end, so the WHOLE tune HALTS and HOLDS (no further SID writes,
+    $D418 frozen). The musician's "play once, end — don't loop" trick.
+
+    Write-stream effect (CORE TENET — reproduce the stream, not the spin): play
+    normally, and at the frame the first voice reaches its track end produce no
+    more writes ever. The extract walks the track as a STOP (not a loop); the
+    composer keys on this param to swap the per-voice $FE stop for a
+    halt-the-song handler (like track_fe_reset, minus its $D418=$00 write).
+
+    Regression-safe by construction: canon loop-to-0 has `STA otrk,x` inline at
+    base+$DF (not a JSR) -> the sig's JSR byte fails; a GENUINE read-next hook
+    stores to otrk (op == base+$726) -> returns None. Only a JSR-hook whose
+    store is re-pointed off otrk fires."""
+    if base is None:
+        return None
+    mem, _ = _load(path, post_init_sub)
+    disp = base + 0xD2                   # loop dispatch entry: LDY otrk,x (BC)
+    site = base + 0xD9                   # ...then CMP #$FF at +$D9
+    if site + 9 > 0x10000 or disp < 0:
+        return None
+    # dispatch reads otrk from `LDY <otrk>,x`; the loop hook must store the loop
+    # target BACK to that same otrk. Read the actual otrk from the fetch operand
+    # (relocation-safe; NOT the assumed base+$726 — a variant can place otrk
+    # elsewhere and comparing to base+$726 would false-fire, e.g. the $0350
+    # read-next family).
+    if mem[disp] != 0xBC:
+        return None
+    otrk = mem[disp + 1] | (mem[disp + 2] << 8)
+    # loop dispatch: CMP #$FF / BNE +8 / LDA #0 / JSR hook  (JSR-hook variant)
+    if not (mem[site] == 0xC9 and mem[site + 1] == 0xFF
+            and mem[site + 2] == 0xD0 and mem[site + 3] == 0x08
+            and mem[site + 4] == 0xA9 and mem[site + 5] == 0x00
+            and mem[site + 6] == 0x20):
+        return None
+    hook = mem[site + 7] | (mem[site + 8] << 8)
+    if hook + 7 > 0x10000:
+        return None
+    # hook: INY / LDA (zp),y / STA <op>,x / RTS
+    if not (mem[hook] == 0xC8 and mem[hook + 1] == 0xB1
+            and mem[hook + 3] == 0x9D and mem[hook + 6] == 0x60):
+        return None
+    op = mem[hook + 4] | (mem[hook + 5] << 8)
+    if op == otrk:
+        return None                     # genuine read-next loop (stores to otrk)
+    # OBSERVE-CONFIRM (ground truth — a static store-mismatch is NOT enough).
+    # The mismatched dispatch can be DEAD CODE never reached at runtime: KB/
+    # 1_67_Years ($4000) and PVCF/Kata_Sandom ($0800) are relocated players whose
+    # $FF dispatch reads a relocated otrk (base+$726) but whose hook stores to the
+    # UN-relocated canon $1726 — a leftover; the loop dispatch is never executed
+    # and the tune plays on (verified: 0 hits on the hook, writes grow with
+    # duration). The wedge only HALTS the tune when the dead loop is actually
+    # reached, so confirm from the orig write stream: the writes must CEASE well
+    # before the capture end (a long trailing silence). A looping/continuous tune
+    # writes to the end and is rejected here.
+    try:
+        import subprocess
+        from src.songlengths import load_database, get_durations
+        sub = post_init_sub if post_init_sub is not None else 0
+        try:
+            db = load_database(os.path.join('hvsc84', 'DOCUMENTS',
+                                            'Songlengths.md5'))
+            # the recorded songlength can END at the fade-out, SHORT of the
+            # engine's actual halt frame (Solar_Energy: recorded 345 s, halts
+            # at 376 s) — use the standard verify margin so the halt (if any)
+            # lands well inside the window.
+            dur = get_durations(path, db)[sub] * 1.15 + 30.0
+        except Exception:
+            dur = 450.0
+        out = subprocess.run(
+            ['siddump', path, '--subtune', str(sub + 1),
+             '--duration', f'{dur:.0f}', '--writelog'],
+            capture_output=True, text=True).stdout
+        lines = out.splitlines()[2:]                    # drop json + col header
+        last = max((i for i, ln in enumerate(lines)
+                    if '|W:' in ln
+                    and len(ln.split('|W:', 1)[1].split(':')) >= 3),
+                   default=-1)
+        if last < 0 or (len(lines) - last) < 1000:      # <20s trailing silence
+            return None                                 # plays on -> not a halt
+    except Exception:
+        return None
+    return '1'                          # dead loop reached -> tune HALTS + HOLDS
+
+
 def _track_fe_reset_probe(path: str, base: int,
                           post_init_sub: 'int | None' = None):
     """$FE track-STOP handler re-pointed at the KERNAL RESET vector (STATIC
@@ -4331,6 +4427,7 @@ _WEDGE_PROBES = [
     ('track_ff_reinit',                 lambda p, c: _track_ff_reinit_probe(p, c.base, c.post_init_sub)),
     ('track_ff_reinit_ghost',           lambda p, c: _track_ff_reinit_ghost_probe(p, c.base, c.post_init_sub)),
     ('track_fe_reset',                  lambda p, c: _track_fe_reset_probe(p, c.base, c.post_init_sub)),
+    ('track_loop_dead',                 lambda p, c: _track_loop_dead_probe(p, c.base, c.post_init_sub)),
     ('v3_instr_tempo',                  lambda p, c: _v3_instr_tempo_probe(p, c.base, c.post_init_sub)),
     ('filterdef_anim',                  lambda p, c: _filterdef_anim_probe(p, c.base, c.op_filtdef, c.post_init_sub)),
     ('d417_tail_anim',                  lambda p, c: _d417_tail_anim_probe(p, c.base, c.op_filtdef, c.op_wavefreq, c.post_init_sub)),

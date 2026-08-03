@@ -8,25 +8,30 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
-## ⏸ PARKED (2026-08-01): Zyron/Solar_Energy — song-end length tail (rebuild plays past the orig's stop); parked near context limit, fix NOT started
-Next partial by hvsc path after r174. Diagnosed but NOT fixed (parked for a fresh
-session — the fix is a non-trivial orderlist-end investigation, not a quick wedge).
-- SIGNATURE: rebuild matches ALL orig writes then runs LONGER — play_match =
-  len_a = 294035, len_b = 296726 (+2691), state_match=True, NO content divergence
-  (a pure length tail on a 379.5s VBLANK song, ~0.9%).
-- ORIG STOPS at siddump frame 18801 (writes constant at 275814 across dur
-  379/420/500s — it produces NO more writes after 18801 and holds). $D418 held at
-  $1F at the end — NOT a $D418=$00 reset (contrast Dark_Side r167's KERNAL reset).
-  The rebuild CONTINUES past 18801 (a voice keeps writing).
-- canon-layout; `dmc_canon_diff` = 1 cluster, 0 NEW (handled) → NOT a code wedge.
-  So the divergence is DATA/orderlist: the orig's voices all go quiet at song-end
-  while the rebuild's freewheel keeps writing. NEXT STEPS: (1) capture the rebuild
-  tail, find WHICH voice produces the extra 2691 writes; (2) disasm how that voice
-  goes silent in the orig (canonical $FE per-voice stop still FREEWHEELS via
-  frame_entry in our composer, so the orig must reach a state where the freewheel
-  emits nothing — a held wave step vs the rebuild's advancing one, or an
-  orderlist end the extract mis-read as a loop); (3) diff the voice's USF
-  orderlist tail (stop vs loop). Likely C34 (one-row law) or an orderlist-end fix.
+## ✅ ROUND 175 (2026-08-03): Zyron/Solar_Energy — **FULL** (294072/294072)! C19 wedge 43rd occ: $FF LOOP-hook store re-pointed OFF otrk = dead loop, tune HALTS at song-end
+The parked r174+1 member. The parked note's framing ("a voice keeps
+freewheel-writing") was wrong — the rebuild's +2691 tail was a full SONG
+RESTART (re-init burst at f18802 matching the opening f0/f1), i.e. we LOOPED
+where the orig ENDS. Sole firing carrier in HVSC-DMC; 0-regr.
+- MECHANISM: JSR-hook loop member (`track_loop_target=True`), but the hook's
+  `STA otrk,x` is re-pointed `$1726→$6726` (dead) — the $FF loop target goes
+  nowhere, otrk pins at the $FF, the dispatch JMP re-reads $FF forever →
+  play() spins at song-end, tune HALTS+HOLDS ($D418 stays $1F, no writes).
+  All 3 tracks end `$FF <tgt>` but never loop; memwatch showed otrk frozen at
+  (98,96,94) = the $FF positions; pc-watch showed the hook hit 173k× (spin).
+- FIX: `_track_loop_dead_probe` (static: hook STA operand ≠ the dispatch's own
+  LDY otrk operand + OBSERVE-CONFIRM the orig halts from the writelog) →
+  `extra_params['track_loop_dead']`; extract `_walk_track(loop_dead=True)`
+  walks $FF as STOP; composer $FE handler = halt-and-hold (track_fe_reset
+  machinery minus the $D418=$00).
+- ⚠ TWO probe traps hit and fixed in-session: (1) static mismatch alone
+  false-fired on KB/1_67_Years + PVCF/Kata_Sandom (relocated players, hook
+  stores to un-relocated $1726, dispatch NEVER REACHED — both FULL, briefly
+  regressed → observe gate restored them); (2) observe window songlength+30
+  cut off BEFORE the halt (recorded 345s ends at the fade; halt at 376s) →
+  ×1.15+30. Census: 938 JSR-hook members, 909 genuine, 4 mismatched, 1 halts.
+- Golden set (dmc_v4 portfolio ×5 + Dark_Side) byte-identical vs pre-fix
+  worktree; dmc_smoke 6/6. Ledger C19 (43rd occ).
 
 ## ✅ ROUND 174 (2026-08-01): Zyron/One_Man_and_Boris — **FULL** (122971/122971)! C19 wedge: filter-tail cutoff LOAD operand repointed fcut→fbase
 Next partial by hvsc path (canon-LAYOUT member — `dmc_canon_diff` found it: 1 NEW

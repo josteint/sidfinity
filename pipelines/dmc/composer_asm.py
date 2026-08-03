@@ -3324,6 +3324,13 @@ ovrp_d:
     # once — the song does not restart). Default: the canonical per-voice stop,
     # byte-identical for every non-carrier.
     fe_reset = bool(usf.params.fields.get('track_fe_reset'))
+    # track_loop_dead (C19 wedge, Zyron/Solar_Energy): the $FF loop hook's store
+    # is re-pointed off otrk, so otrk never advances -> play() spins on $FF the
+    # moment a voice reaches its track end -> the WHOLE tune HALTS and HOLDS (no
+    # further writes, unlike track_fe_reset which writes a lone $D418=$00). The
+    # extract walks these tracks as STOP ($FE); here the $FE handler halts the
+    # whole song (no $D418) instead of the canonical per-voice freewheel stop.
+    loop_dead = bool(usf.params.fields.get('track_loop_dead'))
     if fe_reset:
         fe_handler = (
             '        lda #$00                     ; $FE reset wedge (JMP '
@@ -3332,6 +3339,17 @@ ovrp_d:
             '(silence)\n'
             '        inc halted                   ; halt: every later play() '
             'writes nothing\n'
+            '        pla\n'
+            '        pla                          ; drop the jsr voice return\n'
+            '        jmp pf_exit                  ; skip remaining voices + '
+            'filter tail\n')
+        fe_halt_check = '        lda halted\n        bne pf_exit\n'
+        pf_exit_label = 'pf_exit:\n'
+        halted_var = 'halted:   .byt $00\n'
+    elif loop_dead:
+        fe_handler = (
+            '        inc halted                   ; $FF dead-loop wedge: store '
+            're-pointed off otrk -> tune HALTS + HOLDS (no $D418)\n'
             '        pla\n'
             '        pla                          ; drop the jsr voice return\n'
             '        jmp pf_exit                  ; skip remaining voices + '

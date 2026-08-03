@@ -842,6 +842,7 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 instr_seed: int = 0,
                 switch_retrig: bool = False,
                 loop_note_inject: bool = False,
+                loop_dead: bool = False,
                 transpose_neg_bias: int = 1,
                 fetch_events: 'list | None' = None) -> DmcVoice:
     """Walk one voice's track (orderlist), path-resolving every sector
@@ -908,6 +909,13 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
             v.stop = True
             return v
         if b == 0xFF:
+            if loop_dead:
+                # DEAD-LOOP wedge (C19, cfg.track_loop_dead): the $FF hook's
+                # loop store is re-pointed off otrk, so the loop never advances
+                # -> the tune HALTS at this $FF. Walk it as a STOP (the composer
+                # halts the whole play on the first voice to reach it).
+                v.stop = True
+                return v
             if loop_note_inject:
                 # $FF text-fallthrough note-inject (cfg.loop_note_inject, a
                 # C13 third form — see config.py): the wrap plays ONE
@@ -1974,11 +1982,13 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
                 fmt = _dc_replace(fmt, glide_dead=True)
             _sr = getattr(cfg, 'switch_retrig', False)
             _lni = getattr(cfg, 'loop_note_inject', False)
+            _ld = bool(cfg.extra_params.get('track_loop_dead'))
             v = _walk_track(smem, tp, secp_lo, secp_hi,
                             loop_target=cfg.track_loop_target,
                             loop_reset_pos=lrp,
                             fmt=fmt, switch_retrig=_sr,
                             loop_note_inject=_lni,
+                            loop_dead=_ld,
                             transpose_neg_bias=getattr(
                                 cfg, 'transpose_neg_bias', 1),
                             fetch_events=_FETCH_EVENTS.get(vi))
@@ -1997,6 +2007,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
                                 fmt=fmt, instr_seed=_seedl,
                                 switch_retrig=_sr,
                                 loop_note_inject=_lni,
+                                loop_dead=_ld,
                                 transpose_neg_bias=getattr(
                                     cfg, 'transpose_neg_bias', 1),
                                 fetch_events=_FETCH_EVENTS.get(vi))
