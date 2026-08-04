@@ -8,6 +8,23 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ OVERNIGHT #2 CLOSEOUT (2026-08-05, P1-P5): otrk residue 90→27 characterized; interp probe live with its first §4 finding; ratchet metric honest at 0.37%
+P2: FOLD_REFUSAL census → empty-voice noise fix (42 members) + the
+closed-at-first-wrap fold lever (29 members; 19 byte-diff all FULL vs orig);
+final residue 27, one bucket each (11 intro_variant design refusals / 7
+loop_not_rho lever candidates / 9 piecewise transpose tail) — ledger C32
+refinement. P1: all-zero speed_steps → [] identity (construction-proven,
+MD5 24/24 incl. ghost+pooled); inert-vibrato onset=0 EVALUATED-KEPT (ivdel
+observability via irecimg + record reads). P3: usf_interp_probe.py built —
+45/50 midpoints realize; the 5 failures = ONE finding, the speed_steps
+shared-base-nibble coupling (schema-refinement candidate in the Move-1
+plan: split step values from pw_step_base). P4: fx_flags = 28 NAMED C14
+row commands, ratchet metric split three-way → genuinely-untyped mass is
+0.3681% (was a 4.05% artifact). P5: dead-schema tails documented in the
+Move-1 plan. USER-GATED remaining: F3 canon edit, G1 uready (deferred
+until post-f2 by user decision), the loop_not_rho lever, speed_steps
+schema split.
+
 ## ✅ R182 (2026-08-04): the 5 mass params keys TYPED — init_behavior articulation fields (C33 2nd occ), 843/843 carriers MD5-identical
 hold_gateoff/rest_effects/hard_restart/cymbal_onset/vib_ramp →
 InitBehaviorConfig.{gate_off_hold,rest_effects,hard_restart,cymbal_onset,
