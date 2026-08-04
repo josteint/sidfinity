@@ -476,6 +476,33 @@ exactly the §8 failure mode it was scoped to avoid.
 
 ## Move-1-era considerations (NOT before)
 
+### Dead-schema tails — pruning candidates (P5 census, 2026-08-04)
+
+The full-corpus cardinality census (`tools/usf_principle_lint.py --full`,
+report `tmp/principle_full.log`, 38 NEAR-CONSTANT findings) surfaced schema
+fields whose value is constant across the ENTIRE corpus — dead dimensions
+or not-yet-exercised growth axes. Pruning/keeping each is a Move-1-era
+schema decision (a removal is permanent; a "dead" field may be one
+unmigrated engine away from its first carrier — e.g. `pwm.phase1_*` is
+jay_derrett's two-phase shape, dead only because that family's corpus is
+small; `inc_by2_*` is Hubbard's skydive, constant only where the census
+sample missed carriers). Classes:
+
+- **Genuinely-dead candidates** (constant at their default corpus-wide):
+  `init.fade_frac_init`, `init.filter_arm_cutoff/_frames`,
+  `init.voices[].note_active/sliding` (MA-only draft fields),
+  `envelope.release_ctrl` at 0.
+- **Small-family axes, NOT dead** (constant only by carrier scarcity):
+  `pwm.phase1_*` (jay_derrett), `inc_by2_*` (Hubbard skydive),
+  `vibrato.shape/period_frames/polarity` (single-engine so far — the §10
+  growth axes working as intended).
+- **Derived-metadata**: `vibrato.depth_semitones` (0.0 everywhere —
+  the extract never populates the descriptive field; either implement the
+  derivation or drop the field).
+
+Decision deferred to the uready/Move-1 review; recorded here so the census
+finding has a durable home (the tmp/ report is wipeable).
+
 ### Audio-equivalence verdict (former ledger C15 — removed 2026-07-01 by user decision)
 
 **Policy until Move 1: every SID always gets the STRICT write-stream match.**

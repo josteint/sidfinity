@@ -133,6 +133,7 @@ def main() -> int:
         lambda: defaultdict(Counter))
     typed_instances = 0
     untyped_instances = 0
+    rowcmd_instances = 0        # fx_flags — C14 canonical row commands
     unattributed = 0
     parse_fail = 0
     for f in files:
@@ -151,7 +152,12 @@ def main() -> int:
         typed_instances += len(vals)
         for p, v in vals:
             census[p][family][v] += 1
-        # untyped carriers: params.fields keys (file + per-subtune) + fx_flags
+        # UNTYPED carriers = params.fields keys only (file + per-subtune).
+        # fx_flags is counted SEPARATELY: it is the C14 CANONICAL form for
+        # row commands (a small behavior-named vocabulary — tie, vol=,
+        # glide=, glide_up, no_release …), not an escape hatch; lumping it
+        # into the untyped mass made the ratchet number meaningless
+        # (the P4 census, 2026-08-04).
         pf = getattr(getattr(u, 'params', None), 'fields', None) or {}
         untyped_instances += len(pf)
         for sub in getattr(u, 'subtunes', []) or []:
@@ -164,8 +170,8 @@ def main() -> int:
                     for r in rows or []:
                         fx = getattr(r, 'fx_flags', None)
                         if fx:
-                            untyped_instances += (len(fx) if
-                                                  isinstance(fx, list) else 1)
+                            rowcmd_instances += (len(fx) if
+                                                 isinstance(fx, list) else 1)
     if parse_fail or unattributed:
         print(f'  (skipped: {parse_fail} parse-fail, '
               f'{unattributed} not in catalogue)')
@@ -207,10 +213,11 @@ def main() -> int:
         print(f'  ⚠ {fl:14} {p}: {d}')
 
     # ---- check 2: escape-hatch mass ratchet ----
-    total_inst = typed_instances + untyped_instances
+    total_inst = typed_instances + untyped_instances + rowcmd_instances
     share = untyped_instances / total_inst if total_inst else 0.0
-    print(f'check 2 escape-hatch mass  : {untyped_instances} untyped / '
-          f'{total_inst} total field instances = {share:.4%} untyped')
+    print(f'check 2 escape-hatch mass  : {untyped_instances} params-bag / '
+          f'{rowcmd_instances} row-cmd (C14 canonical) / '
+          f'{typed_instances} typed = {share:.4%} untyped')
     rc = 0
     if os.path.exists(BASELINE):
         base = json.load(open(BASELINE))
