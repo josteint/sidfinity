@@ -369,7 +369,13 @@ def _instrument_to_usf(inst, wavepos_layout: bool = False,
         pwm=PwmConfig(mode='bidirectional',
                       init=inst.pw_init_hi << 8,
                       min_hi=inst.pw_bound_a, max_hi=inst.pw_bound_b,
-                      speed_steps=list(inst.pw_steps),
+                      # all-zero steps = "no sweep" = the [] identity form
+                      # (emission-identical BY CONSTRUCTION: the composer's
+                      # `speed_steps or [speed]*6` with speed 0 rebuilds the
+                      # same [0]*6 blocks, raw bytes and pool keys — P1,
+                      # 2026-08-04; MD5-gated). Non-zero steps unchanged.
+                      speed_steps=(list(inst.pw_steps)
+                                   if any(inst.pw_steps) else []),
                       keep_running=inst.pw_keep_running),
         arp=ArpConfig(offsets=[]),
         vibrato=vib,
