@@ -8,6 +8,24 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## 🏆 R180 (2026-08-04): Lane_Crazy **FULL 6/6** — FAMILY-1 AT **5,401/5,401 (100%)**
+The last partial closed via two canon-derived moves (the user's re-read-the-
+canon challenge reframed the fix): (1) Principle §6 Rule-1 IDENTITY — the
+merge's overflow-retry relaxes ALL positional fields (record_offset,
+wave_start, wave_pool_pos) for players carrying no position-sonifying read
+(ioff 166-168 ∪ wavepos 211-213): position is behavior ONLY when observable;
+the phase-4 unconditional position-identity was quiet Rule-1 over-splitting.
+(2) C8's NEXT WIDENING, implemented only after measurement showed the
+observable players alone exceed 42: above 42 instruments the composer POOLS
+deduped 6-byte pulse-step blocks (istepbase = per-instrument pointer;
+capacity = distinct blocks ≤ 42, instruments free to 255); merge cap
+mirrored block-aware. Triple-gated (≤32 stride-8 / 33-42 dense stride-6 /
+43+ pooled): 31 members byte-identical vs the pre-change stored corpus.
+OPEN (user decision, recorded in the canon re-assessment): promote
+behavioral identity to the DEFAULT dedup key for all merges (better ML
+data; changes + re-verifies the 21 compilation members). Ledger C8 update
+pending this decision.
+
 ## ✅ R179 CLOSEOUT (2026-08-04): current-code batch 5,400/5,401 FULL; corpus mass-written + audited; portfolio 65/95; counter-ratchet baselined
 Re-verify batch under post-cleanup code: 5,400/5,401 FULL (Lane_Crazy the 1
 known partial, fix designed — see below). Mass-write 5,400/0 err, audit
