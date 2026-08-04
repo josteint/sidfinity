@@ -383,6 +383,19 @@ def _instrument_to_usf(inst, wavepos_layout: bool = False,
     )
 
 
+# Diagnostic: the stated-fold's LAST refusal reason (per-call; read by the
+# residue census — not used by the pipeline). Set at every refusing site in
+# _fold_stated_orderlist; the two `r is None` pass-throughs keep the inner
+# _marks_for reason.
+FOLD_REFUSAL = None
+
+
+def _refuse(reason):
+    global FOLD_REFUSAL
+    FOLD_REFUSAL = reason
+    return None
+
+
 def _fold_stated_orderlist(v):
     """Fold _walk_track's state-closure unroll into the PHYSICAL stated
     form (the de-unroll, 2026-07-18): one pass of physical entries with
@@ -401,7 +414,7 @@ def _fold_stated_orderlist(v):
     n = len(v.entries)
     offs = v.entry_offsets
     if not offs or len(offs) != n:
-        return None
+        return _refuse('no_offsets')
 
     def _marks_for(prefix_lo, prefix_hi):
         """Derive (mark, extra) per slot in [prefix_lo, prefix_hi) from
@@ -411,12 +424,12 @@ def _fold_stated_orderlist(v):
             prev_end = (offs[i - 1] + 1) if i > prefix_lo else 0
             gap = offs[i] - prev_end     # command bytes before this sector
             if gap < 0:
-                return None
+                return _refuse('marks_negative_gap')
             if gap == 0:
                 # no command byte: transpose must be inherited unchanged
                 inherited = v.transposes[i - 1] if i > prefix_lo else 0
                 if v.transposes[i] != inherited:
-                    return None
+                    return _refuse('marks_uninherited_transpose')
                 marks.append(None)
                 extras.append(0)
             else:
@@ -439,7 +452,7 @@ def _fold_stated_orderlist(v):
             B = i
             break
     if B == n or v.loop_to != B:
-        return None
+        return _refuse('no_rho_structure')
     r = _marks_for(0, B)
     if r is None:
         return None
@@ -448,10 +461,10 @@ def _fold_stated_orderlist(v):
     off_to_slot = {offs[i]: i for i in range(B)}
     slots = [off_to_slot.get(offs[j]) for j in range(B, n)]
     if any(sl is None for sl in slots):
-        return None
+        return _refuse('cycle_offsets_unaligned')
     S = slots[0]
     if slots != list(range(S, S + len(slots))) or S + len(slots) != B:
-        return None
+        return _refuse('cycle_not_suffix')
     # steady decode = cycle pass; intro decode = pass0 where it differs.
     # An intro/loop variant pair may differ ONLY in carried (unstated)
     # instr/vol — the class the composer's stated encoding ERASES, so both
@@ -497,7 +510,7 @@ def _fold_stated_orderlist(v):
             if not self_loop_tail and \
                not _stated_equal(v.patterns[entries[sl]],
                                  v.patterns[v.entries[j]]):
-                return None
+                return _refuse('intro_variant_stated_diff')
             intros[sl] = entries[sl]        # intro variant = pass-0 decode
             entries[sl] = v.entries[j]      # base = steady decode
     # verify the derived effective transposes reproduce BOTH walked passes:
@@ -509,14 +522,14 @@ def _fold_stated_orderlist(v):
             cur = marks[i]
         eff0.append(cur)
     if eff0 != list(v.transposes[:B]):
-        return None
+        return _refuse('transpose_replay_pass0')
     cur = eff0[-1]
     for j in range(B, n):
         sl = slots[j - B]
         if marks[sl] is not None:
             cur = marks[sl]
         if cur != v.transposes[j]:
-            return None
+            return _refuse('transpose_replay_cycle')
     return entries, marks, extras, intros, S
 
 
@@ -607,6 +620,14 @@ def _emit_otrk_fields(m) -> dict:
     fields = {}
     for song in m.songs:
         for vi, v in enumerate(song.voices):
+            # An EMPTY orderlist (a bare $FE-stop idle track) has no track
+            # counter to model — no fitted params, no legacy flag. It used
+            # to fall through both fitted models into `otrk_legacy: 1`,
+            # which is inert in the composer (the flag only shapes
+            # per-entry values) — pure corpus noise; the 2026-08-04 census
+            # found it on 42 of the 90 otrk_* carriers.
+            if not v.entries:
+                continue
             # de-unrolled (stated-form) voices carry their track notation
             # per-entry — no fitted params needed. The fitted models below
             # survive ONLY as the fallback for walks that don't fold (so no
