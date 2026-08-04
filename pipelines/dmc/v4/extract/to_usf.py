@@ -451,8 +451,27 @@ def _fold_stated_orderlist(v):
         if offs[i] <= offs[i - 1]:
             B = i
             break
-    if B == n or v.loop_to != B:
-        return _refuse('no_rho_structure')
+    if B == n:
+        # CLOSED AT THE FIRST WRAP (P2 lever, 2026-08-04): the walk's
+        # wrap key (loop target, sticky state, pending sectpos) matched an
+        # already-seen entry state at the very first `$FF`, so NO cycle
+        # pass was unrolled — offs are strictly increasing and loop_to may
+        # point anywhere. The closure property ITSELF is the proof the
+        # single-pass stated form is exact: re-entering the loop slot
+        # replays the same sticky state its first visit had (transposes,
+        # sectpos included — they all ride the key). This covers the
+        # single-entry loop (n=1, loop@0) and the self-loop tail alike;
+        # the old rho check wrongly refused all of them (the census's
+        # dominant genuine bucket: 52 voices / 29 members).
+        if v.loop_to >= n:
+            return _refuse('loop_out_of_range')
+        r = _marks_for(0, n)
+        if r is None:
+            return None
+        marks, extras = r
+        return list(v.entries), marks, extras, [None] * n, v.loop_to
+    if v.loop_to != B:
+        return _refuse('loop_not_rho_boundary')
     r = _marks_for(0, B)
     if r is None:
         return None
