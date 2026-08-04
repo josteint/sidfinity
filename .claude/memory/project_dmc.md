@@ -8,6 +8,17 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ R182 (2026-08-04): the 5 mass params keys TYPED — init_behavior articulation fields (C33 2nd occ), 843/843 carriers MD5-identical
+hold_gateoff/rest_effects/hard_restart/cymbal_onset/vib_ramp →
+InitBehaviorConfig.{gate_off_hold,rest_effects,hard_restart,cymbal_onset,
+vibrato_ramp} (Optional, None = canon defaults adsr_clear/run/preset/0/width,
+elided). Composer typed-first + params fallback; old-form corpus (f2 June
+files) untouched + building identically until the f2 campaign. Gates:
+843/843 in-f1 carriers regenerate MD5-identical, corpus check 12,064 clean,
+spec lint clean. Typed .usf store pass for the 843 running (per-member
+MD5-guarded). ⚠ grammar trap recorded in C33: keyword terminals shadow
+CNAME params keys corpus-wide — use the generic CNAME-key pattern.
+
 ## ✅ R181 (2026-08-04): behavioral identity promoted to the DEFAULT merge dedup key — 23/23 merge_models members FULL, corpus 5,833/5,833
 User decision (option 1 of the wrap-up list). The overflow-only relax became
 the default: positional fields (record_offset / wave_start / wave_pool_pos)

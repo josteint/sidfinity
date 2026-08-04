@@ -937,7 +937,18 @@ def _write_init_behavior(cfg: InitBehaviorConfig) -> list[str]:
         parts.append(f'  master_vol_every_frame: ${cfg.master_vol_every_frame:02X}')
     if cfg.master_vol_every_note:
         parts.append(f'  master_vol_every_note: ${cfg.master_vol_every_note:02X}')
-    return ['init_behavior {  ; engine first-frame play behavior', *parts, '}']
+    # articulation behaviors (C33 typing) — None = canon, elided
+    if cfg.gate_off_hold is not None:
+        parts.append(f'  gate_off_hold: {cfg.gate_off_hold}')
+    if cfg.rest_effects is not None:
+        parts.append(f'  rest_effects: {cfg.rest_effects}')
+    if cfg.hard_restart is not None:
+        parts.append(f'  hard_restart: {cfg.hard_restart}')
+    if cfg.cymbal_onset is not None:
+        parts.append(f'  cymbal_onset: {cfg.cymbal_onset}')
+    if cfg.vibrato_ramp is not None:
+        parts.append(f'  vibrato_ramp: {cfg.vibrato_ramp}')
+    return ['init_behavior {  ; engine play behavior', *parts, '}']
 
 
 def _write_song_end(cfg: SongEndConfig) -> list[str]:
@@ -997,7 +1008,12 @@ def write(usf: UsfFile) -> str:
             usf.init_behavior.silence_all_voices_on_frame_0
             or usf.init_behavior.no_first_attack_voice
             or usf.init_behavior.master_vol_every_frame
-            or usf.init_behavior.master_vol_every_note):
+            or usf.init_behavior.master_vol_every_note
+            or usf.init_behavior.gate_off_hold is not None
+            or usf.init_behavior.rest_effects is not None
+            or usf.init_behavior.hard_restart is not None
+            or usf.init_behavior.cymbal_onset is not None
+            or usf.init_behavior.vibrato_ramp is not None):
         lines.append('')
         lines.extend(_write_init_behavior(usf.init_behavior))
     if usf.master_vol is not None:

@@ -1109,7 +1109,11 @@ practice, not code to factor).
   require the .sid MD5-identical across EVERY consumer family. TRAP: a
   FULL-in-regression member can hide a BROKEN extract path (regression builds
   from a STORED .usf, not from regeneration) — regenerating to gate surfaces
-  it (the C20 relative at the extract layer).
+  it (the C20 relative at the extract layer). GRAMMAR TRAP (2nd occ): a typed
+  field whose name exists as a wild params{} key must use the generic
+  CNAME-key + transformer-validation pattern — a keyword terminal shadows
+  CNAME corpus-wide and breaks every old-form stored file (corpus_check
+  catches it; run it BEFORE trusting any other gate).
 - FULL ENTRY: [`ledger/C33.md`](ledger/C33.md) — read it before applying.
 
 ### C36 — a PC-triggered bus tap false-fires on DATA reads of the trigger address

@@ -272,6 +272,17 @@ init_behavior_field: "silence_all_voices_on_frame_0" ":" bool   -> ib_silence_al
                    | "no_first_attack_voice" ":" INT             -> ib_no_first_attack
                    | "master_vol_every_frame" ":" number         -> ib_master_vol_every_frame
                    | "master_vol_every_note" ":" number          -> ib_master_vol_every_note
+                   // steady-state articulation behaviors (C33 typing of the
+                   // 5 mass params keys, 2026-08-04). Absent = the engine
+                   // family's canon behavior. GENERIC CNAME-key form (the
+                   // init_field pattern), NOT keyword terminals: these words
+                   // also occur as params{} keys in the old-form corpus, and
+                   // a keyword terminal would shadow CNAME there and break
+                   // every stored file (usf_corpus_check caught exactly
+                   // that). The transformer validates the name.
+                   | CNAME ":" ib_artic_value                    -> ib_artic
+ib_artic_value: INT                -> ib_artic_int
+              | CNAME              -> ib_artic_name
 
 // ----- master_vol (optional) -----
 // Master-volume modulation algorithm — replaces 5 flat per-tune

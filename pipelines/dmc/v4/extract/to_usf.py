@@ -25,11 +25,40 @@ import re
 from src.usf.types import (
     Environment,
     UsfFile, PsidMeta, Params, InitState, InitSid, InitFilter, InitVoice,
+    InitBehaviorConfig,
     Instrument, PwmConfig, VibratoConfig, EnvelopeConfig,
     FreqSlideConfig, FilterProgConfig, ArpConfig,
     MusicSubtune, VoiceBlock, Orderlist, Pattern, NoteRow, Pitch,
     InstrumentRef, DmcSfxSubtune,
 )
+
+
+# The 5 articulation behaviors typed out of `params.fields` into the
+# `init_behavior` block (C33, 2026-08-04) — previously ~90% of the corpus's
+# untyped field instances. The extra_params key names map 1:1 except
+# vib_ramp -> vibrato_ramp; values pass through (hard_restart normalized to
+# str, cymbal_onset to int).
+_ARTICULATION_KEYS = {'hold_gateoff', 'rest_effects', 'hard_restart',
+                      'cymbal_onset', 'vib_ramp'}
+
+
+def _articulation_block(extra: dict) -> 'InitBehaviorConfig | None':
+    """InitBehaviorConfig from the factory's articulation extra_params, or
+    None when the member carries none (canon behaviors, block elided)."""
+    if not (_ARTICULATION_KEYS & set(extra)):
+        return None
+    cfg = InitBehaviorConfig()
+    if 'hold_gateoff' in extra:
+        cfg.gate_off_hold = str(extra['hold_gateoff'])
+    if 'rest_effects' in extra:
+        cfg.rest_effects = str(extra['rest_effects'])
+    if 'hard_restart' in extra:
+        cfg.hard_restart = str(extra['hard_restart'])
+    if 'cymbal_onset' in extra:
+        cfg.cymbal_onset = int(extra['cymbal_onset'])
+    if 'vib_ramp' in extra:
+        cfg.vibrato_ramp = str(extra['vib_ramp'])
+    return cfg
 from src.usf.writer import write_file
 from pipelines.dmc.v4.config import DMCV4Config
 from pipelines.dmc.v4.extract.engine_model import (
@@ -826,8 +855,12 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
         params=Params(fields={
             # otrk phase-offset scalars (see _otrk_pad)
             **pad_fields,
-            # family-2 build knobs (factory-probed; empty for canon)
-            **m.extra_params}),
+            # factory-probed build knobs (empty for canon). The 5
+            # articulation behaviors are routed to the TYPED
+            # init_behavior block below (C33, 2026-08-04), not here.
+            **{k: v for k, v in m.extra_params.items()
+               if k not in _ARTICULATION_KEYS}}),
+        init_behavior=_articulation_block(m.extra_params),
         # NB idle_guards deliberately NOT emitted yet — the composer's guard
         # freewheel schedule for stopped voices is unverified vs the orig
         # (see composer_asm DMC_OFFTABLE_STATE note); priming would change

@@ -1333,6 +1333,25 @@ class _T(Transformer):
     def ib_master_vol_every_note(self, items):
         return ('master_vol_every_note', int(items[0]))
 
+    def ib_artic_int(self, items):
+        return int(items[0])
+
+    def ib_artic_name(self, items):
+        return str(items[0])
+
+    # articulation behaviors ride the GENERIC CNAME-key rule (see grammar
+    # note — keyword terminals would shadow CNAME in old-corpus params{}).
+    _IB_ARTIC = {'gate_off_hold': str, 'rest_effects': str,
+                 'hard_restart': str,          # CNAME or INT, normalized str
+                 'cymbal_onset': int, 'vibrato_ramp': str}
+
+    def ib_artic(self, items):
+        key, val = str(items[0]), items[1]
+        typ = self._IB_ARTIC.get(key)
+        if typ is None:
+            raise UsfParseError(f'init_behavior: unknown field {key!r}')
+        return (key, typ(val))
+
     def init_behavior_field(self, items):
         return items[0]
 

@@ -1026,6 +1026,29 @@ class InitBehaviorConfig:
     # (e.g. Monty on the Run) re-assert master vol every frame; others set
     # it once in init. 0 = init-only (default).
     master_vol_every_frame: int = 0
+    # ---- steady-state articulation behaviors (C33 typing, 2026-08-04:
+    # previously the 5 mass `params.fields` keys, ~90% of the corpus's
+    # untyped instances). All Optional; None = the engine family's canon
+    # behavior (elided when absent). Small musically-named enums — each
+    # value describes WHAT THE CHIP RECEIVES, never an engine library
+    # index (§7); every value is factory-probed from the member's binary.
+    # What a HELD gate-off writes: 'mask_only' = clear the gate bit only;
+    # 'adsr_clear' = also zero AD/SR (release-click hygiene differs).
+    gate_off_hold: Optional[str] = None
+    # What runs on rest/tie frames: 'run' = full effects, 'skip' =
+    # modulators hold (register refresh only), 'none' = no writes at all,
+    # 'vibflip' = the vibrato direction flips then wave-steps.
+    rest_effects: Optional[str] = None
+    # Attack-prep before note-init: 'preset' = the family's standard
+    # hard-restart prep, 'none' = no prep, 'skip' = prep call skipped,
+    # or a decimal test-value string for patched preset immediates.
+    hard_restart: Optional[str] = None
+    # Frames between a cymbal note-init and its noise burst (0 =
+    # same-frame burst).
+    cymbal_onset: Optional[int] = None
+    # Vibrato depth-ramp shape: 'width' = amplitude-scaled ramp,
+    # 'step' = fixed per-half-cycle step.
+    vibrato_ramp: Optional[str] = None
     # When non-zero, the engine writes this value to $D418 (master volume)
     # on EVERY note-load — once per voice that advances to a new pattern
     # entry. Devils Galop does this: its $13B7 vol write sits inline in the

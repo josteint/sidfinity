@@ -1466,7 +1466,11 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # GATED like the per-subtune idle priming: unless subtunes actually
     # disagree, the static single-target form below is emitted byte-identically
     # (tune-record byte +9 stays $00, no resteff var, no dispatcher).
-    _file_rest = str(usf.params.fields.get('rest_effects', 'run'))
+    _ib = usf.init_behavior            # typed articulation (C33) — typed-
+    def _artic(field, key, default):   # first, params-fallback (old corpus)
+        v = getattr(_ib, field, None) if _ib is not None else None
+        return v if v is not None else usf.params.fields.get(key, default)
+    _file_rest = str(_artic('rest_effects', 'rest_effects', 'run'))
     _rest_code = {'run': 0, 'skip': 1, 'vibflip': 2, 'none': 3}
     sub_rest = [str(s['params'].get('rest_effects', _file_rest))
                 for s in m.subtunes] or [_file_rest]
@@ -1515,7 +1519,7 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # noise-attack (cymbal) onset: 0 = the burst fires at note-init
     # (canon — frame 1); 1 = one frame later (family 2 — frame 2, gated
     # by the post-note guard). A musical timing parameter of the effect.
-    cymbal_onset = int(usf.params.fields.get('cymbal_onset', 0)) & 1
+    cymbal_onset = int(_artic('cymbal_onset', 'cymbal_onset', 0)) & 1
     # cymbal noise-burst freq value: the immediate written to $D400/$D401 for
     # the gated-noise attack. Canon is $FFFF (LDA #$FF), but the value is an
     # extracted per-member operand — a few demos patch it (e.g. Presentation's
@@ -1530,13 +1534,13 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # swells in; 'step' (family 2) holds a fixed width and RAMPS the step
     # by freq_hi(note)>>1 each half-cycle (16-bit). The per-note increment
     # is derived from the freq table the composer already carries.
-    vib_ramp = str(usf.params.fields.get('vib_ramp', 'width'))
+    vib_ramp = str(_artic('vibrato_ramp', 'vib_ramp', 'width'))
     # holding-instrument gate-off: 'adsr_clear' (canon) also zeroes AD+SR
     # (the original's sub_17EC); 'mask_only' (family 2) just drops the gate
     # bit via the mask. Family 2 relocated its instrument table over
     # sub_17EC and inlines a mask-only gate-off, so holding voices keep
     # their AD/SR at note-end (no $D405/$D406=$00 write).
-    hold_gateoff = str(usf.params.fields.get('hold_gateoff', 'adsr_clear'))
+    hold_gateoff = str(_artic('gate_off_hold', 'hold_gateoff', 'adsr_clear'))
     hold_adsr_clear = ('' if hold_gateoff == 'mask_only' else
                        '        ldy sidoff,x\n'
                        '        lda #$00\n'
@@ -1575,7 +1579,7 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # normally next frame, and the old note rings through the fetch frame.
     # Distinct from 'none', which keeps the $08 TEST write (hr_test_write
     # forced '' below).
-    hard_restart = str(usf.params.fields.get('hard_restart', 'preset'))
+    hard_restart = str(_artic('hard_restart', 'hard_restart', 'preset'))
     if hard_restart in ('none', 'skip'):
         hard_restart_adsr = ''
     else:
