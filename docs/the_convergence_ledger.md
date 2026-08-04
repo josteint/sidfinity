@@ -249,6 +249,10 @@ practice, not code to factor).
   a corpus-wide MD5 rebuild); REFUSE where another feature encodes positions
   in the old layout. The ORIGINAL may have no answer to copy — its own index
   wraps EARLIER; the overflow is created by our merge of N packed players.
+  3rd widening (r180): above 42, POOL deduped step blocks — istepbase = a
+  per-instrument POINTER, capacity = distinct blocks ≤ 42, instruments ≤ 255.
+  FIRST apply behavioral-identity dedup (C31) — the pressure is usually
+  over-splitting, not content.
 - FULL ENTRY: [`ledger/C8.md`](ledger/C8.md) — read it before applying.
 
 ### C9 — a runtime parameter py65 can't read → measure it from the writelog
@@ -935,7 +939,12 @@ practice, not code to factor).
   well-formed, WRONG byte). And no FILE-LEVEL idx-keyed composer table (the
   off-table window) can hold a per-player fact: attribute records to subtunes
   by the instruments their ROWS play, patch the disagreeing positions at init
-  (gated ⇒ conflict-free members byte-identical). SINGLE-PLAYER FORM (r99):
+  (gated ⇒ conflict-free members byte-identical). ⚠ BEHAVIORAL IDENTITY IS
+  THE MERGE DEDUP KEY (r181): positional fields (record_offset / wave_start /
+  wave_pool_pos) ride `_inst_key` ONLY for players with a position-sonifying
+  read (ioff 166-168 ∪ wavepos fhi 211-213) — unconditional stamping was §6
+  Rule-1 over-splitting and drove Lane_Crazy past the C8 cap (verified: 23/23
+  merge_models members FULL under the default). SINGLE-PLAYER FORM (r99):
   the window fact can be per-SUBTUNE through ONE SHARED instrument (track-ptr
   slots are per-subtune init state) — instrument-usage attribution can't
   disagree, so the extract SPLITS the instrument per sampled VALUE-CLASS

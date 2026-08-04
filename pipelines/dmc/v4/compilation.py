@@ -987,32 +987,30 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
             blocks.add(tuple((ss + [ss[-1]] * 6)[:6]))
         return None if len(blocks) > _MAX_INSTR else (insts, remap_)
 
-    # STRICT pass first (r149 semantics — every member that fits emits
-    # byte-identical output). On cap overflow, RETRY relaxing the players
-    # that provably never sonify ioff (Lane_Crazy 2026-08-03: r149's
-    # unconditional record_offset key shrank sharing 42 -> 44 and the member
-    # silently fell back to a single-player build — sub 0 FULL, subs 1-5
-    # garbage; the C8 gate pattern, applied to the dedup key).
-    result = _place(set())
-    if result is None:
-        # position-observability set: ioff window (166-168) + wavepos window
-        # (fhi idx 211-213, $177A-$177C). A player none of whose instruments
-        # carries a read into either window cannot sonify table positions —
-        # its instruments' identity is their BEHAVIOR alone (Principle §6
-        # Rule 1; C8's dedup-before-widening ordering).
-        _POS_WIN = {166, 167, 168} | {(0x177A + k) - 0x16A7 for k in range(3)}
-        flagged = {pidx for pidx in range(len(models))
-                   if any((rec[0] + rec[1]) & 0xFF in _POS_WIN
-                          for i_ in models[pidx].instruments.values()
-                          for rec in (i_.offtable_freq or []))}
-        relax = set(range(len(models))) - flagged
-        if relax:
-            result = _place(relax)
+    # BEHAVIORAL IDENTITY IS THE DEFAULT KEY (2026-08-04, user decision after
+    # the r180 canon re-assessment; Principle §6 Rule 1 — cluster by
+    # behavior, not by storage layout). Positional fields (record_offset,
+    # wave_start, wave_pool_pos) ride the dedup key ONLY for players whose
+    # subtunes can actually sonify a table position: the ioff window
+    # (166-168) or the wavepos window (fhi idx 211-213, $177A-$177C). A
+    # player with no read into either window cannot observe where its
+    # instruments sat — identical resolved programs share a slot regardless.
+    # (History: r149 stamped record_offset unconditionally, phase-4 added
+    # wave_start — the accumulated over-splitting pushed Lane_Crazy past the
+    # instrument cap and silently degraded it to a single-player build; the
+    # relax was first an overflow-only retry, promoted to the default with a
+    # full re-verify of every merge_models member.)
+    _POS_WIN = {166, 167, 168} | {(0x177A + k) - 0x16A7 for k in range(3)}
+    flagged = {pidx for pidx in range(len(models))
+               if any((rec[0] + rec[1]) & 0xFF in _POS_WIN
+                      for i_ in models[pidx].instruments.values()
+                      for rec in (i_.offtable_freq or []))}
+    result = _place(set(range(len(models))) - flagged)
     if result is None:
         raise ValueError(
-            f'merged compilation needs > {_MAX_INSTR} instruments even after '
-            f'relaxing position-unobservable players (composer pulse-step '
-            f'index cap — the measured case for C8 widening)')
+            f'merged compilation needs > {_MAX_INSTR} distinct pulse-step '
+            f'blocks or > 255 instruments even under behavioral identity '
+            f'(ledger C8 — the next widening is a 16-bit index)')
     merged.instruments, remap = result
 
     # songs in PSID-subtune order; rewrite each row's instrument to the merged id

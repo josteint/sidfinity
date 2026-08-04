@@ -8,6 +8,19 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ R181 (2026-08-04): behavioral identity promoted to the DEFAULT merge dedup key — 23/23 merge_models members FULL, corpus 5,833/5,833
+User decision (option 1 of the wrap-up list). The overflow-only relax became
+the default: positional fields (record_offset / wave_start / wave_pool_pos)
+ride `_inst_key` ONLY for players with a position-sonifying read (ioff
+166-168 ∪ wavepos fhi 211-213); the strict pass is gone. Verified by FULL
+re-verify of every merge_models member (22 compilations + Mega_Mix medley):
+23/23 FULL, 0 regressions (closeout diff clean). Artifacts mass-written +
+disk-audited. Better ML corpus: no position-split duplicate instrument
+definitions. Ledger C8 (3rd widening) + C31 (behavioral-identity default)
+entries + cards updated. If a NEW position-sonifying read class is ever
+found, GROW the observability windows — a miss shows as a partial at
+verify, never a silent wrong FULL.
+
 ## 🏆 R180 (2026-08-04): Lane_Crazy **FULL 6/6** — FAMILY-1 AT **5,401/5,401 (100%)**
 The last partial closed via two canon-derived moves (the user's re-read-the-
 canon challenge reframed the fix): (1) Principle §6 Rule-1 IDENTITY — the
