@@ -8,6 +8,18 @@ metadata:
   modified: 2026-07-24T10:32:42.921Z
 ---
 
+## ✅ R179 CLOSEOUT (2026-08-04): current-code batch 5,400/5,401 FULL; corpus mass-written + audited; portfolio 65/95; counter-ratchet baselined
+Re-verify batch under post-cleanup code: 5,400/5,401 FULL (Lane_Crazy the 1
+known partial, fix designed — see below). Mass-write 5,400/0 err, audit
+10/10 all build paths; usf_corpus_check 12,063 clean; spec_lint 0/0;
+escape-hatch baseline 4.0592% (tools/usf_ratchet_baseline.json). f1 corpus
+noise swept: empty-arp 0, otrk_* residual = 90 genuine fold-refusals (71
+otrk_legacy documented approximation). Portfolio re-derived: 65 members /
+95 dims (every r74-r177 wedge class guarded), all FULL. batch_diff wired
+into the batch DONE path + fired live. Plan: tmp/cleanup_plan_2026-08-03.md
+(A-E done; user-gated: Lane_Crazy fix choice, 5-key schema typing, E3, F3,
+G1 uready).
+
 ## 🔎 R179 (2026-08-04, overnight): hygiene batch LANDED — 5,832/5,833 FULL; the 1 partial is Lane_Crazy, root-caused to the phase-4 wave-pool identity growth (fix DESIGNED, awaiting review)
 Fresh batch DONE {'full': 5356, 'partial': 1} (5,832 FULL total after dedup
 incl. prior rows); batch_diff vs Jul-26: **82 gains ✓, 1 regression —
