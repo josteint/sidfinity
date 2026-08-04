@@ -503,6 +503,20 @@ sample missed carriers). Classes:
 Decision deferred to the uready/Move-1 review; recorded here so the census
 finding has a durable home (the tmp/ report is wipeable).
 
+### Interpolation-probe finding — pwm speed_steps nibble coupling (P3, 2026-08-04)
+
+First run of the §9-test-3 probe (`tools/usf_interp_probe.py`, 50 same-file
+instrument-pair midpoints over DMC f1): 45 realize live; ALL 5 failures are
+one finding — `speed_steps` element midpoints violate the composer's
+shared-base-nibble invariant ("pulse steps do not share a base nibble").
+The DMC encoding packs (per-step speed hi-nibble | shared base lo-nibble)
+into each value, leaking byte-packing into the parameter space: the free
+musical DOF is six step values + ONE base. Candidate refinement for the
+schema review: split `speed_steps` into hi-nibble step values + a separate
+`pw_step_base` field (a carrier refactor at the USF layer, byte-gated).
+Until then, the coupling is documented case law: interpolation over
+`speed_steps` must hold the base nibble fixed.
+
 ### Audio-equivalence verdict (former ledger C15 — removed 2026-07-01 by user decision)
 
 **Policy until Move 1: every SID always gets the STRICT write-stream match.**
