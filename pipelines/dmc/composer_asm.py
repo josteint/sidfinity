@@ -1320,8 +1320,20 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # emits byte-identical code.
     wide_pulse = len(insts) > 32
     istride = 6 if wide_pulse else 8
+    # POOLED pulse-step layout (ledger C8, next widening — 2026-08-04,
+    # Lane_Crazy): above 42 instruments even the compact stride-6 layout
+    # overflows the 8-bit index (42*6+5 = 255). Instruments with IDENTICAL
+    # step blocks share one pool entry; `istepbase` becomes a per-instrument
+    # POINTER into the deduped pool, so capacity is DISTINCT-BLOCKS-bounded
+    # (<= 42 blocks) with the instrument count free to 255 (cinst is a
+    # byte). GATED at > 42 so every member that fits the dense stride-6
+    # layout emits byte-identical code (the C8 gate pattern; members <= 32
+    # keep stride 8, 33-42 keep dense stride 6, only 43+ pool).
+    pooled_pulse = len(insts) > 42
+    assert len(insts) <= 255, \
+        f'{len(insts)} instruments overflow the cinst byte'
     istepbase = [k * istride for k in range(len(insts))]
-    assert not wide_pulse or istepbase[-1] + 5 < 256, \
+    assert pooled_pulse or not wide_pulse or istepbase[-1] + 5 < 256, \
         f'{len(insts)} instruments overflow the pulse-step base byte'
     pulse_index = (
         '        ldy cinst,x\n'
@@ -1340,22 +1352,36 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     isteps = []
     ipwbase = []
     irawsp = []
-    for i in insts:
+    _pool = {}                       # (isteps block, irawsp block) -> offset
+    for k, i in enumerate(insts):
         ss = list(i.pwm.speed_steps) or [i.pwm.speed] * 6
         ss = (ss + [ss[-1]] * 6)[:6]
         base = ss[0] & 0x0F
         assert all((s & 0x0F) == base for s in ss), \
             f'inst {i.id}: pulse steps do not share a base nibble'
         ipwbase.append(base)
-        isteps += ([s & 0xF0 for s in ss] + [0, 0])[:istride]
+        blk_s = tuple(([s & 0xF0 for s in ss] + [0, 0])[:istride])
         # raw instr+3..5 speed bytes (hi nibble = even-phase step, lo nibble =
         # odd-phase step >> 4 — exact inverse of the extract's nibs decode),
         # duplicated per parity so fx_pulse reuses the isteps index. Feeds the
         # wjmp shadow of orig $171F ($1357: LDA raw / STA $171F).
-        raw3 = [(ss[2 * k] & 0xF0) | ((ss[2 * k + 1] & 0xF0) >> 4)
-                for k in range(3)]
-        irawsp += [raw3[0], raw3[0], raw3[1], raw3[1],
-                   raw3[2], raw3[2], 0, 0][:istride]
+        raw3 = [(ss[2 * k2] & 0xF0) | ((ss[2 * k2 + 1] & 0xF0) >> 4)
+                for k2 in range(3)]
+        blk_r = tuple([raw3[0], raw3[0], raw3[1], raw3[1],
+                       raw3[2], raw3[2], 0, 0][:istride])
+        if pooled_pulse:
+            key = (blk_s, blk_r)
+            if key not in _pool:
+                _pool[key] = len(isteps)
+                isteps += list(blk_s)
+                irawsp += list(blk_r)
+            istepbase[k] = _pool[key]
+        else:
+            isteps += list(blk_s)
+            irawsp += list(blk_r)
+    assert not pooled_pulse or (len(isteps) and len(isteps) - istride < 250), \
+        (f'{len(_pool)} distinct pulse-step blocks overflow the pooled '
+         f'8-bit index (ledger C8 — the next widening is 16-bit)')
     # dual_freq_generator pulse-step extension (factory._dual_freq_gen_probe):
     # the wedge
     # forces pwphase to P0/P0+1 every dual frame (+<=2 flip INCs), so

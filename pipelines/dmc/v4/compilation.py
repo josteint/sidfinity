@@ -913,10 +913,17 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
 
     def _place(relax: set) -> 'tuple[dict, dict] | None':
         """One placement pass. `relax` = player indices whose instruments'
-        record_offset is DROPPED from the dedup key (and nulled): their
-        subtunes carry NO ioff-sonifying read (off-table idx 166-168), so
-        the orig table position is unobservable for them and identical
-        instruments may share a slot regardless of where they sat.
+        POSITIONAL fields are DROPPED from the dedup key (and nulled):
+        record_offset (sonified by ioff reads, idx 166-168), wave_start and
+        wave_pool_pos (sonified by wavepos reads, fhi idx 211-213 — and
+        wave_start is inert in compilation emission anyway: the merged model
+        never carries wave_table_norm, so to_usf emits resolved-copy form).
+        A relaxed player's subtunes carry NO position-sonifying read, so per
+        the Principle Rule 1 the table position is NOT part of its
+        instruments' behavior — identical resolved programs may share a slot
+        regardless of where they sat in their players' tables (the
+        Lane_Crazy r179 over-split: phase-4 positional identity kept
+        near-identical kits distinct, 44 > the 42 cap).
         Returns (instruments, remap) or None when the cap overflows."""
         insts: dict = {}
         pool = defaultdict(list)    # base key (no offtable) -> [new_iid, ...]
@@ -934,9 +941,13 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
             # identical instruments at different table positions sonify
             # different ioff and must NOT share — and (b) survives the
             # renumber (ledger C31/C11, the ioff analog of idle_wave).
-            # A `relax`ed player's position is unobservable — no stamp.
+            # A `relax`ed player's position is unobservable — no stamp,
+            # and the wave-position fields are nulled out of the key too.
             ni.record_offset = (None if pidx in relax
                                 else _inst_offset(old))
+            if pidx in relax:
+                ni.wave_start = None
+                ni.wave_pool_pos = None
             bk = _inst_key(ni, drop=('offtable_freq',))
             placed = None
             for nid in pool[bk]:
@@ -960,7 +971,21 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
             if ni.record_offset == _inst_offset(new):
                 ni.record_offset = None
             insts[new] = ni
-        return None if len(insts) > _MAX_INSTR else (insts, remap_)
+        # Capacity (mirrors composer_asm's pulse-step layouts, ledger C8):
+        # <= 42 instruments fit the dense layouts; above that the composer
+        # POOLS deduped 6-byte step blocks (2026-08-04, Lane_Crazy), so the
+        # bound becomes DISTINCT step blocks <= 42 with the instrument count
+        # free to 255 (cinst is a byte). Block key mirrors the composer's
+        # padding exactly (speed_steps or [speed]*6, last entry repeated).
+        if len(insts) <= _MAX_INSTR:
+            return insts, remap_
+        if len(insts) > 255:
+            return None
+        blocks = set()
+        for i_ in insts.values():
+            ss = list(i_.pw_steps) or [0] * 6
+            blocks.add(tuple((ss + [ss[-1]] * 6)[:6]))
+        return None if len(blocks) > _MAX_INSTR else (insts, remap_)
 
     # STRICT pass first (r149 semantics — every member that fits emits
     # byte-identical output). On cap overflow, RETRY relaxing the players
@@ -970,9 +995,14 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
     # garbage; the C8 gate pattern, applied to the dedup key).
     result = _place(set())
     if result is None:
-        _IOFF_WIN = {166, 167, 168}
+        # position-observability set: ioff window (166-168) + wavepos window
+        # (fhi idx 211-213, $177A-$177C). A player none of whose instruments
+        # carries a read into either window cannot sonify table positions —
+        # its instruments' identity is their BEHAVIOR alone (Principle §6
+        # Rule 1; C8's dedup-before-widening ordering).
+        _POS_WIN = {166, 167, 168} | {(0x177A + k) - 0x16A7 for k in range(3)}
         flagged = {pidx for pidx in range(len(models))
-                   if any((rec[0] + rec[1]) & 0xFF in _IOFF_WIN
+                   if any((rec[0] + rec[1]) & 0xFF in _POS_WIN
                           for i_ in models[pidx].instruments.values()
                           for rec in (i_.offtable_freq or []))}
         relax = set(range(len(models))) - flagged
@@ -981,7 +1011,8 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
     if result is None:
         raise ValueError(
             f'merged compilation needs > {_MAX_INSTR} instruments even after '
-            f'relaxing ioff-free players (composer pulse-step index cap)')
+            f'relaxing position-unobservable players (composer pulse-step '
+            f'index cap — the measured case for C8 widening)')
     merged.instruments, remap = result
 
     # songs in PSID-subtune order; rewrite each row's instrument to the merged id
