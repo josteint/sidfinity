@@ -5,8 +5,17 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-05T20:11:55.444Z
+  modified: 2026-08-05T20:41:27.479Z
 ---
+
+## ✅ I2 (2026-08-05): params-bag justification LEDGER wired into the ratchet (check 2b) — 99,682 instances 100% attributed, 0 unjustified
+Census refuted "singleton tail dominates": 71% = Basic_Program bp_*
+template representation (family-level BP question), ~25% = old-form
+f2/v5 corpora (typed/stated in code, converge at their mass-writes),
+2.4% FC std_* (C7-A3), true C19 wedge floor = 606 inst / 85 keys
+(0.6%). No typing warranted. usf_principle_lint check 2b now enforces:
+every bag key must match a documented block; a key >= 50 members
+outside them = UNJUSTIFIED MASS, exit 1.
 
 ## ✅ I1 (2026-08-05): interpolation probe WIDENED — 208/208 midpoints live, 0 findings across DMC f1 + FC + Hubbard/Companion
 Probe grew cross-file pairs, adsr NIBBLE-wise + wave_freq element-wise
