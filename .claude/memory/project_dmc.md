@@ -5,8 +5,15 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-05T20:06:24.425Z
+  modified: 2026-08-05T20:11:55.444Z
 ---
+
+## ✅ I1 (2026-08-05): interpolation probe WIDENED — 208/208 midpoints live, 0 findings across DMC f1 + FC + Hubbard/Companion
+Probe grew cross-file pairs, adsr NIBBLE-wise + wave_freq element-wise
+interp, and an engine corpus registry (dmc/fc/hubbard; MA/GT/Basic join
+when corpora exist). §9 test 3 clean corpus-wide post-split; test 4
+probed via the shared schema. Standing opt-in gate (~1 h). Phase-I
+remaining: I2 ratchet burn-down, I4 fold-residue close-out (I3 done).
 
 ## ✅ R184 (2026-08-05): the speed_steps/step_base SCHEMA SPLIT landed — the P3 interpolation finding CLOSED (50/50, 0 findings)
 `PwmConfig.step_base` (presence = the split-form marker; None = legacy
