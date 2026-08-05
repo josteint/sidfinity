@@ -206,6 +206,14 @@ class DmcVoice:
                                                      # of each entry's sector
                                                      # byte (walk-time ground
                                                      # truth for otrk_pad)
+    jump_from: list = field(default_factory=list)    # parallel to entries:
+                                                     # the $FF-jump LANDING pos
+                                                     # when this entry was the
+                                                     # first after a track jump
+                                                     # (None otherwise) — lets
+                                                     # the stated fold measure
+                                                     # command-byte gaps across
+                                                     # multi-region tracks
     loop_to: int | None = None
     stop: bool = False
     # Initial sticky-instrument seed the walk ran with: the engine's per-voice
@@ -895,6 +903,8 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
         else (lambda: ())
     transpose = 0
     pos = 0
+    landed = None           # $FF-jump landing pos pending attribution to the
+                            # NEXT appended entry (v.jump_from)
     wrap_states = {}        # (tgt, sticky, pending) at wrap -> entry index
     mod_states = {}         # (pos, sticky, transpose) after a mod-256 wrap
     wrapped = False
@@ -951,9 +961,11 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                     v.patterns.append([r0])
                     pat_key_to_id[pkey] = pid
                 v.entry_offsets.append(pos)
+                v.jump_from.append(landed)
                 v.entries.append(pid)
                 v.transposes.append(transpose)
                 pos = 0
+                landed = 0
                 pending_off += 1        # the note path's INC $1729,x
                 continue
             if loop_reset_pos is not None:
@@ -966,6 +978,7 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 return v
             wrap_states[key] = len(v.entries)
             pos = tgt
+            landed = tgt
             continue
         if b >= 0x80:
             # mirror the 6502: SEC SBC #$A0; on borrow EOR #$1F, ADC #$01
@@ -1063,6 +1076,8 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                         v.patterns.append([r0])
                         pat_key_to_id[key] = pid
                     v.entry_offsets.append(pos)
+                    v.jump_from.append(landed)
+                    landed = None
                     v.entries.append(pid)
                     v.transposes.append(transpose)
                     ticks_done += (r0.duration or 256)
@@ -1079,6 +1094,8 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 continue
         sec = b
         v.entry_offsets.append(pos)
+        v.jump_from.append(landed)
+        landed = None
         sec_addr = (mem[(secp_lo + sec) & 0xFFFF] |
                     (mem[(secp_hi + sec) & 0xFFFF] << 8)) + pending_off
         pending_off = 0
@@ -1103,6 +1120,7 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
             for chunk in ([lead] if lead else []) + [period]:
                 if len(v.entries) > len(v.entry_offsets) - 1:
                     v.entry_offsets.append(pos)
+                    v.jump_from.append(None)
                 v.patterns.append(chunk)
                 v.entries.append(len(v.patterns) - 1)
                 v.transposes.append(transpose)

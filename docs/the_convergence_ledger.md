@@ -877,7 +877,13 @@ practice, not code to factor).
   one track byte carries lead+period entries at EQUAL offsets (intro plays
   once, the loop re-fetches steady at the frozen otrk); admission scoped
   to cycle-length-1 tails, longer cycles keep the encoding-equivalence
-  refusal.
+  refusal. SLOT-MODEL fold (r183, the loop_not_rho lever): closures NOT
+  at the rho boundary (inject-rotation / multi-region $FF-jump tracks /
+  multi-pass transpose convergence / new-offset re-entry) fold via
+  first-visit slot linearization + whole-walk replay (`_fold_slot_model`;
+  strict one-intro variant shape). ⚠ a fold-acceptance change's exposure
+  census = a whole-family BYTE SWEEP, not the otrk-field census (fitted
+  pad/period carriers are invisible to it — 19 of 24 were).
 - FULL ENTRY: [`ledger/C32.md`](ledger/C32.md) — read it before applying.
 
 ### C31 — COMPILATION: one file packs N independent players; a dispatch wrapper selects (player, song)

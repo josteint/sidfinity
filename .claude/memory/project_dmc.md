@@ -5,8 +5,28 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-07-24T10:32:42.921Z
+  modified: 2026-08-05T18:12:10.784Z
 ---
+
+## ✅ R183 (2026-08-05): the loop_not_rho lever LANDED — general slot-model fold; 26 members fitted→stated, fold residue 22 with ZERO lever candidates
+`_fold_slot_model` (to_usf.py) + walk `jump_from` metadata (engine_model):
+first-visit slot linearization + jump-aware marks + whole-walk transpose
+replay + strict one-intro variant shape; consulted ONLY at the old
+`loop_not_rho_boundary` refusal point (structural 0-regression). Ledger
+C32 refinement (entry + card) has the model + soundness conditions.
+Gates: family-wide build-vs-stored MD5 sweep 5,377/5,401 SAME; 24 DIFF =
+the full exposure set (19 were fitted pad/period carriers INVISIBLE to
+the otrk census — byte sweep is the true census); all 24 + 2
+sibling-family members (Game_Muzak_v2, Bean) verified FULL. Cotton_Eye_Joe
+re-bucketed intro_variant (inject sectpos INC = mid-sector re-entry);
+Cornflakes v3 → marks_uninherited (C34 dual-role byte). SESSION DECISIONS
+(tmp/cleanup_plan_2026-08-03.md updated): F3 closed as a NON-ISSUE (§4.5
+grounding is audibility, not intent — edit made then REVERTED 622fe48e);
+speed_steps/pw_step_base split APPROVED, runs next; G1 uready deferred
+INDEFINITELY (user-triggered only); f2 kickoff DEFERRED (f1 quality work
+first); Phase I roadmap queued (interp-probe widening / ratchet burn-down
+/ dead-tail classification / fold-residue close-out — user decides each).
+Corpus: 26 members re-batched + mass-written post-regression this session.
 
 ## ✅ OVERNIGHT #2 CLOSEOUT (2026-08-05, P1-P5): otrk residue 90→27 characterized; interp probe live with its first §4 finding; ratchet metric honest at 0.37%
 P2: FOLD_REFUSAL census → empty-voice noise fix (42 members) + the

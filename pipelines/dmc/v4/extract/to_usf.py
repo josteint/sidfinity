@@ -402,6 +402,146 @@ def _refuse(reason):
     return None
 
 
+def _stated_equal(a, b):
+    """Two effective row-lists are 'the same stated content' iff they differ
+    only in CARRIED (unstated) instr/vol — the class the composer's stated
+    encoding erases, so both encode to the same pattern and one physical
+    slot serves them (C32)."""
+    if len(a) != len(b):
+        return False
+    for r, s in zip(a, b):
+        if (r.duration, r.note, r.soft, r.gate_toggle, r.glide_speed,
+                r.glide_to, r.glide_slide, r.dcmd, r.icmd, r.vcmd,
+                r.softcmd) != \
+           (s.duration, s.note, s.soft, s.gate_toggle, s.glide_speed,
+                s.glide_to, s.glide_slide, s.dcmd, s.icmd, s.vcmd,
+                s.softcmd):
+            return False
+        if r.icmd and r.instr != s.instr:
+            return False
+        if r.vcmd and r.vol != s.vol:
+            return False
+    return True
+
+
+def _fold_slot_model(v):
+    """General stated-fold acceptance for walks whose closure is NOT at the
+    offset-wrap boundary (the loop_not_rho_boundary lever, 2026-08-05).
+
+    Model: linearize the track in FIRST-VISIT slot order. The walk's slot
+    sequence (extended eternally by the closure repetition) must equal
+    [0..P-1] then [L..P-1] cyclic — i.e., one pass of P physical slots with
+    a single suffix loop to slot L. This covers the inject-rotation shape
+    (loop_note_inject pseudo-slot at the $FF, cycle a rotation of the whole
+    list), multi-region tracks (mid-track $FF jump-forward + a jump back:
+    the composer emits its own contiguous layout — CORE TENET, only the
+    write stream matters), and multi-pass sticky-transpose convergence
+    (closure segment spanning several loop periods).
+
+    Soundness: slots[i]==model(i) for all walked i, loop_to >= L and
+    (n - loop_to) % (P - L) == 0 together imply the eternal repetition of
+    walk[loop_to..n-1] equals the model's eternal tail. Marks replay is
+    verified over the WHOLE walk (all passes); per-slot decode variants are
+    restricted to the exact shape the downstream representations carry: at
+    most ONE intro variant (the first visit), every later visit's decode
+    identical to the steady one (so both the stated-rows branch and the
+    effective-rows fallback reproduce every pass exactly).
+
+    Returns the same tuple as _fold_stated_orderlist or None. Refusal
+    reasons are set at the specific failing check ('loop_not_rho_boundary'
+    for genuine shape mismatches; the sharper 'intro_variant_stated_diff' /
+    'marks_uninherited_transpose' when the shape fits but the content hits
+    a documented refusal class — honest census bucketing)."""
+    n = len(v.entries)
+    offs = v.entry_offsets
+    if not offs or len(offs) != n or v.loop_to is None:
+        return _refuse('loop_not_rho_boundary')
+    jf = v.jump_from if len(getattr(v, 'jump_from', ())) == n else [None] * n
+    loop_to = v.loop_to
+    # first-visit slot linearization
+    slot_of, slots, first_visit = {}, [], []
+    for i, o in enumerate(offs):
+        s = slot_of.get(o)
+        if s is None:
+            s = len(first_visit)
+            slot_of[o] = s
+            first_visit.append(i)
+        slots.append(s)
+    P = len(first_visit)
+    if slots[:P] != list(range(P)):
+        return _refuse('loop_not_rho_boundary')
+    if P == n:
+        # every walked offset distinct (e.g. a loop re-entry landing at a
+        # NEW byte offset): the walk is one linear pass; closure repeats
+        # walk[loop_to..] eternally, which the suffix loop reproduces
+        # verbatim. Slots are the identity, so L = loop_to.
+        L = slots[loop_to]
+    else:
+        L = slots[P]
+        period = P - L
+        if period <= 0 or loop_to < L or (n - loop_to) % period:
+            return _refuse('loop_not_rho_boundary')
+        for i in range(P, n):
+            if slots[i] != L + (i - P) % period:
+                return _refuse('loop_not_rho_boundary')
+    # marks/extras from first visits; a $FF-jump-preceded entry measures its
+    # command-byte gap from the jump LANDING, not the previous slot's end
+    marks, extras = [], []
+    for s in range(P):
+        i = first_visit[s]
+        if jf[i] is not None:
+            prev_end = jf[i]
+        elif i > 0:
+            prev_end = offs[i - 1] + 1
+        else:
+            prev_end = 0
+        gap = offs[i] - prev_end
+        if gap < 0:
+            return _refuse('loop_not_rho_boundary')
+        if gap == 0:
+            inherited = v.transposes[i - 1] if i > 0 else 0
+            if v.transposes[i] != inherited:
+                # a C34 dual-role byte (a garbage row's byte mutating into a
+                # transpose on re-fetch) — the piecewise/fitted tail class
+                return _refuse('marks_uninherited_transpose')
+            marks.append(None)
+            extras.append(0)
+        else:
+            marks.append(v.transposes[i])
+            extras.append(gap - 1)
+    # transpose replay over the WHOLE walk (every pass, all convergence)
+    cur = 0
+    for i in range(n):
+        if marks[slots[i]] is not None:
+            cur = marks[slots[i]]
+        if cur != v.transposes[i]:
+            return _refuse('loop_not_rho_boundary')
+    # per-slot decode variants: steady = the final-period decode; only the
+    # FIRST visit may differ (intro variant, stated-equal-gated); any later
+    # visit differing from steady is unrepresentable -> refuse
+    visits = [[] for _ in range(P)]
+    for i in range(n):
+        visits[slots[i]].append(i)
+    entries, intros = [None] * P, [None] * P
+    for s in range(P):
+        pids = [v.entries[i] for i in visits[s]]
+        steady = pids[-1]
+        entries[s] = steady
+        for k, p in enumerate(pids):
+            if p == steady:
+                continue
+            if k > 0:
+                return _refuse('loop_not_rho_boundary')
+            if not _stated_equal(v.patterns[steady], v.patterns[p]):
+                # mid-sector re-entry (a loop pass entering the sector past
+                # its leading command bytes — e.g. the inject path's sectpos
+                # INC): pass0 and the eternal decode differ in STATED
+                # content — the documented intro_variant design refusal
+                return _refuse('intro_variant_stated_diff')
+            intros[s] = p
+    return entries, marks, extras, intros, L
+
+
 def _fold_stated_orderlist(v):
     """Fold _walk_track's state-closure unroll into the PHYSICAL stated
     form (the de-unroll, 2026-07-18): one pass of physical entries with
@@ -477,7 +617,15 @@ def _fold_stated_orderlist(v):
         marks, extras = r
         return list(v.entries), marks, extras, [None] * n, v.loop_to
     if v.loop_to != B:
-        return _refuse('loop_not_rho_boundary')
+        # loop_not_rho lever (2026-08-05): the walk's closure does not sit
+        # at the offset-wrap boundary — an inject-rotation cycle, a
+        # multi-region ($FF jump-forward) track, or a multi-pass sticky
+        # convergence. Try the general first-visit slot model before
+        # refusing; it linearizes the track in visit order with a single
+        # suffix loop (write-stream-faithful: the composer emits its own
+        # layout, and the model+replay checks below prove the stated
+        # notation reproduces the whole walk).
+        return _fold_slot_model(v)
     r = _marks_for(0, B)
     if r is None:
         return None
@@ -499,23 +647,6 @@ def _fold_stated_orderlist(v):
     # loop inherits the sector position, Creo/Dance's `...$A0 $FF` tail)
     # encodes differently per pass — one slot cannot carry both, so refuse
     # and let the legacy unrolled representation carry the member.
-    def _stated_equal(a, b):
-        if len(a) != len(b):
-            return False
-        for r, s in zip(a, b):
-            if (r.duration, r.note, r.soft, r.gate_toggle, r.glide_speed,
-                    r.glide_to, r.glide_slide, r.dcmd, r.icmd, r.vcmd,
-                    r.softcmd) != \
-               (s.duration, s.note, s.soft, s.gate_toggle, s.glide_speed,
-                    s.glide_to, s.glide_slide, s.dcmd, s.icmd, s.vcmd,
-                    s.softcmd):
-                return False
-            if r.icmd and r.instr != s.instr:
-                return False
-            if r.vcmd and r.vol != s.vol:
-                return False
-        return True
-
     entries = list(v.entries[:B])
     intros = [None] * B
     # ENDLESS-TAIL admission (r128): a voice ending in an unterminated
