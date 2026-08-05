@@ -534,11 +534,22 @@ one finding — `speed_steps` element midpoints violate the composer's
 shared-base-nibble invariant ("pulse steps do not share a base nibble").
 The DMC encoding packs (per-step speed hi-nibble | shared base lo-nibble)
 into each value, leaking byte-packing into the parameter space: the free
-musical DOF is six step values + ONE base. Candidate refinement for the
-schema review: split `speed_steps` into hi-nibble step values + a separate
-`pw_step_base` field (a carrier refactor at the USF layer, byte-gated).
-Until then, the coupling is documented case law: interpolation over
-`speed_steps` must hold the base nibble fixed.
+musical DOF is six step values + ONE base.
+
+**CLOSED 2026-08-05 — the split LANDED** (user decision): `PwmConfig` grew
+`step_base` (0-15, the shared fine base; the engine's own factorization —
+record bytes 3-5 nibbles + byte-6 hi nibble); `speed_steps` in the split
+form holds the true 0-15 step values, effective byte = `(step<<4) +
+step_base`. `step_base`'s PRESENCE is the form marker: absent = legacy
+packed (old stored corpora — incl. the f2 June files — parse and build
+identically; they converge at their family's next mass-write, the r182
+precedent). Gates: corpus check 12,064/12,064, spec lint clean (round-trip
+stable in BOTH forms), family-wide fresh-build-vs-stored MD5 sweep
+**5,401/5,401 byte-identical** (pure carrier refactor, proven), full
+regression 0 regressed, probe re-run **50/50 midpoints realize, 0
+findings**. Steps and base now interpolate as independent DOF; the
+hold-the-base-fixed case law survives only in the probe's legacy-form
+branch.
 
 ### Audio-equivalence verdict (former ledger C15 — removed 2026-07-01 by user decision)
 

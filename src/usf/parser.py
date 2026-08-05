@@ -428,6 +428,9 @@ class _T(Transformer):
     def pwm_speed_steps(self, items):
         return ('speed_steps', [int(x) for x in items])
 
+    def pwm_step_base(self, items):
+        return ('step_base', int(items[0]))
+
     def pwm_keep_running(self, items):
         return ('keep_running', items[0])
 

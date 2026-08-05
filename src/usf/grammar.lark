@@ -446,6 +446,11 @@ pwm_kv: "mode" "=" CNAME           -> pwm_mode
       // as the oscillation progresses (DMC's 6 phases). Each value is
       // the effective per-frame step. Empty = constant `speed`.
       | "speed_steps" "=" "[" (INT ("," INT)*)? "]" -> pwm_speed_steps
+      // Shared fine-base nibble of the step schedule (the 2026-08-05
+      // split): present -> speed_steps holds the true 0-15 step values
+      // and the effective step byte is (step << 4) + step_base; absent
+      // -> speed_steps is the legacy packed form.
+      | "step_base" "=" INT        -> pwm_step_base
       // Keep the PW oscillator running across note boundaries (no
       // reset at note init) — legato pulse texture. (DMC flag $04)
       | "keep_running" "=" bool    -> pwm_keep_running

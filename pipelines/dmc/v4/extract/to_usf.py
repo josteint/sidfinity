@@ -373,9 +373,14 @@ def _instrument_to_usf(inst, wavepos_layout: bool = False,
                       # (emission-identical BY CONSTRUCTION: the composer's
                       # `speed_steps or [speed]*6` with speed 0 rebuilds the
                       # same [0]*6 blocks, raw bytes and pool keys — P1,
-                      # 2026-08-04; MD5-gated). Non-zero steps unchanged.
-                      speed_steps=(list(inst.pw_steps)
+                      # 2026-08-04; MD5-gated). Non-zero steps emit the
+                      # SPLIT form (2026-08-05): true 0-15 step values +
+                      # the shared fine base (pw_steps[j] = (step<<4)+base,
+                      # base<16 so lo nibble == base, step == byte>>4).
+                      speed_steps=([x >> 4 for x in inst.pw_steps]
                                    if any(inst.pw_steps) else []),
+                      step_base=(inst.pw_steps[0] & 0x0F
+                                 if any(inst.pw_steps) else None),
                       keep_running=inst.pw_keep_running),
         arp=ArpConfig(offsets=[]),
         vibrato=vib,

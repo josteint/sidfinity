@@ -276,6 +276,10 @@ def _write_pwm(p: PwmConfig) -> 'str | None':
         parts.append(f'lo_or_mask={_hex(p.lo_or_mask)}')
     if p.speed_steps:
         parts.append('speed_steps=[' + ', '.join(str(s) for s in p.speed_steps) + ']')
+        # split form only: always stated (even 0) — its PRESENCE is the
+        # form marker distinguishing true step values from legacy packed
+        if p.step_base is not None:
+            parts.append(f'step_base={p.step_base}')
     if p.keep_running:
         parts.append('keep_running=true')
     return 'pwm:      ' + ' '.join(parts)

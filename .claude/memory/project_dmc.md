@@ -5,8 +5,21 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-05T18:12:10.784Z
+  modified: 2026-08-05T20:06:24.425Z
 ---
+
+## ✅ R184 (2026-08-05): the speed_steps/step_base SCHEMA SPLIT landed — the P3 interpolation finding CLOSED (50/50, 0 findings)
+`PwmConfig.step_base` (presence = the split-form marker; None = legacy
+packed, old corpora parse+build identically per the r182 precedent).
+Extract emits true 0-15 steps + shared base; composer repacks
+`(step<<4)+base`. Gates: corpus 12,064 OK, spec lint clean, family MD5
+sweep 5,401/5,401 SAME (pure carrier refactor), regression 0 regressed,
+probe 50/50. f1 stored .usf converge to the split form at the next
+mass-write. ALSO this session: I3 dead-schema tails RESOLVED BY
+VERIFICATION (deletion list EMPTY — every 'dead' candidate had live
+readers/carriers; Move-1 plan corrected, 4978750e). Phase-I queue next:
+I1 probe widening / I2 ratchet burn-down / I4 fold-residue close-out —
+user decides each.
 
 ## ✅ R183 (2026-08-05): the loop_not_rho lever LANDED — general slot-model fold; 26 members fitted→stated, fold residue 22 with ZERO lever candidates
 `_fold_slot_model` (to_usf.py) + walk `jump_from` metadata (engine_model):

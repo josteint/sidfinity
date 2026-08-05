@@ -1354,7 +1354,12 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     irawsp = []
     _pool = {}                       # (isteps block, irawsp block) -> offset
     for k, i in enumerate(insts):
-        ss = list(i.pwm.speed_steps) or [i.pwm.speed] * 6
+        ss = list(i.pwm.speed_steps)
+        if ss and i.pwm.step_base is not None:
+            # split form (2026-08-05): true 0-15 steps + shared fine base
+            # -> repack the effective per-phase byte the engine adds
+            ss = [((s & 0x0F) << 4) + i.pwm.step_base for s in ss]
+        ss = ss or [i.pwm.speed] * 6
         ss = (ss + [ss[-1]] * 6)[:6]
         base = ss[0] & 0x0F
         assert all((s & 0x0F) == base for s in ss), \

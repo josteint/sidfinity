@@ -450,7 +450,20 @@ class PwmConfig:
     # ramp's per-frame step changes as the oscillation progresses; one
     # entry per direction flip, last entry repeats. Empty = constant
     # `speed`.
+    #
+    # TWO FORMS (the 2026-08-05 split; interpolation-probe finding P3):
+    # - step_base is an int  -> speed_steps holds the six TRUE step
+    #   values (0-15) and step_base the shared fine base (0-15); the
+    #   effective per-frame step byte is (step << 4) + step_base. This
+    #   is the engine's own factorization (record bytes 3-5 nibbles +
+    #   byte-6 hi nibble) and the parametric form: steps and base are
+    #   independent musical DOF, interpolation-safe.
+    # - step_base is None    -> LEGACY packed form: each entry already
+    #   carries (step << 4) | base with the base nibble shared across
+    #   entries. Old stored corpora parse and build identically; they
+    #   converge to the split form at their family's next mass-write.
     speed_steps: list = field(default_factory=list)
+    step_base: int | None = None
     # Keep the PW oscillator running across note boundaries (DMC's
     # no-pulse-reset flag) — legato pulse texture.
     keep_running: bool = False

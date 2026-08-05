@@ -45,8 +45,21 @@ def _interp_pwm(x, y):
     z.max_hi = _mid(x.max_hi, y.max_hi)
     if x.speed_steps and y.speed_steps and \
             len(x.speed_steps) == len(y.speed_steps):
-        z.speed_steps = [_mid(a, b) for a, b in
-                         zip(x.speed_steps, y.speed_steps)]
+        if x.step_base is not None and y.step_base is not None:
+            # split form (2026-08-05): steps and base are independent
+            # 0-15 DOF — interpolate both freely (the P3 nibble-coupling
+            # finding is CLOSED; no shared-base constraint remains)
+            z.speed_steps = [_mid(a, b) for a, b in
+                             zip(x.speed_steps, y.speed_steps)]
+            z.step_base = _mid(x.step_base, y.step_base)
+        elif x.step_base is None and y.step_base is None:
+            # legacy packed form: interpolation must hold the base nibble
+            # fixed (the P3 case law) — midpoint the hi nibbles only,
+            # keep x's base
+            base = x.speed_steps[0] & 0x0F
+            z.speed_steps = [
+                ((_mid(a >> 4, b >> 4)) << 4) | base
+                for a, b in zip(x.speed_steps, y.speed_steps)]
     return z
 
 
