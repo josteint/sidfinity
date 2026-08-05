@@ -5,8 +5,16 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-05T20:41:27.479Z
+  modified: 2026-08-05T20:46:29.774Z
 ---
+
+## ✅ I4 (2026-08-05): f1 fold residue CLOSED — 41 voices / 22 members verified, all documented design refusals, zero loop_not_rho
+Re-census under post-lever code: 12 members mid-sector re-entry (only
+future lever = a re-entry-offset stated notation, USER-RESERVED), 5 C34
+dual-role, 5 piecewise transpose. All FULL. C32 close-out note recorded
+(+ the no_offsets empty-voice census-artifact caveat). Phase I complete
+except the reserved decisions; Phase-I items I1/I2/I3/I4 all landed
+2026-08-05.
 
 ## ✅ I2 (2026-08-05): params-bag justification LEDGER wired into the ratchet (check 2b) — 99,682 instances 100% attributed, 0 unjustified
 Census refuted "singleton tail dominates": 71% = Basic_Program bp_*
