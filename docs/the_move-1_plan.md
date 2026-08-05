@@ -488,20 +488,43 @@ jay_derrett's two-phase shape, dead only because that family's corpus is
 small; `inc_by2_*` is Hubbard's skydive, constant only where the census
 sample missed carriers). Classes:
 
-- **Genuinely-dead candidates** (constant at their default corpus-wide):
-  `init.fade_frac_init`, `init.filter_arm_cutoff/_frames`,
-  `init.voices[].note_active/sliding` (MA-only draft fields),
-  `envelope.release_ctrl` at 0.
-- **Small-family axes, NOT dead** (constant only by carrier scarcity):
+**CORRECTED 2026-08-05 (reader/carrier verification — the I3 pass):** the
+original "genuinely-dead candidates" bucket was wrong on EVERY entry. The
+census measures VALUE CONSTANCY only; classification requires two more
+dimensions it lacks — does a pipeline READ the field, and do CARRIERS
+exist? Adding them (grep of readers + corpus grep of carriers):
+
+- `init.fade_frac_init` — live **DMC v5** mechanism (v5 extract writes,
+  v5 composer reads; 1,094 stored files carry it). NOT dead. The value-0
+  printing across those files is a v5 WRITER-ELISION candidate for the
+  v5/f2 campaign's own elision pass, not a schema question.
+- `init.filter_arm_cutoff/_frames` — live **Music_Assembler** mechanism
+  (extract + from_usf + a portfolio-selector dimension; 1 carrier). Keep.
+- `init.voices[].note_active` / `.sliding` — live MA machinery (`sliding`
+  also jay_derrett); 0-1 carriers because MA is MID-MIGRATION (61.6%).
+  Keep; revisit only after the MA campaign concludes.
+- `envelope.release_ctrl` — **Hubbard's hard-restart ctrl knob** (the
+  composer's `hr_ctrl` reads it; 12 carriers). A small-family axis —
+  constant only because 12k DMC files dwarf 71 Hubbard ones under the
+  ≥99% threshold. Keep.
+- `vibrato.depth_semitones` — the derivation IS implemented
+  (`_scale_byte_to_depth_semitones`, Hubbard to_usf; ~130 non-zero
+  instances). The census's "never populated" was false. The REAL question
+  is different: it is DERIVED metadata (computable from `scale`) — whether
+  a derivable descriptive field belongs in the schema at all is the one
+  genuine Move-1-era schema question in this list.
+- **Small-family axes, NOT dead** (unchanged from the original census):
   `pwm.phase1_*` (jay_derrett), `inc_by2_*` (Hubbard skydive),
   `vibrato.shape/period_frames/polarity` (single-engine so far — the §10
   growth axes working as intended).
-- **Derived-metadata**: `vibrato.depth_semitones` (0.0 everywhere —
-  the extract never populates the descriptive field; either implement the
-  derivation or drop the field).
 
-Decision deferred to the uready/Move-1 review; recorded here so the census
-finding has a durable home (the tmp/ report is wipeable).
+**Outcome: the deletion list is EMPTY.** Lesson (mirrors the same-day
+loop_not_rho exposure lesson): a value census must be paired with a
+reader/carrier census before anyone acts on it — value-constancy
+conflates "dead schema" with "live mechanism whose corpus happens to sit
+at the default". Remaining parked items: the depth_semitones
+derived-metadata question (Move-1 review) + the v5 fade_frac_init writer
+elision (v5 campaign).
 
 ### Interpolation-probe finding — pwm speed_steps nibble coupling (P3, 2026-08-04)
 
