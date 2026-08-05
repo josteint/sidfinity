@@ -568,18 +568,10 @@ These aren't SID-chip state — they're **per-voice runtime state the
 play loop reads on tick 1**. They tell the play loop "voice 1 starts
 with instrument 4, pulse-width accumulator at $80 going up, no slide."
 
-This belongs in USF because the play loop reads it on its first
-ticks — the write stream, and therefore the audible opening,
-depends on it. Different per-voice starting state means a different
-opening sound, even with the same first note. Whether the values
-were deliberate musical choices is NOT the criterion, and varies by
-engine: often they are ("voice 1's first note plays through
-instrument 4 with a fresh PWM ramp"), but e.g. DMC members carry
-init-surviving work-file bytes — playback-state snapshots of the
-editor session, never exposed as editable fields — and those are
-captured all the same, because the stream demands them (2026-08:
-the DMC campaign's C37/C38 survivor-priming work is the worked
-example).
+This is musical: it's saying "voice 1's first note plays through
+instrument 4 with a fresh PWM ramp." Different per-voice starting
+state means a different opening sound, even with the same first
+note.
 
 So this belongs in USF as **engine-state priming** — distinct from
 **SID-state priming** (§4.2):
