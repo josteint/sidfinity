@@ -223,6 +223,21 @@ class DmcVoice:
     # 0 = the pre-fix assumption (and the common case: most voices state an
     # instrument before their first note, so the seed is dead).
     instr_seed: int = 0
+    # I5 byte-faithful notation facts (walk-time ground truth, recorded by
+    # the dispatch itself so the stated fold never re-parses raw bytes):
+    entry_dual: list = field(default_factory=list)   # parallel to entries:
+                                                     # True = a post-transpose
+                                                     # one-row entry whose byte
+                                                     # RE-DISPATCHES as the
+                                                     # following command (the
+                                                     # C34 run-on dual byte)
+    loop_target_pos: int | None = None               # byte position the
+                                                     # closing $FF jumped to
+                                                     # (the loop-landing fact)
+    endless_tail: bool = False                       # the walk froze in an
+                                                     # unterminated sector
+                                                     # (the r128 self-loop
+                                                     # return path)
 
 
 @dataclass
@@ -964,6 +979,8 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 v.jump_from.append(landed)
                 v.entries.append(pid)
                 v.transposes.append(transpose)
+                v.entry_dual.append(2)  # I5: 2 = inject pseudo-entry (the
+                                        # spurious row played AT the $FF)
                 pos = 0
                 landed = 0
                 pending_off += 1        # the note path's INC $1729,x
@@ -972,6 +989,7 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 tgt = loop_reset_pos    # reset-all-to-N SYNC hook (ledger C13)
             else:
                 tgt = mem[(track_addr + ((pos + 1) & 0xFF)) & 0xFFFF] if loop_target else 0
+            v.loop_target_pos = tgt      # I5 loop-landing fact (byte pos)
             key = (tgt, st.key(), pending_off) + _rkey()
             if key in wrap_states:
                 v.loop_to = wrap_states[key]
@@ -1080,6 +1098,10 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                     landed = None
                     v.entries.append(pid)
                     v.transposes.append(transpose)
+                    # run-on = the byte re-dispatches (mutates into the next
+                    # command); a $7F-peek-advanced one-row occupies its own
+                    # byte like a normal slot (I5 dual fact)
+                    v.entry_dual.append(bool(r0.runon))
                     ticks_done += (r0.duration or 256)
                     pending_off += consumed
                     if not r0.runon:
@@ -1124,7 +1146,9 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
                 v.patterns.append(chunk)
                 v.entries.append(len(v.patterns) - 1)
                 v.transposes.append(transpose)
+                v.entry_dual.append(False)
             v.loop_to = len(v.entries) - 1
+            v.endless_tail = True
             return v
         key = tuple((r.note, r.duration, r.instr, r.vol, r.soft,
                      r.gate_toggle, r.glide_speed, r.glide_to,
@@ -1137,6 +1161,7 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
             pat_key_to_id[key] = pid
         v.entries.append(pid)
         v.transposes.append(transpose)
+        v.entry_dual.append(False)
         pos += 1
 
 
