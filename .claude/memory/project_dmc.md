@@ -5,23 +5,38 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-06T18:48:45.227Z
+  modified: 2026-08-06T20:39:10.729Z
 ---
 
-## 📐 I5 DESIGNED + VALIDATED (2026-08-06): the byte-faithful stated orderlist — buckets 1/2/3 unified, 41/41 probe-exact, implementation pending
-User-approved design: all 3 fold-residue buckets = ONE root (the engine
-re-enters the byte stream past stated commands carrying live decode
-state; the stated form assumed path-independent arrival). Notation
-records the authored byte structure (dual flags + loop-landing fact,
-elidable); re-entry offsets + carried transposes DERIVED by replaying
-the real dispatch. Probe tmp/i5_notation_probe.py: parse→regenerate→
-re-walk = 41/41 refusing voices EXACT. Full refined build plan (5 steps,
-track_replay.py first, MD5-identity gate) in
-tmp/cleanup_plan_2026-08-03.md item I5. Supersedes I4's reserved
-re-entry-offset decision. Worked examples this session: Creo/Dance
-(bucket 1, sectpos=2 carry verified live), Cornflakes v3 (bucket 2,
-dual $A0 byte verified live), Ele-Mental v2 (bucket 3, loop lands past
-the $A0 mark, transp 0 vs 12 verified). NOT yet implemented.
+## ✅ I5 IMPLEMENTED (2026-08-06): the byte-faithful stated orderlist LANDED — buckets 1/2/3 unified; 41/41 replay-exact, 13 MD5-identical + 9 otrk-honesty diffs all FULL
+The approved design shipped in the recorded 5-step order. (1)
+`pipelines/dmc/track_replay.py`: TrackNotation (slots, marks incl.
+dual-carried, dead extras, mid-track jumps w/ landing bytes, loop-skip,
+ring/endless/inject terminators) + `replay()` mirroring `_walk_track`'s
+dispatch in slot space (one shared $FF wrap-key table keyed by the
+LANDING byte — cross-site closure, Cornflakes; mod-256 ring keys at
+top-dispatch once wrapped; inject keys carry transpose); the walker
+records its own facts (`entry_dual` 1=dual/2=inject, `loop_target_pos`,
+`endless_tail`) so no byte re-parse can drift. Standalone validation
+41/41 residue voices exact (tmp/i5_replay_validate.py). (2) fold:
+`_fold_orderlist` offers the notation at the 3 refusal buckets with a
+DOUBLE proof — replay-vs-walk equality in walk space AND compose space
+(USF rows + `_row_secwidth` + ref-id sticky, seed ref 1); mismatch =
+legacy fallback; decisions made ONCE and shared with `_emit_otrk_fields`.
+(3) schema (all elidable): `orderlist stated faithful:` + entry `@T`/`&`
++ `loop@N>K` / `endless` / `inject` / `ring`; corpus check 12,064 OK,
+spec lint clean. (4) composer MATERIALIZES at compose time (replay →
+existing emitters; otrk byte = the authored layout position; no player
+change). (5) gates: 22-member MD5 gate = 13 IDENTICAL + 9 DIFF confined
+to the otrk byte (stored otrk_legacy i+1 approximation → TRUE authored
+positions) with ALL 9 re-verified FULL. KEY FINDING: the 8 Rayden-2SID
+census voices are DEAD CONTENT — the C27 active map never selects those
+model songs (their stored otrk_legacy keys were dead cargo, now
+elided); the real byte-faithful carrier set = 26 voices / 14 members.
+Commits 31d1adf2 / 5ef577d0 / 482c3c26 (+ closeout). Ledger C32 entry +
+card updated; Move-1 D6 divergence note (resolve.py vs track_replay =
+C21 factor-at-Move-1). Supersedes I4's reserved re-entry-offset
+decision.
 
 ## ✅ I4 (2026-08-05): f1 fold residue CLOSED — 41 voices / 22 members verified, all documented design refusals, zero loop_not_rho
 Re-census under post-lever code: 12 members mid-sector re-entry (only

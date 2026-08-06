@@ -883,7 +883,17 @@ practice, not code to factor).
   first-visit slot linearization + whole-walk replay (`_fold_slot_model`;
   strict one-intro variant shape). ⚠ a fold-acceptance change's exposure
   census = a whole-family BYTE SWEEP, not the otrk-field census (fitted
-  pad/period carriers are invisible to it — 19 of 24 were).
+  pad/period carriers are invisible to it — 19 of 24 were). BYTE-FAITHFUL
+  stated notation (I5, 2026-08-06): the 3 residue refusal buckets
+  (mid-sector re-entry / C34 dual-role / loop-landing past the mark)
+  share ONE root — the engine re-enters the byte stream past stated
+  commands carrying live decode state; store the AUTHORED byte structure
+  (`orderlist stated faithful:` — dual `&`, mid-track jumps `@T`, landing
+  skip `>K`, ring/endless/inject terminators) and DERIVE re-entry offsets
+  + carried transposes by REPLAYING the dispatch
+  (`pipelines/dmc/track_replay.py`; double replay-vs-walk proof in walk
+  AND compose space; the composer MATERIALIZES at compose time — no
+  player change).
 - FULL ENTRY: [`ledger/C32.md`](ledger/C32.md) — read it before applying.
 
 ### C31 — COMPILATION: one file packs N independent players; a dispatch wrapper selects (player, song)

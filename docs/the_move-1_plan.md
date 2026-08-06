@@ -296,6 +296,16 @@ divergence list Move 1 must reconcile (extends the DMC-only decisions 1-4 above)
   in project_dmc / project_fc. Uready verdict: landed as ONE representation with
   zero new cross-family divergence. Two corpus-unhit latents on file: the C32
   mid-list-repeat boundary note + project_dmc's 2SID seed-merge gap.
+  DIVERGENCE NOTE (2026-08-06, I5): the stated notation now has TWO
+  interpreters — `src/usf/resolve.py` (sticky-VALUE resolution: duration /
+  instr / vol inheritance, shared FC+DMC) and `pipelines/dmc/track_replay.py`
+  (byte-faithful DISPATCH replay: dual bytes, jump landings, loop-skip,
+  ring/endless/inject closure — DMC-only, compose-time materialization).
+  They answer different questions (what a row's inherited values are vs which
+  visits happen in what order at which byte positions), but both are "replay
+  the engine's statefulness over the stated form" — the C21 factor-at-Move-1
+  pattern: CONSULT both before writing a third stated-notation interpreter;
+  factor if a second family ever needs the dispatch replay.
 
 **Vindicated this review:** `freq_overrun` flipped single-consumer → REUSED (FC
 standard + DMC v5) — a dimension that looked FC-specific is now shared; recorded
