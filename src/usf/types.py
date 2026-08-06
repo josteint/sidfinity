@@ -190,6 +190,38 @@ class Orderlist:
     stated_vmarks: list = field(default_factory=list)
     extra_cmds: list = field(default_factory=list)
     intro_entries: list = field(default_factory=list)
+    # ----- BYTE-FAITHFUL stated facts (I5; all elidable — absent keeps the
+    # plain stated semantics). Present only on `orderlist stated faithful:`
+    # lists (DMC): the engine re-enters the track byte stream past stated
+    # commands carrying live decode state (transpose register, persistent
+    # sector position), so the notation records the AUTHORED byte structure
+    # and the composer derives the effective unroll by replaying the
+    # engine's dispatch at compose time (pipelines/dmc/track_replay.py).
+    byte_faithful: bool = False        # the marker: this list's effective
+                                       # form derives from the byte layout
+    dual_flags: list = field(default_factory=list)   # per-entry bool: the
+                                       # entry's byte RE-DISPATCHES as the
+                                       # following command byte (the C34
+                                       # run-on dual; it contributes no
+                                       # byte of its own). Empty = none.
+    jump_ins: list = field(default_factory=list)     # per-entry Optional
+                                       # int: the entry is entered through
+                                       # a mid-track $FF jump landing at
+                                       # this authored byte position (the
+                                       # sonified track counter makes the
+                                       # layout observable). Empty = none.
+    loop_skip: int = 0                 # command bytes of the loop slot's
+                                       # block the $FF landing skips (a
+                                       # skipped mark is NOT re-executed
+                                       # on loop passes; 0 = land on the
+                                       # block start, today's semantics)
+    stated_term: Optional[str] = None  # terminator kind beyond loop/stop:
+                                       # 'endless' (the last slot's sector
+                                       # never terminates — self-loop),
+                                       # 'ring' (no terminator byte; the
+                                       # 8-bit position wraps mod 256),
+                                       # 'inject' (the $FF plays one
+                                       # pseudo-row, then wraps to byte 0)
     # Loop PICKUP transpose (`loop@N+T`): the transpose in effect when the
     # list wraps — the engine's transpose state CARRIES OVER the wrap, so a
     # loop head with no explicit transpose plays passes 2+ under the

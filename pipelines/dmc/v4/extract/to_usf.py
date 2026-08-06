@@ -694,6 +694,94 @@ def _fold_stated_orderlist(v):
     return entries, marks, extras, intros, S
 
 
+# The three residue buckets the byte-faithful stated form (I5) unifies:
+# all share ONE root — the engine re-enters the byte stream past stated
+# commands carrying live decode state (transpose register / sector
+# position), which the plain stated fold cannot represent.
+_BYTE_FAITHFUL_BUCKETS = frozenset((
+    'intro_variant_stated_diff', 'marks_uninherited_transpose',
+    'transpose_replay_pass0', 'transpose_replay_cycle'))
+
+
+def _fold_orderlist(v):
+    """The stated fold plus the I5 byte-faithful fallback. Returns
+    (folded, notation): `folded` is _fold_stated_orderlist's tuple (or
+    None); `notation` is a walk-proven TrackNotation offered ONLY when the
+    plain fold refused in one of the byte-faithful buckets and
+    replay-vs-walk equality holds (pipelines/dmc/track_replay.prove_replay).
+    Any other refusal — and any replay mismatch — keeps the legacy
+    representation, so no member's behavior can regress. FOLD_REFUSAL
+    keeps the plain fold's bucket for the residue census."""
+    global FOLD_REFUSAL
+    r = _fold_stated_orderlist(v)
+    if r is not None:
+        return r, None
+    if FOLD_REFUSAL in _BYTE_FAITHFUL_BUCKETS:
+        why0 = FOLD_REFUSAL
+        from pipelines.dmc import track_replay
+        nt, _why = track_replay.prove_replay(v)
+        FOLD_REFUSAL = why0
+        if nt is not None:
+            return None, nt
+    return None, None
+
+
+def _byte_faithful_voice(v, nt, _cmd_flags_unused=None):
+    """Build the byte-faithful stated (patterns, orderlist) for a voice
+    whose walk-space replay proof already holds, then PROVE the
+    COMPOSE-space replay too: re-run the dispatch over the exact stored
+    form the composer will read (USF rows, the composer's byte-width
+    oracle, ref-id sticky space, the default seed ref 1 = orig instrument
+    0). The double proof means a merge renumbering or an
+    effective-row information loss (e.g. an instrument command on a rest
+    row) can never ship a wrong notation — the voice falls back to the
+    legacy representation instead. Rows carry the stated-command
+    placement flags unconditionally: the compose-time replay needs the
+    byte widths and sticky updates the walk saw.
+
+    Returns (patterns, orderlist) or None."""
+    from pipelines.dmc import track_replay
+    from pipelines.dmc.composer_asm import _row_secwidth
+    pats = [Pattern(id=i, length=sum(r.duration for r in rows),
+                    rows=[_row_to_usf(r, True) for r in rows])
+            for i, rows in enumerate(v.patterns)]
+    ol = Orderlist(entries=list(nt.entries), loop_to=nt.loop_slot,
+                   stop=nt.stop, stated=True)
+    ol.byte_faithful = True
+    ol.stated_marks = list(nt.marks)
+    ol.extra_cmds = list(nt.extras) if any(nt.extras) else []
+    ol.intro_entries = (list(nt.intros)
+                        if any(x is not None for x in nt.intros) else [])
+    ol.dual_flags = list(nt.dual) if any(nt.dual) else []
+    ol.jump_ins = (list(nt.jump_in)
+                   if any(x is not None for x in nt.jump_in) else [])
+    ol.loop_skip = nt.loop_skip or 0
+    ol.stated_term = ('endless' if nt.endless else 'ring' if nt.ring
+                      else 'inject' if nt.inject else None)
+    # derived pass-0 effective transposes (parser parity)
+    eff, cur = [], 0
+    for mk in nt.marks:
+        if mk is not None:
+            cur = mk
+        eff.append(cur)
+    ol.transposes = eff if any(eff) else []
+    nt2 = track_replay.notation_from_orderlist(ol)
+    need = set(nt2.entries) | {p for p in nt2.intros if p is not None}
+    facts = {p.id: track_replay.facts_from_usf_rows(p.rows, _row_secwidth)
+             for p in pats if p.id in need}
+    try:
+        ents, trs, offs, loop_to, stop = track_replay.replay(
+            nt2, facts, instr_seed=1)
+    except track_replay.ReplayError:
+        return None
+    if (ents != list(v.entries) or trs != list(v.transposes)
+            or offs != list(v.entry_offsets)
+            or loop_to != v.loop_to
+            or stop != bool(v.stop or v.loop_to is None)):
+        return None
+    return pats, ol
+
+
 def _otrk_model(v):
     """The otrk phase scalars (pad, period): the engine's track counter
     ($1726,x) counts BYTES of the orig encoding, where a transpose command
@@ -777,7 +865,7 @@ def _otrk_rcmd_model(v):
     return pad, period, rcmd if rcmd else None
 
 
-def _emit_otrk_fields(m) -> dict:
+def _emit_otrk_fields(m, decisions) -> dict:
     fields = {}
     for song in m.songs:
         for vi, v in enumerate(song.voices):
@@ -792,8 +880,13 @@ def _emit_otrk_fields(m) -> dict:
             # de-unrolled (stated-form) voices carry their track notation
             # per-entry — no fitted params needed. The fitted models below
             # survive ONLY as the fallback for walks that don't fold (so no
-            # member's behavior can regress from the de-unroll).
-            if _fold_stated_orderlist(v) is not None:
+            # member's behavior can regress from the de-unroll). Byte-
+            # faithful voices (I5) derive their offsets from the authored
+            # layout — same rule; the decision map keeps this consistent
+            # with the voice loop (a compose-proof fallback must KEEP its
+            # fitted params).
+            folded, built = decisions.get(id(v), (None, None))
+            if folded is not None or built is not None:
                 continue
             r = _otrk_model(v)
             if r is not None:
@@ -863,7 +956,21 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
     for x in range(3):
         _gseed[0][x] = _fill.get(61 + x, 0)   # gla ($1744+x)
         _gseed[1][x] = _fill.get(64 + x, 0)   # glb ($1747+x)
-    pad_fields = _emit_otrk_fields(m)
+    # Per-voice representation decisions, made ONCE and shared by the otrk
+    # field emitter and the voice loop below: (folded_tuple, byte_faithful
+    # (pats, ol) or None). A byte-faithful candidate whose compose-space
+    # proof fails must keep BOTH its legacy orderlist AND its fitted otrk
+    # params — deciding in two places would let them disagree.
+    _decisions = {}
+    for _song in m.songs:
+        for _v in _song.voices:
+            if not _v.entries:
+                continue
+            _folded, _bfnt = _fold_orderlist(_v)
+            _built = (_byte_faithful_voice(_v, _bfnt)
+                      if _folded is None and _bfnt is not None else None)
+            _decisions[id(_v)] = (_folded, _built)
+    pad_fields = _emit_otrk_fields(m, _decisions)
     # row command flags (dur_cmd/instr_cmd/vol_cmd/soft_cmd) feed the composer's sectpos
     # shadow — emit them iff a canon-geometry off-table read sonifies the sector
     # position window (matches the composer's derived sectpos_on).
@@ -887,7 +994,7 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
         voices = []
         seed_voices = []
         for vi, v in enumerate(song.voices):
-            folded = _fold_stated_orderlist(v)
+            folded, bf_built = _decisions.get(id(v), (None, None))
             stated_form = None
             if folded is not None:
                 ents, marks, extras, intros, loop_slot = folded
@@ -946,6 +1053,13 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
                         cur = mk
                     eff.append(cur)
                 ol.transposes = eff if any(eff) else []
+            elif bf_built is not None:
+                # BYTE-FAITHFUL stated (I5): the authored byte structure
+                # with dual/jump/landing facts; effective rows; both
+                # replay proofs (walk-space + compose-space) already held
+                # in _byte_faithful_voice. The composer materializes the
+                # unrolled emission via pipelines/dmc/track_replay.
+                pats, ol = bf_built
             else:
                 pats = [Pattern(id=i,
                                 length=sum(r.duration for r in rows),

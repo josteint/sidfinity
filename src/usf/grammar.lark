@@ -626,24 +626,48 @@ g_field: "dyn" "=" number      -> g_dyn
 // modifiers are STATED transpose commands (absent = inherit; state carries
 // over the loop wrap), `~b` = intro-pass decode variant, `!k` = k extra dead
 // command bytes. Plain `orderlist:` = per-entry EFFECTIVE transposes (FC).
-voice_block: "voice" INT "{" "orderlist" ol_stated? ":" orderlist pattern_block* "}"
+voice_block: "voice" INT "{" "orderlist" ol_stated? ol_faithful? ":" orderlist pattern_block* "}"
 ol_stated: "stated"
+// `stated faithful:` = the BYTE-FAITHFUL stated form (DMC, I5): the list
+// records the track's authored byte structure — dual-role bytes (`&`),
+// mid-track $FF jumps with landing bytes (`@T`), the loop-landing skip
+// (`>K`) and the ring/endless/inject terminators — and the composer
+// derives the effective unroll by replaying the engine's dispatch
+// (pipelines/dmc/track_replay.py). All facts elidable; a plain stated
+// list keeps today's semantics.
+ol_faithful: "faithful"
 orderlist: orderlist_entry+ orderlist_terminator?
          | orderlist_terminator
 // entry: a[*b][+c][^d]  — a=pattern id, b=repeats, c=transpose, d=voiceinc.
 // Operand first, then a homogeneous list of <operator><parameter> modifiers.
-orderlist_entry: INT ol_intro? ol_repeat? (ol_transpose | ol_transpose_neg)? ol_extra? ol_voiceinc?
+// Byte-faithful extras: `@T` = entered via a mid-track $FF jump landing at
+// authored byte T; `&` = the entry's byte re-dispatches as the following
+// command byte (the C34 run-on dual — it occupies no byte of its own).
+orderlist_entry: INT ol_intro? ol_repeat? (ol_transpose | ol_transpose_neg)? ol_extra? ol_voiceinc? ol_jump? ol_dual?
 ol_intro: "~" INT
 ol_extra: "!" INT
 ol_repeat: "*" INT
 ol_transpose: "+" INT
 ol_transpose_neg: "-" INT
 ol_voiceinc: "^" INT
+ol_jump: "@" INT
+ol_dual: "&"
 // loop@N — wrap to entry N, the head re-establishing its stated
 // transpose. loop@N+T — wrap CARRYING transpose T over (the engine's
 // state persists; the head plays passes 2+ under T — standard FC).
-orderlist_terminator: "loop" "@" INT (ol_transpose | ol_transpose_neg)?  -> ol_loop
+// Byte-faithful terminators: loop@N>K — the $FF lands K command bytes
+// into entry N's block (a skipped mark is not re-executed on loop
+// passes); `endless` — the last entry's sector never terminates (the
+// walk self-loops there); `inject` — the $FF plays one pseudo-row then
+// wraps to byte 0 (the C13 loop_note_inject wedge); `ring` — no
+// terminator byte at all (the 8-bit track position wraps mod 256 and
+// closure is a live state repeat).
+orderlist_terminator: "loop" "@" INT (ol_transpose | ol_transpose_neg)? ol_skip? ol_termkind?  -> ol_loop
                     | "stop"                        -> ol_stop
+                    | "ring"                        -> ol_ring
+ol_skip: ">" INT
+ol_termkind: "endless"              -> tk_endless
+           | "inject"               -> tk_inject
 
 // `length=` is omitted for patterns containing STATED-inherited rows
 // (their total is entry-context-dependent — see note_row below).

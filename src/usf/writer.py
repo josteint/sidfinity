@@ -683,6 +683,15 @@ def _write_orderlist(o: Orderlist) -> str:
                   if i < len(getattr(o, 'stated_vmarks', []) or []) else None)
             if vm is not None:
                 s += f'^{vm}'
+            # byte-faithful facts (I5): @T = mid-track jump landing byte,
+            # & = the C34 run-on dual byte
+            jump = (o.jump_ins[i]
+                    if i < len(getattr(o, 'jump_ins', []) or []) else None)
+            if jump is not None:
+                s += f'@{jump}'
+            if (getattr(o, 'dual_flags', None) or []) and \
+                    i < len(o.dual_flags) and o.dual_flags[i]:
+                s += '&'
             parts.append(s)
             continue
         tr = o.transpose_at(i)
@@ -705,9 +714,16 @@ def _write_orderlist(o: Orderlist) -> str:
         elif o.loop_transpose is not None:
             s += (f'+{o.loop_transpose}' if o.loop_transpose >= 0
                   else f'-{-o.loop_transpose}')
+        if getattr(o, 'loop_skip', 0):
+            s += f'>{o.loop_skip}'         # byte-faithful landing skip
+        term = getattr(o, 'stated_term', None)
+        if term in ('endless', 'inject'):
+            s += f' {term}'
         parts.append(s)
     elif o.stop:
         parts.append('stop')
+    elif getattr(o, 'stated_term', None) == 'ring':
+        parts.append('ring')               # byte-faithful mod-256 ring
     return ' '.join(parts)
 
 
@@ -733,8 +749,12 @@ def _write_pattern(p: Pattern) -> list[str]:
 
 def _write_voice(v: VoiceBlock) -> list[str]:
     lines = [f'  voice {v.id} {{']
-    kw = 'orderlist stated:' if getattr(v.orderlist, 'stated', False) \
-        else 'orderlist:'
+    if getattr(v.orderlist, 'byte_faithful', False):
+        kw = 'orderlist stated faithful:'
+    elif getattr(v.orderlist, 'stated', False):
+        kw = 'orderlist stated:'
+    else:
+        kw = 'orderlist:'
     lines.append(f'    {kw} {_write_orderlist(v.orderlist)}')
     for p in sorted(v.patterns, key=lambda x: x.id):
         lines.extend(_write_pattern(p))

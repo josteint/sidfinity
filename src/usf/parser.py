@@ -947,14 +947,41 @@ class _T(Transformer):
 
     # ----- voice / orderlist / patterns -----
     def ol_loop(self, items):
-        loop_tr = None
+        loop_tr, skip, kind = None, 0, None
         for it in items[1:]:
-            if isinstance(it, tuple) and it[0] == 'tr':
-                loop_tr = it[1]            # ('tr', T) from ol_transpose
-        return ('loop', (int(items[0]), loop_tr))
+            if isinstance(it, tuple):
+                if it[0] == 'tr':
+                    loop_tr = it[1]        # ('tr', T) from ol_transpose
+                elif it[0] == 'skip':      # byte-faithful landing skip
+                    skip = it[1]
+                elif it[0] == 'termkind':  # 'endless' | 'inject'
+                    kind = it[1]
+        return ('loop', (int(items[0]), loop_tr, skip, kind))
 
     def ol_stop(self, _):
         return ('stop', None)
+
+    def ol_ring(self, _):
+        # byte-faithful: no terminator byte — the 8-bit position wraps
+        return ('ring', None)
+
+    def ol_skip(self, items):
+        return ('skip', int(items[0]))
+
+    def tk_endless(self, _):
+        return ('termkind', 'endless')
+
+    def tk_inject(self, _):
+        return ('termkind', 'inject')
+
+    def ol_jump(self, items):
+        return ('jump', int(items[0]))
+
+    def ol_dual(self, _):
+        return ('dual', True)
+
+    def ol_faithful(self, _):
+        return ('faithful_flag',)
 
     def orderlist_terminator(self, items):
         return items[0]
@@ -981,11 +1008,13 @@ class _T(Transformer):
         return ('stated_flag',)
 
     def orderlist_entry(self, items):
-        # a[~i][*b][+c][!k][^d] → ('entry', pid, tr, vi, rep, intro, extra)
+        # a[~i][*b][+c][!k][^d][@T][&] →
+        # ('entry', pid, tr, vi, rep, intro, extra, jump, dual)
         # tr is None when the modifier is ABSENT (stated form: absent =
         # inherit; legacy form: absent = 0 — voice_block resolves).
         pid = None
         rep, tr, vi, intro, extra = 1, None, None, None, 0
+        jump, dual = None, False
         for it in items:
             if isinstance(it, tuple):
                 kind, val = it[0], it[1] if len(it) > 1 else None
@@ -999,9 +1028,13 @@ class _T(Transformer):
                     intro = val
                 elif kind == 'extra':
                     extra = val
+                elif kind == 'jump':
+                    jump = val
+                elif kind == 'dual':
+                    dual = True
             else:
                 pid = int(it)
-        return ('entry', pid, tr, vi, rep, intro, extra)
+        return ('entry', pid, tr, vi, rep, intro, extra, jump, dual)
 
     def orderlist(self, items):
         # entries followed by optional terminator
@@ -1015,20 +1048,28 @@ class _T(Transformer):
         stop = False
         intros = []
         extras = []
+        jumps = []
+        duals = []
+        loop_skip = 0
+        stated_term = None
         for it in items:
             kind = it[0]
             if kind == 'entry':
-                _, pid, tr, vi, rep, intro, extra = it
+                _, pid, tr, vi, rep, intro, extra, jump, dual = it
                 entries.append(pid)
                 transposes.append(tr)
                 voiceincs.append(vi)
                 repeats.append(rep)
                 intros.append(intro)
                 extras.append(extra)
+                jumps.append(jump)
+                duals.append(dual)
             elif kind == 'loop':
-                loop_to, loop_transpose = it[1]
+                loop_to, loop_transpose, loop_skip, stated_term = it[1]
             elif kind == 'stop':
                 stop = True
+            elif kind == 'ring':
+                stated_term = 'ring'
         # Raw transpose slots are None where the modifier was absent; the
         # stated-vs-legacy resolution happens in voice_block (which sees
         # the `stated` keyword). Stash the raw lists on the Orderlist.
@@ -1040,6 +1081,11 @@ class _T(Transformer):
                       repeats=repeats)
         o.intro_entries = intros if any(x is not None for x in intros) else []
         o.extra_cmds = extras if any(extras) else []
+        # byte-faithful facts (I5) — elided to their defaults when absent
+        o.jump_ins = jumps if any(x is not None for x in jumps) else []
+        o.dual_flags = duals if any(duals) else []
+        o.loop_skip = loop_skip or 0
+        o.stated_term = stated_term
         return o
 
     def pattern_block(self, items):
@@ -1058,10 +1104,15 @@ class _T(Transformer):
         voice_id = int(items[0])
         stated = any(isinstance(it, tuple) and it and it[0] == 'stated_flag'
                      for it in items)
+        faithful = any(isinstance(it, tuple) and it
+                       and it[0] == 'faithful_flag' for it in items)
         rest = [it for it in items
-                if not (isinstance(it, tuple) and it and it[0] == 'stated_flag')]
+                if not (isinstance(it, tuple) and it
+                        and it[0] in ('stated_flag', 'faithful_flag'))]
         orderlist = rest[1]
         patterns = list(rest[2:])
+        if faithful:
+            orderlist.byte_faithful = True
         raw = orderlist.transposes            # None = modifier absent
         if stated:
             # STATED form: raw values are the stated command marks; the

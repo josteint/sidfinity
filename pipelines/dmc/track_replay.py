@@ -485,6 +485,28 @@ def notation_from_walk(v):
     return nt, None
 
 
+def notation_from_orderlist(ol) -> TrackNotation:
+    """Reconstruct the TrackNotation from a parsed USF byte-faithful stated
+    Orderlist — the compose-side twin of notation_from_walk. Shared by the
+    composer's materialization and the fold's compose-space proof, so both
+    read the stored form identically."""
+    P = len(ol.entries)
+    term = getattr(ol, 'stated_term', None)
+    return TrackNotation(
+        entries=list(ol.entries),
+        marks=list(ol.stated_marks or [None] * P),
+        extras=list(ol.extra_cmds or [0] * P),
+        dual=list(ol.dual_flags or [False] * P),
+        intros=list(ol.intro_entries or [None] * P),
+        jump_in=list(ol.jump_ins or [None] * P),
+        loop_slot=ol.loop_to,
+        loop_skip=getattr(ol, 'loop_skip', 0) or 0,
+        stop=bool(ol.stop),
+        endless=term == 'endless',
+        ring=term == 'ring',
+        inject=term == 'inject')
+
+
 def prove_replay(v, nt=None):
     """The fold's acceptance proof: replay(notation) must equal the walk
     EXACTLY (entries, transposes, byte offsets, loop closure, stop).
