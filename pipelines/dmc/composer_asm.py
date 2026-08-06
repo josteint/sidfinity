@@ -864,7 +864,39 @@ class _Model:
                 # sonified $1726 counter) stays the DERIVED per-entry value,
                 # decoupled from this byte layout.
                 loop_target = None
-                if getattr(ol, 'stated', False):
+                if getattr(ol, 'byte_faithful', False):
+                    # BYTE-FAITHFUL stated (I5): the USF carries the track's
+                    # authored byte structure (dual bytes, mid-track jumps,
+                    # loop-landing skip, ring/endless/inject terminators);
+                    # MATERIALIZE at compose time — replay the engine's
+                    # dispatch (pipelines/dmc/track_replay) into the
+                    # effective unroll and feed the EXISTING emitters
+                    # (per-entry gid + sonified otrk byte position, $FD
+                    # sticky transpose on change, sectpos base threading).
+                    # The emitted player is untouched; the extract proved
+                    # this exact replay reproduces the walk.
+                    from pipelines.dmc import track_replay
+                    nt = track_replay.notation_from_orderlist(ol)
+                    need = set(nt.entries) | {p for p in nt.intros
+                                              if p is not None}
+                    facts = {pid: track_replay.facts_from_usf_rows(
+                                 pat_by_local[pid].rows, _row_secwidth)
+                             for pid in need}
+                    ents_u, trs_u, offs_u, loop_idx, _stopped = \
+                        track_replay.replay(nt, facts, instr_seed=1)
+                    _sb = 0
+                    prev_t = None
+                    for k, pid in enumerate(ents_u):
+                        gid = _gid_entry(pid, _sb)
+                        _sb = _sbase_next(pid, _sb)
+                        t = trs_u[k]
+                        if k == loop_idx:
+                            loop_target = len(track)
+                        if t != prev_t:       # sticky transpose command
+                            track += bytes([0xFD, (t + 64) & 0xFF])
+                            prev_t = t
+                        track += bytes([gid, offs_u[k] & 0xFF])
+                elif getattr(ol, 'stated', False):
                     P = len(ol.entries)
                     marks = list(ol.stated_marks or [None] * P)
                     extras = list(ol.extra_cmds or [0] * P)
