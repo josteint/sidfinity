@@ -1,10 +1,11 @@
 ---
 name: feedback_completeness_over_dominant_cause
-description: "The user wants COMPLETE coverage (all DMC SIDs to FULL), not dominant-cause/ROI triage. Clustering is a tool to batch related fixes, not an objective — work through every failure mode, not just the biggest."
+description: "The user wants COMPLETENESS, not dominant-cause/ROI triage — for coverage (all DMC SIDs to FULL) AND for representation quality. Clustering is a tool to batch related fixes, not an objective; never argue against work by counting how few members it touches."
 metadata: 
   node_type: memory
   type: feedback
   originSessionId: 61079d2b-5be1-445b-9baa-b2959d4e0ea3
+  modified: 2026-08-07T17:18:45.825Z
 ---
 
 The user's north star for DMC (and the catalogue generally) is **succeed with
@@ -30,6 +31,26 @@ should we defer") reads as reluctance and is the wrong frame.
 - Drop the "honest scope, maybe defer, is it worth it" hedging on DMC coverage
   work. Commit to driving it to completeness. Honest scope is still fine for
   flagging genuinely-huge or genuinely-impossible work — not for ordinary bugs.
+
+**EXTENDED 2026-08-07 (user correction, repeat offence): the rule is NOT
+coverage-only — it binds REPRESENTATION-QUALITY work too, and the banned move
+is specifically the SMALL-N ARGUMENT.** During the B4 onset investigation I
+repeatedly qualified a fix with "the payoff is negligible — 36 files out of
+12,064" / "almost nothing in training-data terms". The user: *"you keep nagging
+about how something only affecting a few songs compared to all songs is so
+small. please stop that."* Note this memory ALREADY said to drop the hedging;
+it was read as coverage-scoped and so not applied to a schema/representation
+question. It is not scoped that way.
+
+- **Never weigh a fix by carrier count.** "Only N members" is not an argument
+  against doing something, at any N — including N=1. Report the carrier count
+  as a FACT (C7 requires it: measure, don't guess) and then stop; do not
+  editorialize it into a cost/benefit verdict.
+- The correct axis is whether the representation states something TRUE — an
+  unverified claim in the data (e.g. a read marked "this value moves" that
+  nobody measured moving) is worth fixing regardless of how many files carry it.
+- Present options by what they'd COST and what they'd MAKE TRUE, and give a
+  recommendation. Let the user weigh significance; that call is theirs.
 
 Related: [[feedback_reanchor_at_decisions]] (still re-anchor on correctness), the
 uready gate [[feedback_uready_vocabulary]] (completeness feeds criterion 4/6).

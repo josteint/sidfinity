@@ -745,8 +745,25 @@ class _Model:
             # until the corpus sync retires the flag)
             return (len(r) > 4 and r[4]) or \
                 any(hasattr(x, 'voice') for x in r[2:4])
+        # VIBRATO-DELAY de-redirect. `vibdel` ($1771,x) is the one live-served
+        # signal whose constancy is CHECKABLE: the counter is written only at
+        # that voice's note-init (from the instrument's delay) and otherwise
+        # only DECed, and init clears the block — so on a voice that never
+        # plays a delayed instrument it is 0 all song, and a `live` stamp there
+        # asserts a movement that never happens. When extract stamps those
+        # reads STATIC, honour it: drop the row from the redirect (below) so
+        # the captured window byte is served, and EXEMPT those idx from the
+        # non-canon test — a static read there is a deliberate de-redirect, not
+        # evidence that the member's state geometry moved. No records at those
+        # idx (or any live one) => unchanged, byte-identical.
+        _VIBDEL_IDX = {(0x1771 + k) - ORIG_FHI for k in range(3)}
+        _vd = [r for r in _all if ((r[0] + r[1]) & 0xFF) in _VIBDEL_IDX]
+        self.vibdel_static = bool(_vd) and not any(_rec_live(r) for r in _vd)
+        _exempt = _VIBDEL_IDX if self.vibdel_static else set()
         _static_at_live = any(not _rec_live(r)
-                              and ((r[0] + r[1]) & 0xFF) in _live for r in _all)
+                              and ((r[0] + r[1]) & 0xFF) in _live
+                              and ((r[0] + r[1]) & 0xFF) not in _exempt
+                              for r in _all)
         self.offtable_redirect = not _static_at_live
         _SECTPOS_IDX = {(0x1729 + k) - ORIG_FHI for k in range(3)} \
             | {(0x1729 + k) - ORIG_FLO for k in range(3)}
@@ -3153,7 +3170,12 @@ fx_dual_up:
     # void for non-canon state-geometry members (params offtable_redirect=0,
     # extract-probed): their window bytes are static code/data served by the
     # static capture.
-    otmap = (DMC_OFFTABLE_STATE if m.offtable_redirect else []) \
+    # vibdel row dropped when every off-table read of the counter is STATIC
+    # (extract proved it never moves) — the window byte then serves the read.
+    _state_rows = [row for row in DMC_OFFTABLE_STATE
+                   if not (getattr(m, 'vibdel_static', False)
+                           and row[1] == 'vibdel')]
+    otmap = (_state_rows if m.offtable_redirect else []) \
         + ([DMC_SECTPOS_ROW] if sectpos_on else []) \
         + ([DMC_WAVEPOS_ROW] if (m.wavepos_layout or
                                  m.wavepos_positional) else [])

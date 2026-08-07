@@ -1,16 +1,18 @@
 ---
 name: feedback_measure_mechanism_before_precedent
-description: "Diagnostic ordering for a writelog divergence: MEASURE the actual read (pc-trace) before matching it to a prior round's index, and READ the whole multi-stage pipeline before instrumenting one stage. Retrospective from round 91 (Rogue_Ninja)."
+description: "Orient-before-diving diagnostic ordering: ask what a parameter IS FOR before mapping where its bytes are readable; measure the actual read before invoking a prior round's index; read the whole pipeline before instrumenting one stage."
 metadata: 
   node_type: memory
   type: feedback
   originSessionId: a39c97da-4a8d-4aa8-957f-229bc5830b84
-  modified: 2026-07-22T23:53:17.778Z
+  modified: 2026-08-07T18:54:02.493Z
 ---
 
-Two time-wasters recur when diagnosing a DMC (or any) writelog divergence.
-Both are "orient before diving in" failures; both cost ~10 tool-calls each
-in round 91 (Rogue_Ninja, an off-table freq divergence).
+Three time-wasters recur when diagnosing a DMC (or any) writelog divergence,
+or when judging whether a parameter is needed. All are "orient before diving
+in" failures. §1 and §2 each cost ~10 tool-calls in round 91 (Rogue_Ninja, an
+off-table freq divergence); §3 cost a whole investigation and produced a
+proposal that would have broken thousands of members (B4 onset, 2026-08-07).
 
 ## 1. Measure the mechanism BEFORE invoking a precedent
 
@@ -53,6 +55,38 @@ feature pipeline (the caller that chains the stages) and enumerate every stage
 that can touch the value. Instrument the LAST stage first, or print the value
 after each stage in one pass. When "the value is right before the bug",
 suspect a later stage, not the measurement.
+
+## 3. ASK WHAT THE PARAMETER IS FOR before mapping where its bytes can be read
+
+Added 2026-08-07 (B4 onset, user challenge). Asked "can this value be
+removed?", I enumerated every path by which its BYTES could reach the write
+stream — memory layout, record-image packing, off-table reads — ran three
+expensive measurements, and built a whole elision proposal on the finding
+that only 47 of 12,064 members could observe it. All correct, all beside the
+point: I never read what the player DOES with the value on the ORDINARY path.
+
+`onset` is the DMC editor's **vibrato delay** (instrument byte 7 hi nibble x8
+frames, lo nibble = width). `fx_vibdel` gates the ENTIRE effects branch —
+dual-slide included — while it counts down, and `fx_vib` is not inert at
+width 0 (it advances the freq accumulator every frame; width only sets when
+the direction flips). So the premise "width 0 => the delay is meaningless"
+was false, and "unreachable on 99.6% of members" had closed only the exotic
+door. Measurement: forcing the value moved the stream on **27 of 60 ordinary
+members with no off-table read at all**. The proposal would have broken
+thousands.
+
+The user caught it in one question — *"what IS this counter? how is it
+defined? did the composer do something in the editor to create it?"* — after
+I had spent three measurement rounds inside the mechanism.
+
+**How to apply:** before asking "where can this byte be read from", answer
+"what did the MUSICIAN set, and what does the player DO with it". Read the
+editor-format docs (`pipelines/<family>/docs/`) for the field's meaning and
+the player's consuming branch, THEN map reachability. A reachability census
+over the exotic paths is worthless while the normal path is unexamined —
+and it looks rigorous, which is what makes it dangerous. Corollary: a field
+that turns out to be a NAMED EDITOR KNOB is musical content by default;
+the burden shifts to proving it inert, not to proving it reachable.
 
 ## Tools built from this retrospective (round 91)
 - `dmc_offtable_probe.py` — the whole off-table diagnosis in one command.

@@ -84,7 +84,65 @@ def _offtable_live_idx() -> set:
     return offtable_live_idx()
 
 
-def _stamp_live(recs, canon: bool) -> list:
+_VIBDEL_ADDR = 0x1771          # per-voice vibrato-DELAY counter ($1771,x)
+VIBDEL_HI_IDX = {(_VIBDEL_ADDR + k) - 0x16A7: k + 1 for k in range(3)}
+"""fhi window idx -> 1-based voice, for the vibrato-delay counter (202-204).
+
+The lo landing ($1771-$1647 = 298+) is past the 8-bit index, so the counter is
+only reachable through a freq-HI read.
+"""
+
+
+def _vibdel_const_voices(m) -> set:
+    """1-based voices whose vibrato-delay counter is PROVABLY 0 all song.
+
+    `onset` is the DMC editor's vibrato delay (instrument byte 7 hi nibble x 8
+    frames; lo nibble = width).  The player's `fx_vibdel` reads `vibdel,x` and,
+    while it is non-zero, DECs it and skips the whole effects branch.  The
+    counter is therefore written in exactly ONE place — that voice's note-init,
+    `lda ivdel,y / sta vibdel,x` — and otherwise only decremented; init clears
+    the $1718-$179D block, so it starts at 0.
+
+    Hence: a voice that never note-inits an instrument with a non-zero delay
+    can never hold a non-zero value.  A read landing on its counter sonifies a
+    CONSTANT 0, and marking it live-varying is false.
+
+    Conservative by construction — any voice we cannot attribute keeps the live
+    stamp (today's behaviour).  Rows carry the already-resolved (sticky-applied)
+    instrument, and an idle voice runs slot 0 without note-initing, so the union
+    of a voice's own rows' instruments is the complete write set.
+    """
+    try:
+        hot = {i.id for i in m.instruments.values()
+               if getattr(i, 'vib_delay', 0)}
+        if not hot:
+            return {1, 2, 3}                    # no delay anywhere in the tune
+        seen = {1: set(), 2: set(), 3: set()}
+        for song in getattr(m, 'songs', []) or []:
+            for vi, v in enumerate(song.voices):
+                if vi > 2:
+                    return set()                # unexpected voice count: bail
+                for e in v.entries:
+                    for r in v.patterns[e]:
+                        seen[vi + 1].add(r.instr)
+        const = {vc for vc in (1, 2, 3) if not (seen[vc] & hot)}
+        # ALL-OR-NOTHING per member: the composer's de-redirect drops the
+        # whole 3-byte vibdel row, so a member that still needs ONE voice
+        # served live must keep every read live. Converting only some would
+        # fill window bytes the surviving redirect then shadows — inert, but
+        # it moves the image for no behavioural gain and breaks the
+        # byte-identity gate's "changed bytes == converted" invariant.
+        for ins in m.instruments.values():
+            for rec in (getattr(ins, 'offtable_freq', None) or []):
+                idx = (rec[0] + rec[1]) & 0xFF
+                if idx in VIBDEL_HI_IDX and VIBDEL_HI_IDX[idx] not in const:
+                    return set()
+        return const
+    except Exception:
+        return set()                            # never widen on an oddity
+
+
+def _stamp_live(recs, canon: bool, vibdel_const: set | None = None) -> list:
     """Tag each off-table read `(off, note, lo, hi)` whose canon-geometry
     window landing sonifies a live-varying value.
 
@@ -108,6 +166,15 @@ def _stamp_live(recs, canon: bool) -> list:
     for rec in recs:
         off, note, lo, hi = rec[:4]
         idx = (off + note) & 0xFF
+        # A live stamp asserts "this value MOVES". For the vibrato-delay
+        # counter that claim is checkable, and on a voice that never plays a
+        # delayed instrument it is false — emit the captured constant instead
+        # (the composer then drops the redirect row and serves it from the
+        # window). Everything else keeps the address-derived stamp.
+        if idx in VIBDEL_HI_IDX and \
+                VIBDEL_HI_IDX[idx] in (vibdel_const or set()):
+            out.append((off, note, lo, hi))
+            continue
         if canon and idx in live_idx:
             slo = signal_for_addr(0x1647 + idx)
             shi = signal_for_addr(0x16A7 + idx)
@@ -329,7 +396,8 @@ def _stated_voice_form(v, ents, intros, loop_slot, soft_flags):
 
 def _instrument_to_usf(inst, wavepos_layout: bool = False,
                        canon: bool = True,
-                       wave_norm: bool = False) -> Instrument:
+                       wave_norm: bool = False,
+                       vibdel_const: set | None = None) -> Instrument:
     effects = set()
     if inst.drum:
         effects.add('drum')
@@ -355,7 +423,7 @@ def _instrument_to_usf(inst, wavepos_layout: bool = False,
         wave_freq=[] if wave_norm else wave_freq,
         wave_start=inst.wave_start if wave_norm else None,
         adsr=(inst.ad, inst.sr),
-        offtable_freq=_stamp_live(inst.offtable_freq, canon),
+        offtable_freq=_stamp_live(inst.offtable_freq, canon, vibdel_const),
         # editor wave-table position (arrangement) — only for members whose
         # off-table reads sonify a live wave position (see DmcModel)
         wave_table_pos=inst.wave_pool_pos if wavepos_layout else None,
@@ -1182,7 +1250,8 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
                      if (m.cia_period or m.play_repeat > 1) else None),
         instruments=[_instrument_to_usf(m.instruments[k], m.wavepos_layout,
                                         m.offtable_canon,
-                                        wave_norm=_norm is not None)
+                                        wave_norm=_norm is not None,
+                                        vibdel_const=_vibdel_const_voices(m))
                      for k in sorted(m.instruments)],
         subtunes=subtunes,
         filter_programs={d + 1: dict(v) for d, v in m.filter_defs.items()},
