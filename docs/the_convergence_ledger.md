@@ -344,6 +344,16 @@ practice, not code to factor).
   work-RAM); the former "off-table glide target" boundary is RESOLVED (r97 —
   the 2nd re-measure expiry: dtmph now tracks 1:1, exact parse + live-served
   arrival landed 109/109 class FULL + Cleve_24).
+- ⚠ THE MIRROR — A REDIRECT ROW CAN BE WRONGLY *APPLIED*: rows are mapped by
+  ADDRESS and extract stamps `live` on `idx in live_idx` alone, never checking
+  whether the value MOVES. Where the var's writers are enumerable, constancy is
+  PROVABLE and a live stamp asserts a movement that never happens (vibdel
+  $1771,x: written only at that voice's note-init, else only DECed, init-cleared
+  ⇒ a voice that never plays a `vib_delay` instrument holds $00 all song). Prove
+  from the WRITE SITES, don't sample — the proof caught 27 members where a
+  siddump census had flagged 18. Drop the row per-member ALL-OR-NOTHING (3 bytes
+  wide) and EXEMPT those idx from `_static_at_live`, or the de-redirect is
+  misread as moved geometry and kills the member's whole redirect.
 - ⚠ A RECORDED REJECTION OF A REDIRECT ROW EXPIRES. "Our var doesn't track
   theirs" was measured against ONE composer on ONE date (often on ONE family);
   the composer is re-implemented continuously. RE-MEASURE before accepting it
