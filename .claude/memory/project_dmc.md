@@ -5,8 +5,36 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-06T20:39:10.729Z
+  modified: 2026-08-08T02:27:33.130Z
 ---
+
+## ✅ B4-onset CLOSED + the vibdel DE-REDIRECT (2026-08-08, commits 2a6d85fe / 57035d3d) — f1 re-batched 5,401/5,401 FULL and corpus-synced
+Two outcomes from one investigation, and the FIRST one refuted its own
+premise. **(1) B4's `onset` elision question is closed as KEEP.** `onset` is
+the DMC editor's VIBRATO DELAY (instrument byte 7 hi nibble x8 frames, lo
+nibble = width); the player's `fx_vibdel` gates the WHOLE effects branch
+(dual-slide included) while it counts down, and `fx_vib` is NOT inert at
+width 0 (it advances the freq accumulator every frame; width only sets when
+the direction flips). So "width 0 ⇒ the delay is meaningless" is FALSE on
+the normal playback path: forcing onset:=6 on inert-vibrato instruments moved
+the write stream on **27 of 60 sampled ordinary members with NO off-table
+read at all**. An earlier "unreachable on 99.6% of members" claim had closed
+only the exotic (off-table) door — see [[feedback_measure_mechanism_before_precedent]]
+§3, the lesson: ask what a parameter IS FOR before mapping where its bytes
+are readable. **(2) The vibdel DE-REDIRECT shipped** (ledger C11 refinement):
+the off-table read of `vibdel` ($1771,x, fhi idx 202-204) was stamped `live`
+by ADDRESS, never by measuring the value move; the counter is written only at
+that voice's note-init and otherwise only DECed (init-cleared), so constancy
+is PROVABLE from the write sites. Extract derives it per voice, composer drops
+the row from the redirect (all-or-nothing per member; the idx must also be
+EXEMPTED from `_static_at_live` or the whole redirect switches off). The proof
+converted **27** members where a siddump census had flagged 18 — proof beats
+sample. GATES: golden 208 = 176 byte-identical / 27 converted / 0 unexpected;
+27/27 converters FULL; regression 0 regressed; fresh f1 batch **5,401/5,401
+FULL** (batch_diff 0 regressions, +1 gain); mass-write 5,401 written / 0 err /
+0 orphans / audit 10/10 from disk across all 6 build paths; corpus 12,064 OK,
+spec lint 0/0. The sync also converged P1 (`speed_steps` [] identity form — 0
+legacy all-zero left) and P3b (`step_base` split — 5,302 files).
 
 ## ✅ I5 IMPLEMENTED (2026-08-06): the byte-faithful stated orderlist LANDED — buckets 1/2/3 unified; 41/41 replay-exact, 13 MD5-identical + 9 otrk-honesty diffs all FULL
 The approved design shipped in the recorded 5-step order. (1)
