@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import struct
@@ -47,6 +48,7 @@ from src import sid_db  # noqa: E402  (CSV+DuckDB storage layer)
 HVSC = ROOT / 'hvsc85'
 PARQUET_PATH = sid_db.PARQUET_PATH
 SIDID_DUMP = ROOT / 'deprecated' / 'gt2_grading' / 'data' / 'sidid_full.txt'
+ENGINE_CARRYOVER = ROOT / 'tools' / 'engine_carryover.json'
 SONGLENGTHS = HVSC / 'DOCUMENTS' / 'Songlengths.md5'
 PIPELINES = ROOT / 'pipelines'
 
@@ -113,6 +115,23 @@ def load_engine_map(dump_path: Path) -> dict[str, str]:
             path, engine = parts[0], parts[1].strip()
             out[path] = engine
     return out
+
+
+def load_engine_carryover(path: Path) -> dict[str, str]:
+    """Classifications carried across a collection update, {rel_path: engine}.
+
+    The sidid dump is keyed by HVSC-RELATIVE PATH, so a member that an update
+    RE-FILES or RENAMES loses its engine and silently drops out of its family's
+    batch — 168 members did so across #84 -> #85, including 17 DMC. Each entry
+    here was matched on PSID PAYLOAD hash to a member classified in the previous
+    tree, so the player code is byte-identical and the classification transfers
+    by construction. Applied only where sidid has nothing to say, so re-running
+    sidid over the new tree always wins (and makes this file redundant).
+    """
+    if not path.exists():
+        return {}
+    with path.open() as f:
+        return json.load(f).get('entries', {})
 
 
 # ---------------------------------------------------------------------------
@@ -303,6 +322,16 @@ def main(argv: list[str] | None = None) -> int:
     engine_map = load_engine_map(SIDID_DUMP)
     if not args.quiet:
         print(f'    {len(engine_map):,} files classified by sidid')
+    carry = load_engine_carryover(ENGINE_CARRYOVER)
+    added = 0
+    for rel, eng in carry.items():
+        if rel not in engine_map:        # a real sidid verdict always wins
+            engine_map[rel] = eng
+            added += 1
+    if carry and not args.quiet:
+        print(f'    {added:,} carried over from {ENGINE_CARRYOVER.name} '
+              f'(re-filed by the collection update; {len(carry) - added} '
+              f'already classified)')
 
     if not args.quiet:
         print(f'  loading songlengths from {SONGLENGTHS.relative_to(ROOT)}...')
