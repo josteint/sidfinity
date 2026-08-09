@@ -590,6 +590,24 @@ practice, not code to factor).
   week. DETECTOR: `tools/batch_diff.py OLD NEW [--fail-on-regression]` at
   EVERY closeout; triage regressions FIRST, separately from the tail.
   Attribute by MD5-bisecting the member's BUILD across the window.
+- SEVENTH LAYER — the ORIGINAL changed under the stored artifact (a COLLECTION
+  UPDATE, HVSC #84→#85). The mirror of every layer above: the INPUT drifts, not
+  our code. No gate can see it — code_hash speaks about our code, corpus_check
+  parses fine, regression builds from the stored `.usf` and never from the
+  original. ⚠ DO NOT match members by WHOLE-FILE hash: an update's dominant
+  edit is a CREDIT/TITLE fix (which is also what drives re-filing), so
+  whole-file matching read 47 members as "gone" when 46 were merely RENAMED —
+  the orphan rule would have DELETED 46 valid artifacts. Identity across
+  versions = the PSID PAYLOAD hash (bytes after dataOffset); the three-hash
+  compare (header/payload/whole) classifies every member in one pass as
+  carry / reextract_header / move[_reextract_header] / reextract_data / delete.
+  Gate the header-only class by BYTE-IDENTITY (payload identical ⇒ write stream
+  cannot move ⇒ re-verification learns nothing) — it also surfaces artifacts
+  built by older code. ALSO: classification is PATH-keyed, so an update silently
+  shrinks every family (DMC 10,676→10,642) — compare family counts across the
+  update and carry classifications over by payload. AND renaming the tree edits
+  docstrings in fingerprinted files ⇒ `code_fingerprint` changes ⇒ every batch
+  verdict goes stale (5,401 DMC rows at once); sequence it with a planned batch.
 - THIRD LAYER — the stored ARTIFACT is unreadable by the CURRENT grammar
   (schema drift). A typed-field move orphaned 1,182/11,943 stored .usf (9.9%)
   while regression stayed green — it builds from a ~116-member portfolio,
