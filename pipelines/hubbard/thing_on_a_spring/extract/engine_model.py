@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.join(ROOT, 'src'))
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 
 SID_PATH = os.path.join(
-    ROOT, 'hvsc84', 'MUSICIANS', 'H',
+    ROOT, 'hvsc85', 'MUSICIANS', 'H',
     'Hubbard_Rob', 'Thing_on_a_Spring.sid',
 )
 

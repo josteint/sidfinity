@@ -6,7 +6,7 @@
 >   - https://en.wikipedia.org/wiki/Access_Software
 >   - https://www.filfre.net/2014/08/access-software/ (The Digital Antiquarian, deep history)
 >   - https://www.mobygames.com/person/1084/bruce-carver/
->   - local: `hvsc84/MUSICIANS/K/Kleimeyer_Paul/`, `hvsc84/DEMOS/UNKNOWN/Master_Composer/`, `hvsc84.db`
+>   - local: `hvsc85/MUSICIANS/K/Kleimeyer_Paul/`, `hvsc85/DEMOS/UNKNOWN/Master_Composer/`, `hvsc84.db`
 >   - https://www.pouet.net/ (searched — no match)
 > - **fetched_via:** curl (Firefox/128 UA) for CSDb scener; WebSearch for Access Software /
 >   Pouet; local fs + read-only `hvsc84.db` for HVSC corpus
@@ -28,7 +28,7 @@
 - `sidid.nfo` is the authoritative attribution: *"Master Composer — AUTHOR: Paul Kleimeyer —
   RELEASED: 1983 Access Software Inc."*
 - **His own HVSC tunes are the best reference renditions of the engine.** Present locally at
-  `hvsc84/MUSICIANS/K/Kleimeyer_Paul/`:
+  `hvsc85/MUSICIANS/K/Kleimeyer_Paul/`:
   `Bill_Bailey, Brandenburg_1, Brandenburg_2, Demosongs, Entertainer, Flashdance, Fuer_Elise,
   Greensleeves, Maniac, Maple_Leaf_Rag, She_Works_Hard_for_the_Money` (11 SIDs).
   CSDb comments single out **Maniac.sid** ("perfect rendition using plain and simple
@@ -63,10 +63,10 @@
   A second small ambiguous bucket exists: **`engine='TFMX/MasterComposer'`** — sidid
   double-match candidates worth auditing during migration (TFMX vs Master Composer
   disambiguation).
-- `hvsc84/DEMOS/UNKNOWN/Master_Composer/` exists — the dedicated HVSC folder for the (mostly
+- `hvsc85/DEMOS/UNKNOWN/Master_Composer/` exists — the dedicated HVSC folder for the (mostly
   uncredited) tunes made with the tool, e.g. `Mr_Sandman, Kitten_on_the_Keys, Viva, Pan_3,
   Bread_and_Butter, Superman_2, Lonely, A_View_to_a_Kill_2, …`.
-- `hvsc84/DEMOS/M-R/MasterComposer_sample.sid` — note: this is the demo SID bundled with the
+- `hvsc85/DEMOS/M-R/MasterComposer_sample.sid` — note: this is the demo SID bundled with the
   **unrelated Bierfront "Mastercomposer V1.0"** scene tool (CSDb 4298), *not* Access Software's
   engine. Exclude it from the Access-Software corpus.
 - **The Mighty Bogg** is the one named scener who used the tool for many releases (4mat, CSDb).

@@ -49,5 +49,5 @@ Future waves: check here before re-fetching.
 | Lemon64 | auth-walled. Forum64.de | HTTP 403. c64-wiki.de | no page. |
 | comp.sys.cbm via Google Groups (2000–2016) | searched — threads found, no format internals. |
 | DeepSID (deepsid.chordian.net) | fetched — inherits sidid label, no extra tech. |
-| HVSC `hvsc84/DOCUMENTS/*` + STIL | grepped — **no mention** of sidwinder/natural beat/taki. |
+| HVSC `hvsc85/DOCUMENTS/*` + STIL | grepped — **no mention** of sidwinder/natural beat/taki. |
 | YouTube "SIDWinder v1.24 sub030 Enhanced" (Draxish fork) | noted — no binary/source located (lead). |

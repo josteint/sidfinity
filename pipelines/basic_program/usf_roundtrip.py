@@ -1259,7 +1259,7 @@ def best_attempt(sid_rel, dur, title='bp'):
     Barn_Razing needs min_trim + gap_exact), hence the full second pass.
     Returns (status, match, len_a, len_b, usf_or_None, sid_bytes_or_None)."""
     from pipelines.hubbard.verify_cycle import writelog_capture
-    sid = os.path.join(ROOT, 'hvsc84', sid_rel)
+    sid = os.path.join(ROOT, 'hvsc85', sid_rel)
     orig_wl = writelog_capture(sid, 0, dur)
     # AMENDED WINDOW (user-ratified 2026-07-02): some type-in programs pre-decode
     # their DATA for 1-3 MINUTES before the first note ("PLEASE WAIT" screens), and
@@ -1382,8 +1382,8 @@ def verify_usf(usf_rel, sid_rel, dur):
     import tempfile
     from pipelines.hubbard.verify_cycle import writelog_capture, compare_instruction_stream
     from pipelines.basic_program.proof_multivoice import verdict_basic
-    sid = os.path.join(ROOT, 'hvsc84', sid_rel)
-    m2 = usf_to_model(parse_file(os.path.join(ROOT, 'hvsc84', usf_rel)))
+    sid = os.path.join(ROOT, 'hvsc85', sid_rel)
+    m2 = usf_to_model(parse_file(os.path.join(ROOT, 'hvsc85', usf_rel)))
     with tempfile.NamedTemporaryFile(suffix='.sid', delete=False) as fo:
         fo.write(build_psid(m2)); out = fo.name
     try:

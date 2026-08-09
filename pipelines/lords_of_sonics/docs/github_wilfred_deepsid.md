@@ -240,7 +240,7 @@ Compotech_V2.x = X-Ample Architectures era.
 2. **CSDb SID entry for Lingo** (https://csdb.dk/sid/?id=25598) — fetch when CSDb is up (was
    503 at fetch time). Should confirm the player classification for an early LOS SID.
 
-3. **Total SID count in HVSC under Schneider_Markus/** — run `find hvsc84/MUSICIANS/S/Schneider_Markus/ -name "*.sid"` locally to get the complete list.
+3. **Total SID count in HVSC under Schneider_Markus/** — run `find hvsc85/MUSICIANS/S/Schneider_Markus/ -name "*.sid"` locally to get the complete list.
 
 4. **Confirm sidid detection of the Parsec sub-variant** — the (Parsec) signature is an INIT
    routine pattern; the two base signatures are the PLAY routine. Most SID files will match

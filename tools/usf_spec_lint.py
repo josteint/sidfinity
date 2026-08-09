@@ -72,14 +72,14 @@ NOISE_MIN_OCC = 300
 # Members that must always be in the sample (known non-default carriers —
 # Hubbard init fields, DMC work-file leftovers).
 MUST_INCLUDE = [
-    'hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.usf',
-    'hvsc84/MUSICIANS/D/Doxx/Bassbumper.usf',
+    'hvsc85/MUSICIANS/H/Hubbard_Rob/Commando.usf',
+    'hvsc85/MUSICIANS/D/Doxx/Bassbumper.usf',
 ]
 
 
 def _corpus() -> list[str]:
-    pats = ['hvsc84/MUSICIANS/*/*/*.usf', 'hvsc84/MUSICIANS/*/*/*/*.usf',
-            'hvsc84/DEMOS/*/*.usf', 'hvsc84/GAMES/*/*.usf']
+    pats = ['hvsc85/MUSICIANS/*/*/*.usf', 'hvsc85/MUSICIANS/*/*/*/*.usf',
+            'hvsc85/DEMOS/*/*.usf', 'hvsc85/GAMES/*/*.usf']
     out: list[str] = []
     for p in pats:
         out.extend(glob.glob(os.path.join(ROOT, p)))

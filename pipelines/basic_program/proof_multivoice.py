@@ -395,6 +395,6 @@ def run(sid_rel, dur, title):
     return ok
 
 if __name__ == '__main__':
-    ok1 = run('hvsc84/DEMOS/A-F/Baby_Elephant_Walk_BASIC.sid', 40.0, 'Baby_Elephant_Walk')
-    ok2 = run('hvsc84/DEMOS/UNKNOWN/Twinkle_BASIC.sid', 12.0, 'Twinkle')
+    ok1 = run('hvsc85/DEMOS/A-F/Baby_Elephant_Walk_BASIC.sid', 40.0, 'Baby_Elephant_Walk')
+    ok2 = run('hvsc85/DEMOS/UNKNOWN/Twinkle_BASIC.sid', 12.0, 'Twinkle')
     print(f"\nBaby FULL={ok1}  Twinkle(regression) FULL={ok2}")

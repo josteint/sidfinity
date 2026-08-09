@@ -144,7 +144,7 @@ OPEN: which sidid variant maps to Layout A vs B vs C.
 **Step 1 — Seed disassembly on a single-subtune Layout-A canary.**
 ```bash
 python3 tools/seed_disassembly.py \
-  hvsc84/MUSICIANS/S/Sonic/4k_Intro_windows_95_mix.sid \
+  hvsc85/MUSICIANS/S/Sonic/4k_Intro_windows_95_mix.sid \
   pipelines/xample/standard/disassembly.s
 ```
 Use a small-single-subtune SID to minimise the data section. Annotate:

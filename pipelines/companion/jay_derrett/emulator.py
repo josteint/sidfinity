@@ -648,7 +648,7 @@ def _to_reg_val_stream(frames: list[FrameWrites], skip_first: bool = False
 def validate_ninja_hamster(n_frames: int = 200) -> dict:
     """Run emulator + orig writelog, return divergence info."""
     from pipelines.hubbard.verify_cycle import writelog_capture
-    sid = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
+    sid = str(ROOT / 'hvsc85' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
               'Ninja_Hamster.sid')
     emu = JayDerrettEmulator(sid)
     emu_frames = emu.run(n_frames)

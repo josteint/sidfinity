@@ -7,8 +7,8 @@
 >   - `tmp/dmc_hunt/player-id/config/sidid.cfg` (canonical; treated as authoritative)
 >   - `tmp/dmc_hunt/DeepSID/utility/sidid_100/sidid.cfg` (DeepSID's bundled SIDId DB)
 >   - `hvsc84.db` (opened `file:hvsc84.db?mode=ro`, never writable)
->   - Player image disassembled from `hvsc84/MUSICIANS/E/Ekaitis_Joe/Eleanor_Rigby_Yesterday.sid`
->     (canonical `init=$7580 / play=$7587`) and `hvsc84/MUSICIANS/B/BOGG/Death.sid` (Lope variant).
+>   - Player image disassembled from `hvsc85/MUSICIANS/E/Ekaitis_Joe/Eleanor_Rigby_Yesterday.sid`
+>     (canonical `init=$7580 / play=$7587`) and `hvsc85/MUSICIANS/B/BOGG/Death.sid` (Lope variant).
 > - **Web sources:** see `deepsid_master_composer.md` in this dir.
 > - All three sidid.cfg files carry the **byte-identical** `Master_Composer` group; the only diff
 >   between distributions is a trailing `END` token (sidid/, DeepSID) vs none (player-id/). No semantic

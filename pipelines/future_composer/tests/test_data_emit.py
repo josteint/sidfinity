@@ -59,7 +59,7 @@ def test_build_music_data_layout_consistent():
     from src.usf import parse
     from src.usf.types import MusicSubtune
     from pathlib import Path
-    usf_path = Path('hvsc84/MUSICIANS/T/Tel_Jeroen/Cybernoid_II.usf')
+    usf_path = Path('hvsc85/MUSICIANS/T/Tel_Jeroen/Cybernoid_II.usf')
     if not usf_path.exists():
         return
     usf = parse(usf_path.read_text())

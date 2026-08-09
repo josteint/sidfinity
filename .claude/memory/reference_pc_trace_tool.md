@@ -59,7 +59,7 @@ then trace that window with `--pc-trace`.
 ## Quick example
 
 ```
-tools/siddump hvsc84/MUSICIANS/H/Hubbard_Rob/Chimera.sid --subtune 4 \
+tools/siddump hvsc85/MUSICIANS/H/Hubbard_Rob/Chimera.sid --subtune 4 \
     --duration 10 --writelog --raw --pc-trace tmp/pc.txt 155 157
 grep -n "9f80" tmp/pc.txt | head    # find init re-entry
 grep -nE "^03[0-9a-f][0-9a-f] " tmp/pc.txt | head  # find PC drift

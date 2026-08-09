@@ -24,7 +24,7 @@ def _resetspd(subtune, binary, load):
 
 DEVILS_GALOP = EngineConfig(
     name='devils_galop',
-    sid_path=os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Devils_Galop.sid'),
+    sid_path=os.path.join(ROOT, 'hvsc85', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Devils_Galop.sid'),
     instr_base=0x183B,
     instr_count=13,
     freq_table_base=0x1694,

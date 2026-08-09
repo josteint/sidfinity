@@ -1,15 +1,18 @@
 ---
-name: hvsc84-db
-description: "hvsc84.parquet (+ engine_docs.csv) — the HVSC #84 STATIC catalogue, DuckDB-queried via src/sid_db. Catalogue-only (no build-status columns as of 2026-07-04); build status/coverage comes from a fresh family batch, NOT the index. Regenerate with tools/build_sid_db.py."
+name: hvsc-db
+description: "hvsc85.parquet (+ engine_docs.csv) — the HVSC STATIC catalogue, DuckDB-queried via src/sid_db. Catalogue-only (no build-status columns as of 2026-07-04); build status/coverage comes from a fresh family batch, NOT the index. Regenerate with tools/build_sid_db.py."
 metadata:
   node_type: memory
   type: reference
   originSessionId: 0dddd211-01d5-48ea-b899-54adc79e22ae
+  modified: 2026-08-09T19:15:09.858Z
 ---
 
-The HVSC index at the repo root indexes every `.sid` under `hvsc84/`. Storage
-history: SQLite `hvsc84.db` → CSV (2026-06-15) → **Parquet `hvsc84.parquet`**
-(2026-07-04, zstd ~3 MB, dropped from the 12 MB CSV). Queried via DuckDB through
+The HVSC index at the repo root indexes every `.sid` under `hvsc85/`. Storage
+history: SQLite `hvsc84.db` → CSV (2026-06-15) → **Parquet** (2026-07-04, zstd
+~3 MB, dropped from the 12 MB CSV). The file is named for the HVSC release it
+indexes, so it is renamed on every collection update (`hvsc84.parquet` →
+`hvsc85.parquet`, 2026-08-09). Queried via DuckDB through
 `src/sid_db.py`. Second table `engine_docs` (per-family research state) stays a
 small CSV.
 
@@ -33,7 +36,7 @@ reintroduce a build-status column** — see [[feedback_convergence_ledger]] C20.
 The source of truth for "which members are FULL" is a fresh
 `tools/<engine>_family_batch.py` run (each `run_member` re-extracts into a temp
 dir — it never reads stored `.usf`). Do NOT derive a FULL list from stored
-`hvsc84/*.usf` existence or from the index. Batch results jsonls are stamped
+`hvsc85/*.usf` existence or from the index. Batch results jsonls are stamped
 with a **`code_hash`** ([[reference_hvsc_db]] → `src/code_fingerprint.py`): on
 resume a row is reused ONLY if its hash matches the current engine dependency
 set (`pipelines/<engine>` + `src/usf` + `verify_cycle`), so a code change
@@ -50,10 +53,10 @@ an unverified build to disk.
 `duckdb -json -c "<view setup>; <sql>"` (binary on PATH → `~/.local/bin/duckdb`),
 return sqlite3-style tuples. **Reads need only `duckdb` on PATH — NO env.sh /
 PYTHONPATH / .pylocal.** The python `duckdb` module is not used. The `sids` view
-= `read_parquet('hvsc84.parquet')`; `engine_docs` = `read_csv(...)`. `read_all()`
+= `read_parquet('hvsc85.parquet')`; `engine_docs` = `read_csv(...)`. `read_all()`
 = one `duckdb -json` process (typed rows) for per-row loops. `?` params, LIKE,
 `random()` work; **no `SUM(bool)`** (use `SUM(CASE WHEN … THEN 1 ELSE 0 END)`).
-Ad-hoc CLI: `duckdb -c "SELECT … FROM read_parquet('hvsc84.parquet')"`.
+Ad-hoc CLI: `duckdb -c "SELECT … FROM read_parquet('hvsc85.parquet')"`.
 
 ```python
 from src import sid_db

@@ -29,18 +29,18 @@ from pipelines.companion.jay_derrett.extract.orderlist import (
 
 
 CANDIDATES = (
-    [f'hvsc84/MUSICIANS/D/Derrett_Jay/{n}.sid' for n in [
+    [f'hvsc85/MUSICIANS/D/Derrett_Jay/{n}.sid' for n in [
         'Counterforce', 'Death_or_Glory', 'Destruct', 'Discovery',
         'Dracula', 'Equalizer', 'Jetboys', 'Lifeforce', 'Mandroid',
         'Ninja_Hamster', 'Osmium', 'Road_Warrior',
         'Spindizzy_USA_Version', 'Sqij', 'Stratton', 'Thundercross',
         'Traxxion', 'Trigger_Happy', 'Vengeance', 'ZIP',
     ]]
-    + [f'hvsc84/MUSICIANS/C/Clever_Music/{n}.sid' for n in [
+    + [f'hvsc85/MUSICIANS/C/Clever_Music/{n}.sid' for n in [
         'Blade_Runner', 'Shao-Lins_Road', 'Soundwave_Tubular_Bells',
         'Space_Doubt',
     ]]
-    + ['hvsc84/MUSICIANS/R/Raeburn_Gavin/Gun_Runner.sid']
+    + ['hvsc85/MUSICIANS/R/Raeburn_Gavin/Gun_Runner.sid']
 )
 
 

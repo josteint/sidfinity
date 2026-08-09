@@ -23,7 +23,7 @@ provenance:
       fetch_date: 2026-06-14
       content_date: ongoing
       reliability: high (sidid engine fingerprint DB)
-    - url: "file:hvsc84/DOCUMENTS/STIL.txt"
+    - url: "file:hvsc85/DOCUMENTS/STIL.txt"
       fetched_via: local read (latin-1)
       fetch_date: 2026-06-14
       content_date: HVSC #84

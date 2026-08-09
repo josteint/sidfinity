@@ -73,7 +73,7 @@ family). Identifying it would let us depack without VICE.
        and disassemble the player there.
    (b) Identify the cruncher and write an offline depacker.
    (c) Skip the editor route and disassemble a SHIPPED FC V3.x song
-       directly from HVSC (e.g. `hvsc84/MUSICIANS/[J]/Jeroen_Tel/Hawkeye.sid`
+       directly from HVSC (e.g. `hvsc85/MUSICIANS/[J]/Jeroen_Tel/Hawkeye.sid`
        or its V3.x peer) — the song already contains the depacked
        player runtime at its load address.
 

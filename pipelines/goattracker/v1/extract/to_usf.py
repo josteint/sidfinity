@@ -297,7 +297,7 @@ def write_v1_usf(sid_path: str, out_dir: str | None = None) -> str:
 if __name__ == '__main__':
     import sys
     path = sys.argv[1] if len(sys.argv) > 1 else \
-        'hvsc84/MUSICIANS/T/Topaz/Joker.sid'
+        'hvsc85/MUSICIANS/T/Topaz/Joker.sid'
     # In-memory model (the composer consumes this; text-grammar round-trip for
     # arp/vibrato fx is a pending grammar extension).
     song = extract(parse_sid(path))

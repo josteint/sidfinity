@@ -68,7 +68,7 @@ def _family_map():
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument('--root', default=os.path.join(ROOT, 'hvsc84'))
+    ap.add_argument('--root', default=os.path.join(ROOT, 'hvsc85'))
     ap.add_argument('--quiet', action='store_true', help='counts only')
     ap.add_argument('--list', type=int, default=0, metavar='N',
                     help='print N failing paths')

@@ -120,13 +120,13 @@ def main() -> int:
     from pipelines.dmc.v4.extract.engine_model import (_canon_state_geometry,
                                                        _verify_window)
 
-    cfg = dmc_v4_config(args.member, hvsc_root='hvsc84')
+    cfg = dmc_v4_config(args.member, hvsc_root='hvsc85')
     if cfg is None:
         print(f'{args.member}: factory refused the member (not DMC v4 f1)')
         return 2
     base = cfg.base
     shift = base - CANON_BASE
-    sid_path = os.path.join('hvsc84', args.member)
+    sid_path = os.path.join('hvsc85', args.member)
 
     print(f'member      : {args.member}')
     print(f'player base : ${base:04X}   canon $1000   shift '
@@ -148,9 +148,9 @@ def main() -> int:
     try:
         from pipelines.dmc.v4.compilation import detect_compilation
         from pipelines.dmc.v4.factory import dmc_v4_config_2sid
-        cfgs2 = dmc_v4_config_2sid(args.member, hvsc_root='hvsc84')
+        cfgs2 = dmc_v4_config_2sid(args.member, hvsc_root='hvsc85')
         comp = None if cfgs2 else detect_compilation(args.member,
-                                                     hvsc_root='hvsc84')
+                                                     hvsc_root='hvsc85')
         if comp and len(comp.get('bases') or []) > 1:
             players = [(b, f'player {i}')
                        for i, b in enumerate(comp['bases'])]

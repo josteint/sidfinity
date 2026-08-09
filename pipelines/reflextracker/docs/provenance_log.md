@@ -19,7 +19,7 @@ Status: ✅ fetched & saved · 📄 read only · ⚠️ partial/blocked · ❌ f
 - ✅ kb author profile / 2014 interview (no Reflextracker mention; TinySID author) → `wiki_kb_author_profile.md`, `github_author_search.md`, `author_sites_and_releases.md`
 - ✅ QuadSID/multi-SID context (MIDI-only, 0 in HVSC) → `wiki_quadsid_and_multi_sid_context.md`
 - ✅ Wayback CDX for reflex-studio.de / kebby.org / quiss.org; Brainbeat 3 (1994, "FTRAC V1") → `archive_wayback_and_scene_mirrors.md`, `archive_brainbeat3_1994.md`
-- 📄 local `hvsc84/DOCUMENTS/*` (STIL: 5 PVCF technical notes — "2 channel sampletracker" etc.; no other hits), `deprecated/gt2_pipeline/tools/sidid.cfg`, `hvsc84.db` (read-only census) → `stil_notes.md`, `hvsc_corpus_census.md`, `hvsc_sid_layout.md`
+- 📄 local `hvsc85/DOCUMENTS/*` (STIL: 5 PVCF technical notes — "2 channel sampletracker" etc.; no other hits), `deprecated/gt2_pipeline/tools/sidid.cfg`, `hvsc84.db` (read-only census) → `stil_notes.md`, `hvsc_corpus_census.md`, `hvsc_sid_layout.md`
 
 ## Negative results (confirmed absent — don't re-search)
 - ❌ No tracker/player SOURCE anywhere (GitHub kebby/matthiaskramm/quiss.org — none; predates GitHub, DOS-era)

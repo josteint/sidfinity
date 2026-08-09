@@ -226,7 +226,7 @@ def verify_instruments(name: str) -> dict:
 def verify_one(name: str) -> dict:
     """Round-trip verify one Type A SID. Returns per-voice match info."""
     json_path = f'pipelines/companion/jay_derrett/_extracted/{name}.json'
-    usf_path = f'hvsc84/MUSICIANS/D/Derrett_Jay/{name}.usf'
+    usf_path = f'hvsc85/MUSICIANS/D/Derrett_Jay/{name}.usf'
 
     dump = json.load(open(json_path))
     usf = parse_file(usf_path)

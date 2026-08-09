@@ -1,5 +1,5 @@
 ---
-source_url: local: /home/jtr/sidfinity/hvsc84/ + https://cadaver.github.io/tools.html + https://csdb.dk/search/?stype=all&search=ninjatracker + https://raw.githubusercontent.com/cadaver/sidid/master/sidid.cfg
+source_url: local: /home/jtr/sidfinity/hvsc85/ + https://cadaver.github.io/tools.html + https://csdb.dk/search/?stype=all&search=ninjatracker + https://raw.githubusercontent.com/cadaver/sidid/master/sidid.cfg
 fetched_via: local read + curl
 fetch_date: 2026-06-17
 author: SIDfinity research session

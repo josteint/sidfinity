@@ -143,7 +143,7 @@ Grade the rebuild against the original:
 
 ```bash
 python3 src/writelog_grade.py \
-    hvsc84/MUSICIANS/H/Hubbard_Rob/Devils_Galop.sid \
+    hvsc85/MUSICIANS/H/Hubbard_Rob/Devils_Galop.sid \
     pipelines/hubbard/devils_galop/build/devils_galop.sid
 ```
 

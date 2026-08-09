@@ -4,7 +4,7 @@
 > - source: `local: pipelines/hardtrack/docs/src/sdk/extracted/RELEASE_NOTES.bin`
 >   (= assembled V1.0 player @ $1000 + demo tune), cross-referenced against
 >   `PLAYER_V1.0.bin` / `PLAYER_V1.1.bin` (tokenised Elysium turbo-assembler SOURCE)
->   and against the canonical HVSC tune `hvsc84/MUSICIANS/W/Wodnik/HT_7_1.sid`.
+>   and against the canonical HVSC tune `hvsc85/MUSICIANS/W/Wodnik/HT_7_1.sid`.
 > - fetched_via: local artifacts (Elysium SDK, already extracted) + py65 disassembly
 >   (`tools/seed_disassembly.py` on `HT_7_1.sid`) + recovered symbol table from the
 >   tokenised sources.

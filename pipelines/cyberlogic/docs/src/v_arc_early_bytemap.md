@@ -1,5 +1,5 @@
 # v_arc_early binary map — A_Real_Compose.sid (load=$1000)
-# SID: hvsc84/MUSICIANS/N/Nagie_Sascha/A_Real_Compose.sid
+# SID: hvsc85/MUSICIANS/N/Nagie_Sascha/A_Real_Compose.sid
 # Load=$1000, Init=$10A1, Play=$112B, End=$219D, Size=4509 bytes
 
 ## Jump table ($1000)

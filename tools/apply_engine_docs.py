@@ -5,7 +5,7 @@ The full tools/build_sid_db.py also (re)writes engine_docs, but it re-walks
 and re-hashes 60k SIDs. This is the cheap path: after editing engine_docs.json
 (e.g. bumping a family LITTLE -> OK once its research-engine sweep lands), run
 this to rewrite just engine_docs.csv in seconds. It reads the existing
-hvsc84.csv for the per-engine SID counts (no re-walk / re-hash).
+catalogue parquet for the per-engine SID counts (no re-walk / re-hash).
 """
 import sys
 from pathlib import Path
@@ -20,7 +20,7 @@ from src import sid_db                 # noqa: E402
 def main() -> int:
     rows = sid_db.read_all()
     if not rows:
-        print('no hvsc84.parquet yet — run tools/build_sid_db.py first',
+        print('no hvsc85.parquet yet — run tools/build_sid_db.py first',
               file=sys.stderr)
         return 1
     docs = b.build_engine_docs(rows)

@@ -96,7 +96,7 @@ lake build sidgen_one_man_and_his_droid
 # Grade against the original.
 source src/env.sh
 python src/writelog_grade.py \
-    hvsc84/MUSICIANS/H/Hubbard_Rob/One_Man_and_his_Droid.sid \
+    hvsc85/MUSICIANS/H/Hubbard_Rob/One_Man_and_his_Droid.sid \
     pipelines/hubbard/one_man_and_his_droid/build/one_man_and_his_droid.sid
 ```
 

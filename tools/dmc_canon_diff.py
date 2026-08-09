@@ -160,7 +160,7 @@ def _diff_member(rel: str) -> dict:
     from pipelines.dmc.v4 import dataflow as D
     from pipelines.dmc.v4.factory import _load
     try:
-        mem, s = _load(os.path.join(ROOT, 'hvsc84', rel))
+        mem, s = _load(os.path.join(ROOT, 'hvsc85', rel))
     except Exception as e:
         return {'rel': rel, 'status': 'error', 'detail': f'{type(e).__name__}'}
     base = _canon_base(mem, s)

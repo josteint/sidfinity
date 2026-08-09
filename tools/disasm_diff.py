@@ -16,7 +16,7 @@ Examples:
     # Compare orig pulse_run at $ACE4-$AD30 against composer's
     # _emit_fx_pulse_run function:
     python3 tools/disasm_diff.py \\
-        --orig hvsc84/MUSICIANS/T/Tel_Jeroen/Cybernoid_II.sid \\
+        --orig hvsc85/MUSICIANS/T/Tel_Jeroen/Cybernoid_II.sid \\
         --orig-range ACE4-AD30 \\
         --composer pipelines/future_composer/composer_asm.py \\
         --composer-label fx_pulse_run

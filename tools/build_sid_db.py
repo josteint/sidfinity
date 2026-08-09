@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""build_sid_db.py — Walk HVSC and build the static catalogue hvsc84.parquet.
+"""build_sid_db.py — Walk HVSC and build the static catalogue hvsc85.parquet.
 
-One row per .sid file under hvsc84/, with:
+One row per .sid file under hvsc85/, with:
   - PSID/RSID header fields (title, author, released, addresses, n_subtunes)
   - md5 of the original file
   - engine classification (from deprecated/gt2_grading/data/sidid_full.txt)
-  - total HVSC songlength (from hvsc84/DOCUMENTS/Songlengths.md5)
+  - total HVSC songlength (from hvsc85/DOCUMENTS/Songlengths.md5)
   - exclusion flag + reason (from tools/excluded_sids.json)
 
 Static catalogue ONLY — no per-build verdicts. Build status (verify_status /
@@ -13,7 +13,7 @@ usf_path / sidfinity_md5 / pipeline) was removed 2026-07-04: zero readers,
 palimpsest-prone, concurrency-hazardous. Coverage is derived on demand from a
 fresh family batch, not cached here.
 
-The index is a compact Parquet file (hvsc84.parquet, zstd) queried via DuckDB —
+The index is a compact Parquet file (hvsc85.parquet, zstd) queried via DuckDB —
 see src/sid_db.py (schema + read/write live there). Idempotent: re-runs rewrite
 the whole parquet. Skips re-hashing files whose mtime is unchanged since the
 last run.
@@ -44,7 +44,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from src import sid_db  # noqa: E402  (CSV+DuckDB storage layer)
 
-HVSC = ROOT / 'hvsc84'
+HVSC = ROOT / 'hvsc85'
 PARQUET_PATH = sid_db.PARQUET_PATH
 SIDID_DUMP = ROOT / 'deprecated' / 'gt2_grading' / 'data' / 'sidid_full.txt'
 SONGLENGTHS = HVSC / 'DOCUMENTS' / 'Songlengths.md5'
@@ -248,7 +248,7 @@ def build_engine_docs(rows: dict[str, dict]) -> list[dict]:
 
 # ---------------------------------------------------------------------------
 # Schema lives in src/sid_db.py (SIDS_COLUMNS/TYPES + ENGINE_DOCS_*); the
-# catalogue is hvsc84.parquet + engine_docs.csv, queried via DuckDB.
+# catalogue is hvsc85.parquet + engine_docs.csv, queried via DuckDB.
 # ---------------------------------------------------------------------------
 
 
@@ -333,9 +333,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f'  loading exclusions from tools/excluded_sids.json...')
     from src.exclusions import all_excluded
     excluded_map = all_excluded()      # {rel-from-repo-root: reason}
-    # Normalize keys to HVSC-relative paths (drop 'hvsc84/' prefix).
+    # Normalize keys to HVSC-relative paths (drop 'hvsc85/' prefix).
     excluded_hvsc = {
-        p[len('hvsc84/'):] if p.startswith('hvsc84/') else p: r
+        p[len('hvsc85/'):] if p.startswith('hvsc85/') else p: r
         for p, r in excluded_map.items()
     }
     if not args.quiet:

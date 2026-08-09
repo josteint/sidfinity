@@ -21,7 +21,7 @@ sys.path.insert(0, 'tools/py65_lib')
 
 ROOT = Path(__file__).resolve().parents[3]
 
-SID_PATH = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'H' / 'Hubbard_Rob' /
+SID_PATH = str(ROOT / 'hvsc85' / 'MUSICIANS' / 'H' / 'Hubbard_Rob' /
                'Commodore_64_Music_Examples.sid')
 
 

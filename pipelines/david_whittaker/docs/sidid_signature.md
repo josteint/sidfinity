@@ -1,5 +1,5 @@
 ---
-source_url: https://raw.githubusercontent.com/cadaver/sidid/master/sidid.cfg; https://raw.githubusercontent.com/WilfredC64/player-id/main/config/sidid.cfg; local: hvsc84/MUSICIANS/W/Whittaker_David/ (binary analysis)
+source_url: https://raw.githubusercontent.com/cadaver/sidid/master/sidid.cfg; https://raw.githubusercontent.com/WilfredC64/player-id/main/config/sidid.cfg; local: hvsc85/MUSICIANS/W/Whittaker_David/ (binary analysis)
 fetched_via: direct (cadaver/WilfredC64 fetched 2026-06-17); local read (binary analysis)
 fetch_date: 2026-06-17
 author: Cadaver (Lasse Öörni); Wilfred Bos; iAN CooG; local analysis by this session

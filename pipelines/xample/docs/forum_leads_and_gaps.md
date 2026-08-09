@@ -141,7 +141,7 @@ X-Ample_Digi CIA extension?
 **How to check:** For each of the 11 CIA-timed SoNiC tunes, and for
 Hawkeye_II (RSID, 18,873 bytes), run:
 ```bash
-siddump --writelog hvsc84/MUSICIANS/S/Schneider_Markus/Hawkeye_II.sid 2>&1 | grep -i "DD0"
+siddump --writelog hvsc85/MUSICIANS/S/Schneider_Markus/Hawkeye_II.sid 2>&1 | grep -i "DD0"
 ```
 If $DD04/$DD05/$DD0E writes appear, it's X-Ample_Digi. If not, it's just
 CIA-timed music (Mode 1, CIA path).

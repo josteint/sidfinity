@@ -33,7 +33,7 @@ from pipelines.future_composer.config import FCConfig, EngineInstance
 
 ADRENALIN = FCConfig(
     name='adrenalin',
-    sid_path='hvsc84/MUSICIANS/H/HeatWave/Adrenalin.sid',
+    sid_path='hvsc85/MUSICIANS/H/HeatWave/Adrenalin.sid',
 
     # ---- rebuild layout (CORE TENET: own layout, match the writelog) ----
     # The original is a self-decompressing inline-load PSID; the rebuild is a

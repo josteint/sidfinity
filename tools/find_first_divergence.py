@@ -84,7 +84,7 @@ def _resolve_duration(orig_path: str, subtune: int,
     if duration is not None:
         return duration
     md5 = hashlib.md5(open(orig_path, 'rb').read()).hexdigest()
-    songlen_path = ROOT / 'hvsc84' / 'DOCUMENTS' / 'Songlengths.md5'
+    songlen_path = ROOT / 'hvsc85' / 'DOCUMENTS' / 'Songlengths.md5'
     if not songlen_path.exists():
         print(f'warning: no Songlengths.md5 at {songlen_path} — '
               f'using 60s default', file=sys.stderr)

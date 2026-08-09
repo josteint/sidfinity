@@ -1587,7 +1587,7 @@ if __name__ == '__main__':
     from pipelines.goattracker.v1.extract.engine_model import parse_sid, extract
     from pipelines.goattracker.v1.extract.to_usf import model_to_usf
     path = sys.argv[1] if len(sys.argv) > 1 else \
-        'hvsc84/MUSICIANS/T/Topaz/Joker.sid'
+        'hvsc85/MUSICIANS/T/Topaz/Joker.sid'
     usf = model_to_usf(extract(parse_sid(path)))
     sid = build_v1_sid(usf)
     out = 'tmp/joker.sidfinity.sid'

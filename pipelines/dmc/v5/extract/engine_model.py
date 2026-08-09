@@ -196,7 +196,7 @@ def _decode_sector(mem, ptr: int):
     raise RuntimeError(f'sector at ${ptr:04X} never ends')
 
 
-def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
+def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
     from pipelines.dmc.v4.extract.engine_model import (_hdr_clock,
                                                        _hdr_sid_model)
     mem, s = _load(os.path.join(hvsc_root, cfg.sid_path),

@@ -15,7 +15,7 @@ Usage:
 
 Example:
     python tools/split_multi_binary.py \\
-        hvsc84/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid \\
+        hvsc85/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid \\
         /tmp/5tt_subs
 
 Writes /tmp/5tt_subs/sub_0.sid, sub_1.sid, ..., sub_N.sid plus a

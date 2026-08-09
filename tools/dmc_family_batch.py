@@ -58,7 +58,7 @@ def _is_cia_subtune(speed: int, st: int) -> bool:
 def _worker_init():
     global _db
     from src.songlengths import load_database
-    _db = load_database(os.path.join(ROOT, 'hvsc84', 'DOCUMENTS',
+    _db = load_database(os.path.join(ROOT, 'hvsc85', 'DOCUMENTS',
                                      'Songlengths.md5'))
 
 
@@ -86,7 +86,7 @@ def run_member(rel: str) -> dict:
         from src.usf.parser import parse_file
         from seed_disassembly import parse_psid
 
-        hvsc = os.path.join(ROOT, 'hvsc84')
+        hvsc = os.path.join(ROOT, 'hvsc85')
         # multi-SID (2SID/3SID): two/three independent DMC players, one per
         # chip. Extract each, merge into a 6/9-voice USF; the composer emits
         # one player instance per chip (chip N -> $D400+N*$20).

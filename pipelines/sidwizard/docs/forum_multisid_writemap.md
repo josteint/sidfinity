@@ -7,7 +7,7 @@
 > - **source_url (forum):** `https://csdb.dk/release/?id=220489` (V1.91 release comments — the SID4-header problem)
 > - **source_url (wiki/blog):** `https://blog.chordian.net/2017/04/01/3sid-c64-sid-music-in-9-voices/`
 > - **source_url (manual):** SID-Wizard 1.4 / 1.5 User Manuals (register table + 2SID 'SID2 address' setting)
-> - **empirical:** local parse of **1048** `Hermit/SidWizard_V1.x` PSID/RSID headers in `hvsc84/` (2026-06-13)
+> - **empirical:** local parse of **1048** `Hermit/SidWizard_V1.x` PSID/RSID headers in `hvsc85/` (2026-06-13)
 > - **fetched_via:** WebSearch (chipmusic.org + lemon64 direct WebFetch were **HTTP 403 / 503**-blocked —
 >   substantive text recovered from search-result snippets); WebFetch (CSDb, Chordian); Python header-parse
 >   of the actual `.sid` files for the empirical section.

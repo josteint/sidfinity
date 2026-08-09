@@ -1825,7 +1825,7 @@ def _wrap_psid(title: str, author: str, released: str,
 
 def build_ninja_hamster_sid(load_addr: int = 0x1000) -> bytes:
     """Build a clean Ninja_Hamster PSID."""
-    sid_path = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
+    sid_path = str(ROOT / 'hvsc85' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
                    'Ninja_Hamster.sid')
     return build_sid(sid_path, NINJA_HAMSTER, load_addr=load_addr)
 
@@ -1845,7 +1845,7 @@ def try_all_type_a(duration: float = 6.0) -> dict[str, str]:
         writelog_capture, compare_instruction_stream,
     )
     results: dict[str, str] = {}
-    base = ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay'
+    base = ROOT / 'hvsc85' / 'MUSICIANS' / 'D' / 'Derrett_Jay'
     extracted = ROOT / 'pipelines' / 'companion' / 'jay_derrett' / '_extracted'
     for name in _TYPE_A_SIDS:
         sid_path = str(base / f'{name}.sid')
@@ -1885,7 +1885,7 @@ if __name__ == '__main__':
             print(f'{name:18} {status}')
     else:
         sid = build_ninja_hamster_sid()
-        out = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
+        out = str(ROOT / 'hvsc85' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
                   'Ninja_Hamster.sidfinity.sid')
         Path(out).write_bytes(sid)
         print(f'Wrote {out} ({len(sid)} bytes)')

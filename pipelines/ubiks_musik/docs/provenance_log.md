@@ -26,7 +26,7 @@ migration-phase RE.
 ### Write model + tools (cluster_write_model_and_tools.md)
 | Source | Status | Notes |
 |---|---|---|
-| `hvsc84/GAMES/A-F/Fire_Breath.sid` (canonical, structural read) | analysed | per-frame write model + effect register semantics → `src/fire_breath_c600_disasm.txt` |
+| `hvsc85/GAMES/A-F/Fire_Breath.sid` (canonical, structural read) | analysed | per-frame write model + effect register semantics → `src/fire_breath_c600_disasm.txt` |
 | PRG2SID v1.26 (detection logic) | referenced | `$C666` scan + stub injection (only tool w/ Ubik handling) |
 | DeepSID / libsidplayfp / VICE | checked | no Ubik-specific handling; STIL has no Ubik entries |
 

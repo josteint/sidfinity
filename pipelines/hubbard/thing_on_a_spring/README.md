@@ -45,7 +45,7 @@ lake build sidgen_thing_on_a_spring
 ./.lake/build/bin/sidgen_thing_on_a_spring                  # → build/thing_on_a_spring.sid
 
 python3 src/writelog_grade.py \
-    hvsc84/MUSICIANS/H/Hubbard_Rob/Thing_on_a_Spring.sid \
+    hvsc85/MUSICIANS/H/Hubbard_Rob/Thing_on_a_Spring.sid \
     pipelines/hubbard/thing_on_a_spring/build/thing_on_a_spring.sid
 ```
 

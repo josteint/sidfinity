@@ -58,7 +58,7 @@ with 32 bytes past `$8D` (the bytes the orig engine would read).
 
 ## USF representation
 
-`hvsc84/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.usf` is the source of truth — the
+`hvsc85/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.usf` is the source of truth — the
 shipped `.sid` is built from it alone (no binary access at build
 time, per the [[feedback_always_through_usf]] principle).
 

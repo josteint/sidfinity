@@ -5,7 +5,7 @@ provenance:
   author:         Claude Sonnet 4.6 (agent research sweep)
   fetch_date:     2026-06-14
   reliability:    HIGH for §3-§6 (derived from direct binary analysis of
-                  hvsc84/GAMES/A-F/Fire_Breath.sid, a canonical C600/C603 tune);
+                  hvsc85/GAMES/A-F/Fire_Breath.sid, a canonical C600/C603 tune);
                   MEDIUM-HIGH for §1-§2 (cross-referenced across three web sources);
                   MEDIUM for §7 echo/waveform-swap (observed in code structure but
                   full per-note SR write sequence not fully traced to a clean path)
@@ -23,7 +23,7 @@ sources:
     fetched_via: WebFetch
   - url: https://cadaver.github.io/rants/music.html
     fetched_via: WebFetch
-  - binary: hvsc84/GAMES/A-F/Fire_Breath.sid
+  - binary: hvsc85/GAMES/A-F/Fire_Breath.sid
     load: $BBBE  init: $C600  play: $C603  songs: 12
     analysis: direct byte-level disassembly (Python, no siddump/py65)
 ```
@@ -83,7 +83,7 @@ init+3 = play holds for all standard instances.
 
 ## §3  $C600 Layout — Canonical Player (from Fire_Breath.sid)
 
-Disassembly is from `hvsc84/GAMES/A-F/Fire_Breath.sid`
+Disassembly is from `hvsc85/GAMES/A-F/Fire_Breath.sid`
 (load=$BBBE, size=$13B0 / 5040 bytes, addresses $BBBE–$CF6D).
 
 ```

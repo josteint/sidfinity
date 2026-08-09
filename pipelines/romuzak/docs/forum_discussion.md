@@ -298,7 +298,7 @@ RoMuzak_V7.x   Author: Oliver Blasnik (ROM)   (release date not in nfo)
 ## 11. HVSC-local findings (local binary inspection — NOT RE)
 
 ```
-source_url: local HVSC at /home/jtr/sidfinity/hvsc84/
+source_url: local HVSC at /home/jtr/sidfinity/hvsc85/
 fetched_via: direct filesystem inspection (python3 string extraction)
 fetch_date: 2026-06-13
 reliability: primary (binary data)

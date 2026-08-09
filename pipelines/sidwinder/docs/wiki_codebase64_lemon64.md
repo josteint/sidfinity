@@ -144,7 +144,7 @@ There is a 2025 web tool at https://sidwinder.netlify.app/ called "SIDwinder —
    - https://github.com/cadaver/sidid/blob/master/sidid.cfg (worth fetching)
 
 6. **HVSC DOCUMENTS folder:**
-   - Check `hvsc84/DOCUMENTS/` for any SidWinder-specific format doc (some editors have `.txt` specs bundled).
+   - Check `hvsc85/DOCUMENTS/` for any SidWinder-specific format doc (some editors have `.txt` specs bundled).
 
 7. **Lemon64 threads listing trackers** (SidWinder mentioned but no technical content):
    - https://www.lemon64.com/forum/viewtopic.php?t=26647 (MIDI trackers thread)

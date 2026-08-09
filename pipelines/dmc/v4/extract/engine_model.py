@@ -1818,7 +1818,7 @@ def _decode_filter_def(mem, base: int, n: int,
 # Top-level extraction
 # ---------------------------------------------------------------------------
 
-def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
+def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc85') -> DmcModel:
     _PEEK_DEPTH_MAP.clear()          # per-member; no leak across pool members
     _FETCH_EVENTS.clear()
     _PLAYCLK_ADDR.clear()

@@ -5,8 +5,8 @@ in their "## Leads to follow" sections. This log records the sweep structure and
 primary/local sources used, so a future wave doesn't repeat the same work.
 
 ## Local primary sources (highest reliability)
-- `hvsc84/` — the 486 `Basic_Program` SID files themselves (the BASIC source archive).
-- `hvsc84/DOCUMENTS/SID_file_format.txt` — RSID BASIC-flag + `$030C` semantics (C5).
+- `hvsc85/` — the 486 `Basic_Program` SID files themselves (the BASIC source archive).
+- `hvsc85/DOCUMENTS/SID_file_format.txt` — RSID BASIC-flag + `$030C` semantics (C5).
 - `hvsc84.csv` (via DuckDB) — corpus characterization: origins, authors, subtune counts (C1).
 - `deprecated/gt2_pipeline/tools/sidid.cfg` — the `Basic_Program` signature bytes (recon).
 - `tools/siddump.cpp` + `tools/libsidplayfp/src/sidplayfp/sidplayfp.h` — the `setRoms()` gap (C5).

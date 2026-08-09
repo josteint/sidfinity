@@ -81,7 +81,7 @@ def cluster_corpus(threshold=0.85, engine_like='%FutureComposer%'):
     fps = []           # (path, ops, exact_hash)
     errs = 0
     for (rel,) in rows:
-        p = os.path.join(root, 'hvsc84', rel)
+        p = os.path.join(root, 'hvsc85', rel)
         try:
             ops, h = fingerprint_sid(p)
             if len(ops) < 20:           # too little reachable code → likely packed
@@ -135,7 +135,7 @@ if __name__ == '__main__':
         # Task 34: where do Adrenalin's sub-engines land?
         from pipelines.future_composer.engine_model import _run_init_in_py65
         root = os.path.join(os.path.dirname(__file__), '..')
-        sid = os.path.join(root, 'hvsc84/MUSICIANS/H/HeatWave/Adrenalin.sid')
+        sid = os.path.join(root, 'hvsc85/MUSICIANS/H/HeatWave/Adrenalin.sid')
         targets = {
             'engine A (sub0 @7A00)': (_run_init_in_py65(sid, 0), 0x7A00, 0x7A06),
             'sub1 variant (@1021)':  (_run_init_in_py65(sid, 1), 0x1021, 0x1021),

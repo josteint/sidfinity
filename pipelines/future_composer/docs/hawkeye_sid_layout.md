@@ -9,7 +9,7 @@ reliability: primary
 
 # Hawkeye.sid — PSID header + driver fingerprint (Tel_Jeroen)
 
-Direct inspection of `hvsc84/MUSICIANS/T/Tel_Jeroen/Hawkeye.sid` confirms
+Direct inspection of `hvsc85/MUSICIANS/T/Tel_Jeroen/Hawkeye.sid` confirms
 the FC V3.x driver byte-for-byte. This is the **canonical target** for
 our byte-exact rebuild of an FC V3.x tune.
 

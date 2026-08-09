@@ -863,7 +863,7 @@ def _five_title_tunes_freq_bytes(sub_idx: int) -> bytes:
     if not os.path.exists(sub_path):
         # Try to (re)generate via the splitter.
         import subprocess
-        parent = os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'H',
+        parent = os.path.join(ROOT, 'hvsc85', 'MUSICIANS', 'H',
                               'Hubbard_Rob', '5_Title_Tunes.sid')
         os.makedirs(os.path.dirname(sub_path), exist_ok=True)
         subprocess.run(

@@ -8,7 +8,7 @@ metadata:
 ---
 
 Rob Hubbard's *Chimera* (1985 Firebird). USF demo SID:
-`hvsc84/MUSICIANS/H/Hubbard_Rob/Chimera.sid` (12440 bytes; read
+`hvsc85/MUSICIANS/H/Hubbard_Rob/Chimera.sid` (12440 bytes; read
 directly from HVSC — the old demo/hubbard copy is gone).
 
 **USF status (2026-05-24): COMPLETE + on the USF-only pipeline.**

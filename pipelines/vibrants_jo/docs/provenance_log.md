@@ -7,9 +7,9 @@ Every source attempted, with status. Future waves: don't re-fetch these.
 |---|---|---|
 | github.com/cadaver/sidid (sidid.cfg, sidid.nfo) | OK | 10 Vibrants/JO signatures (→ `src/sidid_vibrants_jo_signatures.txt`); nfo stub (AUTHOR-only) |
 | github.com/WilfredC64/player-id (sidid.cfg) | OK | confirms cadaver signatures |
-| local: hvsc84/MUSICIANS/J/JO/*.sid + H/HJE/*.sid | OK | PSID-header survey, code-size band, V22 version string, layout map |
-| local: hvsc84/MUSICIANS/J/JO/Multi_Move.usf | OK | full USF analysis (prior partial migration) |
-| local: hvsc84/DOCUMENTS/ (STIL, Musicians, etc.) | OK | bio + STIL excerpts |
+| local: hvsc85/MUSICIANS/J/JO/*.sid + H/HJE/*.sid | OK | PSID-header survey, code-size band, V22 version string, layout map |
+| local: hvsc85/MUSICIANS/J/JO/Multi_Move.usf | OK | full USF analysis (prior partial migration) |
+| local: hvsc85/DOCUMENTS/ (STIL, Musicians, etc.) | OK | bio + STIL excerpts |
 | csdb.dk/scener/?id=1926 (JO) | OK (wave 2; 503 in wave 1) | one coder credit (Music Demo #001, 1989); no tool release |
 | csdb.dk/scener/?id=2273 (HJE) | OK | HJE identity, ex-Esonix, Amok 1990–91 |
 | demozoo.org/sceners/6764/ (JO) | OK | group/career history |

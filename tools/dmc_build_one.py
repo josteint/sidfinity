@@ -15,7 +15,7 @@ Usage:
     python3 tools/dmc_build_one.py <path> --localize          # first divergence
     python3 tools/dmc_build_one.py <path> --out foo.sid --usf foo.usf
 
-<path> is HVSC-relative (under hvsc84/). --verify uses the SAME comparator the
+<path> is HVSC-relative (under hvsc85/). --verify uses the SAME comparator the
 family batch does (compare_instruction_stream, mode='trichotomy', per-IRQ
 capture + scaled tolerance for CIA subtunes, per-chip for multi-SID).
 """
@@ -62,7 +62,7 @@ def build(rel: str, out_sid: str, out_usf: str | None):
     from pipelines.dmc.v4.compilation import detect_compilation, detect_medley
     from pipelines.dmc.composer_asm import build_dmc_sid
     from src.usf.parser import parse_file
-    hv = os.path.join(ROOT, 'hvsc84')
+    hv = os.path.join(ROOT, 'hvsc85')
     td = tempfile.mkdtemp()
     cfgs2 = dmc_v4_config_2sid(rel, hvsc_root=hv)
     # TIME-MEDLEY (ledger C31 variant): checked before the compilation/single
@@ -155,7 +155,7 @@ def verify(orig: str, reb: str, nch: int, localize: bool = False,
                                                 compare_instruction_stream)
     from src.songlengths import load_database, get_durations
     from seed_disassembly import parse_psid
-    db = load_database(os.path.join(ROOT, 'hvsc84', 'DOCUMENTS', 'Songlengths.md5'))
+    db = load_database(os.path.join(ROOT, 'hvsc85', 'DOCUMENTS', 'Songlengths.md5'))
     durs = get_durations(orig, db)
     n = parse_psid(orig)['songs']
     speed = _cia_speed(orig)
@@ -201,7 +201,7 @@ def verify(orig: str, reb: str, nch: int, localize: bool = False,
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('path', help='HVSC-relative path (under hvsc84/)')
+    ap.add_argument('path', help='HVSC-relative path (under hvsc85/)')
     ap.add_argument('--out', help='output .sid (default tmp/<name>.sidfinity.sid)')
     ap.add_argument('--usf', help='also write the .usf here')
     ap.add_argument('--verify', action='store_true', help='run the trichotomy verdict')
@@ -213,7 +213,7 @@ def main():
     args = ap.parse_args()
 
     rel = args.path
-    orig = os.path.join(ROOT, 'hvsc84', rel)
+    orig = os.path.join(ROOT, 'hvsc85', rel)
     if not os.path.exists(orig):
         sys.exit(f"not found: {orig}")
     name = os.path.splitext(os.path.basename(rel))[0]

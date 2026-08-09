@@ -37,7 +37,7 @@ def flat(frames):
 
 def probe_one(args):
     relpath, songlen = args
-    sid = os.path.join(ROOT, 'hvsc84', relpath)
+    sid = os.path.join(ROOT, 'hvsc85', relpath)
     dur = min(max((songlen or 10) * 1.1, 15), 40)
     res = {'path': relpath}
     try:
@@ -81,7 +81,7 @@ def probe_one(args):
 def main():
     stride = int(sys.argv[1]) if len(sys.argv) > 1 else 6
     rows = subprocess.run(["duckdb", "-noheader", "-list", "-c",
-        "SELECT path, COALESCE(songlength_s,10) FROM read_parquet('%s/hvsc84.parquet')"
+        "SELECT path, COALESCE(songlength_s,10) FROM read_parquet('%s/hvsc85.parquet')"
         " WHERE engine='Basic_Program' ORDER BY path" % ROOT],
         capture_output=True, text=True).stdout.strip().split("\n")
     allwork = []

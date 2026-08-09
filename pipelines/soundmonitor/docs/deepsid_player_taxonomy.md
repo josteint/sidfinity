@@ -155,7 +155,7 @@ many `*_Digi` / sample-capable spin-offs in the cfg are a known DeepSID concern.
 
 ## Leads to follow
 - To get RockMon/MusicMaster/Karl_XII/etc. per-variant HVSC counts: build the
-  `sidid` 100-char tool, run `sidid -m` over `hvsc84/`, then apply the
+  `sidid` 100-char tool, run `sidid -m` over `hvsc85/`, then apply the
   `DeepSID/utility/python/specific/*.py` slicing (or just `grep` the
   `(Variant)` tags). This is the only path to the fine taxonomy population —
   the DB can't give it.

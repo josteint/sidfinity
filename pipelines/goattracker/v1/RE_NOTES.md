@@ -482,4 +482,4 @@ trace), write chnpulsedir. Then v2/v3 pulse should match and f2 converges. This 
 last structural piece for the subA majority.
 
 ## Canary
-`hvsc84/MUSICIANS/T/Topaz/Joker.sid` — V1.5, single-subtune, load $1000, compact.
+`hvsc85/MUSICIANS/T/Topaz/Joker.sid` — V1.5, single-subtune, load $1000, compact.

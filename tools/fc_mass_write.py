@@ -29,10 +29,10 @@ def write_member(rel: str) -> tuple:
         from pipelines.future_composer.to_usf import write_canary_usf
         from pipelines.future_composer.composer_asm import (
             build_via_asm_featuredriven)
-        cfg = fc_standard_config('hvsc84/' + rel)
+        cfg = fc_standard_config('hvsc85/' + rel)
         usf_path = write_canary_usf(cfg)            # .usf alongside the .sid
         sid = build_via_asm_featuredriven(cfg)      # reads that .usf
-        base = os.path.splitext(os.path.join(ROOT, 'hvsc84', rel))[0]
+        base = os.path.splitext(os.path.join(ROOT, 'hvsc85', rel))[0]
         open(base + '.sidfinity.sid', 'wb').write(sid)
         return (rel, True, '')
     except Exception as e:
@@ -48,7 +48,7 @@ def _rebuild_from_usf(rel: str, usf_path: str) -> bytes:
     from pipelines.future_composer.standard.config import fc_standard_config
     from pipelines.future_composer.composer_asm import (
         build_via_asm_featuredriven)
-    return build_via_asm_featuredriven(fc_standard_config('hvsc84/' + rel),
+    return build_via_asm_featuredriven(fc_standard_config('hvsc85/' + rel),
                                        usf_path=usf_path)
 
 
@@ -66,7 +66,7 @@ def main():
     # Hawkeye, Adrenalin) are built by their own configs. They must be skipped
     # entirely, not read as "not full" and orphaned: doing so DELETED their
     # stored artifacts and broke the regression (2026-07-22).
-    p = corpus_sync.plan(results, 'fc_standard', os.path.join(ROOT, 'hvsc84'),
+    p = corpus_sync.plan(results, 'fc_standard', os.path.join(ROOT, 'hvsc85'),
                          path_key='sid', out_of_scope=('flagged',))
     for line in p.report('tools/fc_family_batch.py'):
         print(line, flush=True)
@@ -98,7 +98,7 @@ def main():
         print(f'AUDIT: rebuilding {len(sample)} members from their STORED .usf',
               flush=True)
         fails = corpus_sync.audit_rebuild(
-            sample, os.path.join(ROOT, 'hvsc84'), _rebuild_from_usf)
+            sample, os.path.join(ROOT, 'hvsc85'), _rebuild_from_usf)
         for f in fails:
             print(f'  AUDIT FAIL {f}', flush=True)
         print(f'AUDIT: {len(sample) - len(fails)}/{len(sample)} stored pairs '

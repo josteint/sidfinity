@@ -42,29 +42,29 @@ HUBBARD_ENGINES = [
     ('human_race',        'HUMAN_RACE',        'Human_Race'),
     ('devils_galop',      'DEVILS_GALOP',      'Devils_Galop'),
 ]
-HUBBARD_BASE = 'hvsc84/MUSICIANS/H/Hubbard_Rob'
+HUBBARD_BASE = 'hvsc85/MUSICIANS/H/Hubbard_Rob'
 
 COMPANION_USFS = [
-    *(f'hvsc84/MUSICIANS/B/Berry_Vic/{f}' for f in [
+    *(f'hvsc85/MUSICIANS/B/Berry_Vic/{f}' for f in [
         'Webern_Op_21.usf', 'Atonal_Music.usf', 'Progression.usf',
         'Triad.usf', 'Schillinger.usf', 'In_C.usf', 'Dufay.usf',
         'Test_File.usf', 'Bach_Sonata.usf', 'Te_Deum.usf',
         'SID_Sequencer.usf', 'Sigma.usf',
     ]),
-    'hvsc84/MUSICIANS/C/Clever_Music/Fairlight.usf',
-    'hvsc84/MUSICIANS/C/Clever_Music/Gyroscope.usf',
-    'hvsc84/MUSICIANS/C/Clever_Music/Back_to_the_Future.usf',
-    'hvsc84/GAMES/G-L/Henrys_House.usf',
-    'hvsc84/DEMOS/UNKNOWN/Yes_Tune.usf',
-    'hvsc84/GAMES/S-Z/Soldier_of_Fortune.usf',
-    'hvsc84/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.usf',
-    'hvsc84/MUSICIANS/H/Hoernell_Karl/Melonmania.usf',
-    'hvsc84/DEMOS/M-R/Roundabout.usf',
-    'hvsc84/GAMES/G-L/Hyper_Blast.usf',
-    'hvsc84/GAMES/M-R/Memory_1991.usf',
-    'hvsc84/GAMES/S-Z/Surfchamp.usf',
-    'hvsc84/GAMES/S-Z/Titanic-The_Adventure_Begins.usf',
-    'hvsc84/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.usf',
+    'hvsc85/MUSICIANS/C/Clever_Music/Fairlight.usf',
+    'hvsc85/MUSICIANS/C/Clever_Music/Gyroscope.usf',
+    'hvsc85/MUSICIANS/C/Clever_Music/Back_to_the_Future.usf',
+    'hvsc85/GAMES/G-L/Henrys_House.usf',
+    'hvsc85/DEMOS/UNKNOWN/Yes_Tune.usf',
+    'hvsc85/GAMES/S-Z/Soldier_of_Fortune.usf',
+    'hvsc85/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.usf',
+    'hvsc85/MUSICIANS/H/Hoernell_Karl/Melonmania.usf',
+    'hvsc85/DEMOS/M-R/Roundabout.usf',
+    'hvsc85/GAMES/G-L/Hyper_Blast.usf',
+    'hvsc85/GAMES/M-R/Memory_1991.usf',
+    'hvsc85/GAMES/S-Z/Surfchamp.usf',
+    'hvsc85/GAMES/S-Z/Titanic-The_Adventure_Begins.usf',
+    'hvsc85/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.usf',
 ]
 
 # Pre-existing partial subtunes (carried since before the composer rewrite).
@@ -162,7 +162,7 @@ def _w_c64me(st: int) -> dict:
     from pipelines.hubbard.verify_cycle import writelog_capture
     from pipelines.companion.c64_music_examples.build import (
         build_subtune_sid, build_subtune_sid_b, build_subtune_sid_v2)
-    SID = 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid'
+    SID = 'hvsc85/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid'
     out = SID.replace('.sid', f'.sub{st}.sidfinity.sid')
     if st in (0, 2, 3):
         sid_bytes = build_subtune_sid(st)
@@ -191,7 +191,7 @@ def _w_jd(kind: str, name: str) -> dict:
     from pathlib import Path
     from pipelines.hubbard.verify_cycle import (
         writelog_capture, compare_instruction_stream)
-    base = 'hvsc84/MUSICIANS/D/Derrett_Jay'
+    base = 'hvsc85/MUSICIANS/D/Derrett_Jay'
     extracted = 'pipelines/companion/jay_derrett/_extracted'
 
     def _build(nm):
@@ -277,7 +277,7 @@ def _w_fc_canary(modpath: str, attr: str, name: str, subtunes) -> dict:
 def _w_fc_portfolio(sid: str) -> dict:
     from pipelines.future_composer.verify import verify_featuredriven
     from pipelines.future_composer.standard.config import fc_standard_config
-    result = verify_featuredriven(fc_standard_config('hvsc84/' + sid))
+    result = verify_featuredriven(fc_standard_config('hvsc85/' + sid))
     subs = result['subtunes']
     sub_ok = sum(1 for v in subs.values() if v['is_full'])
     sub_fail = len(subs) - sub_ok
@@ -350,7 +350,7 @@ def _w_gtv1(sid: str, group: str | None) -> dict:
     from pipelines.hubbard.verify_cycle import writelog_capture
     from src.usf.parser import parse_file
     from src.usf.writer import write_file
-    orig = os.path.join('hvsc84', sid)
+    orig = os.path.join('hvsc85', sid)
     td = tempfile.mkdtemp()
     up = os.path.join(td, 'a.usf')
     write_file(model_to_usf(extract(parse_sid(orig))), up)

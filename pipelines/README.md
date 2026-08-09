@@ -123,7 +123,7 @@ See the `migrate-hubbard-engine` skill at
 `.claude/skills/migrate-hubbard-engine/` for the full procedure. In
 short:
 
-1. `cp hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.sid demo/hubbard/<Engine>_original.sid`
+1. `cp hvsc85/MUSICIANS/H/Hubbard_Rob/<Engine>.sid demo/hubbard/<Engine>_original.sid`
 2. Disassemble: `tools/seed_disassembly.py` → hand-annotate header
 3. Write `pipelines/hubbard/<engine>/config.py` (clone an existing one)
 4. Write `pipelines/hubbard/<engine>/extract/engine_model.py` + `extract/to_usf.py`

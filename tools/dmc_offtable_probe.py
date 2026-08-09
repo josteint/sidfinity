@@ -35,7 +35,7 @@ Usage:
     python3 tools/dmc_offtable_probe.py MUSICIANS/B/Bayliss_Richard/Rogue_Ninja.sid
     python3 tools/dmc_offtable_probe.py <path> --subtune 1      # a specific subtune
 
-<path> is HVSC-relative (under hvsc84/).
+<path> is HVSC-relative (under hvsc85/).
 """
 from __future__ import annotations
 
@@ -156,7 +156,7 @@ def _pctrace_offtable_read(orig, subtune, flo, fhi, want_lo, orig_val, dur,
 def main():
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('path', help='HVSC-relative path (under hvsc84/)')
+    ap.add_argument('path', help='HVSC-relative path (under hvsc85/)')
     ap.add_argument('--subtune', type=int, default=None,
                     help='probe this subtune (default: every failing one)')
     args = ap.parse_args()
@@ -170,10 +170,10 @@ def main():
     from seed_disassembly import parse_psid
 
     rel = args.path
-    orig = os.path.join(ROOT, 'hvsc84', rel)
+    orig = os.path.join(ROOT, 'hvsc85', rel)
     if not os.path.exists(orig):
         sys.exit(f'not found: {orig}')
-    hv = os.path.join(ROOT, 'hvsc84')
+    hv = os.path.join(ROOT, 'hvsc85')
     name = os.path.splitext(os.path.basename(rel))[0]
     out_sid = os.path.join(ROOT, 'tmp', f'{name}.probe.sid')
     os.makedirs(os.path.dirname(out_sid), exist_ok=True)

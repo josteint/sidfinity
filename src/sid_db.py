@@ -2,7 +2,7 @@
 file and queried via the DuckDB CLI.
 
 The catalogue is one row per HVSC .sid:
-  - hvsc84.parquet   built by tools/build_sid_db.py (zstd; ~3.4 MB)
+  - hvsc85.parquet   built by tools/build_sid_db.py (zstd; ~3.4 MB)
   - engine_docs.csv  per-engine-family research state (tiny; stays CSV)
 
 It holds ONLY static catalogue data — path, PSID header, engine classification,
@@ -20,7 +20,7 @@ to the **DuckDB CLI binary** (found on PATH, then ~/.local/bin/duckdb),
 returning sqlite3-style tuples. This deliberately does NOT use the duckdb Python
 module — so DB reads need only `duckdb` on PATH, with no env.sh / PYTHONPATH /
 .pylocal dependency. The `sids` view reads the parquet; `engine_docs` reads the
-CSV. Ad-hoc: `duckdb -c "SELECT … FROM read_parquet('hvsc84.parquet')"`.
+CSV. Ad-hoc: `duckdb -c "SELECT … FROM read_parquet('hvsc85.parquet')"`.
 
 The catalogue is regenerated wholesale (not incrementally written) by
 build_sid_db.py, so in normal development nothing writes it — it is read-mostly
@@ -40,8 +40,8 @@ from pathlib import Path
 from typing import Iterable
 
 ROOT = Path(__file__).resolve().parent.parent
-HVSC = ROOT / 'hvsc84'
-PARQUET_PATH = ROOT / 'hvsc84.parquet'
+HVSC = ROOT / 'hvsc85'
+PARQUET_PATH = ROOT / 'hvsc85.parquet'
 ENGINE_DOCS_CSV = ROOT / 'engine_docs.csv'
 
 # ---------------------------------------------------------------------------
@@ -201,7 +201,7 @@ def connect() -> _Conn:
 # Bulk read/write (used by build_sid_db.py)
 # ---------------------------------------------------------------------------
 def read_all() -> dict[str, dict]:
-    """Read hvsc84.parquet into {path: {col: value}} (DuckDB-typed; missing
+    """Read hvsc85.parquet into {path: {col: value}} (DuckDB-typed; missing
     field -> None). Empty dict if the parquet is absent. Uses one duckdb -json
     process — cheap enough for the once-per-rebuild mtime/md5 cache load."""
     if not PARQUET_PATH.exists():
@@ -257,7 +257,7 @@ def _csv_to_parquet(csv_path: Path, types: dict[str, str], out: Path) -> None:
 
 
 def write_all(rows) -> None:
-    """Write the sids catalogue to hvsc84.parquet (path-sorted). Serialises
+    """Write the sids catalogue to hvsc85.parquet (path-sorted). Serialises
     through a typed temp CSV so DuckDB assigns the exact declared column types
     (no auto-detect surprises on all-NULL columns)."""
     items = rows.values() if isinstance(rows, dict) else rows

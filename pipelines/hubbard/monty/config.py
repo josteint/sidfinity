@@ -17,7 +17,7 @@ from pipelines.hubbard.monty.extract.sfx import extract_sfx
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))
 
-SID = os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Monty_on_the_Run.sid')
+SID = os.path.join(ROOT, 'hvsc85', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Monty_on_the_Run.sid')
 
 
 def _extract(subtune=0):

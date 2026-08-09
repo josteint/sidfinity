@@ -57,7 +57,7 @@ def _dmc_v5_cluster_key(r):
 
 def _dmc_v5_context(path, r):
     from pipelines.dmc.v5 import factory as F
-    mem, s = F._load(os.path.join('hvsc84', path))
+    mem, s = F._load(os.path.join('hvsc85', path))
     base, it, jt, layout = F._detect_v5(mem, s)
     if base is None:
         return f"status={r['status']} (no base; load=${s['load']:04X} play=${s['play']:04X})"
@@ -98,7 +98,7 @@ def _dmc_v4_cluster_key(r):
 def _dmc_v4_context(path, r):
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
     from seed_disassembly import parse_psid
-    s = parse_psid(os.path.join('hvsc84', path))
+    s = parse_psid(os.path.join('hvsc85', path))
     return (f"status={r['status']} detail={r['detail']!r} | "
             f"load=${s['load']:04X} init=${s['init']:04X} "
             f"play=${s['play']:04X} songs={s['songs']}")

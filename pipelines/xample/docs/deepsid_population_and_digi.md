@@ -1,7 +1,7 @@
 # X-Ample / Compotech — Population Analysis and Digi Scope
 
 **Provenance:** Queried `hvsc84.db` (SQLite, read-only mode) + direct PSID
-header reads from `hvsc84/` SID files. Date: 2026-06-13.
+header reads from `hvsc85/` SID files. Date: 2026-06-13.
 All counts are against HVSC #84.
 
 ---

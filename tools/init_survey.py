@@ -114,7 +114,7 @@ def main():
         }
 
         for path, songlen in rows:
-            full = f'/home/jtr/sidfinity/hvsc84/{path}'
+            full = f'/home/jtr/sidfinity/hvsc85/{path}'
             if not os.path.exists(full):
                 continue
             try:

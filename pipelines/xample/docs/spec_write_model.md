@@ -186,9 +186,9 @@ For Layout A/B standard members:
 
 1. Pick a single-subtune Layout-A canary (e.g. `Castlevania_64_Mixes.sid`,
    subtune 0).
-2. `siddump --writelog hvsc84/.../canary.sid > tmp/xample_orig.writelog`
+2. `siddump --writelog hvsc85/.../canary.sid > tmp/xample_orig.writelog`
 3. After building the USF + rebuilt SID:
-   `siddump --writelog hvsc84/.../canary.sidfinity.sid > tmp/xample_rebuilt.writelog`
+   `siddump --writelog hvsc85/.../canary.sidfinity.sid > tmp/xample_rebuilt.writelog`
 4. `python3 tools/find_first_divergence.py tmp/xample_orig.writelog tmp/xample_rebuilt.writelog --subtune 0`
 5. For CIA-timed subtunes (PSID speed != 0):
    `siddump --writelog-per-irq … > tmp/xample_orig_irq.writelog`

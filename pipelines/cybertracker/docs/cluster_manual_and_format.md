@@ -323,7 +323,7 @@ when fetched. Its Wikidata entry is: https://www.wikidata.org/wiki/Q27967130
 
 4. **Cyberbrain_Digi format** — no documentation found. 6 SIDs in HVSC. SIDID has a signature
    for it but cadaver/sidid.nfo gives no format details. Would require binary RE of the SIDs
-   in `hvsc84/MUSICIANS/C/Cyberbrain/`.
+   in `hvsc85/MUSICIANS/C/Cyberbrain/`.
 
 5. **CyberTracker Packer** (WIN/DOS binary, March 2002) — describes the output SID layout.
    Download `ct_packer_beta1_(win+dos).zip` and inspect it for any bundled docs or reverse-engineer

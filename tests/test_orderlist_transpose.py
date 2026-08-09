@@ -14,7 +14,7 @@ from src.usf import parse, write
 from src.usf.types import Orderlist, MusicSubtune
 
 _ROOT = Path(__file__).resolve().parents[1]
-_USF = _ROOT / 'hvsc84' / 'MUSICIANS' / 'T' / 'Tel_Jeroen' / 'Cybernoid_II.usf'
+_USF = _ROOT / 'hvsc85' / 'MUSICIANS' / 'T' / 'Tel_Jeroen' / 'Cybernoid_II.usf'
 
 
 def _first_music_voice_orderlists(usf):

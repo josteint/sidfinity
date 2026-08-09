@@ -95,7 +95,7 @@
 ## References
 
 - [siddump frame cycles](reference_siddump_frame_cycles.md) — TRIPWIRE: a siddump "frame" ≈ ~18,000 CPU cycles, NOT the 19,656-cycle PAL play period (ρ≈0.919). Bites absolute-cycle math; not the flat Mode-1 verdict. Mis-derived twice.
-- [HVSC index DB](reference_hvsc_db.md) — `hvsc84.parquet` (+ `engine_docs.csv`): STATIC catalogue, DuckDB via `src/sid_db`. Coverage/FULL-list = a FRESH family batch, NOT the index or stored `.usf`; batch jsonls are code_hash-gated. Regenerate via `tools/build_sid_db.py`.
+- [HVSC index DB](reference_hvsc_db.md) — `hvsc85.parquet` (+ `engine_docs.csv`): STATIC catalogue, DuckDB via `src/sid_db`. Coverage/FULL-list = a FRESH family batch, NOT the index or stored `.usf`; batch jsonls are code_hash-gated. Regenerate via `tools/build_sid_db.py`.
 - [Songlength overrides](reference_songlength_overrides.md) — `tools/songlength_overrides.json`. Durable corrections to HVSC's Songlengths.md5 for anomalous durations. Survives HVSC re-fetches.
 - [USF format](reference_usf_format.md) — the on-disk .usf format + sidecar FLACs. Spec at `docs/usf_format.md`. Custom DSL, Lark grammar, `.usf` + N `.sample{N}.flac`.
 - [Digi pipeline](reference_digi_pipeline.md) — USF digi support; extract → Sample/FLAC → pack → SID. Cycle-strict via `siddump --writelog`. First engine: Chimera 1-bit wavetoggle.

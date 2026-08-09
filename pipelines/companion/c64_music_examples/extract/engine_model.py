@@ -783,7 +783,7 @@ class V2Emulator:
 
 
 if __name__ == '__main__':
-    sid = 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid'
+    sid = 'hvsc85/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid'
     s = load_sub0_state(sid)
     print(f"Sub 0 state:")
     print(f"  tempo={s.tempo} alt_tempo={s.alt_tempo} frame_ctr={s.frame_ctr}")

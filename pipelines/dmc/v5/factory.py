@@ -114,7 +114,7 @@ def _build_ref(init_pc):
                                     '..', '..', '..', 'tools', 'py65_lib'))
     from seed_disassembly import parse_psid, trace, _INST_LEN
     rep = os.path.join(os.path.dirname(__file__), '..', '..', '..',
-                       'hvsc84', 'DEMOS', 'G-L', 'Katusha.sid')
+                       'hvsc85', 'DEMOS', 'G-L', 'Katusha.sid')
     s = parse_psid(rep)
     mem = bytearray(0x10000)
     for i, b in enumerate(s['payload']):
@@ -294,7 +294,7 @@ def _resolve_init(mem, it, base, delta):
     return None
 
 
-def v5_diagnose(sid_path: str, hvsc_root: str = 'hvsc84') -> dict:
+def v5_diagnose(sid_path: str, hvsc_root: str = 'hvsc85') -> dict:
     """Non-raising detection diagnosis for residue triage (the engine behind
     `tools/divergence_census.py`). Walks the SAME stages as `dmc_v5_config`
     but RECORDS the first failure instead of raising, so a whole family's
@@ -349,7 +349,7 @@ def _family4_config(sid_path, mem, s, jt_addr) -> DMCV5Config:
     return d
 
 
-def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc84',
+def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc85',
                   base_override: 'int | None' = None,
                   n_songs: 'int | None' = None,
                   post_init_sub: 'int | None' = None) -> DMCV5Config:

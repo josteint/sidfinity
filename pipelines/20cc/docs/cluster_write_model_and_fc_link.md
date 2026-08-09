@@ -1,6 +1,6 @@
 ---
 source_url: multiple — see provenance per section
-fetched_via: binary inspection (local hvsc84/), web search, WebFetch
+fetched_via: binary inspection (local hvsc85/), web search, WebFetch
 fetch_date: 2026-06-14
 author: jtr (research synthesis)
 content_date: 1988–1994 era binaries + 2026 binary inspection

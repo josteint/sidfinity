@@ -22,7 +22,7 @@ REGROLE = {0x00: 'V1freq', 0x01: 'V1freq', 0x04: 'V1ctl', 0x05: 'V1ad', 0x06: 'V
 
 def probe_one(args):
     relpath, songlen = args
-    sid = os.path.join(ROOT, 'hvsc84', relpath)
+    sid = os.path.join(ROOT, 'hvsc85', relpath)
     dur = min(max((songlen or 10) * 1.1, 15), 40)
     res = {'path': relpath}
     try:
@@ -55,7 +55,7 @@ def probe_one(args):
 def main():
     stride = int(sys.argv[1]) if len(sys.argv) > 1 else 6
     rows = subprocess.run(["duckdb", "-noheader", "-list", "-c",
-        "SELECT path, COALESCE(songlength_s,10) FROM read_parquet('%s/hvsc84.parquet')"
+        "SELECT path, COALESCE(songlength_s,10) FROM read_parquet('%s/hvsc85.parquet')"
         " WHERE engine='Basic_Program' ORDER BY path" % ROOT],
         capture_output=True, text=True).stdout.strip().split("\n")
     allwork = [(r.rsplit("|", 1)[0], float(r.rsplit("|", 1)[1])) for r in rows if r]

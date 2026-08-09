@@ -11,7 +11,7 @@
 | source_url (CSDb music editor) | https://csdb.dk/release/?id=122334 |
 | source_url (CSDb X-SID) | https://csdb.dk/release/?id=47985 |
 | source_url (CSDb FLT demo) | https://csdb.dk/release/?id=17292 |
-| fetched_via | WebFetch + WebSearch + READ-ONLY hvsc84/ binary inspection |
+| fetched_via | WebFetch + WebSearch + READ-ONLY hvsc85/ binary inspection |
 | fetch_date | 2026-06-14 |
 | author | Søren Lund (Jeff), born 1974, Denmark, d. 2013-12-01 |
 | reliability | HIGH (binary inspection of canonical SIDs: Action_Hunter.sid V9.6, Birdie_Pip.sid V7, Cool_Fool.sid V4, 6581_Doped_Cows.sid X-SID, plus group variants); sidid.nfo confirmed attributions |
@@ -36,7 +36,7 @@ Søren "Jeff" Lund (1974–2013) was a Danish C64 composer who developed his own
 | 2003–2013 | Viruz (VRZ, founded by Jeff) | Soren |
 | 2006–2013 | Cosine | Jeff / Soren |
 
-**Player version strings found in HVSC binaries** (from READ-ONLY byte scan, `hvsc84/MUSICIANS/J/Jeff/*.sid`):
+**Player version strings found in HVSC binaries** (from READ-ONLY byte scan, `hvsc85/MUSICIANS/J/Jeff/*.sid`):
 
 | String | Example SID | ~Year |
 |---|---|---|

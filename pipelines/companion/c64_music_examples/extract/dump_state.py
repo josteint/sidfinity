@@ -25,7 +25,7 @@ from pipelines.companion.c64_music_examples.extract.engine_model import (
 )
 
 
-SID_PATH = 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid'
+SID_PATH = 'hvsc85/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid'
 
 
 def run_init(subtune: int) -> bytearray:

@@ -13,7 +13,7 @@ provenance:
                    VERBATIM here. The WRITE ORDER and the gate/HR logic are believed
                    identical between NP20.G4 and NP21 (same engine lineage); the
                    DATA ENCODING differs (see spec_extraction_plan.md §0).
-    - local: hvsc84/MUSICIANS/O/Odkin/Wild.sid (packed NP20.G4 ground-truth binary)
+    - local: hvsc85/MUSICIANS/O/Odkin/Wild.sid (packed NP20.G4 ground-truth binary)
       fetched_via: direct binary read (read-only); fetch_date 2026-06-13
       reliability: HIGH for instrument/table bytes; the actual write stream must be
                    confirmed with `tools/siddump --writelog` (NOT yet run here).

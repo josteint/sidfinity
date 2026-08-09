@@ -45,7 +45,7 @@ def capture(path, dur):
 
 def survey_one(args):
     relpath, songlen = args
-    abspath = os.path.join(ROOT, "hvsc84", relpath)
+    abspath = os.path.join(ROOT, "hvsc85", relpath)
     dur = min((songlen or 10.0) * 1.1, CAP)
     a = capture(abspath, dur)
     b = capture(abspath, dur)
@@ -68,7 +68,7 @@ def survey_one(args):
 def main():
     rows = subprocess.run(
         ["duckdb", "-noheader", "-list", "-c",
-         "SELECT path, COALESCE(songlength_s,10) FROM read_parquet('%s/hvsc84.parquet')"
+         "SELECT path, COALESCE(songlength_s,10) FROM read_parquet('%s/hvsc85.parquet')"
          " WHERE engine='Basic_Program' ORDER BY path"
          % ROOT],
         capture_output=True, text=True).stdout.strip().split("\n")

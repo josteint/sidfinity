@@ -32,7 +32,7 @@ provenance:
     - url: https://www.zimmers.net/anonftp/pub/cbm/c64/audio/editors/index.html
       label: Zimmers.net FUNET C64 audio editors index
       reliability: secondary (mirror of FUNET archive)
-    - url: binary analysis of hvsc84/MUSICIANS/N/Nagie_Sascha/ and /O/Odi/
+    - url: binary analysis of hvsc85/MUSICIANS/N/Nagie_Sascha/ and /O/Odi/
       label: HVSC #84 local binary inspection (196 SIDs)
       reliability: primary (ground truth for format)
   content_date: 1991-1992 (tool); SID corpus 1991-2021

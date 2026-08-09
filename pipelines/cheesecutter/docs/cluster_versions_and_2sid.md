@@ -2,7 +2,7 @@
 source_url:
   primary:   https://github.com/theyamo/CheeseCutter  (GPL, local checkout at tmp/dmc_hunt/CheeseCutter/)
   secondary: CSDb https://csdb.dk/search/?stype=all&search=cheesecutter  (release dates)
-             HVSC hvsc84/ — 302 CheeseCutter SID files, all sidid-scanned here
+             HVSC hvsc85/ — 302 CheeseCutter SID files, all sidid-scanned here
              SIDID tool   tmp/dmc_hunt/sidid/sidid.cfg + compiled binary
 fetched_via: local Read tool (source + binaries); WebFetch (CSDb, GitHub commit history);
              Bash (sidid scan on HVSC, PSID header parsing, binary disassembly)

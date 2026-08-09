@@ -54,7 +54,7 @@ def _build_one(rel: str, mode: str = 'build') -> str:
     pipeline exception (that is what we are testing for)."""
     if mode == 'config2sid':
         from pipelines.dmc.v4.factory import dmc_v4_config_2sid
-        cfgs = dmc_v4_config_2sid(rel, hvsc_root=os.path.join(ROOT, 'hvsc84'))
+        cfgs = dmc_v4_config_2sid(rel, hvsc_root=os.path.join(ROOT, 'hvsc85'))
         return f'config ok ({len(cfgs) if cfgs else 0} chip(s))'
     from tools.dmc_build_one import build
     td = tempfile.mkdtemp()

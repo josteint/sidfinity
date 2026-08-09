@@ -283,7 +283,7 @@ re-implementation, not a documentation of the original format.
 ## Leads to follow
 
 1. **Extract JC64dis annotation labels** — run `java -jar jc64dis.jar` on a
-   representative SoundMaster SID (e.g. `hvsc84/MUSICIANS/S/SoedeSoft/...`)
+   representative SoundMaster SID (e.g. `hvsc85/MUSICIANS/S/SoedeSoft/...`)
    with the `SoundMaster1.dis` profile and export as text. This would give
    routine names + data-section labels without writing new disassembly from
    scratch. Most valuable first step.

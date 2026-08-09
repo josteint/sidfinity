@@ -295,7 +295,7 @@ VGMPF says the driver is "non-looping." This means the play() routine returns wh
 
 ## 6. HVSC Bundled Docs — Electrosound Mentions
 
-Searched: `hvsc84/DOCUMENTS/{SID_file_format.txt, STIL.txt, BUGlist.txt, hv_sids.txt, HVSC.txt, Musicians.txt, Creators.txt, Songlengths.md5}`.
+Searched: `hvsc85/DOCUMENTS/{SID_file_format.txt, STIL.txt, BUGlist.txt, hv_sids.txt, HVSC.txt, Musicians.txt, Creators.txt, Songlengths.md5}`.
 
 **Findings:**
 - `Songlengths.md5` contains comment-header lines listing `Electrosound_64.sid`, `Strangled_Electrosound.sid`, `Lobotomy_Electrosound.sid`, `Howzat_64_Electrosound.sid` — these are the comment markers for the songlength entries, not technical documentation.

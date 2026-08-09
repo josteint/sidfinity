@@ -6,10 +6,10 @@ provenance:
     - https://raw.githubusercontent.com/anarkiwi/sid-wizard/master/sources/include/player.asm
     - https://raw.githubusercontent.com/anarkiwi/sid-wizard/master/sources/editor.asm
   local:
-    - hvsc84/MUSICIANS/C/Czyszy/ChipMotif.sid        (decoded — primary worked example, DRIVERTYPE=0/NORMAL, v1.7)
-    - hvsc84/MUSICIANS/H/Hermit/Magyar_Nepzenek.sid  (decoded — Hermit, 5 subtunes, v1.4)
-    - hvsc84/MUSICIANS/S/Slaxx/Bassloop.sid          (decoded — v1.8)
-    - hvsc84/GAMES/G-L/Ill_Savior.sid                (decoded — v1.7 variant)
+    - hvsc85/MUSICIANS/C/Czyszy/ChipMotif.sid        (decoded — primary worked example, DRIVERTYPE=0/NORMAL, v1.7)
+    - hvsc85/MUSICIANS/H/Hermit/Magyar_Nepzenek.sid  (decoded — Hermit, 5 subtunes, v1.4)
+    - hvsc85/MUSICIANS/S/Slaxx/Bassloop.sid          (decoded — v1.8)
+    - hvsc85/GAMES/G-L/Ill_Savior.sid                (decoded — v1.7 variant)
     - deprecated/gt2_pipeline/tools/sidid.cfg        (sidid signatures, read-only)
     - hvsc84.db                                      (census, read-only)
   fetched_via: WebFetch (raw.githubusercontent.com) + siddump --writelog + Python binary decode

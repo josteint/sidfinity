@@ -1272,7 +1272,7 @@ def build_psid(model, title=None, author=None, released=None):
 def verify(sid_rel, dur=20.0, title='probe'):
     from pipelines.hubbard.verify_cycle import writelog_capture, compare_instruction_stream
     from pipelines.basic_program.proof_multivoice import verdict_basic
-    sid = os.path.join(ROOT, 'hvsc84', sid_rel)
+    sid = os.path.join(ROOT, 'hvsc85', sid_rel)
     m = build_model(sid, dur)
     if 'unsupported' in m:
         return {'status': 'unsupported:' + m['unsupported']}

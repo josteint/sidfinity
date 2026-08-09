@@ -9,7 +9,7 @@
   `END` token on each line; same byte payloads). SIDId is cadaver's player
   identifier; `sidid.cfg` is its signature database.
 - Population: `hvsc84.db` opened READ-ONLY (`file:hvsc84.db?mode=ro`, uri=True) +
-  direct PSID-header reads of the actual `hvsc84/…` SID files.
+  direct PSID-header reads of the actual `hvsc85/…` SID files.
 - 6502 interpretation: opcode-level disassembly of each signature (operand
   wildcards `??` left as-is), cross-checked against three real Hermit binaries.
 - Family format reference: `pipelines/sidwizard/docs/research.md` (SWM format,

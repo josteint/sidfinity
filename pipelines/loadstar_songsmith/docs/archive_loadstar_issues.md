@@ -141,7 +141,7 @@ tool. The focus icon helps users find composers who ONLY used SongSmith.
 
 ---
 
-## 7. HVSC Coverage (from local hvsc84/)
+## 7. HVSC Coverage (from local hvsc85/)
 
 304 SIDs with init=$CC00 / play=$CC48 (the SIDSMITH player entry points):
 

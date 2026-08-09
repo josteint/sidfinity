@@ -1,5 +1,5 @@
 ---
-source_url: local: /home/jtr/sidfinity/hvsc84/DOCUMENTS/ (Musicians.txt, hv_sids.txt, STIL.txt, BUGlist.txt, HVSC.txt, Songlengths.md5, Creators.txt)
+source_url: local: /home/jtr/sidfinity/hvsc85/DOCUMENTS/ (Musicians.txt, hv_sids.txt, STIL.txt, BUGlist.txt, HVSC.txt, Songlengths.md5, Creators.txt)
 fetched_via: local read (grep)
 fetch_date: 2026-06-17
 author: HVSC Team
@@ -49,7 +49,7 @@ MUSICIANS/T/Taki/Agricola.sid                    SidWinder
 ```
 
 All 21 Taki MUSICIANS/T/Taki/ SIDs carrying a SidWinder classification are listed
-in `hvsc84/DOCUMENTS/Songlengths.md5`. Their titles include: Agricola, Bastard_tune_2,
+in `hvsc85/DOCUMENTS/Songlengths.md5`. Their titles include: Agricola, Bastard_tune_2,
 Black_Art, Classical, Craft, Damnation, Dankos_Remix, Draxish, Drummer, Foolish,
 For_Skyhigh, Funshine, Glorious, Gossip_Column series, Happiness, Hopeless,
 Immortal, Improving, Impulse, Introduce, Just_4_Fun, Lost_Love, Memories,

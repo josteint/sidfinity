@@ -375,11 +375,11 @@ The FutureComposer-family entry in sidid encompasses both the original FC engine
 ### High Priority
 1. **CSDb release #10604** — the FCS/Juha Granberg editor for the MoN player (referenced in sidid.nfo). This is the most likely source of format documentation or even source code. URL: https://csdb.dk/release/?id=10604 — retry when CSDb is accessible.
 
-2. **HVSC STIL.txt** — may have per-SID notes for MoN tunes mentioning technical quirks. Check: `grep -A5 -B2 "Deenen\|MoN\|Maniacs" hvsc84/DOCUMENTS/STIL.txt`
+2. **HVSC STIL.txt** — may have per-SID notes for MoN tunes mentioning technical quirks. Check: `grep -A5 -B2 "Deenen\|MoN\|Maniacs" hvsc85/DOCUMENTS/STIL.txt`
 
 3. **sidid.nfo full text** — the GitHub viewer only shows excerpts. The raw file has 1791 lines; MoN entries (with full COMMENT fields) are beyond the visible portion. The sidid.cfg raw gives fingerprints but not the nfo COMMENT fields. Fetch: `https://raw.githubusercontent.com/cadaver/sidid/master/sidid.nfo` — re-fetch requesting specifically lines 800–1791.
 
-4. **Noisy_Pillars_tune_1.sid** — the reference SID for the MoN/FutureComposer variant. Already in HVSC at `/MUSICIANS/T/Tel_Jeroen/Noisy_Pillars_tune_1.sid`. Disassemble it: `tools/seed_disassembly.py hvsc84/MUSICIANS/T/Tel_Jeroen/Noisy_Pillars_tune_1.sid` to get the engine code.
+4. **Noisy_Pillars_tune_1.sid** — the reference SID for the MoN/FutureComposer variant. Already in HVSC at `/MUSICIANS/T/Tel_Jeroen/Noisy_Pillars_tune_1.sid`. Disassemble it: `tools/seed_disassembly.py hvsc85/MUSICIANS/T/Tel_Jeroen/Noisy_Pillars_tune_1.sid` to get the engine code.
 
 5. **Deenen MoN SIDs in HVSC** — disassemble one representative game SID (e.g., Cybernoid, Mr. Heli, Zamzara, Double Dragon) with `tools/seed_disassembly.py` to recover the actual player code. The fingerprint sequences above are the known entry points.
 

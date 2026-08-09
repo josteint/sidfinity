@@ -61,7 +61,7 @@ Verify byte-perfect:
 ```bash
 md5sum pipelines/hubbard/commando/build/commando.sid  # expect 1964b77e8b542a5187fdd0a6db2d0186
 python src/writelog_grade.py \
-    hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid \
+    hvsc85/MUSICIANS/H/Hubbard_Rob/Commando.sid \
     pipelines/hubbard/commando/build/commando.sid
 ```
 

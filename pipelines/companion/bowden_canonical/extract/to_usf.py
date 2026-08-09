@@ -258,6 +258,6 @@ def write_usf(sid_path: str, out_path: str | None = None) -> str:
 if __name__ == '__main__':
     import sys
     sid = sys.argv[1] if len(sys.argv) > 1 else \
-        'hvsc84/MUSICIANS/B/Berry_Vic/Bach_Sonata.sid'
+        'hvsc85/MUSICIANS/B/Berry_Vic/Bach_Sonata.sid'
     p = write_usf(sid)
     print(f'wrote {p}')

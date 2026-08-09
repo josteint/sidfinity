@@ -114,7 +114,7 @@ def verify_canary(cfg: FCConfig, build_fn, root: str | None = None,
     # per subtune. Matches the project convention from
     # feedback_subtune_frames_not_arbitrary — testing with a fixed
     # short duration hides divergences past that point.
-    songlen_path = str(Path(root) / 'hvsc84' / 'DOCUMENTS' / 'Songlengths.md5')
+    songlen_path = str(Path(root) / 'hvsc85' / 'DOCUMENTS' / 'Songlengths.md5')
     per_sub_durations: dict[int, float] = {}
     if duration is None:
         with open(songlen_path) as f:

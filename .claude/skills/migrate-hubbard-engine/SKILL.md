@@ -55,7 +55,7 @@ config field → re-measure. Repeat. Each delta is one commit.
    generate the seed and hand-annotate the header:
    ```
    PYTHONPATH=tools/py65_lib python3 tools/seed_disassembly.py \
-       hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.sid \
+       hvsc85/MUSICIANS/H/Hubbard_Rob/<Engine>.sid \
        > pipelines/hubbard/<engine>/disassembly.s
    ```
 3. Read the disassembly header for: load / init / play addresses,

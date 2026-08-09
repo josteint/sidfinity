@@ -28,7 +28,7 @@ the mechanism), not shrinking the window. Related: [[feedback_strict_writestream
 
 **How to apply:** any time I'm about to write `n_frames=500` or
 `duration=song`, stop — the verdict window is `songlength * 1.1`
-(from `hvsc84.parquet` / Songlengths.md5). Short windows are fine only for
+(from `hvsc85.parquet` / Songlengths.md5). Short windows are fine only for
 ad-hoc iteration probes, never for a FULL verdict.
 
 User has reminded me of the no-arbitrary-N rule multiple times — one

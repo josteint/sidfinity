@@ -231,7 +231,7 @@ $7A00/$7C00 collections, the $6600 cluster, the $4B00/$BD00 one-offs).
 
 ## 5. HVSC DOCUMENTS — Ubik's Musik Mentions
 
-Searched `hvsc84/DOCUMENTS/STIL.txt` and `Musicians.txt` for "ubik" — **no
+Searched `hvsc85/DOCUMENTS/STIL.txt` and `Musicians.txt` for "ubik" — **no
 matches found**.  The STIL.txt file (Sub-Tune Information List) does not
 contain any entries referencing Ubik or Ubik's Musik.  This is consistent
 with STIL being per-SID commentary rather than engine-level docs.

@@ -574,7 +574,7 @@ def _verify_window_frames(cfg: DMCV5Config, hvsc_root: str) -> int:
 
 
 def write_v5_usf(cfg: DMCV5Config, out_dir: str,
-                 hvsc_root: str = 'hvsc84') -> str:
+                 hvsc_root: str = 'hvsc85') -> str:
     m = extract(cfg, hvsc_root=hvsc_root)
     usf = model_to_usf(m, reach=_verify_window_frames(cfg, hvsc_root))
     base = os.path.splitext(os.path.basename(cfg.sid_path))[0]

@@ -15,9 +15,9 @@ from pipelines.hubbard.verify_cycle import (
 def test_ninja_hamster_byte_exact():
     """Composer must produce byte-exact SID writes vs orig at the
     regression-standard 6s capture window."""
-    sid_orig = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
+    sid_orig = str(ROOT / 'hvsc85' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
                    'Ninja_Hamster.sid')
-    sid_reb = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
+    sid_reb = str(ROOT / 'hvsc85' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
                   'Ninja_Hamster.sidfinity.sid')
 
     # Build into reb file
@@ -46,9 +46,9 @@ TYPE_B_PREFIX_MATCH = {'Dracula'}  # CIA-driven; reb has trailing extras
 def test_type_b_byte_exact(name):
     """Type B SIDs (Equalizer-shape engine, 5-byte inst program,
     per-voice unrolled PWM mod)."""
-    sid_path = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
+    sid_path = str(ROOT / 'hvsc85' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
                    f'{name}.sid')
-    reb_path = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
+    reb_path = str(ROOT / 'hvsc85' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
                    f'{name}.sidfinity.sid')
     Path(reb_path).write_bytes(build_type_b_sid(name))
     a = writelog_capture(sid_path, 0, duration=6.0)
@@ -81,9 +81,9 @@ CLUSTER_B_IRQ_SIDS = ['Osmium', 'Thundercross', 'Trigger_Happy']
 
 def _build_and_load_data(name):
     """Build + return (sid_path, reb_path, params, vbr)."""
-    sid_path = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
+    sid_path = str(ROOT / 'hvsc85' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
                    f'{name}.sid')
-    reb_path = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
+    reb_path = str(ROOT / 'hvsc85' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
                    f'{name}.sidfinity.sid')
     json_path = str(ROOT / 'pipelines' / 'companion' / 'jay_derrett' /
                     '_extracted' / f'{name}.json')

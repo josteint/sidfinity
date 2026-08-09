@@ -1,6 +1,6 @@
 # Commodore 64 Music Examples — RE notes
 
-**File:** `hvsc84/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid` (Rob Hubbard, 1985)
+**File:** `hvsc85/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid` (Rob Hubbard, 1985)
 **PSID:** load `$086D`, init `$087C`, play `$086D`. 15 subtunes. Body covers `$086D-$422A` (14782 bytes).
 **sidid classification:** `Companion` (base — same fingerprint as Up_up_and_Away and Bowden's 1984 driver).
 

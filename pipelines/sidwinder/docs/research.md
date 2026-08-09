@@ -163,7 +163,7 @@ player's core voice-dispatch loop (speed-counter check + DEY + JMP across voices
 | CSDb SIDwinder Enhanced!! | `https://csdb.dk/release/?id=99574` | Secondary |
 | Planet Emulation D64 | `https://www.planetemu.net/rom/commodore-c64-applications-d64/sidwinder-v01-23-1994-natural-beat` | Secondary |
 | sidid.cfg signature | `https://github.com/cadaver/sidid/blob/master/sidid.cfg` | Primary |
-| HVSC Musicians.txt | local `hvsc84/DOCUMENTS/Musicians.txt` | Primary |
+| HVSC Musicians.txt | local `hvsc85/DOCUMENTS/Musicians.txt` | Primary |
 | Modern Raistlin tool | `https://sidwinder.netlify.app/` | Not relevant to Taki's engine |
 
 ---

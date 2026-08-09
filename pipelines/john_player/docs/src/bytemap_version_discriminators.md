@@ -7,7 +7,7 @@ All offsets are from the PSID data region start (after 126-byte header + 2-byte 
 
 ## Canonical Specimens Used
 
-| Version | Path (relative to hvsc84/) | Total bytes | Code bytes |
+| Version | Path (relative to hvsc85/) | Total bytes | Code bytes |
 |---------|---------------------------|-------------|------------|
 | V1.4 | MUSICIANS/E/Eeben_Aleksi/John_Player_note.sid | 2274 | 2148 |
 | V1.6 | MUSICIANS/E/Eeben_Aleksi/Rock_n_Roll_Butterfly.sid | 4029 | 3903 |

@@ -13,7 +13,7 @@ Use:
     if is_excluded(sid_path):
         raise PipelineError(f'{sid_path}: {exclusion_reason(sid_path)}')
 
-The exclusion data also flows into the index (`hvsc84.parquet`) via
+The exclusion data also flows into the index (`hvsc85.parquet`) via
 `tools/build_sid_db.py` (columns `excluded` + `exclusion_reason`)
 so queries like "how many SIDs are excluded, and why?" work
 without re-reading the JSON.
@@ -62,7 +62,7 @@ def _load() -> dict[str, str]:
 def _normalize_path(path: str) -> str:
     """Normalize a SID path for lookup. Strips repo-root prefix and
     leading `./`, returns the rest. So both
-    `/abs/.../hvsc84/X.sid` and `hvsc84/X.sid` match the JSON's
+    `/abs/.../hvsc85/X.sid` and `hvsc85/X.sid` match the JSON's
     relative paths.
     """
     p = os.path.normpath(path)

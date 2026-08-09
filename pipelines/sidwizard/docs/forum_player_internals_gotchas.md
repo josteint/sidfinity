@@ -8,7 +8,7 @@
 >   `https://www.lemon64.com/forum/viewtopic.php?t=86825` (playing from BASIC),
 >   `https://chipmusic.org/forums/topic/7702/sidwizard-10/` (V1.0 discussion).
 > - **source_url (wiki):** `https://chiptunesak.readthedocs.io/en/stable/sid.html` (multispeed/CIA model).
-> - **empirical:** local parse of 1048 `Hermit/SidWizard_V1.x` PSID/RSID headers in `hvsc84/` (init→play delta).
+> - **empirical:** local parse of 1048 `Hermit/SidWizard_V1.x` PSID/RSID headers in `hvsc85/` (init→play delta).
 > - **fetched_via:** PDFs → `pdftotext -layout` + Read; CSDb/ChiptuneSAK via WebFetch; Lemon64 + chipmusic
 >   direct WebFetch were **HTTP 503 / 403**-blocked, so their content is from WebSearch result snippets.
 > - **fetch_date:** 2026-06-13

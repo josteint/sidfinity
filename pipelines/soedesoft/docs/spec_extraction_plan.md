@@ -331,11 +331,11 @@ alongside a V3.1 canary; compare sound-record layout field by field.
 ## 6. Migration phase plan
 
 **Phase 0 — Canary selection and seed disassembly**
-- Primary canary: `hvsc84/MUSICIANS/S/SoedeSoft/Soede_Jeroen/Ritme.sid`
+- Primary canary: `hvsc85/MUSICIANS/S/SoedeSoft/Soede_Jeroen/Ritme.sid`
   (init=$2000, play=$2003, 13s, single subtune, Cluster F — textbook JMP/JMP).
   Short enough to fully annotate. Load $2000, JMP at $2000 = JMP to init routine,
   JMP at $2003 = JMP to play routine.
-- Secondary canary (Cluster A / V3.1): `hvsc84/MUSICIANS/S/SoedeSoft/Soede_Jeroen/Airwolf_Title.sid`
+- Secondary canary (Cluster A / V3.1): `hvsc85/MUSICIANS/S/SoedeSoft/Soede_Jeroen/Airwolf_Title.sid`
   (init=$6000? OPEN — check actual PSID).
 - Run: `tools/seed_disassembly.py` on primary canary → `pipelines/soedesoft/standard/disassembly.s`
 - Annotate init + play routine headers before writing any Python.

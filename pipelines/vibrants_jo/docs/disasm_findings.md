@@ -1,5 +1,5 @@
 ---
-source_url: local: /home/jtr/sidfinity/hvsc84/MUSICIANS/J/JO/ + web searches
+source_url: local: /home/jtr/sidfinity/hvsc85/MUSICIANS/J/JO/ + web searches
 fetched_via: direct
 fetch_date: 2026-06-16
 author: research session (Claude + HVSC binary analysis)
@@ -45,7 +45,7 @@ JCH (Jens-Christian Huus) is a *different* Vibrants member who made his own wide
 
 ## Corpus Statistics (HVSC inspection)
 
-- **105 SID files** in `hvsc84/MUSICIANS/J/JO/`
+- **105 SID files** in `hvsc85/MUSICIANS/J/JO/`
 - **All VBL-timed** (`speed = $00000000`) — no CIA-timed tunes found
 - **Typical load addresses:** $1000, $2000, $3000, $4000, $E000, $F000 (relocated per tune)
 - **PSID version:** v2 throughout
@@ -175,8 +175,8 @@ is at $3084 with a different (larger) format. This is a distinct player version.
 ## Existing Partial Migration
 
 `Multi_Move.sid` already has:
-- `hvsc84/MUSICIANS/J/JO/Multi_Move.usf` — a USF file exists
-- `hvsc84/MUSICIANS/J/JO/Multi_Move.sidfinity.sid` — a rebuilt SID exists
+- `hvsc85/MUSICIANS/J/JO/Multi_Move.usf` — a USF file exists
+- `hvsc85/MUSICIANS/J/JO/Multi_Move.sidfinity.sid` — a rebuilt SID exists
 
 The USF uses the Hubbard-style USF schema (freq_table, pulse_programs, filter_programs, wave_programs, instrument blocks). This suggests an earlier migration attempt was started. The `.usf` file should be read carefully before starting fresh RE — it encodes the freq table and some instrument data already decoded.
 

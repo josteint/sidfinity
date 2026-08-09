@@ -78,7 +78,7 @@ def _freq_tables(mem, lay) -> 'tuple[list, list] | None':
             [mem[(hi + i) & 0xFFFF] for i in range(FREQ_READ)])
 
 
-def extract(sid_path: str, hvsc_root: str = 'hvsc84') -> MasmModel:
+def extract(sid_path: str, hvsc_root: str = 'hvsc85') -> MasmModel:
     """Extract `sid_path` into a MasmModel. Raises on anything unhandled —
     the caller decides whether a member is in scope."""
     from seed_disassembly import parse_psid

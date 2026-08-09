@@ -86,11 +86,11 @@ lake build sidgen_confuzion
 
 # Verify byte-perfection:
 md5sum pipelines/hubbard/confuzion/build/confuzion.sid \
-       hvsc84/MUSICIANS/H/Hubbard_Rob/Confuzion.sid
+       hvsc85/MUSICIANS/H/Hubbard_Rob/Confuzion.sid
 
 # Verify writelog grade:
 python3 src/writelog_grade.py \
-    hvsc84/MUSICIANS/H/Hubbard_Rob/Confuzion.sid \
+    hvsc85/MUSICIANS/H/Hubbard_Rob/Confuzion.sid \
     pipelines/hubbard/confuzion/build/confuzion.sid
 # Grade A, 1500/1500 snapshots
 ```

@@ -137,7 +137,7 @@ V3.x / Hawkeye rebuild. Outcomes flagged.
   — fetched the full Amiga FC1.4 ImHex pattern spec. Saved verbatim
   to `github_fc14_amiga_spec.md` with caveats (different codebase
   from C64 MoN/FC).
-- **Local HVSC scan**: `hvsc84/MUSICIANS/T/Tel_Jeroen/Hawkeye.sid`
+- **Local HVSC scan**: `hvsc85/MUSICIANS/T/Tel_Jeroen/Hawkeye.sid`
   PSID-parsed, FC V3.x signature located byte-for-byte at $7C22; per-
   voice arrays mapped at $90C5/$90C8/$9118/$9139. Saved to
   `hawkeye_sid_layout.md`. **This is the gold finding** — Hawkeye

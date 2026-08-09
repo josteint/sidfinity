@@ -55,7 +55,7 @@ def write_member(item) -> tuple:
                                                   detect_medley)
         from pipelines.dmc.composer_asm import build_dmc_sid
         from src.usf.parser import parse_file
-        hvsc = os.path.join(ROOT, 'hvsc84')
+        hvsc = os.path.join(ROOT, 'hvsc85')
         out_dir = os.path.dirname(os.path.join(hvsc, rel))
         # REPLAY the build path the batch RECORDED, never re-derive it. The
         # writer re-deriving the dispatch is exactly how the stored artifact
@@ -162,7 +162,7 @@ def _audit(written, n: int) -> int:
           flush=True)
     bad = 0
     for rel, bp in sample:
-        orig = os.path.join(ROOT, 'hvsc84', rel)
+        orig = os.path.join(ROOT, 'hvsc85', rel)
         reb = os.path.splitext(orig)[0] + '.sidfinity.sid'
         nch = 1
         if bp == 'multisid':
@@ -182,7 +182,7 @@ def _audit(written, n: int) -> int:
     # SELF-CONSISTENCY (corpus_sync item 4): the verify above cannot see a
     # stored PAIR that disagrees — it re-verifies the .sid, which passes while
     # the .usf beside it specifies a DIFFERENT build.
-    for f in corpus_sync.audit_rebuild(sample, os.path.join(ROOT, 'hvsc84'),
+    for f in corpus_sync.audit_rebuild(sample, os.path.join(ROOT, 'hvsc85'),
                                        _rebuild_from_usf):
         bad += 1
         print(f'  AUDIT FAIL {f}', flush=True)
@@ -197,7 +197,7 @@ def main():
     if '--audit' in sys.argv:
         n_audit = int(sys.argv[sys.argv.index('--audit') + 1])
     from src import corpus_sync
-    p = corpus_sync.plan(results, 'dmc_v4', os.path.join(ROOT, 'hvsc84'),
+    p = corpus_sync.plan(results, 'dmc_v4', os.path.join(ROOT, 'hvsc85'),
                          require_build_path=True)
     for line in p.report('tools/dmc_family_batch.py'):
         print(line, flush=True)

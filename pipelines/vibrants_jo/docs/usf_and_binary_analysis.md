@@ -1,5 +1,5 @@
 ---
-source_url: local: hvsc84/ + github.com/cadaver/sidid + codebase64.org
+source_url: local: hvsc85/ + github.com/cadaver/sidid + codebase64.org
 fetched_via: local read + direct
 fetch_date: 2026-06-16
 author: research agent
@@ -28,7 +28,7 @@ This explains why the sidid.nfo entry (see §3) is a minimal stub: no named tool
 
 ## 2. HVSC Corpus — 105 SID Files
 
-Total: 105 .sid files under `hvsc84/MUSICIANS/J/JO/` (one Multi_Move.sidfinity.sid excluded).
+Total: 105 .sid files under `hvsc85/MUSICIANS/J/JO/` (one Multi_Move.sidfinity.sid excluded).
 One file already extracted to USF: `Multi_Move.usf` (1988, Genesis Project, "Rock" alias).
 
 Binary sizes range from 635 bytes (Grid.sid — game tune, different engine entirely) to
@@ -93,7 +93,7 @@ Full entry saved to: `tmp/vibrants_jo_research/sidid_nfo_vibrants_jo.txt`
 
 ## 4. Multi_Move.usf — Complete USF Analysis
 
-File: `hvsc84/MUSICIANS/J/JO/Multi_Move.usf`
+File: `hvsc85/MUSICIANS/J/JO/Multi_Move.usf`
 Title: "Multi Move", Author: "Jesper Olsen (Rock)", Released: "1988 Genesis Project"
 Binary: PSID v2, PAL, 6581, load=$1800...$2289, init=$1800, play=$1806, songs=1
 

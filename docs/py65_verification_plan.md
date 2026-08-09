@@ -137,7 +137,7 @@ stash. The gitignored build deps are NOT in a fresh worktree — symlink them:
 ```
 git worktree add ../sf_before c2790604
 cd ../sf_before
-ln -s <main>/hvsc84 hvsc84
+ln -s <main>/hvsc85 hvsc85
 ln -s <main>/tools/c64roms tools/c64roms
 ln -s <main>/.pylocal .pylocal
 ln -s <main>/tools/xa65 tools/xa65

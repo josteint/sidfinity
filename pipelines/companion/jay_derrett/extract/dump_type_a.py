@@ -56,7 +56,7 @@ def _read_psid_meta(sid_path: str) -> dict:
 
 
 def _extract_one(name: str) -> dict | None:
-    sid = f'hvsc84/MUSICIANS/D/Derrett_Jay/{name}.sid'
+    sid = f'hvsc85/MUSICIANS/D/Derrett_Jay/{name}.sid'
     if not os.path.exists(sid):
         return None
     try:

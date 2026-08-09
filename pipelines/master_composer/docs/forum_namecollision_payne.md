@@ -7,7 +7,7 @@ Provenance
   - https://github.com/cadaver/sidid (sidid.cfg / sidid.nfo signatures + notes)
   - https://en.wikipedia.org/wiki/Test_Drive_(1987_video_game) (Payne credit)
   - WebSearch result text (steemit Hülsbeck timeline; VGMPF TFMX Editor)
-  - local: `hvsc84.db` (engine + author columns) + byte verification of `hvsc84/` SIDs
+  - local: `hvsc84.db` (engine + author columns) + byte verification of `hvsc85/` SIDs
 - fetched_via: WebFetch + WebSearch + local SQLite (read-only) + local byte scan (read-only)
 - fetch_date: 2026-06-13
 - author/handle: various (see per-claim attribution)

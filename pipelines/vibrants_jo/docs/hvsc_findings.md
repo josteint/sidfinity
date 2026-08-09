@@ -1,5 +1,5 @@
 ---
-source_url: local: /home/jtr/sidfinity/hvsc84/
+source_url: local: /home/jtr/sidfinity/hvsc85/
 fetched_via: local read
 fetch_date: 2026-06-16
 author: research agent
@@ -27,7 +27,7 @@ Note: **Vibrants** is also home to **JCH** (who made the DeepSID online player) 
 
 ## STIL excerpts — technical notes on JO tunes
 
-(From `/home/jtr/sidfinity/hvsc84/DOCUMENTS/STIL.txt`)
+(From `/home/jtr/sidfinity/hvsc85/DOCUMENTS/STIL.txt`)
 
 ```
 /MUSICIANS/J/JO/Airwolf.sid

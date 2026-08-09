@@ -45,7 +45,7 @@ Priority ordered.
 6. **DeepSID STIL annotations for Hawkeye.sid** — the SPA didn't
    surface STIL on a plain fetch. Better path: scrape
    `HVSC/DOCUMENTS/STIL.txt` directly (we have HVSC #84 locally at
-   `hvsc84/`). Grep `STIL.txt` for `Tel_Jeroen/Hawkeye.sid`.
+   `hvsc85/`). Grep `STIL.txt` for `Tel_Jeroen/Hawkeye.sid`.
 
 7. **Beastie Boys FC V2 variants** — releases 10605 (V2.0) and
    134469 (V2.1) and 30048 (V2.1++ Quartet). Comments and bundled

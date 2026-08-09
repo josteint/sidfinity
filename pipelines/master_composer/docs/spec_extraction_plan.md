@@ -4,7 +4,7 @@ provenance:
              upstream: https://github.com/ice00/jc64 (doc/example/Master_Composer.dis)
              annotated tune: "Maniac" by Paul Kleimeyer, (c) 1983 Access Software Inc.
                              (original at /home/ice/hvsids/MUSICIANS/K/Kleimeyer_Paul/Maniac.sid;
-                              local HVSC copy hvsc84/MUSICIANS/K/Kleimeyer_Paul/Maniac.sid)
+                              local HVSC copy hvsc85/MUSICIANS/K/Kleimeyer_Paul/Maniac.sid)
   fetched_via: local read of cloned ice00/jc64 at tmp/jc64/ (READ-ONLY). .dis decoded with a
                Python re-implementation of FileManager.readProjectFile (Java DataInputStream,
                big-endian, modified-UTF8 readUTF; project VERSION 7). Reader + extracted inB +

@@ -39,7 +39,7 @@ def run(sp):
     rec = {'sid': sp}
     usf_path = None
     try:
-        cfg = fc_standard_config('hvsc84/' + sp)
+        cfg = fc_standard_config('hvsc85/' + sp)
         usf_path = write_canary_usf(cfg)
         r = verify_featuredriven(cfg)
         subs = {}
@@ -64,7 +64,7 @@ def run(sp):
         rec['status'] = 'error'
         rec['error'] = traceback.format_exc()[-600:]
     if rec['status'] != 'full' and usf_path and os.path.exists(usf_path):
-        os.unlink(usf_path)          # keep hvsc84 clean of unverified USFs
+        os.unlink(usf_path)          # keep hvsc85 clean of unverified USFs
     return rec
 
 

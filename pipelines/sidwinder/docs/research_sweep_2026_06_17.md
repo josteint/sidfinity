@@ -101,7 +101,7 @@ Three-voice SID tracker with flat sequence architecture:
 3. **c64.rulez.org FTP**: ftp://c64.rulez.org/pub/c64/Tools/Music/Editor/ — listed in
    V01.23 docs as official mirror; may have additional versions or related music files
 
-4. **HVSC subfolder**: hvsc84/MUSICIANS/T/Taki/ — all 117 SIDwinder SIDs for disassembly
+4. **HVSC subfolder**: hvsc85/MUSICIANS/T/Taki/ — all 117 SIDwinder SIDs for disassembly
    candidates; run sidid on a sample to confirm signature match rate
 
 5. **Plus/4 World discussion forums**: may have more detailed TLC/Taki correspondence

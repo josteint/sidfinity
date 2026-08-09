@@ -1,5 +1,5 @@
 ---
-source_url: local: hvsc84/DOCUMENTS/Update00.hvs, Update02.hvs, Update_Announcements/20020817.txt, Update_Announcements/20240630.txt, STIL.txt
+source_url: local: hvsc85/DOCUMENTS/Update00.hvs, Update02.hvs, Update_Announcements/20020817.txt, Update_Announcements/20240630.txt, STIL.txt
 fetched_via: local read
 fetch_date: 2026-06-17
 author: HVSC Crew (Update files); various HVSC contributors (STIL)
@@ -144,9 +144,9 @@ canonical Whittaker engine.
 
 ## Leads to follow
 
-- `hvsc84/DOCUMENTS/Update33.hvs` — 100 mentions (2002 era mass re-rip of Whittaker
+- `hvsc85/DOCUMENTS/Update33.hvs` — 100 mentions (2002 era mass re-rip of Whittaker
   back-catalogue; confirm if it contains any technical notes beyond the SID listing)
-- `hvsc84/DOCUMENTS/Update25.hvs` — 30 mentions (possible batch re-rip)
+- `hvsc85/DOCUMENTS/Update25.hvs` — 30 mentions (possible batch re-rip)
 - CSDb release 238521 (Prg2Sid 1.20 by iAN CooG) — download the .7z to read the
   full changelog; the 2-variant description may have more detail inside
 - CSDb release for Prg2Sid v1.25 (posted June 2025, comment by iAN CooG on

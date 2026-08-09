@@ -90,7 +90,7 @@ Takeaways:
 
 ## Player RE — disassembly of an HVSC V1.0 rip (PRIMARY; original analysis)
 
-Target: `hvsc84/MUSICIANS/H/Huelsbeck_Chris/Dance_at_Night.sid` (PSID v2, real load $7000–$CBD3,
+Target: `hvsc85/MUSICIANS/H/Huelsbeck_Chris/Dance_at_Night.sid` (PSID v2, real load $7000–$CBD3,
 **init=$C000 play=$C020**, 1 subtune) — a Hülsbeck original at the canonical signature.
 (Disassembled with an inline 6502 disassembler over the loaded 64K image.)
 

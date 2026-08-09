@@ -32,7 +32,7 @@ def write_member(rel: str) -> tuple:
         from pipelines.dmc.v5.from_usf import usf_to_model
         from pipelines.dmc.v5.composer_v5 import build_v5_sid
         from src.usf.parser import parse_file
-        hvsc = os.path.join(ROOT, 'hvsc84')
+        hvsc = os.path.join(ROOT, 'hvsc85')
         cfg = dmc_v5_config(rel, hvsc_root=hvsc)
         out_dir = os.path.dirname(os.path.join(hvsc, rel))
         usf_path = write_v5_usf(cfg, out_dir, hvsc_root=hvsc)
@@ -61,7 +61,7 @@ def main():
     # v5 has ONE build path, so build_path is not required — the moment it
     # grows a second, the batch must record one and this must require it.
     from src import corpus_sync
-    p = corpus_sync.plan(results, 'dmc_v5', os.path.join(ROOT, 'hvsc84'))
+    p = corpus_sync.plan(results, 'dmc_v5', os.path.join(ROOT, 'hvsc85'))
     for line in p.report('tools/dmc_v5_family_batch.py'):
         print(line, flush=True)
     full = [d['path'] for d in p.write]
@@ -92,7 +92,7 @@ def main():
         print(f'AUDIT: rebuilding {len(sample)} members from their STORED .usf',
               flush=True)
         fails = corpus_sync.audit_rebuild(
-            sample, os.path.join(ROOT, 'hvsc84'), _rebuild_from_usf)
+            sample, os.path.join(ROOT, 'hvsc85'), _rebuild_from_usf)
         for f in fails:
             print(f'  AUDIT FAIL {f}', flush=True)
         print(f'AUDIT: {len(sample) - len(fails)}/{len(sample)} stored pairs '

@@ -165,7 +165,7 @@ def fc_standard_config(sid_path: str, root: str | None = None) -> FCConfig:
 
 FC_STANDARD = FCConfig(
     name='fc_standard',
-    sid_path='hvsc84/MUSICIANS/C/Carter/Jarre_2.sid',
+    sid_path='hvsc85/MUSICIANS/C/Carter/Jarre_2.sid',
 
     # core data tables (disasm address map, load $1800)
     freq_lo_addr=0x1D64,

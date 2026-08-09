@@ -31,7 +31,7 @@ rebuilder can produce either layout based on per-SID config.
 
 | | |
 |---|---|
-| Path | `hvsc84/MUSICIANS/T/Tel_Jeroen/Hawkeye.sid` |
+| Path | `hvsc85/MUSICIANS/T/Tel_Jeroen/Hawkeye.sid` |
 | Author | Jeroen Tel |
 | Year | 1988 (Thalamus) |
 | Load addr | $7AE0 |
@@ -169,7 +169,7 @@ Seven FC-family editor binaries downloaded from CSDb, available at
 1. **Disassemble Hawkeye.sid directly.** All ingredients ready: PSID body
    is plaintext (no cruncher), variable addresses located, primary
    reference (Cybernoid2.asm) loaded. Run
-   `tools/seed_disassembly.py hvsc84/MUSICIANS/T/Tel_Jeroen/Hawkeye.sid`
+   `tools/seed_disassembly.py hvsc85/MUSICIANS/T/Tel_Jeroen/Hawkeye.sid`
    with the variable addresses passed as `--entry` hints. Output goes to
    `pipelines/future_composer/<engine>/disassembly.s` (or similar) for
    hand-annotation.

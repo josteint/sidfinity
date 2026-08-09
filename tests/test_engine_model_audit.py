@@ -32,7 +32,7 @@ def _model(rel: str):
 # ---------------------------------------------------------------------------
 
 def test_henrys_house_shape():
-    m = _model('hvsc84/GAMES/G-L/Henrys_House.usf')
+    m = _model('hvsc85/GAMES/G-L/Henrys_House.usf')
     assert m.pattern.encoding == 'atomic_per_tick'
     assert m.pattern.pitch_byte_format == 'octave_semi_nibble'
     assert m.voice_timing.mode == 'every_tick'
@@ -63,7 +63,7 @@ def test_henrys_house_shape():
 # ---------------------------------------------------------------------------
 
 def test_bowden_canonical_shape():
-    m = _model('hvsc84/MUSICIANS/B/Berry_Vic/Bach_Sonata.usf')
+    m = _model('hvsc85/MUSICIANS/B/Berry_Vic/Bach_Sonata.usf')
     assert m.pattern.encoding == 'atomic_per_tick'
     assert m.voice_timing.mode == 'every_tick'
     assert m.tempo_dispatch.mode == 'single_phase'
@@ -86,7 +86,7 @@ def test_bowden_canonical_shape():
 # ---------------------------------------------------------------------------
 
 def test_yes_tune_shape():
-    m = _model('hvsc84/DEMOS/UNKNOWN/Yes_Tune.usf')
+    m = _model('hvsc85/DEMOS/UNKNOWN/Yes_Tune.usf')
     assert m.pattern.encoding == 'note_dur_pair'
     assert m.voice_timing.mode == 'tick_counter_decrement'
     assert m.tempo_dispatch.mode == 'single_phase'
@@ -100,7 +100,7 @@ def test_yes_tune_shape():
 
 
 def test_soldier_of_fortune_multi_subtune():
-    m = _model('hvsc84/GAMES/S-Z/Soldier_of_Fortune.usf')
+    m = _model('hvsc85/GAMES/S-Z/Soldier_of_Fortune.usf')
     assert m.pattern.encoding == 'note_dur_pair'
     assert len(m.subtunes) == 8
     # Multiple subtunes, mix of music + SFX (gain_init='preserve').
@@ -111,7 +111,7 @@ def test_soldier_of_fortune_multi_subtune():
 # ---------------------------------------------------------------------------
 
 def test_clever_music_shape():
-    m = _model('hvsc84/MUSICIANS/C/Clever_Music/Gyroscope.usf')
+    m = _model('hvsc85/MUSICIANS/C/Clever_Music/Gyroscope.usf')
     assert m.pattern.encoding == 'atomic_per_tick'
     assert m.voice_timing.mode == 'dur_counter_decrement'
     assert m.tempo_dispatch.mode == 'single_phase'
@@ -132,7 +132,7 @@ def test_clever_music_shape():
 # ---------------------------------------------------------------------------
 
 def test_companion_shape():
-    m = _model('hvsc84/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.usf')
+    m = _model('hvsc85/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.usf')
     assert m.pattern.encoding == 'atomic_per_period'
     assert m.tempo_dispatch.mode == 'two_phase'
     assert m.voice_timing.mode == 'every_tick'
@@ -160,7 +160,7 @@ def test_companion_shape():
 # ---------------------------------------------------------------------------
 
 def test_commando_shape():
-    m = _model('hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.usf')
+    m = _model('hvsc85/MUSICIANS/H/Hubbard_Rob/Commando.usf')
     # The bitpack codec + 320-byte freq table indicate Hubbard '85 features
     assert m.pattern.encoding == 'bitpack'
     assert m.pattern.pitch_byte_format == 'absolute_semi'
@@ -180,14 +180,14 @@ def test_commando_shape():
 
 
 def test_chimera_has_digi():
-    m = _model('hvsc84/MUSICIANS/H/Hubbard_Rob/Chimera.usf')
+    m = _model('hvsc85/MUSICIANS/H/Hubbard_Rob/Chimera.usf')
     assert m.pattern.encoding == 'bitpack'
     assert m.digi is not None
     assert m.digi.technique == 'chimera_1bit'
 
 
 def test_human_race_has_state_layout():
-    m = _model('hvsc84/MUSICIANS/H/Hubbard_Rob/Human_Race.usf')
+    m = _model('hvsc85/MUSICIANS/H/Hubbard_Rob/Human_Race.usf')
     assert m.pattern.encoding == 'bitpack'
     assert m.state_layout is not None
     # HR uses a 2-voice statebuf layout (not Commando's 3-voice default)
@@ -196,7 +196,7 @@ def test_human_race_has_state_layout():
 
 
 def test_action_biker_stop_fill():
-    m = _model('hvsc84/MUSICIANS/H/Hubbard_Rob/Action_Biker.usf')
+    m = _model('hvsc85/MUSICIANS/H/Hubbard_Rob/Action_Biker.usf')
     # AB writes $FF to $D400-$D417 on song end.
     # The terminator vocab should reflect this.
     if m.terminators.stop_fill_byte is not None:
@@ -212,15 +212,15 @@ def test_pitch_format_split():
     Hubbard '85 uses absolute_semi. Verify the model captures this
     correctly."""
     nibble_shapes = [
-        'hvsc84/GAMES/G-L/Henrys_House.usf',
-        'hvsc84/MUSICIANS/B/Berry_Vic/Bach_Sonata.usf',
-        'hvsc84/DEMOS/UNKNOWN/Yes_Tune.usf',
-        'hvsc84/MUSICIANS/C/Clever_Music/Gyroscope.usf',
-        'hvsc84/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.usf',
+        'hvsc85/GAMES/G-L/Henrys_House.usf',
+        'hvsc85/MUSICIANS/B/Berry_Vic/Bach_Sonata.usf',
+        'hvsc85/DEMOS/UNKNOWN/Yes_Tune.usf',
+        'hvsc85/MUSICIANS/C/Clever_Music/Gyroscope.usf',
+        'hvsc85/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.usf',
     ]
     for r in nibble_shapes:
         m = _model(r)
         assert m.pattern.pitch_byte_format == 'octave_semi_nibble', r
 
-    m = _model('hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.usf')
+    m = _model('hvsc85/MUSICIANS/H/Hubbard_Rob/Commando.usf')
     assert m.pattern.pitch_byte_format == 'absolute_semi'

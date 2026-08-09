@@ -16,7 +16,7 @@ Status: ✅ fetched & saved · 📄 read only · ⚠️ partial/blocked · ❌ f
 - ✅ comp.sys.cbm Usenet (3 threads 2000–2002) → `forum_usenet_comp_sys_cbm.md`
 - ✅ ChipFlip 2009 SounDemoN interview → `forum_chipmusic_soundemon_interview.md`
 - ✅ HVMEC / woolyss listings → `article_hvmec_and_web.md`
-- 📄 local `deprecated/gt2_pipeline/tools/sidid.cfg`, `hvsc84/DOCUMENTS/*` (grep: zero OdinTracker mentions), `hvsc84.db` (read-only corpus census) → `hvsc_corpus.md`, `csdb_hvsc_corpus.md`
+- 📄 local `deprecated/gt2_pipeline/tools/sidid.cfg`, `hvsc85/DOCUMENTS/*` (grep: zero OdinTracker mentions), `hvsc84.db` (read-only corpus census) → `hvsc_corpus.md`, `csdb_hvsc_corpus.md`
 
 ## Negative results (confirmed absent — don't re-search)
 - ❌ No GitHub repo for OdinTracker (Zed never published there)

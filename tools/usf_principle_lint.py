@@ -10,7 +10,7 @@ CHECK 1 — CARDINALITY / DISJOINTNESS CENSUS (§9.2's own prescribed check,
 verbatim: "cross-engine cardinality analysis (group field values by engine,
 flag fields with disjoint value sets per engine)"). Walks every stored
 .usf's parsed object tree, collects scalar field values, groups by ENGINE
-FAMILY (attributed via the hvsc84.parquet catalogue — the USF itself
+FAMILY (attributed via the hvsc85.parquet catalogue — the USF itself
 deliberately carries no engine tag), and flags:
   - DISJOINT: >=2 families populate the field and their value sets are
     pairwise disjoint with >1 value each — the fingerprint of a
@@ -118,8 +118,8 @@ def main() -> int:
 
     fam_of = _families()
     files = []
-    for pat in ('hvsc84/MUSICIANS/*/*/*.usf', 'hvsc84/MUSICIANS/*/*/*/*.usf',
-                'hvsc84/DEMOS/*/*.usf', 'hvsc84/GAMES/*/*.usf'):
+    for pat in ('hvsc85/MUSICIANS/*/*/*.usf', 'hvsc85/MUSICIANS/*/*/*/*.usf',
+                'hvsc85/DEMOS/*/*.usf', 'hvsc85/GAMES/*/*.usf'):
         files.extend(glob.glob(os.path.join(ROOT, pat)))
     files.sort()
     if not args.full:
@@ -139,7 +139,7 @@ def main() -> int:
     unattributed = 0
     parse_fail = 0
     for f in files:
-        rel = os.path.relpath(f, os.path.join(ROOT, 'hvsc84'))
+        rel = os.path.relpath(f, os.path.join(ROOT, 'hvsc85'))
         family = fam_of.get(rel[:-4] + '.sid')
         if family is None:
             unattributed += 1

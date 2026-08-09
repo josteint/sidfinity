@@ -342,13 +342,13 @@ own player vs. a licensed engine. Known uses:
 ### Highest-priority leads
 
 1. **Examine the actual SID binaries** — the 119 SID files in HVSC `/MUSICIANS/J/JO/`
-   are available locally at `hvsc84/MUSICIANS/J/JO/`. Run `sidid` on them to confirm
+   are available locally at `hvsc85/MUSICIANS/J/JO/`. Run `sidid` on them to confirm
    player identification, then disassemble one (e.g. `Airwolf_Theme.sid`) to map the full
    player code. The signatures from `sidid.cfg` give exact byte anchors to locate the
    play routine.
 
 2. **DRAX's "Worktune in JO's Player"** — at
-   `hvsc84/MUSICIANS/D/DRAX/Worktunes/Worktune_in_JOs_player.sid` — this is a reference
+   `hvsc85/MUSICIANS/D/DRAX/Worktunes/Worktune_in_JOs_player.sid` — this is a reference
    implementation. DRAX (a Vibrants co-member) used JO's player format for a tune,
    meaning the data format was understood by other members and the player was at least
    semi-shared within Vibrants.

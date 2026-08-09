@@ -31,7 +31,7 @@ from pipelines.future_composer.config import FCConfig
 #   instr_records (pulsehi) at $B014 (= pulsetabel + 32)
 CYBERNOID_II = FCConfig(
     name='cybernoid_ii',
-    sid_path='hvsc84/MUSICIANS/T/Tel_Jeroen/Cybernoid_II.sid',
+    sid_path='hvsc85/MUSICIANS/T/Tel_Jeroen/Cybernoid_II.sid',
 
     freq_lo_addr=0xAE3F,
     freq_hi_addr=0xAE96,

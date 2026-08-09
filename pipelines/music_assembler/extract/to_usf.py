@@ -327,7 +327,7 @@ def model_to_usf(m) -> UsfFile:
 
 
 def write_masm_usf(sid_path: str, out_path: str,
-                   hvsc_root: str = 'hvsc84') -> str:
+                   hvsc_root: str = 'hvsc85') -> str:
     """Extract `sid_path` and write its .usf to `out_path`."""
     from pipelines.music_assembler.extract.model import extract
     from src.usf.writer import write_file

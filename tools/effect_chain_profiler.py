@@ -32,7 +32,7 @@ Usage:
     # Examples:
     # Tag every $D408 write in Hawkeye sub 1 frames 145-152:
     python3 tools/effect_chain_profiler.py \\
-        hvsc84/MUSICIANS/T/Tel_Jeroen/Hawkeye.sid \\
+        hvsc85/MUSICIANS/T/Tel_Jeroen/Hawkeye.sid \\
         --subtune 1 --frames 145-152 --register D408
 
     # Tag ALL writes in a frame range (omit --register):
@@ -135,7 +135,7 @@ def _song_frames(sid_path: str, subtune: int, cap: int = 6000) -> int:
     a full-song pc-trace stays bounded. Falls back to `cap` if unavailable."""
     try:
         from src.songlengths import load_database, get_durations
-        db = load_database(str(ROOT / 'hvsc84' / 'DOCUMENTS' / 'Songlengths.md5'))
+        db = load_database(str(ROOT / 'hvsc85' / 'DOCUMENTS' / 'Songlengths.md5'))
         durs = get_durations(sid_path, db)
         if durs and subtune < len(durs):
             return min(cap, max(50, int(durs[subtune] * 50 * 1.1)))

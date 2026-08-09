@@ -20,7 +20,7 @@ provenance:
                    RUNTIME (columnar, INSNO=48 stride) + EXPORT=FALSE editor layout —
                    NOT the packed NP20.G4 on-disk layout that HVSC uses. Use it for
                    "what the engine DOES", not "how bytes are laid out on disk".
-    - local: hvsc84/MUSICIANS/O/Odkin/Wild.sid  (real packed NP20.G4, load=$1000)
+    - local: hvsc85/MUSICIANS/O/Odkin/Wild.sid  (real packed NP20.G4, load=$1000)
       fetched_via: direct binary read (read-only)
       fetch_date: 2026-06-13
       reliability: HIGH — GROUND TRUTH for the packed on-disk $xxCB layout, instrument

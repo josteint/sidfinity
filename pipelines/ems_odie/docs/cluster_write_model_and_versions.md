@@ -5,31 +5,31 @@
 ```
 provenance:
   sources:
-    - url: "file:hvsc84/MUSICIANS/C/Connolly_Sean/Coup_De_Grace.sid"
+    - url: "file:hvsc85/MUSICIANS/C/Connolly_Sean/Coup_De_Grace.sid"
       fetched_via: "Python read-only byte inspection"
       fetch_date: 2026-06-14
       content_date: "1996 Cosine Systems"
       reliability: authoritative (HVSC binary, canonical $1000 V7.03 player)
-    - url: "file:hvsc84/MUSICIANS/C/Connolly_Sean/Cosine_Intro.sid"
+    - url: "file:hvsc85/MUSICIANS/C/Connolly_Sean/Cosine_Intro.sid"
       fetched_via: "Python read-only byte inspection"
       fetch_date: 2026-06-14
       content_date: "1996 Cosine Systems"
       reliability: authoritative (HVSC binary, earlier variant)
-    - url: "file:hvsc84/MUSICIANS/C/Connolly_Sean/Rescued_Pixels_3.sid"
+    - url: "file:hvsc85/MUSICIANS/C/Connolly_Sean/Rescued_Pixels_3.sid"
       fetched_via: "Python read-only byte inspection"
       fetch_date: 2026-06-14
       content_date: "2025 Arkanix Labs"
       reliability: authoritative (HVSC binary, only V10.x representative)
-    - url: "file:hvsc84/MUSICIANS/T/TMR/Big_Bus.sid"
+    - url: "file:hvsc85/MUSICIANS/T/TMR/Big_Bus.sid"
       fetched_via: "Python read-only byte inspection"
       fetch_date: 2026-06-14
       content_date: "~2000 Cosine"
       reliability: authoritative (HVSC binary, V9.x-like dispatch structure)
-    - url: "file:hvsc84/MUSICIANS/C/Connolly_Sean/Wild_One.sid"
+    - url: "file:hvsc85/MUSICIANS/C/Connolly_Sean/Wild_One.sid"
       fetched_via: "Python read-only byte inspection"
       fetch_date: 2026-06-14
       reliability: authoritative (HVSC binary, Odie_tiny variant)
-    - url: "file:hvsc84/MUSICIANS/C/Connolly_Sean/CDU_Magazine_loadertune.sid"
+    - url: "file:hvsc85/MUSICIANS/C/Connolly_Sean/CDU_Magazine_loadertune.sid"
       fetched_via: "Python read-only byte inspection"
       fetch_date: 2026-06-14
       reliability: authoritative (HVSC binary, Odie/Cosine variant)

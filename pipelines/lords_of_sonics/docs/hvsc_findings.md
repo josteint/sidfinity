@@ -1,5 +1,5 @@
 ---
-source_url: local: /home/jtr/sidfinity/hvsc84/ + online (remix64.com, csdb.dk, vgmpf.com, github.com/cadaver/sidid)
+source_url: local: /home/jtr/sidfinity/hvsc85/ + online (remix64.com, csdb.dk, vgmpf.com, github.com/cadaver/sidid)
 fetched_via: local read + direct
 fetch_date: 2026-06-16
 author: Jostein Trondal (aggregated from multiple primary sources)

@@ -56,7 +56,7 @@ from pipelines.dmc.v4.extract import engine_model as em
 from pipelines.dmc.v4.extract.to_usf import model_to_usf, write_file
 from pipelines.dmc.composer_asm import build_dmc_sid
 from src.usf.parser import parse_file
-rel='MUSICIANS/P/Praiser/Mega_Mix.sid'; hv='hvsc84'
+rel='MUSICIANS/P/Praiser/Mega_Mix.sid'; hv='hvsc85'
 m0=em.extract(dmc_v4_config(rel,hvsc_root=hv,base_override=0x1000),hvsc_root=hv)
 m1=em.extract(dmc_v4_config(rel,hvsc_root=hv,base_override=0x2800),hvsc_root=hv)
 hdr={'title':m0.title,'author':m0.author,'released':m0.released,'clock':m0.clock,

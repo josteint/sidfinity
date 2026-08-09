@@ -916,7 +916,7 @@ def _resolve_high_byte_notes(
 def build_type_b_sid(sid_name: str, load_addr: int = 0x1000) -> bytes:
     """Build a Type B SID as PSID using emit_asm_type_b."""
     from pipelines.companion.jay_derrett.build import _assemble, _wrap_psid
-    sid_path = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
+    sid_path = str(ROOT / 'hvsc85' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
                    f'{sid_name}.sid')
     data = extract_type_b(sid_path, sid_name)
 
@@ -964,6 +964,6 @@ if __name__ == '__main__':
     import sys as _sys
     targets = _sys.argv[1:] if len(_sys.argv) > 1 else ['Equalizer']
     for name in targets:
-        out = ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' / f'{name}.sidfinity.sid'
+        out = ROOT / 'hvsc85' / 'MUSICIANS' / 'D' / 'Derrett_Jay' / f'{name}.sidfinity.sid'
         out.write_bytes(build_type_b_sid(name))
         print(f'Wrote {out}')

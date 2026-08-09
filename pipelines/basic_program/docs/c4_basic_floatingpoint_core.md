@@ -509,7 +509,7 @@ hardware simulation.
 
 1. **Capture the exact 5-byte float constants** for C1 and C2 in the RND
    multiplier/adder at $E08D and $E092 from the actual ROM binary.
-   These are in `hvsc84/`-companion ROM images; extract with `xxd`.
+   These are in `hvsc85/`-companion ROM images; extract with `xxd`.
 
 2. **Corpus survey** — run the BASIC detokeniser across all 486 SIDs and
    classify: how many use `RND`?  Of those, which form?  How many PEEK

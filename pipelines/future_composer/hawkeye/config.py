@@ -8,7 +8,7 @@ from pipelines.future_composer.config import FCConfig
 
 HAWKEYE = FCConfig(
     name='hawkeye',
-    sid_path='hvsc84/MUSICIANS/T/Tel_Jeroen/Hawkeye.sid',
+    sid_path='hvsc85/MUSICIANS/T/Tel_Jeroen/Hawkeye.sid',
 
     # Verified by `python3 pipelines/future_composer/hawkeye/data_dump.py`
     freq_lo_addr=0x8337,

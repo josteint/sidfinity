@@ -261,7 +261,7 @@ song data), consistent with Group A layout.
 
 ## HVSC DOCUMENTS search results
 
-`grep -r -i "maniacs|deenen|MoN" hvsc84/DOCUMENTS/` returned only Songlengths.md5
+`grep -r -i "maniacs|deenen|MoN" hvsc85/DOCUMENTS/` returned only Songlengths.md5
 comment lines (song titles containing "Mon" or "Mon" prefixes). No dedicated
 HVSC documentation file exists for MoN/Deenen in DOCUMENTS/.
 

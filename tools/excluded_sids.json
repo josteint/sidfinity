@@ -2,7 +2,7 @@
   "_schema": {
     "description": "SIDs deliberately excluded from the USF pipeline. The pipeline (build_from_usf, write_usf) refuses to process listed paths with a clear error pointing back here.",
     "entry_fields": {
-      "path": "SID path relative to repo root (e.g. 'hvsc84/MUSICIANS/...')",
+      "path": "SID path relative to repo root (e.g. 'hvsc85/MUSICIANS/...')",
       "reason": "Why this SID is excluded \u2014 specific enough that future readers understand the call without re-investigating",
       "excluded_date": "YYYY-MM-DD"
     },

@@ -1,7 +1,7 @@
 # Master Composer — JC64dis annotated disassembly (decoded)
 
 > **Provenance**
-> - source: `local: tmp/jc64/doc/example/Master_Composer.dis` (JC64dis project file, gzip'd custom serialization), cross-checked against the live binary `hvsc84/MUSICIANS/K/Kleimeyer_Paul/Maniac.sid`
+> - source: `local: tmp/jc64/doc/example/Master_Composer.dis` (JC64dis project file, gzip'd custom serialization), cross-checked against the live binary `hvsc85/MUSICIANS/K/Kleimeyer_Paul/Maniac.sid`
 > - fetched_via: `gunzip -c` of the .dis (2,903,414 bytes uncompressed) + record parse for labels/comments; `tools/seed_disassembly.py` on Maniac.sid for the ground-truth instruction listing; `tools/siddump --writelog` to validate the write model
 > - fetch_date: 2026-06-13
 > - author of the JC64dis project: Stefano Tognon / Ice Team (the JC64dis "doc/example" annotation set). Engine by Paul Kleimeyer / Access Software Inc., 1983.

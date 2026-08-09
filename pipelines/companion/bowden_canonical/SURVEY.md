@@ -1,6 +1,6 @@
 # Bowden-canonical Companion engine — initial survey
 
-Reverse-engineered from `hvsc84/MUSICIANS/B/Berry_Vic/Bach_Sonata.sid`
+Reverse-engineered from `hvsc85/MUSICIANS/B/Berry_Vic/Bach_Sonata.sid`
 (disassembly in `disassembly.s`).
 
 Engine fingerprint: **`c8282844`** (the first 256 bytes at init match

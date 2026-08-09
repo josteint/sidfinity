@@ -696,7 +696,7 @@ def extract(sid: Sid) -> V1Song:
 if __name__ == '__main__':
     import sys
     path = sys.argv[1] if len(sys.argv) > 1 else \
-        'hvsc84/MUSICIANS/T/Topaz/Joker.sid'
+        'hvsc85/MUSICIANS/T/Topaz/Joker.sid'
     sid = parse_sid(path)
     print(f'{path}')
     print(f'  load=${sid.load:04x} init=${sid.init:04x} play=${sid.play:04x} '

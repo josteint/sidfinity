@@ -10,7 +10,7 @@ metadata:
 `tools/songlength_overrides.json` is the durable home for corrections
 to HVSC's `Songlengths.md5`. `build_sid_db.py` applies it after the
 HVSC ingest step, so the corrected values persist across HVSC
-re-fetches and into the `songlength_s` column of `hvsc84.parquet`.
+re-fetches and into the `songlength_s` column of `hvsc85.parquet`.
 
 ## When to use
 

@@ -63,7 +63,7 @@ def survey(rows, label):
     extra_regs = []
 
     for engine, path, songlen in rows:
-        full = f'/home/jtr/sidfinity/hvsc84/{path}'
+        full = f'/home/jtr/sidfinity/hvsc85/{path}'
         if not os.path.exists(full):
             continue
         try:

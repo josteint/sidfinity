@@ -14,7 +14,7 @@ provenance headers carry exact URLs; this is the consolidated attempt log.
 | `vgmpf.com/Wiki/.../David_Whittaker_(NES_Driver)` (Tony Bybell) | fetched — song-table byte layout, end-byte table, freq/vibrato tables. |
 | `vgmpf.com/Wiki/.../Jason_Brooke` | fetched — the June 1986 rewrite, macro-asm workflow. |
 | `github.com/cadaver/sidid` + `github.com/WilfredC64/player-id` | fetched — 5 alternative `David_Whittaker` signatures, no variant split. |
-| local: `hvsc84/DOCUMENTS/Update00.hvs`, `Update02.hvs`, `Update_Announcements/{20020817,20240630}.txt`, `STIL.txt` | read — attributions/reclassifications; Prg2Sid 1.20 "Whittaker (2 variants)". |
+| local: `hvsc85/DOCUMENTS/Update00.hvs`, `Update02.hvs`, `Update_Announcements/{20020817,20240630}.txt`, `STIL.txt` | read — attributions/reclassifications; Prg2Sid 1.20 "Whittaker (2 variants)". |
 | local: sidid signature DB + 103-SID binary fingerprint census | done — P1/P2/P3/P5/unknown breakdown. |
 | `deepsid.chordian.net` / jsSID `jsSID-modified.js` | fetched — named "Whittaker player workaround" (gate-off = hard-restart). |
 | CSDb scener #2598 + release/ripper pages (Whittex V1.0 #104167, DW Ripper #33379) | fetched — bio, rip catalogue, version timeline. |

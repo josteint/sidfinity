@@ -13,7 +13,7 @@ Reusable for any PSID — pass the .sid path on the command line.
 
 Usage:
     python -m pipelines.hubbard.battle_of_britain.extract.disasm \\
-        hvsc84/MUSICIANS/H/Hubbard_Rob/Battle_of_Britain.sid \\
+        hvsc85/MUSICIANS/H/Hubbard_Rob/Battle_of_Britain.sid \\
         > /tmp/seed.s
 """
 

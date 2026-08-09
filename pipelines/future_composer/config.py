@@ -113,7 +113,7 @@ class FCConfig:
     loading. Table sizes and the subtune layout vary across the family.
     """
     name: str                       # canary identifier (e.g. 'hawkeye')
-    sid_path: str                   # path under hvsc84/
+    sid_path: str                   # path under hvsc85/
 
     # Data table addresses (CPU addresses in the loaded memory image)
     freq_lo_addr: int               # freq-table lo bytes

@@ -630,10 +630,10 @@ under the same tag depending on how HVSC sidid signatures were set up.
 
 15. **sidid tool / sidid.cfg** — run the HVSC sidid tool against known MoN/Deenen SIDs to
     extract the fingerprint byte sequence used for classification:
-    https://github.com/WilfredC64/player-id (build and run against hvsc84/ MoN/Deenen files)
+    https://github.com/WilfredC64/player-id (build and run against hvsc85/ MoN/Deenen files)
 
 16. **HVSC DOCUMENTS/ directory** — SID_PLAYERS.txt was 404 at the tried URL; check the
-    actual HVSC download tree at hvsc84/DOCUMENTS/ in the local HVSC copy for this file.
+    actual HVSC download tree at hvsc85/DOCUMENTS/ in the local HVSC copy for this file.
 
 ---
 

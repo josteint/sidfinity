@@ -287,7 +287,7 @@ The GT2 `gsong.c` import path for `GTS!` (V1 old format) converts:
 
 ## 6. HVSC Document Survey
 
-No GoatTracker V1-specific documentation was found in `hvsc84/DOCUMENTS/`. The only GoatTracker hits are:
+No GoatTracker V1-specific documentation was found in `hvsc85/DOCUMENTS/`. The only GoatTracker hits are:
 - `DOCUMENTS/Update_Announcements/20101224.txt` and later — all reference GoatTracker v2.x
 - `DOCUMENTS/Songlengths.md5` — lists the three Cadaver V1 example SIDs
 

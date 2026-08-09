@@ -5,9 +5,9 @@ provenance:
     - https://raw.githubusercontent.com/anarkiwi/sid-wizard/master/sources/exporter.asm
     - https://raw.githubusercontent.com/anarkiwi/sid-wizard/master/sources/SWM-spec.src
   local:
-    - hvsc84/MUSICIANS/C/Czyszy/ChipMotif.sid        (siddump --writelog ground truth, DRIVERTYPE=0/NORMAL v1.7)
-    - hvsc84/MUSICIANS/H/Hermit/Magyar_Nepzenek.sid  (siddump --writelog, v1.4)
-    - hvsc84/MUSICIANS/S/Slaxx/Bassloop.sid          (siddump --writelog, v1.8, clean 3-voice + hard-restart)
+    - hvsc85/MUSICIANS/C/Czyszy/ChipMotif.sid        (siddump --writelog ground truth, DRIVERTYPE=0/NORMAL v1.7)
+    - hvsc85/MUSICIANS/H/Hermit/Magyar_Nepzenek.sid  (siddump --writelog, v1.4)
+    - hvsc85/MUSICIANS/S/Slaxx/Bassloop.sid          (siddump --writelog, v1.8, clean 3-voice + hard-restart)
     - deprecated/gt2_pipeline/tools/sidid.cfg        (player byte-signatures, read-only)
     - tools/siddump.cpp                              (confirmed: writelog = raw bus writes, NO de-dup)
   fetched_via: WebFetch (raw.githubusercontent.com) + siddump --writelog (libsidplayfp ground truth) + Python decode

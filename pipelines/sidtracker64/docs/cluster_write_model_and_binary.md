@@ -1,5 +1,5 @@
 ---
-source_url: local binary inspection (hvsc84/ SID files) + web research (App Store, Sound on Sound, sidid.cfg, chordian.net)
+source_url: local binary inspection (hvsc85/ SID files) + web research (App Store, Sound on Sound, sidid.cfg, chordian.net)
 fetched_via: direct binary read (Python) + WebFetch + WebSearch
 fetch_date: 2026-06-14
 author: derived from binary inspection of 259 HVSC SIDs + published app documentation

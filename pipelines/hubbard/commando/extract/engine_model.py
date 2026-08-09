@@ -36,7 +36,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.d
 sys.path.insert(0, os.path.join(ROOT, 'src'))
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 
-SID_PATH = os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'H',
+SID_PATH = os.path.join(ROOT, 'hvsc85', 'MUSICIANS', 'H',
                          'Hubbard_Rob', 'Commando.sid')
 
 logger = logging.getLogger(__name__)

@@ -9,8 +9,8 @@ Every source attempted, with status. Future waves: don't re-fetch these.
 | github.com/WilfredC64/player-id (config/sidid.cfg) | OK | identical signatures (Rust reimpl) |
 | github.com/Chordian/sidfactory2 | OK | no Parsec/LOS importer |
 | github.com/JohanPeeters/DeepSID | OK | uses sidid; no LOS-specific handling |
-| local: hvsc84/MUSICIANS/**/*.sid (123 LordsOfSonics/MS) | OK | PSID-header survey, 5 dispatch-variant clusters, engine-header bytes, load-addr spread |
-| local: hvsc84/DOCUMENTS/ (STIL, Musicians) | OK | group bio, composer notes, "new sound player" quote |
+| local: hvsc85/MUSICIANS/**/*.sid (123 LordsOfSonics/MS) | OK | PSID-header survey, 5 dispatch-variant clusters, engine-header bytes, load-addr spread |
+| local: hvsc85/DOCUMENTS/ (STIL, Musicians) | OK | group bio, composer notes, "new sound player" quote |
 | remix64.com/interviews/interview-markus-schneider.html | OK | driver origin (1988, ~2 months), Compotech optimisation by Kozielek/van Zeist |
 | vgmpf.com/Wiki — Markus_Schneider | OK | Parsec→Compotech lineage, game credits |
 | csdb.dk/group/?id=757 (Lords of Sonics) | OK | founded 1988; 7 releases listed |

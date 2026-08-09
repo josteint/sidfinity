@@ -11,8 +11,8 @@
   — despite the filename this is the compiled **V1.0 player image** ($1000 load,
   embedded string `PLAYER 1.0 BY LONGHAIR/ELYSIUM`; JMP table `4C 60 10 / 4C D8 10`
   at the top = init $1060 / play $10D8).
-- Real HVSC SIDs cross-checked: `hvsc84/MUSICIANS/B/Bzyk/Good_World.sid` (V1.0),
-  `hvsc84/MUSICIANS/S/Shogoon/Tribute_to_Laxity.sid` (V1.1 / V1.0+).
+- Real HVSC SIDs cross-checked: `hvsc85/MUSICIANS/B/Bzyk/Good_World.sid` (V1.0),
+  `hvsc85/MUSICIANS/S/Shogoon/Tribute_to_Laxity.sid` (V1.1 / V1.0+).
 - HVSC population: `hvsc84.db` opened READ-ONLY (`file:...?mode=ro`).
 
 ---

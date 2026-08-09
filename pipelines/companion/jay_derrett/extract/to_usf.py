@@ -2,7 +2,7 @@
 
 Consumes the JSON dumps in `pipelines/companion/jay_derrett/_extracted/`
 (produced by `dump_type_a.py`) and emits a USF file per SID. Output
-lands at `hvsc84/MUSICIANS/D/Derrett_Jay/<NAME>.usf`.
+lands at `hvsc85/MUSICIANS/D/Derrett_Jay/<NAME>.usf`.
 
 Row vocabulary (per voice byte stream):
 
@@ -220,12 +220,12 @@ def write_usf_for(name: str) -> str:
     Refuses excluded SIDs (see `tools/excluded_sids.json`).
     """
     from src.exclusions import check_or_raise
-    sid_path = f'hvsc84/MUSICIANS/D/Derrett_Jay/{name}.sid'
+    sid_path = f'hvsc85/MUSICIANS/D/Derrett_Jay/{name}.sid'
     check_or_raise(sid_path)
 
     json_path = (f'pipelines/companion/jay_derrett/_extracted/{name}.json')
     usf = build_usf(json_path)
-    out_path = f'hvsc84/MUSICIANS/D/Derrett_Jay/{name}.usf'
+    out_path = f'hvsc85/MUSICIANS/D/Derrett_Jay/{name}.usf'
     out_dir = os.path.dirname(out_path)
     validate(usf)
     write_file(usf, out_path)

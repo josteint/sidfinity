@@ -1,7 +1,7 @@
 <!--
 provenance:
   source_url: (none — primary reverse-engineering of an HVSC binary)
-  fetched_via: hand-disassembly of hvsc84/MUSICIANS/O/OPM/Sid_Slam.sid in this session
+  fetched_via: hand-disassembly of hvsc85/MUSICIANS/O/OPM/Sid_Slam.sid in this session
   fetch_date: 2026-06-13
   author: SIDfinity research session (Claude), grounded against the cadaver/sidid Music_Assembler/MC signature
   content_date: 2026-06-13

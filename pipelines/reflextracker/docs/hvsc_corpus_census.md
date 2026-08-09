@@ -1,5 +1,5 @@
 ---
-source_url: local: /home/jtr/sidfinity/hvsc84.db (read-only), /home/jtr/sidfinity/hvsc84/DOCUMENTS/STIL.txt, /home/jtr/sidfinity/hvsc84/DOCUMENTS/Musicians.txt, /home/jtr/sidfinity/hvsc84/DOCUMENTS/hv_sids.txt
+source_url: local: /home/jtr/sidfinity/hvsc84.db (read-only), /home/jtr/sidfinity/hvsc85/DOCUMENTS/STIL.txt, /home/jtr/sidfinity/hvsc85/DOCUMENTS/Musicians.txt, /home/jtr/sidfinity/hvsc85/DOCUMENTS/hv_sids.txt
 fetched_via: local read
 fetch_date: 2026-06-15
 author: HVSC #84 maintainers

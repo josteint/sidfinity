@@ -66,7 +66,7 @@ Prepending it shrinks the `/MC` hit rate from ~71% to ~30% (counts below).
 
 ## What the matched bytes DO (disassembled from a real HVSC tune)
 
-Disassembled from `hvsc84/MUSICIANS/W/Waz/Quadraped_Tearaways_3.sid`
+Disassembled from `hvsc85/MUSICIANS/W/Waz/Quadraped_Tearaways_3.sid`
 (load $1000), first base-sig hit at $1091. X = voice index (0/1/2, a
 stride into the per-voice state byte-tables). This is the **per-voice
 sequence-step advance / end-of-pattern handler** — the heart of the player's
@@ -129,7 +129,7 @@ The IRQ-ack stub gating the newer `/MC` form is `EE 19 D0  / 20 ?? ??  / 4C`
 = `INC $D019` (ack VIC raster IRQ) / `JSR play` / `JMP` (back to the IRQ tail) —
 present only when the saved file ships its own raster IRQ wrapper.
 
-Confirmed concretely in `hvsc84/MUSICIANS/O/OPM/Sid_Slam.sid` (OPM = co-author
+Confirmed concretely in `hvsc85/MUSICIANS/O/OPM/Sid_Slam.sid` (OPM = co-author
 Oscar Giesen), load $C000, stub at $C018:
 ```
 $C018  EE 19 D0   INC $D019      ; ack VIC raster IRQ

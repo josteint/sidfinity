@@ -59,7 +59,7 @@ Grade against the original:
 
 ```bash
 python src/writelog_grade.py \
-    hvsc84/MUSICIANS/H/Hubbard_Rob/Chimera.sid \
+    hvsc85/MUSICIANS/H/Hubbard_Rob/Chimera.sid \
     chimera.sid
 # Expected: Grade A, snapshots 98.8% (1482/1500)
 ```

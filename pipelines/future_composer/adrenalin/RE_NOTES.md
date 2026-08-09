@@ -1,6 +1,6 @@
 # Adrenalin (HeatWave) — RE notes
 
-**SID:** `hvsc84/MUSICIANS/H/HeatWave/Adrenalin.sid`
+**SID:** `hvsc85/MUSICIANS/H/HeatWave/Adrenalin.sid`
 **Engine:** MoN/FutureComposer (per sidid)
 **Authors:** Marvin Severijns & M. de Bree
 **Songlength:** 9:25 (565s), 4 subtunes

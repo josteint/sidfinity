@@ -14,7 +14,7 @@ Status: ✅ fetched & saved · 📄 read only · ⚠️ partial/blocked · ❌ f
 - ✅ Composer testimony (Brimble/Gray/Leitch/Dunn/Barrett interviews — "typed notes in assembler") → `composer_testimony.md`, `forum_composers_interviews.md`
 - ✅ Atari-Forum t=21588 (Mug UK 2004 R-Type ST RE; Beben source lost) → `csdb_atari_forum.md`, `forum_atari_beben_driver.md`, `atari_st_amiga_port.md`, `article_st_amiga_port.md`, `src/archive_atari_amiga_port.md`
 - ✅ Recollection "brief history of SID" (single Ariston mention) → `article_recollection_brief_history_sid.md`
-- 📄 local `deprecated/gt2_pipeline/tools/sidid.cfg`, `hvsc84/DOCUMENTS/*` (STIL: only the name-origin note on RoboCop; no technical comments), `hvsc84.db` (read-only census) → `hvsc_corpus_census.md`, `article_hvsc_corpus.md`
+- 📄 local `deprecated/gt2_pipeline/tools/sidid.cfg`, `hvsc85/DOCUMENTS/*` (STIL: only the name-origin note on RoboCop; no technical comments), `hvsc84.db` (read-only census) → `hvsc_corpus_census.md`, `article_hvsc_corpus.md`
 
 ## Negative results (confirmed absent — don't re-search)
 - ❌ No GitHub repo with Ariston SOURCE; no published plain-text C64 disassembly (only the JC64dis project)

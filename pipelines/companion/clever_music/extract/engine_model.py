@@ -304,7 +304,7 @@ def init_writes(sid_path: str, subtune: int = 0
 if __name__ == '__main__':
     import sys
     path = sys.argv[1] if len(sys.argv) > 1 else \
-        'hvsc84/MUSICIANS/C/Clever_Music/Fairlight.sid'
+        'hvsc85/MUSICIANS/C/Clever_Music/Fairlight.sid'
     state = load_state_from_sid(path)
     print(f'tempo={state.tempo} tempo_ctr={state.tempo_ctr} '
           f'song_pos=${state.song_pos:02X}')

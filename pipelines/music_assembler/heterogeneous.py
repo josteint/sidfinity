@@ -131,7 +131,7 @@ def _landing_memory(s, img, sub: int, base: int, masm: bool,
 
 
 def build(rel: str, spec: dict | None = None,
-          hvsc_root: str = 'hvsc84') -> bytes:
+          hvsc_root: str = 'hvsc85') -> bytes:
     """Compose the member THROUGH its USF (extract -> one UsfFile -> compose).
 
     Everything the build needs now lives in that single file, so this is the
@@ -195,7 +195,7 @@ def _shift_refs(sub, d: int):
 
 
 def heterogeneous_to_usf(rel: str, spec: dict | None = None,
-                         hvsc_root: str = 'hvsc84'):
+                         hvsc_root: str = 'hvsc85'):
     """The whole member as ONE UsfFile.
 
     Each packed player is extracted through its own family's USF path, then

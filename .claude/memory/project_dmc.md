@@ -6731,7 +6731,7 @@ filter keep_running, noise_attack, signed ol transposes, duration
 filter_programs, gate_toggle + glide_to flags, InitVoice.note) →
 pipelines/dmc/composer_asm.py (OUR engine; own event encoding) →
 xa65 → PSID. Wired into tools/regression.py (DMC section).
-Artifacts at hvsc84/.../Geometrical_Zaks.{usf,sidfinity.sid}.
+Artifacts at hvsc85/.../Geometrical_Zaks.{usf,sidfinity.sid}.
 
 THE THREE FIXES (full detail in pipelines/dmc/v4/RE_NOTES.md):
 (1) idle-note voice_state priming — rest-opening voices run effects

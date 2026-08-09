@@ -15,7 +15,7 @@ data). Disassembly: `pipelines/hubbard/five_title_tunes/disassembly.s`.
 
 **Status (2026-05-25, evening): UNIFIED single-engine instruction-sequence exact.**
 
-The shipped `hvsc84/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid` is now ONE Hubbard '85
+The shipped `hvsc85/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid` is now ONE Hubbard '85
 engine playing all 5 subtunes (7950 bytes vs original 11849, and
 38% the size of the earlier compound build at 20836 bytes).
 Yesterday's compound was the stepping stone; today's unified build
@@ -57,7 +57,7 @@ demo/hubbard/5_Title_Tunes_{0..4}.usf            (5 USFs, one per sub)
     │
     ▼ v2/build_compound.py — codegen 5× at unique LOADs + dispatcher
     │
-hvsc84/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid                   (compound PSID, 20.8KB)
+hvsc85/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid                   (compound PSID, 20.8KB)
 ```
 
 ## Per-sub parameter deltas (vs Commando defaults)

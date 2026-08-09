@@ -23,7 +23,7 @@ from dataclasses import dataclass
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-SID = os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Up_up_and_Away.sid')
+SID = os.path.join(ROOT, 'hvsc85', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Up_up_and_Away.sid')
 
 
 @dataclass

@@ -1,5 +1,5 @@
 ---
-source_url: local: hvsc84/
+source_url: local: hvsc85/
 fetched_via: local read
 fetch_date: 2026-04-11
 author: "compiled locally from HVSC SIDID scan (56,032 SIDs in MUSICIANS + 4,540 in GAMES/DEMOS)"

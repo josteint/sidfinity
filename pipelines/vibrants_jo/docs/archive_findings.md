@@ -1,5 +1,5 @@
 ---
-source_url: multiple — Archive.org, Wayback Machine, CSDb, Demozoo, MobyGames, blog.chordian.net, github.com/cadaver/sidid, HVSC local (hvsc84/)
+source_url: multiple — Archive.org, Wayback Machine, CSDb, Demozoo, MobyGames, blog.chordian.net, github.com/cadaver/sidid, HVSC local (hvsc85/)
 fetched_via: WebSearch + WebFetch + local read
 fetch_date: 2026-06-16
 author: Poul-Jesper Olsen (subject); research by Claude Code 2026-06-16
@@ -129,7 +129,7 @@ Key opcode observations (format inference only — NOT verified RE):
 
 ## 6. HVSC Corpus Survey (local — primary)
 
-Source: local `hvsc84/`, fetched 2026-06-16.
+Source: local `hvsc85/`, fetched 2026-06-16.
 
 - **130 SIDs total** with engine label `Vibrants/JO`:
   - ~106 in `MUSICIANS/J/JO/` (JO's own compositions)

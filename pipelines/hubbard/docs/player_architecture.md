@@ -232,4 +232,4 @@ Some songs in the Hubbard_Rob/ HVSC directory use different engines:
 - Anthony McSweeney's disassembly: https://www.1xn.org/text/C64/rob_hubbards_music.txt
 - VGMPF Wiki: https://www.vgmpf.com/Wiki/index.php?title=Rob_Hubbard_(C64_Driver)
 - C64-Wiki: https://www.c64-wiki.com/wiki/Rob_Hubbard
-- STIL.txt in HVSC: hvsc84/DOCUMENTS/STIL.txt
+- STIL.txt in HVSC: hvsc85/DOCUMENTS/STIL.txt

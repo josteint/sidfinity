@@ -23,7 +23,7 @@ provenance:
       fetch_date: 2026-06-14
       content_date: 2002-03 (packer beta note)
       reliability: HIGH — official author site
-    - source: hvsc84/ binary inspection
+    - source: hvsc85/ binary inspection
       method: READ-ONLY byte analysis of HVSC #84 SID binaries
       fetch_date: 2026-06-14
       reliability: HIGH — ground truth from actual player code

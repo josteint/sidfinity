@@ -55,7 +55,7 @@ def process(args):
         res.update(status='not_clean'); return res
     res.update(status=status, match=match, len_a=la, len_b=lb)
     if status == 'FULL' and do_write:                 # mass-write next to the HVSC original
-        dst = os.path.join(ROOT, 'hvsc84', os.path.dirname(relpath))
+        dst = os.path.join(ROOT, 'hvsc85', os.path.dirname(relpath))
         write_file(usf, os.path.join(dst, base + '.usf'))
         with open(os.path.join(dst, base + '.sidfinity.sid'), 'wb') as f:
             f.write(sid_bytes)
@@ -69,7 +69,7 @@ def main():
     ap.add_argument('--stride', type=int, default=1)
     a = ap.parse_args()
     rows = subprocess.run(["duckdb", "-noheader", "-list", "-c",
-        "SELECT path, COALESCE(songlength_s,10) FROM read_parquet('%s/hvsc84.parquet')"
+        "SELECT path, COALESCE(songlength_s,10) FROM read_parquet('%s/hvsc85.parquet')"
         " WHERE engine='Basic_Program' ORDER BY path" % ROOT],
         capture_output=True, text=True).stdout.strip().split("\n")
     allwork = [(r.rsplit("|", 1)[0], float(r.rsplit("|", 1)[1])) for r in rows if r]

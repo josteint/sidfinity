@@ -308,7 +308,7 @@ TLC created a fixed Plus/4 packer that resolves this; the fix may not be in the 
 
 ### HVSC Internal Documentation
 - HVSC ships `DOCUMENTS/Sidplayers/` — check if a SidWinder entry exists in that directory.
-  Path would be something like `hvsc84/C64Music/DOCUMENTS/Sidplayers/SidWinder.txt`.
+  Path would be something like `hvsc85/C64Music/DOCUMENTS/Sidplayers/SidWinder.txt`.
 
 ### Author Handle
 - Taki / Natural Beat — Hungarian C64 demoscener, circa 1999–2001. No public GitHub or modern contact
@@ -394,7 +394,7 @@ files already present at pipelines/sidwinder/docs/src/ (PLAYER.ASM, PLAY0122.ASM
 SIDW0122.txt, PROGRAMM.txt, etc.).
 
 ### HVSC local state
-- HVSC path: hvsc84/MUSICIANS/T/Taki/ — 49 SID files
+- HVSC path: hvsc85/MUSICIANS/T/Taki/ — 49 SID files
 - No "SidWinder" subdirectory in HVSC musicians (SidWinder is a tool, not a musician;
   its output SIDs are filed under their respective composers in HVSC)
 - Some Taki SIDs already have sidfinity.sid + .usf builds in the repo

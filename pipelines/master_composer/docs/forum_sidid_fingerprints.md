@@ -3,7 +3,7 @@
 Provenance
 - source_url: https://github.com/cadaver/sidid — `sidid.cfg` (signature DB) and `sidid.nfo` (notes),
   fetched via raw.githubusercontent.com
-- fetched_via: WebFetch (sidid.cfg, sidid.nfo) + local byte verification against `hvsc84/` SIDs
+- fetched_via: WebFetch (sidid.cfg, sidid.nfo) + local byte verification against `hvsc85/` SIDs
   (read-only Python, no modification)
 - fetch_date: 2026-06-13
 - author/handle: Lasse Öörni (cadaver) — sidid is THE player-identification engine HVSC uses to

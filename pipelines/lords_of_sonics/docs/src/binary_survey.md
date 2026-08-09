@@ -1,5 +1,5 @@
 ---
-source_url: local: /home/jtr/sidfinity/hvsc84/ (binary inspection of SID files)
+source_url: local: /home/jtr/sidfinity/hvsc85/ (binary inspection of SID files)
 fetched_via: local read
 fetch_date: 2026-06-16
 author: research session (Claude Sonnet 4.6)

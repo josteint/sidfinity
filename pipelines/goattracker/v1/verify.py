@@ -21,7 +21,7 @@ def _songlength(orig_path: str):
     """Authoritative capture length: HVSC songlength (s). NB a bare duration=None
     makes siddump capture ZERO frames → a vacuous FULL false-pass; the verdict
     MUST span the whole song ([[feedback_subtune_frames_not_arbitrary]])."""
-    rel = orig_path[len('hvsc84/'):] if orig_path.startswith('hvsc84/') else orig_path
+    rel = orig_path[len('hvsc85/'):] if orig_path.startswith('hvsc85/') else orig_path
     try:
         from src import sid_db
         r = sid_db.query("SELECT songlength_s FROM sids WHERE path=?", [rel])
@@ -54,5 +54,5 @@ def verify(orig_path: str, duration: float | None = None, out: str | None = None
 
 if __name__ == '__main__':
     import sys
-    p = sys.argv[1] if len(sys.argv) > 1 else 'hvsc84/MUSICIANS/T/Topaz/Joker.sid'
+    p = sys.argv[1] if len(sys.argv) > 1 else 'hvsc85/MUSICIANS/T/Topaz/Joker.sid'
     print(p, verify(p))

@@ -41,7 +41,7 @@ def probe(rel: str) -> dict:
     from pipelines.music_assembler.extract.arps import arp_tables, arp
     row = {'path': rel}
     try:
-        s = parse_psid(os.path.join(ROOT, 'hvsc84', rel))
+        s = parse_psid(os.path.join(ROOT, 'hvsc85', rel))
     except Exception as e:
         return dict(row, status='parse_error', reason=repr(e)[:70])
     mem = bytearray(0x10000)

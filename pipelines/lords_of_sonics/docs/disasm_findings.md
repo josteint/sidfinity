@@ -396,7 +396,7 @@ Primary sources:
 - sidid.nfo: https://github.com/cadaver/sidid/blob/master/sidid.nfo
 - VGMPF Markus Schneider: https://www.vgmpf.com/Wiki/index.php?title=Markus_Schneider
 - Remix64 interview: https://remix64.com/interviews/interview-markus-schneider.html
-- HVSC STIL.txt: local: /home/jtr/sidfinity/hvsc84/DOCUMENTS/STIL.txt
+- HVSC STIL.txt: local: /home/jtr/sidfinity/hvsc85/DOCUMENTS/STIL.txt
   (section: ### /MUSICIANS/S/Schneider_Markus, offset 2869141)
 
 ---

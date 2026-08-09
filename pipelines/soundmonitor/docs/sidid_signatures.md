@@ -280,7 +280,7 @@ version history (V1.0 Oct 1986; V1.1 1986; V1.3 1987; Rockmonitor Apr 1987).
 
 ## Leads to follow
 - The fine-grained per-variant HVSC counts require running
-  `sidid -m` over `hvsc84/` (the `-m` mode emits the `(Variant)` labels). The
+  `sidid -m` over `hvsc85/` (the `-m` mode emits the `(Variant)` labels). The
   DeepSID `python/specific/*.py` show the exact post-parse; reproducing it
   would give RockMon2/3/4/5 vs MusicMaster_1/2/TMM populations. Not present in
   any local CSV — would need a sidid build + run (out of scope here, read-only).

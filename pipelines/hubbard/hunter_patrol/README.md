@@ -66,7 +66,7 @@ Grade against the original:
 ```bash
 source src/env.sh
 python3 src/writelog_grade.py \
-    hvsc84/MUSICIANS/H/Hubbard_Rob/Hunter_Patrol.sid \
+    hvsc85/MUSICIANS/H/Hubbard_Rob/Hunter_Patrol.sid \
     pipelines/hubbard/hunter_patrol/build/hunter_patrol.sid
 # Currently: Grade F, snapshots 0/1500
 ```

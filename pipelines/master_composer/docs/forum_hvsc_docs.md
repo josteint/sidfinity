@@ -1,7 +1,7 @@
 # Master Composer — HVSC bundled documentation
 
 Provenance
-- local: `hvsc84/DOCUMENTS/BUGlist.txt` and `hvsc84/DOCUMENTS/Update_Announcements/20231224.txt`
+- local: `hvsc85/DOCUMENTS/BUGlist.txt` and `hvsc85/DOCUMENTS/Update_Announcements/20231224.txt`
 - fetched_via: local file read (grep + Read), read-only
 - fetch_date: 2026-06-13
 - author/handle: BUGlist maintained by iAN CooG <hvsc.crew (sid) gmail.com>; Update #80 announcement by the HVSC Crew

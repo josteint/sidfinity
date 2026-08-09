@@ -36,7 +36,7 @@ _db = None
 def _worker_init():
     global _db
     from src.songlengths import load_database
-    _db = load_database(os.path.join(ROOT, 'hvsc84', 'DOCUMENTS',
+    _db = load_database(os.path.join(ROOT, 'hvsc85', 'DOCUMENTS',
                                      'Songlengths.md5'))
 
 
@@ -55,7 +55,7 @@ def run_member(rel: str) -> dict:
         from seed_disassembly import parse_psid
         import struct
 
-        hvsc = os.path.join(ROOT, 'hvsc84')
+        hvsc = os.path.join(ROOT, 'hvsc85')
         try:
             cfg = dmc_v5_config(rel, hvsc_root=hvsc)
         except DMCV5Unsupported as e:

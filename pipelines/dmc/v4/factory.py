@@ -1201,7 +1201,7 @@ def _master_vol_fade_probe(path: str, base: int,
         from pipelines.hubbard.verify_cycle import writelog_capture
         sub = post_init_sub if post_init_sub is not None else 0
         try:
-            db = load_database(os.path.join('hvsc84', 'DOCUMENTS', 'Songlengths.md5'))
+            db = load_database(os.path.join('hvsc85', 'DOCUMENTS', 'Songlengths.md5'))
             dur = get_durations(path, db)[sub] * 1.15 + 5.0
         except Exception:
             dur = 400.0
@@ -2159,7 +2159,7 @@ def _track_loop_dead_probe(path: str, base: int,
         from src.songlengths import load_database, get_durations
         sub = post_init_sub if post_init_sub is not None else 0
         try:
-            db = load_database(os.path.join('hvsc84', 'DOCUMENTS',
+            db = load_database(os.path.join('hvsc85', 'DOCUMENTS',
                                             'Songlengths.md5'))
             # the recorded songlength can END at the fade-out, SHORT of the
             # engine's actual halt frame (Solar_Energy: recorded 345 s, halts
@@ -3662,7 +3662,7 @@ def _config_at_base(sid_path: str, hvsc_root: str, base: int,
     return cfg
 
 
-def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc84'):
+def dmc_v4_config_2sid(sid_path: str, hvsc_root: str = 'hvsc85'):
     """Multi-SID (2SID/3SID) DMC member: a dispatch wrapper calls two/three
     independent DMC player instances, one per chip. Returns a list of
     per-chip DMCV4Config (chip order = wrapper JSR order = header chip
@@ -4487,7 +4487,7 @@ def _durrel_ramp_probe(path: str, base: int,
     return [mem[(tbl + k) & 0xFFFF] for k in range(4)]
 
 
-def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84',
+def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc85',
                   base_override: 'int | None' = None,
                   post_init_sub: 'int | None' = None) -> DMCV4Config:
     """Primary canonical-layout build; on a moved-layout rejection, fall back
@@ -4908,7 +4908,7 @@ def _dataflow_knob_probes(mem, load: int) -> dict:
     return extra
 
 
-def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84',
+def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc85',
                      base_override: 'int | None' = None,
                      chip_addr: int = 0,
                      post_init_sub: 'int | None' = None) -> DMCV4Config:

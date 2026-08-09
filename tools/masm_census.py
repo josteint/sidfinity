@@ -56,7 +56,7 @@ def probe(rel: str) -> dict:
     from pipelines.music_assembler.locate import locate, song_speed
     row = {'path': rel}
     try:
-        s = parse_psid(os.path.join(ROOT, 'hvsc84', rel))
+        s = parse_psid(os.path.join(ROOT, 'hvsc85', rel))
     except Exception as e:
         return dict(row, status='parse_error', reason=repr(e)[:60])
     mem = bytearray(0x10000)

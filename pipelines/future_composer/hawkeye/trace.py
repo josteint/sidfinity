@@ -21,7 +21,7 @@ from py65.devices.mpu6502 import MPU
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))))
-SID_PATH = os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'T', 'Tel_Jeroen',
+SID_PATH = os.path.join(ROOT, 'hvsc85', 'MUSICIANS', 'T', 'Tel_Jeroen',
                         'Hawkeye.sid')
 
 # Anchored at $90C5 per the signature scan. The variable layout is

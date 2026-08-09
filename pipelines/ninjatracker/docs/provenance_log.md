@@ -10,8 +10,8 @@ Every source attempted, with status. Future waves: don't re-fetch these.
 | github.com (localhost/NinjaTracker fork; cadaver tools) | OK | mirror of player source; confirmed canonical dist is cadaver.github.io |
 | github.com/cadaver/sidid (sidid.cfg) | OK | NinjaTracker_V1.x + V2.x signature blocks → `src/sidid_signatures.txt` |
 | csdb.dk/release/?id=7206 (+ release list) | OK | V1.0 (2002) … V2.04 (2013, #119721) history; converter releases (#7833, #115448, #152424) |
-| local: hvsc84/MUSICIANS/**/*.sid (111 NinjaTracker) | OK | PSID-header survey, V1/V2 clusters, play=init+3, two play=$0000 data-only |
-| local: hvsc84/DOCUMENTS/ (STIL, Musicians) | OK | composer/STIL notes |
+| local: hvsc85/MUSICIANS/**/*.sid (111 NinjaTracker) | OK | PSID-header survey, V1/V2 clusters, play=init+3, two play=$0000 data-only |
+| local: hvsc85/DOCUMENTS/ (STIL, Musicians) | OK | composer/STIL notes |
 | Lemon64 / forum threads (V2.0) | OK | table/pattern encodings, hard-restart sequence |
 | Wayback Machine (Covert Bitops history) | OK | release/changelog, doc text, V1 readme/nfo |
 

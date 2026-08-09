@@ -1,5 +1,5 @@
 ---
-source_url: local: /home/jtr/sidfinity/hvsc84/DOCUMENTS/STIL.txt
+source_url: local: /home/jtr/sidfinity/hvsc85/DOCUMENTS/STIL.txt
 fetched_via: local read
 fetch_date: 2026-06-16
 author: HVSC team (STIL editors)

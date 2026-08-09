@@ -1,7 +1,7 @@
 # MusicShop — Per-Frame Write Model and Binary Structure
 
 ```
-source_url:     hvsc84/ (READ-ONLY binary inspection) + archive.org + lemon64.com + csdb.dk + sidid.cfg
+source_url:     hvsc85/ (READ-ONLY binary inspection) + archive.org + lemon64.com + csdb.dk + sidid.cfg
 fetched_via:    WebFetch + Bash/python3 READ-ONLY struct inspection (no siddump/py65)
 fetch_date:     2026-06-14
 author:         Claude agent (research-player task)

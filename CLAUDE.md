@@ -10,7 +10,7 @@ ENGINE to full family coverage (no canary sampling — pass/fail varies by
 per-member data/patches, not player code; superseded plan archived at
 `deprecated/old_docs/canary_picker.md`). Next family = the largest
 un-migrated family whose `engine_docs` state is OK (research done), via
-the `hvsc84.parquet` catalogue; within a family, work the next-partial-
+the `hvsc85.parquet` catalogue; within a family, work the next-partial-
 by-path loop and let each fix propagate through the batch. Move 1 (the
 composer unification, `docs/the_move-1_plan.md`) waits until the
 grind is done or demonstrably saturated — the user decides; NO automatic
@@ -140,7 +140,7 @@ Then:
 
 Use the `migrate-hubbard-engine` skill at `.claude/skills/migrate-hubbard-engine/`. Short form:
 
-1. The HVSC original is read directly from `hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.sid` — no copy needed.
+1. The HVSC original is read directly from `hvsc85/MUSICIANS/H/Hubbard_Rob/<Engine>.sid` — no copy needed.
 2. Generate a seed disassembly: `tools/seed_disassembly.py …` → `pipelines/hubbard/<engine>/disassembly.s` → hand-annotate the header
 3. Create `pipelines/hubbard/<engine>/config.py` (clone a similar existing one — Action Biker is a good template; Chimera if there's digi)
 4. Create `pipelines/hubbard/<engine>/extract/engine_model.py` + `extract/to_usf.py`
@@ -148,7 +148,7 @@ Use the `migrate-hubbard-engine` skill at `.claude/skills/migrate-hubbard-engine
 6. Verify the per-frame instruction sequence via `pipelines.hubbard.verify.verify_all`
 
 When the engine's instruction sequence matches, its USF + rebuilt SID go alongside the
-HVSC original at `hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.{usf, sidfinity.sid}`.
+HVSC original at `hvsc85/MUSICIANS/H/Hubbard_Rob/<Engine>.{usf, sidfinity.sid}`.
 
 ## Working conventions
 
@@ -303,15 +303,15 @@ python -c "
 from pipelines.hubbard.commando.extract.to_usf import write_commando_usf
 from pipelines.hubbard.commando.config import COMMANDO
 from pipelines.build_from_usf import build_from_usf
-write_commando_usf(COMMANDO, 'hvsc84/MUSICIANS/H/Hubbard_Rob')
-build_from_usf('hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.usf', 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sidfinity.sid')
+write_commando_usf(COMMANDO, 'hvsc85/MUSICIANS/H/Hubbard_Rob')
+build_from_usf('hvsc85/MUSICIANS/H/Hubbard_Rob/Commando.usf', 'hvsc85/MUSICIANS/H/Hubbard_Rob/Commando.sidfinity.sid')
 "
 
 # Verify one engine's per-frame instruction sequence
 python -c "
 from pipelines.hubbard.verify import verify_all
 from pipelines.hubbard.commando.config import COMMANDO
-print(verify_all([(COMMANDO, 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sidfinity.sid')]))
+print(verify_all([(COMMANDO, 'hvsc85/MUSICIANS/H/Hubbard_Rob/Commando.sidfinity.sid')]))
 "
 
 # Build + verify ONE DMC family-1 / 2SID member (build helper — the family
@@ -373,11 +373,11 @@ data-section emitters + `_Inputs` adapters + `_inputs_from_usf` +
 | `tools/regression.py` | Full pipeline regression across all migrated families (Hubbard `verify_all`, companion/C64ME/Jay_Derrett `compare_instruction_stream`, FC canaries + portfolio, DMC portfolio, basic_program portfolio). Lists pre-existing partials so they're not mistaken for regressions. |
 | `tools/siddump.cpp` | C++ register dumper (libsidplayfp). `--writelog` for cycle timing, `--pc-trace` for CPU PC trace. |
 
-## HVSC index — `hvsc84.parquet` (+ `engine_docs.csv`), via DuckDB
+## HVSC index — `hvsc85.parquet` (+ `engine_docs.csv`), via DuckDB
 
-A **static catalogue** of every SID in `hvsc84/` (path, PSID header, engine
+A **static catalogue** of every SID in `hvsc85/` (path, PSID header, engine
 classification, songlength, exclusion), stored as a compact **git-tracked
-Parquet** file (`hvsc84.parquet`, zstd, ~3 MB) and queried via **DuckDB**.
+Parquet** file (`hvsc85.parquet`, zstd, ~3 MB) and queried via **DuckDB**.
 (History: SQLite blob → CSV 2026-06-15 → Parquet 2026-07-04.)
 
 **Catalogue only — NO per-build verdicts.** The old build-status columns
@@ -414,7 +414,7 @@ THEN 1 ELSE 0 END)`); `?` params, LIKE, `random()` all work. Schema
 (columns/types) + read/write helpers live in `src/sid_db.py`; the
 walk/hash/classify that builds the catalogue is in `tools/build_sid_db.py`.
 Tables: `sids` (parquet) + `engine_docs` (csv). Ad-hoc CLI:
-`duckdb -c "SELECT … FROM read_parquet('hvsc84.parquet')"`.
+`duckdb -c "SELECT … FROM read_parquet('hvsc85.parquet')"`.
 
 **Coverage / FULL-list source of truth** = a fresh family batch, NOT stored
 `.usf`/`.sid` files or the index. Batch results (`tmp/<engine>_*_results.jsonl`)
@@ -579,7 +579,7 @@ per-user — NOT in the repo, NOT the python module). `src/sid_db` shells out to
 it for index reads, so **DB queries need only `duckdb` on PATH — no env.sh /
 PYTHONPATH / .pylocal** (deliberate: the python-module path was brittle). The
 python `duckdb` module is NOT installed/used. Ad-hoc:
-`duckdb -c "SELECT … FROM read_parquet('hvsc84.parquet')"`.
+`duckdb -c "SELECT … FROM read_parquet('hvsc85.parquet')"`.
 (The snap `duckdb` at `/snap/bin/duckdb` is broken — `snap-confine` error — don't use it.)
 
 ## Project structure
@@ -596,7 +596,7 @@ src/                    USF shared source — usf/ (grammar + reader/writer),
                         env.sh. Everything pre-USF moved to deprecated/<topic>/.
 docs/                   specifications and reference docs
 tools/                  build tools (xa65, siddump, libsidplayfp)
-hvsc84/                 HVSC #84 collection (not in git, gitignored)
+hvsc85/                 HVSC #84 collection (not in git, gitignored)
 deprecated/             earlier project phases — see deprecated/<topic>/README.md
 ```
 

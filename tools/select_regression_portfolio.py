@@ -89,7 +89,7 @@ def member_features(sid: str) -> tuple[str, set] | None:
         PatInstrumentChange, SeqPatternJump, SeqTranspose, SeqVoiceinc,
         SeqRepeats, SeqEnd, SeqWrap)
     try:
-        cfg = fc_standard_config('hvsc84/' + sid)
+        cfg = fc_standard_config('hvsc85/' + sid)
         song = extract(cfg)
     except (FCStandardUnsupported, Exception):
         return None

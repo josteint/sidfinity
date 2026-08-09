@@ -129,7 +129,7 @@ def _dmc_members():
     rows = load_latest(os.path.join(ROOT, 'tmp',
                                     'dmc_f1_fullbatch_verify.jsonl'))
     return [p for p in sorted(rows)
-            if os.path.exists(os.path.join(ROOT, 'hvsc84',
+            if os.path.exists(os.path.join(ROOT, 'hvsc85',
                                            p[:-4] + '.usf'))]
 
 
@@ -145,7 +145,7 @@ def _fc_members():
                        path_key='sid')
     return [p for p, r in sorted(rows.items())
             if r.get('status') == 'full'
-            and os.path.exists(os.path.join(ROOT, 'hvsc84',
+            and os.path.exists(os.path.join(ROOT, 'hvsc85',
                                             p[:-4] + '.usf'))]
 
 
@@ -159,7 +159,7 @@ def _fc_build(rel, usf_text):
         tmp = f.name
     try:
         return build_via_asm_featuredriven(
-            fc_standard_config('hvsc84/' + rel), usf_path=tmp)
+            fc_standard_config('hvsc85/' + rel), usf_path=tmp)
     finally:
         os.unlink(tmp)
 
@@ -170,7 +170,7 @@ def _hubbard_members():
     for (path,) in sid_db.query(
             "SELECT path FROM sids WHERE engine IN ('Rob_Hubbard',"
             " 'Companion')"):
-        if os.path.exists(os.path.join(ROOT, 'hvsc84', path[:-4] + '.usf')):
+        if os.path.exists(os.path.join(ROOT, 'hvsc85', path[:-4] + '.usf')):
             out.append(path)
     return sorted(out)
 
@@ -218,7 +218,7 @@ def _insts_of(u):
 
 def _parse_member(rel):
     from src.usf.parser import parse_file
-    up = os.path.join(ROOT, 'hvsc84', rel[:-4] + '.usf')
+    up = os.path.join(ROOT, 'hvsc85', rel[:-4] + '.usf')
     try:
         return parse_file(up)
     except Exception:

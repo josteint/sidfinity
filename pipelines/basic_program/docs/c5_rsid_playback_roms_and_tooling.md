@@ -1,5 +1,5 @@
 ---
-source_url: local: tools/siddump.cpp + tools/libsidplayfp/src/ + tmp/jc64/ + tmp/dmc_hunt/DeepSID/ + ~/.local/share/sidplayfp/ + hvsc84/DOCUMENTS/SID_file_format.txt
+source_url: local: tools/siddump.cpp + tools/libsidplayfp/src/ + tmp/jc64/ + tmp/dmc_hunt/DeepSID/ + ~/.local/share/sidplayfp/ + hvsc85/DOCUMENTS/SID_file_format.txt
 fetched_via: local read + binary verification
 fetch_date: 2026-06-22
 author: SIDfinity research agent (cluster 5)
@@ -209,7 +209,7 @@ Also add `--roms-dir <dir>` to the argument parser (alongside the existing flags
 ### Verification: does it work?
 
 The system `sidplayfp` CLI (`/usr/bin/sidplayfp`) already does exactly this.
-Test run on `hvsc84/DEMOS/A-F/Ahoy_Magazine_BASIC.sid` confirmed:
+Test run on `hvsc85/DEMOS/A-F/Ahoy_Magazine_BASIC.sid` confirmed:
 - Identifies all 3 ROMs correctly ("C64 KERNAL third revision", "C64 BASIC V2", "C64 character generator")
 - Produces ~16 seconds of audio output (the full songlength per HVSC)
 - Runs the BASIC program to completion
@@ -341,7 +341,7 @@ are loaded and `selectSong` is called (which already happens at line 242).
 
 ## 6. SID File Format: Complete RSID/BASIC Rules
 
-From `hvsc84/DOCUMENTS/SID_file_format.txt` (primary source):
+From `hvsc85/DOCUMENTS/SID_file_format.txt` (primary source):
 
 ### RSID constraints (all 486 Basic_Program tunes satisfy these):
 - `magicID = "RSID"`, `version = 2, 3, or 4`
@@ -409,10 +409,10 @@ Add to `siddump.cpp`:
 Test on 2-3 representative tunes:
 ```bash
 # DATA/READ table-driven (deterministic, should work immediately):
-siddump hvsc84/DEMOS/A-F/Ahoy_Magazine_BASIC.sid --writelog --duration 20 > /tmp/ahoy.wl
+siddump hvsc85/DEMOS/A-F/Ahoy_Magazine_BASIC.sid --writelog --duration 20 > /tmp/ahoy.wl
 
 # Algorithmic / PEEK-based:
-siddump hvsc84/MUSICIANS/B/Bond_Alan/Two_Lines_of_Code_1_BASIC.sid --writelog --duration 60 > /tmp/two_lines.wl
+siddump hvsc85/MUSICIANS/B/Bond_Alan/Two_Lines_of_Code_1_BASIC.sid --writelog --duration 60 > /tmp/two_lines.wl
 
 # Check that writes appear (not just $D418=$0F silence):
 grep '^|W:' /tmp/ahoy.wl | head -20

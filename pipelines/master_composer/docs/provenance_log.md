@@ -9,7 +9,7 @@ Roll-up across the six-cluster sweep. Per-file provenance headers carry exact UR
 | local JC64dis `tmp/jc64/doc/example/Master_Composer.dis` | local decode (gzip + JC64dis project reader) | 22 routine labels + per-`$D4xx` comments; the player annotation |
 | HVSC `Maniac.sid` (+ Star_Trek_II) | local disasm (py65) + `siddump --writelog`/`--writelog-per-irq`/`--memwatch` | byte-exact data layout + write model + CIA dispatch + the hum bug |
 | local `sidid.cfg` ×3 | local read (read-only) | `Master_Composer` + `(Patrick_Payne)` + `(Lope_Pulse_Sweep)` sigs; TFMX separation |
-| `hvsc84/DOCUMENTS/BUGlist.txt` + Update_Announcements #80 | local read (read-only) | 8 truncated-rip entries; the hum-bug fix note (Prg2Sid 1.15) |
+| `hvsc85/DOCUMENTS/BUGlist.txt` + Update_Announcements #80 | local read (read-only) | 8 truncated-rip entries; the hum-bug fix note (Prg2Sid 1.15) |
 | `hvsc84.db` | read-only (`mode=ro`) | census: 1019; speed-bit (996 = $1), init/play (+7 delta 962/1019) |
 | archive.org `d64_Master_Composer_v1.0_19xx_Playboy` + preservation64 G64 | curl | editor disk + 29 UI screenshots (de-facto manual); original-dump provenance |
 | VGMPF, DeepSID, Commodore Music Software Guide (1986) | direct | engine model corroboration; player-name; vendor listing |

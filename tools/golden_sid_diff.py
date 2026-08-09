@@ -148,7 +148,7 @@ def _writestream_class(rel: str, new_sid: bytes) -> str:
     from pipelines.hubbard.verify_cycle import (writelog_capture,
                                                 compare_instruction_stream)
     from seed_disassembly import parse_psid
-    orig = os.path.join(ROOT, 'hvsc84', rel)
+    orig = os.path.join(ROOT, 'hvsc85', rel)
     td = tempfile.mkdtemp()
     try:
         new_path = os.path.join(td, 'n.sid')

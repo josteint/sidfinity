@@ -148,7 +148,7 @@ The WebFetch model did not return:
    Command: `curl -s "https://c64scene.pl/viewtopic.php?t=112" > tmp/romuzak_research/skull_thread.html`
 
 2. **Validation routine location** — OPEN. Run `siddump --pc-trace` on a
-   RoMuzak V6.3 SID (e.g. from hvsc84/MUSICIANS/D/Detert_Thomas/),
+   RoMuzak V6.3 SID (e.g. from hvsc85/MUSICIANS/D/Detert_Thomas/),
    identify the init-only block (executed once, never during play()), and
    look for a string-compare loop against the ROMUZAK V6.3 copyright string.
    This is RE work.

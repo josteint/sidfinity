@@ -456,7 +456,7 @@ Practical implication for migration:
 | exotica.org.uk David Whittaker format | `https://www.exotica.org.uk/wiki/David_Whittaker_(format)` | Currently Cloudflare-blocked; Amiga .dw format spec |
 | Lazy Jones disassembly (pre-Brooke driver) | Need to generate with tools/seed_disassembly.py | Confirm pre-vs-post Brooke structural diff |
 | forum64.de Whittaker search | `https://www.forum64.de/index.php?board/15-c64-allgemein/` search "Whittaker" | German scene may have technical RE discussions |
-| HVSC DOCUMENTS mentions | `hvsc84/DOCUMENTS/Update00.hvs`, `Update02.hvs`, `Update_Announcements/20020817.txt`, `20240630.txt` | grep-match "whittaker"; reclassification / variant notes |
+| HVSC DOCUMENTS mentions | `hvsc85/DOCUMENTS/Update00.hvs`, `Update02.hvs`, `Update_Announcements/20020817.txt`, `20240630.txt` | grep-match "whittaker"; reclassification / variant notes |
 | sidid run on Lazy Jones vs Panther | `sidid Lazy_Jones.sid Panther.sid` | Verify single vs multiple sidid signatures |
 | Tony Bybell (VGMPF NES researcher) | VGMPF talk page | May have further C64 analysis |
 | Bansai (Lemon64 user) | https://www.lemon64.com/forum/profile.php?mode=viewprofile&u=<id> | Has full Xenon source; knowledgeable on ZX↔C64 format |

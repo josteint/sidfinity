@@ -92,7 +92,7 @@ def _is_canon_base_unaligned(mem, load: int, b: int) -> bool:
             and (mem[b + 4] | (mem[b + 5] << 8)) == b + 0x85)
 
 
-def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc84'):
+def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc85'):
     """Return a compilation spec or None.
 
     Spec: {'bases': [b0, b1, ...],           # distinct player bases (page-aligned)
@@ -281,7 +281,7 @@ def _parse_medley_wrapper(mem, w: int):
             'jsr_tgts': jsr_tgts}
 
 
-def detect_medley(sid_path: str, hvsc_root: str = 'hvsc84'):
+def detect_medley(sid_path: str, hvsc_root: str = 'hvsc85'):
     """Return a time-medley spec or None.
 
     Spec: {'bases':     [b0, b1, ...],          # distinct player bases
@@ -460,7 +460,7 @@ def _pc_watch_landings(abs_path: str, sub: int):
     return events
 
 
-def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
+def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc85',
                       allow_masm: bool = False):
     """Discover the per-subtune (player, song) map by RUNNING the wrapper —
     under libsidplayfp (`siddump --pc-watch`), the GROUND-TRUTH engine.
@@ -590,7 +590,7 @@ def _observe_dispatch(sid_path: str, hvsc_root: str = 'hvsc84',
             'kinds': [kinds.get(b, 'dmc') for b in ordered_bases]}
 
 
-def _observe_dispatch_2pass(sid_path: str, hvsc_root: str = 'hvsc84'):
+def _observe_dispatch_2pass(sid_path: str, hvsc_root: str = 'hvsc85'):
     """Observe with DMC landings only, then RETRY admitting Music Assembler
     landings if that found nothing.
 
@@ -1060,7 +1060,7 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
 
 
 def sfx_player_indices(sid_path: str, spec: dict,
-                       hvsc_root: str = 'hvsc84') -> list:
+                       hvsc_root: str = 'hvsc85') -> list:
     """Player indices in spec['bases'] that are dmc_sfx sub-players (not DMC)."""
     from pipelines.dmc.v4.sfx_engine import is_sfx_player
     mem, _ = em._load_image(os.path.join(hvsc_root, sid_path))
@@ -1088,7 +1088,7 @@ def _player_cfg(sid_path: str, hvsc_root: str, spec: dict, pidx: int,
 
 
 def extract_compilation(sid_path: str, spec: dict,
-                        hvsc_root: str = 'hvsc84') -> 'em.DmcModel':
+                        hvsc_root: str = 'hvsc85') -> 'em.DmcModel':
     """Extract every referenced player and merge into one unified DmcModel."""
     from pipelines.dmc.v4.factory import dmc_v4_config
     from seed_disassembly import parse_psid
@@ -1105,7 +1105,7 @@ def extract_compilation(sid_path: str, spec: dict,
     return merge_models(models, spec['map'], hdr)
 
 
-def extract_heterogeneous(sid_path: str, spec: dict, hvsc_root: str = 'hvsc84'):
+def extract_heterogeneous(sid_path: str, spec: dict, hvsc_root: str = 'hvsc85'):
     """HETEROGENEOUS compilation (DMC players + a dmc_sfx sub-player, ledger
     C31): extract the DMC players and merge them (DMC subtunes only), extract
     the dmc_sfx player as a typed SfxEngine, and return

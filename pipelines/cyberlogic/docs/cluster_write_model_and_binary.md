@@ -6,13 +6,13 @@
 
 | field | value |
 |-------|-------|
-| fetched_via | local hvsc84/ binary inspection + sidid.cfg + web search (codebase64, csdb.dk, HVSC) |
+| fetched_via | local hvsc85/ binary inspection + sidid.cfg + web search (codebase64, csdb.dk, HVSC) |
 | fetch_date | 2026-06-14 |
 | author | research agent (claude-sonnet-4-6) |
 | content_date | 2026-06-14 |
 | reliability | HIGH for binary-derived facts (direct byte inspection of HVSC SIDs); MEDIUM for web-sourced credits and version history |
 
-Primary specimen: `hvsc84/MUSICIANS/N/Nagie_Sascha/A_Real_Compose.sid`
+Primary specimen: `hvsc85/MUSICIANS/N/Nagie_Sascha/A_Real_Compose.sid`
 (canonical load=$1000, version label `v_arc_early`; fully inspected)
 
 Secondary specimens inspected: `SID_Nation_IV.sid` ($6000 cluster, newer engine),

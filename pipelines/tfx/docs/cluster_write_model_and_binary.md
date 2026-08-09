@@ -6,9 +6,9 @@
                   https://archive.org/details/d64_TFX_v2.4_1996_Unreal
                   https://github.com/cadaver/sidid    (sidid.nfo/sidid.cfg)
                   https://github.com/WilfredC64/player-id (sidid.cfg)
-                  hvsc84/MUSICIANS/F/Factor6/*.sid     (binary inspection)
-                  hvsc84/MUSICIANS/S/Sad/*.sid         (binary inspection)
-                  hvsc84/MUSICIANS/P/PCH/*.sid         (binary inspection)
+                  hvsc85/MUSICIANS/F/Factor6/*.sid     (binary inspection)
+                  hvsc85/MUSICIANS/S/Sad/*.sid         (binary inspection)
+                  hvsc85/MUSICIANS/P/PCH/*.sid         (binary inspection)
   fetched_via:    WebFetch + local binary READ-ONLY inspection
   fetch_date:     2026-06-14
   author:         Ray (Łada Loštàk), member of Area Team and Unreal groups

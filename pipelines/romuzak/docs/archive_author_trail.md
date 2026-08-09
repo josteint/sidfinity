@@ -156,7 +156,7 @@ OPEN: Verify which musician actually composed the Duotris SID by checking the SI
    https://archive.org/details/Aktueller_Software_Markt_-_Ausgabe_1989.06-07
    OPEN: Download PDF and extract pages mentioning Hydrogenese/Digital Marketing/Bamboo.
 
-4. **Duotris SID header in HVSC** — check `/home/jtr/sidfinity/hvsc84/` for `Duotris` and
+4. **Duotris SID header in HVSC** — check `/home/jtr/sidfinity/hvsc85/` for `Duotris` and
    read the SID header to resolve Oliver Blasnik vs Jörg Schäfers musician credit.
 
 5. **Forum64 Digital Marketing thread** — https://www.forum64.de/index.php?thread/83160-digital-marketing/

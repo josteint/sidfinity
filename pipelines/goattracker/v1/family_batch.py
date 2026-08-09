@@ -52,7 +52,7 @@ def run_member(item) -> dict:
         from pipelines.goattracker.v1.composer import build_v1_sid
         from pipelines.hubbard.verify_cycle import writelog_capture
 
-        orig = os.path.join(ROOT, 'hvsc84', rel)
+        orig = os.path.join(ROOT, 'hvsc85', rel)
         try:
             song = extract(parse_sid(orig))
         except Exception as e:

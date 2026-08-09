@@ -18,7 +18,7 @@ Status: ✅ fetched & saved · 📄 read only · ⚠️ partial/blocked · ❌ f
 - ✅ Codebase64 JCH 20.G4 file-format article → `wiki_codebase64_jch20g4_format.md`, `src/article_codebase64_jch20g4_format.md`
 - ✅ CSDb #122333 (Laxity Editor v/32-3.34), #142168 (v/34-3.35), #215790 (TFA v3.24), #26563 (NP21.G4), #100406 (NP22-25/Dane) → `csdb_release_notes.md`, `csdb_version_history.md`, `forum_csdb_laxity_editor_releases.md`
 - ✅ sidpreservation.6581.org tracker entry → `wiki_sidpreservation_tracker_entry.md`
-- 📄 local `hvsc84/DOCUMENTS/*` (grep Laxity/Vibrants/JCH; STIL.txt) → no technical comments found; counts → `hvsc_engine_taxonomy.md`
+- 📄 local `hvsc85/DOCUMENTS/*` (grep Laxity/Vibrants/JCH; STIL.txt) → no technical comments found; counts → `hvsc_engine_taxonomy.md`
 
 ## Partial / blocked
 - ⚠️ SF2 User Manual PDF (files.chordian.net/sf2/…User_Manual.pdf) — only pp.1–12 read; Danish intro content; pp.13+ per-driver byte detail NOT extracted

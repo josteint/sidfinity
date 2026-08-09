@@ -30,7 +30,7 @@ from pipelines.companion.c64_music_examples.extract.engine_model import (
 )
 
 
-SID_PATH = 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid'
+SID_PATH = 'hvsc85/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid'
 
 
 def variant_for_subtune(subtune: int) -> str:
@@ -138,7 +138,7 @@ def write_full_usf(out_path: str) -> None:
 
 
 if __name__ == '__main__':
-    out = 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.usf.draft'
+    out = 'hvsc85/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.usf.draft'
     write_full_usf(out)
     import os
     print(f"Draft USF written: {out} ({os.path.getsize(out)} bytes)")

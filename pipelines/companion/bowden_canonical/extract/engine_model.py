@@ -558,7 +558,7 @@ def simulate(sid_path: str, n_frames: int) -> list[list[tuple[int, int]]]:
 if __name__ == '__main__':
     import sys
     path = sys.argv[1] if len(sys.argv) > 1 else \
-        'hvsc84/MUSICIANS/B/Berry_Vic/Bach_Sonata.sid'
+        'hvsc85/MUSICIANS/B/Berry_Vic/Bach_Sonata.sid'
     state = load_state_from_sid(path)
     print(f'tempo: {state.tempo} frames/tick')
     print(f'v_pos initial: {state.v_pos}')

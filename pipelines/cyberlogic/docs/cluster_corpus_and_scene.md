@@ -7,7 +7,7 @@
 | author | Claude (sonnet-4-6), SIDfinity agent |
 | content_date | 2026-06-14 |
 | fetch_date | 2026-06-14 |
-| primary_sources | hvsc84.db (read-only), hvsc84/DOCUMENTS/STIL.txt, hvsc84/DOCUMENTS/Musicians.txt |
+| primary_sources | hvsc84.db (read-only), hvsc85/DOCUMENTS/STIL.txt, hvsc85/DOCUMENTS/Musicians.txt |
 | web_sources | csdb.dk/release/?id=170632, csdb.dk/scener/?id=3288, archive.org/details/Demons_of_Sound_1992_Demons_of_Sound, hvmec.altervista.org/blog/?p=224, github.com/cadaver/sidid (sidid.nfo) |
 | reliability | HIGH for DB/HVSC-local facts; MEDIUM for CSDb web extracts (page structure may have changed) |
 
@@ -128,7 +128,7 @@ The_Blue_Ninja's high "Other" count reflects his game OST work (Ghost_Driver at 
 
 Nagie dominates with 61% of the corpus. The other three have nearly equal representation (12–14% each).
 
-Source for real names: hvsc84/DOCUMENTS/Musicians.txt:
+Source for real names: hvsc85/DOCUMENTS/Musicians.txt:
 - `Nagie, Sascha (celticdesign {DJ3D}) / Demons of Sound - GERMANY`
 - `X-Radical (Schanzenb cher, Frank) / Chromance - GERMANY` (encoding artifact around umlaut)
 - `The Blue Ninja (Hutzelmann, Lars) / Demons of Sound - GERMANY`

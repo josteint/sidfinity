@@ -21,10 +21,10 @@ provenance_header:
     - https://raw.githubusercontent.com/WilfredC64/player-id/master/config/sidid.cfg
     - https://archive.org/details/d64_Ubiks_Music_Editor_19xx_-
     - https://www.hvsc.c64.org/download/C64Music/DOCUMENTS/Musicians.txt
-    - Local HVSC binary analysis: hvsc84/MUSICIANS/A/Abbott_Chris/Chess.sid
-                                   hvsc84/MUSICIANS/A/Abbott_Chris/Popcorn.sid
-                                   hvsc84/MUSICIANS/T/Tonal_Teapot/Ubiks_Musik.sid
-                                   hvsc84/MUSICIANS/D/Deadman/Ubik-Musik_Collection_I.sid
+    - Local HVSC binary analysis: hvsc85/MUSICIANS/A/Abbott_Chris/Chess.sid
+                                   hvsc85/MUSICIANS/A/Abbott_Chris/Popcorn.sid
+                                   hvsc85/MUSICIANS/T/Tonal_Teapot/Ubiks_Musik.sid
+                                   hvsc85/MUSICIANS/D/Deadman/Ubik-Musik_Collection_I.sid
 ```
 
 ---

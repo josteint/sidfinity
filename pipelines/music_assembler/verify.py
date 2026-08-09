@@ -18,7 +18,7 @@ from pipelines.hubbard.verify_cycle import (      # noqa: E402
 from src.songlengths import get_durations, load_database   # noqa: E402
 
 
-def verify(rel: str, rebuilt_path: str, hvsc_root: str = 'hvsc84',
+def verify(rel: str, rebuilt_path: str, hvsc_root: str = 'hvsc85',
            subtune: int = 0) -> dict:
     """Compare `rebuilt_path` against the HVSC original over songlength*1.1
     (the ratified verify window — never an arbitrary N)."""

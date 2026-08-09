@@ -320,9 +320,9 @@ def _signature(p: SidProfile) -> str:
 
 def main():
     sid_paths = sorted(
-        list((ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay').glob('*.sid'))
-        + list((ROOT / 'hvsc84' / 'MUSICIANS' / 'C' / 'Clever_Music').glob('*.sid'))
-        + list((ROOT / 'hvsc84' / 'MUSICIANS' / 'R' / 'Raeburn_Gavin').glob('Gun_Runner.sid')),
+        list((ROOT / 'hvsc85' / 'MUSICIANS' / 'D' / 'Derrett_Jay').glob('*.sid'))
+        + list((ROOT / 'hvsc85' / 'MUSICIANS' / 'C' / 'Clever_Music').glob('*.sid'))
+        + list((ROOT / 'hvsc85' / 'MUSICIANS' / 'R' / 'Raeburn_Gavin').glob('Gun_Runner.sid')),
         key=lambda p: p.stem)
     # Filter out .sidfinity.sid rebuilds
     sid_paths = [p for p in sid_paths if 'sidfinity' not in p.stem]
@@ -336,8 +336,8 @@ def main():
         "SELECT path FROM sids WHERE engine='Companion/Jay_Derrett'"):
         valid.add(r[0])
     sid_paths = [p for p in sid_paths
-                 if str(p.relative_to(ROOT / 'hvsc84')).replace('\\', '/') in
-                 {v.split('hvsc84/')[-1] if 'hvsc84/' in v else v for v in valid}
+                 if str(p.relative_to(ROOT / 'hvsc85')).replace('\\', '/') in
+                 {v.split('hvsc85/')[-1] if 'hvsc85/' in v else v for v in valid}
                  or any(p.name in v for v in valid)]
 
     profiles = []

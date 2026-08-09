@@ -296,7 +296,7 @@ The following are specific, actionable next steps ordered by likely yield:
    number. Are there earlier player versions visible in other SID embedded strings? A grep
    of all 130 Vibrants/JO SIDs for embedded ASCII strings may reveal version labels, dates,
    or feature descriptions.
-   Tool: `strings hvsc84/MUSICIANS/J/JO/*.sid | grep -i "player\|jesper\|jo\|version"`
+   Tool: `strings hvsc85/MUSICIANS/J/JO/*.sid | grep -i "player\|jesper\|jo\|version"`
 
 3. **Wayback Machine for vibrants.dk** — try accessing via a different fetch path:
    URL: https://web.archive.org/web/20020101000000*/vibrants.dk
@@ -317,7 +317,7 @@ The following are specific, actionable next steps ordered by likely yield:
 6. **Esonix subdirectory** — MUSICIANS/H/HJE/Esonix/ contains HJE's pre-1990 releases
    under his earlier alias. These may use a DIFFERENT player (predating JO's). Verify
    whether Esonix/ SIDs also match Vibrants/JO or match a different engine.
-   Tool: `sidid hvsc84/MUSICIANS/H/HJE/Esonix/*.sid`
+   Tool: `sidid hvsc85/MUSICIANS/H/HJE/Esonix/*.sid`
 
 7. **`hj` prefix files in Zimmers Vibrants archive** — `hj` versions 11 and 13 exist in
    the JCH-editor music collection. Determine if these are HJE using JCH's editor (separate
@@ -328,7 +328,7 @@ The following are specific, actionable next steps ordered by likely yield:
    Vicious_SID_2-Turn_Disk.sid (45.5 KB), Vicious_SID_2-Greets.sid (42.3 KB),
    Megademo_part_2.sid (11.7 KB) are 3–15× larger than typical. These are the richest
    sources for multi-subtune and possibly digi-sample analysis.
-   Disassemble with: `tools/seed_disassembly.py hvsc84/MUSICIANS/H/HJE/Woody_the_Worm.sid`
+   Disassemble with: `tools/seed_disassembly.py hvsc85/MUSICIANS/H/HJE/Woody_the_Worm.sid`
 
 9. **Sig 10 decoding** — `30 03 4C ?? ?? / A9 08 99 04 D4` writes $08 to $D404,Y. In
    the SID chip, writing $08 to the voice control register (VCREG) sets the TEST bit

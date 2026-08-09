@@ -7,7 +7,7 @@ metadata:
   originSessionId: fea5d0c1-61d2-49f9-8e14-4e5916b95622
 ---
 
-**SID:** `hvsc84/MUSICIANS/H/HeatWave/Adrenalin.sid` (Marvin Severijns & M.
+**SID:** `hvsc85/MUSICIANS/H/HeatWave/Adrenalin.sid` (Marvin Severijns & M.
 de Bree). MoN/FutureComposer per sidid. 4 subtunes, 9:25. PSID load=$0000
 (inline-encoded → real load $50E0), init=$50E0, play=$50E3.
 
@@ -206,7 +206,7 @@ of reproducing the sweep (user's call — "byte exact is out"):
   IDENTICAL. Confirms universal_reset + the defensive test-bit clear introduced
   no audible change (the verdict's `audio✓` / canonical init boundary held in
   practice). The rebuild `.sidfinity.sid` is a gitignored build artifact (the
-  whole hvsc84/ tree is out of git; 0 SID/USF artifacts tracked) — regenerate
+  whole hvsc85/ tree is out of git; 0 SID/USF artifacts tracked) — regenerate
   via `build_via_asm_featuredriven(ADRENALIN)`.
 
 ## Resume order (subs 1/2/3 — multi-independent-song FC, still pending)

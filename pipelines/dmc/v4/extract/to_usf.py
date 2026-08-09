@@ -1280,7 +1280,7 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
 
 
 def write_dmc_usf(cfg: DMCV4Config, out_dir: str,
-                  hvsc_root: str = 'hvsc84') -> str:
+                  hvsc_root: str = 'hvsc85') -> str:
     m = extract(cfg, hvsc_root=hvsc_root)
     usf = model_to_usf(m, wave_norm=True)
     base = os.path.splitext(os.path.basename(cfg.sid_path))[0]
@@ -1523,7 +1523,7 @@ def merge_2sid_usf(models, sid2_model=None, sid3_model=None,
         subtunes=merged_subtunes)
 
 
-def write_dmc_2sid_usf(cfgs, out_dir: str, hvsc_root: str = 'hvsc84') -> str:
+def write_dmc_2sid_usf(cfgs, out_dir: str, hvsc_root: str = 'hvsc85') -> str:
     from pipelines.dmc.v4.factory import (_sid_header_multi,
                                           multisid_active_chips)
     models = [extract(c, hvsc_root=hvsc_root) for c in cfgs]
@@ -1541,7 +1541,7 @@ def write_dmc_2sid_usf(cfgs, out_dir: str, hvsc_root: str = 'hvsc84') -> str:
 
 
 def write_dmc_medley_usf(sid_path: str, spec: dict, out_dir: str,
-                         hvsc_root: str = 'hvsc84') -> str:
+                         hvsc_root: str = 'hvsc85') -> str:
     """TIME-MEDLEY member (ledger C31, medley variant — Praiser/Mega_Mix).
 
     The file packs >=2 canonical DMC players; the PLAY vector's wrapper
@@ -1593,7 +1593,7 @@ def heterogeneous_to_usf(dmc_model, sfx_engine, subtune_kinds,
 
 
 def write_dmc_compilation_usf(sid_path: str, spec: dict, out_dir: str,
-                              hvsc_root: str = 'hvsc84') -> str:
+                              hvsc_root: str = 'hvsc85') -> str:
     """COMPILATION member (ledger C31): extract every packed player and merge.
 
     HOMOGENEOUS (all DMC players): merge into one unified single-player DmcModel

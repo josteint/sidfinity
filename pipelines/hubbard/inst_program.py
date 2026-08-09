@@ -32,7 +32,7 @@ ROOT = os.path.dirname(
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 
 # Default canary: the Commando SID Phase 0 captured its baseline from.
-SID_PATH = os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Commando.sid')
+SID_PATH = os.path.join(ROOT, 'hvsc85', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Commando.sid')
 
 # Commando voice-state arrays ($54xx,X, X = voice 0/1/2). Addresses from
 # hubbard_emu.py / pipelines/hubbard/commando/disassembly.s.

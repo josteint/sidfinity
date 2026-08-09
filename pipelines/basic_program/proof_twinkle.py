@@ -28,7 +28,7 @@ from src.usf import (UsfFile, PsidMeta, Params, InitState, InitSid, Instrument,
                      MusicSubtune, VoiceBlock, Pattern, NoteRow, Orderlist,
                      Pitch, InstrumentRef, write_file, parse_file)
 
-SID = os.path.join(ROOT, 'hvsc84/DEMOS/UNKNOWN/Twinkle_BASIC.sid')
+SID = os.path.join(ROOT, 'hvsc85/DEMOS/UNKNOWN/Twinkle_BASIC.sid')
 LOAD = 0x1000
 NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 

@@ -30,14 +30,14 @@ from pipelines.dmc.v5.composer_v5 import build_v5_sid
 
 def build_from_cfg(cfg: DMCV5Config, hvsc_root: str | None = None) -> bytes:
     """SID -> USF -> SID (always through USF)."""
-    root = hvsc_root or os.path.join(_ROOT, 'hvsc84')
+    root = hvsc_root or os.path.join(_ROOT, 'hvsc85')
     with tempfile.TemporaryDirectory() as td:
         usf_path = write_v5_usf(cfg, td, hvsc_root=root)
         return build_v5_sid(usf_to_model(parse_file(usf_path)))
 
 
 def verify_v5(cfg: DMCV5Config, hvsc_root: str | None = None) -> dict:
-    root = hvsc_root or os.path.join(_ROOT, 'hvsc84')
+    root = hvsc_root or os.path.join(_ROOT, 'hvsc85')
     orig = os.path.join(root, cfg.sid_path)
     rebuilt = build_from_cfg(cfg, hvsc_root=root)
     db = load_database(os.path.join(root, 'DOCUMENTS', 'Songlengths.md5'))

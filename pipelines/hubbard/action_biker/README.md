@@ -59,7 +59,7 @@ Grade against the original:
 
 ```bash
 python src/writelog_grade.py \
-    hvsc84/MUSICIANS/H/Hubbard_Rob/Action_Biker.sid \
+    hvsc85/MUSICIANS/H/Hubbard_Rob/Action_Biker.sid \
     action_biker.sid
 # Expected: Grade A, snapshots 98.8% (1482/1500)
 ```

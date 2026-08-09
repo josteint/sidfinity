@@ -27,8 +27,8 @@ not a proof over all possible inputs; a branch never taken in any subtune is uns
 
 USAGE:
     tools/taint_source.py <file.sid> <LO-HI> [--all | --subtune N] [--duration S]
-    tools/taint_source.py hvsc84/DEMOS/G-L/Jupiter41.sid 23A3-24BB --all
-    tools/taint_source.py Jupiter41.sid 23A3-24BB          # basename -> globbed in hvsc84
+    tools/taint_source.py hvsc85/DEMOS/G-L/Jupiter41.sid 23A3-24BB --all
+    tools/taint_source.py Jupiter41.sid 23A3-24BB          # basename -> globbed in hvsc85
 
 Exit 0 + "STATIC" if the whole region is unwritten; exit 1 + the written addresses
 otherwise. See ledger C2 (off-table one-shot program) for how to act on the verdict.
@@ -45,7 +45,7 @@ _TOK = re.compile(r'([0-9A-Fa-f]{4})=([0-9A-Fa-f]{2})')
 def resolve_sid(path):
     if os.path.exists(path):
         return path
-    hits = glob.glob(os.path.join(ROOT, 'hvsc84', '**', os.path.basename(path)),
+    hits = glob.glob(os.path.join(ROOT, 'hvsc85', '**', os.path.basename(path)),
                      recursive=True)
     if not hits:
         sys.exit(f'SID not found: {path}')

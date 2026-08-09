@@ -198,7 +198,7 @@ Multi_Move loads at $2003 with init=$2003/play=$2006 — the standard 3-byte ini
 
 ## Multi_Move USF (already extracted)
 
-One tune has a complete USF: `hvsc84/MUSICIANS/J/JO/Multi_Move.usf`. Extracted fields include:
+One tune has a complete USF: `hvsc85/MUSICIANS/J/JO/Multi_Move.usf`. Extracted fields include:
 - Standard freq_table (192 entries / 96 notes)
 - pulse_programs (2 programs with lo/hi, seg entries)
 - filter_programs (1 program with init/onset/d418/final/end/seg chain)
