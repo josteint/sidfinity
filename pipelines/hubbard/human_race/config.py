@@ -36,8 +36,30 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 SID = os.path.join(ROOT, 'hvsc85', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Human_Race.sid')
 
 
+# The $B1A3 init wrapper's subtune -> (song, tick) map, OBSERVED on ground
+# truth, not read statically:
+#   siddump SID --subtune N --pc-watch A000 0-2 --pc-watch-first
+#     -> A = the song handed to the real init, X = the tick it pokes into $A454
+#   siddump SID --subtune N --memwatch A450,...,A454
+#     -> the per-song tick table as the engine will actually read it
+# giving, for subtunes 0..5:  song = 0,1,2,3,4,4   tick = 3,3,2,3,1,2
+# Subtune 5 is therefore song 4 replayed one tick slower ("as slow as Rob
+# Hubbard wanted in 1985"). Ledger C19's observed-`subtune_songs` shape; the
+# tick is a wrapper POKE, so the file-image byte at $A454 ($01) is stale for it.
+# ⚠ py65 agrees here, but this reaches the write stream, so it is measured with
+# siddump per [[feedback_ground_truth]]. NB --peek-post-init CANNOT read these:
+# the player sits at $A000-$B1B8, and the peek's idle-time port banks BASIC ROM
+# over that range (it returns AA 20 45 AB A0). memwatch is truth (ledger C29).
+SUBTUNE_SONG = (0, 1, 2, 3, 4, 4)
+# Override only where the wrapper's poke differs from the song table's own byte;
+# None = read the table, which keeps subtunes 0-4 byte-identical by construction.
+SUBTUNE_TICK = (None, None, None, None, None, 2)
+
+
 def _extract(subtune=0):
-    return extract(subtune=subtune, sid_path=SID)
+    return extract(subtune=subtune, sid_path=SID,
+                   song_index=SUBTUNE_SONG[subtune],
+                   speed_override=SUBTUNE_TICK[subtune])
 
 
 def _resetspd(subtune, binary, load):
@@ -53,13 +75,11 @@ HUMAN_RACE = EngineConfig(
     freq_table_base=0xA364,
     extract=_extract,
     resetspd=_resetspd,
-    # The #85 header declares 6 songs, but the engine's song table holds 5:
-    # the 6th (index 5) is "subtune #5 as slow as Rob Hubbard wanted in 1985"
-    # per the official changelog, reached via the new $B1A3 init rather than a
-    # song-table entry, and CIA-timed (speed bit 5). It is NOT yet extracted —
-    # adding it here without that work would ship a wrong subtune, which is
-    # worse than shipping five right ones.
-    subtunes=(0, 1, 2, 3, 4),
+    # 6 subtunes over a 5-entry song table — subtune 5 is song 4 one tick
+    # slower, via SUBTUNE_SONG / SUBTUNE_TICK above. The PSID speed mask
+    # ($2F: subtunes 0-3 and 5 CIA-timed) rides `psid.speed` verbatim from the
+    # original header, so nothing extra is needed for the new subtune's clock.
+    subtunes=(0, 1, 2, 3, 4, 5),
     arp_interval=12,
     # HR's `fx_arp` cycles 1 frame base + 7 frames +octave, keyed on
     # `frame_ctr & 7`. Confirmed via src/usf/audit.py on V1 inst 16
@@ -86,7 +106,7 @@ HUMAN_RACE = EngineConfig(
     # Human Race uses only V1+V2 for music; V3 is silent across all
     # subtunes. The per-voice loop starts at V2 (index 1), processing
     # V2 then V1 (decrementing), skipping V3.
-    voice_starts=(1, 1, 1, 1, 1),
+    voice_starts=(1, 1, 1, 1, 1, 1),
     # Human Race's engine init at $1A9C zeros per-voice state at
     # runtime; it does NOT read load-time bytes from the freq-table
     # overlap region. Disable seeding to avoid leaking those bytes as

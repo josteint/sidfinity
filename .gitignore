@@ -41,8 +41,6 @@ tools/7zz
 
 # HVSC collection (60k files, not in git — install via HVSC release)
 hvsc85/
-# the superseded #84 tree, kept on disk until the #85 migration is signed off
-hvsc84/
 
 # Legacy SQLite catalogue — replaced by the git-tracked hvsc85.parquet +
 # engine_docs.csv (queried via DuckDB; see src/sid_db.py). Kept out of git.

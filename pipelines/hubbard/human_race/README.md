@@ -14,16 +14,24 @@ overlap aliasing, different HR threshold).
 
 | Metric | Value |
 |---|---|
-| Subtunes rebuilt | 3 (the music tracks; PSID #1–#3 in the original) |
-| Verification | siddump 98.8% snapshot match; py65 0-divergence over 1500 frames |
-| Grade | A |
+| Subtunes rebuilt | 6 of 6 (HVSC #85) |
+| Verification | `pipelines.hubbard.verify.verify_all` — all 6 exact |
 
-The remaining ~1.2% siddump gap is `libsidplayfp` emulator subtleties
-(CIA timer, cycle-exact bus contention) that don't affect what the SID
-chip outputs.
+> The "98.8% snapshot match / Grade A" figures this table used to carry were
+> a **Trap A** verdict (per-frame register snapshots), removed project-wide
+> 2026-06-07 after it silently false-passed 25 Hubbard subtunes. The verdict
+> is the SID write-log stream; see `docs/the_core_tenet.md`.
 
-The original PSID claims 19 subtunes; the other 16 are sound effects
-this pipeline doesn't ship.
+HVSC #85 ships a **re-assembled** rip: the same player at $A000 instead of
+$0980 (+$9680), 89 bytes longer, with a 6th subtune. The freq table and
+instrument records are byte-identical at the shifted addresses, so the
+migration was two base constants in `config.py`.
+
+Subtune 6 (index 5) is song 5 replayed one tick slower — the official
+changelog's "as slow as Rob Hubbard wanted in 1985". It is reached through
+an init WRAPPER at $B1A3 that remaps the subtune and pokes the per-song tick
+table, not through a song-table entry; `config.py` documents the observed
+map and how to re-measure it.
 
 ## Layout
 

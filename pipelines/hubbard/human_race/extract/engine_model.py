@@ -50,10 +50,23 @@ def extract(
     default_pw_min: int = 0x08,
     default_pw_max: int = 0x0E,
     verbose: bool = False,
+    song_index: int | None = None,
+    speed_override: int | None = None,
 ) -> ExtractedSong:
     """Extract an :class:`ExtractedSong` from a Hubbard-engine SID.
 
     subtune: 0-indexed subtune number (default 0 = first subtune = PSID subtune 1).
+    song_index: which entry of the engine's SONG TABLE this subtune plays.
+              Defaults to `subtune`, which is the identity every plain Hubbard
+              '85 rip uses. It exists because an init WRAPPER can remap the
+              two: HVSC #85's Human_Race declares 6 subtunes over a 5-entry
+              song table, its wrapper sending subtune 5 to song 4 (ledger C19's
+              observed-`subtune_songs` shape). Never guess this — observe it
+              with `siddump --pc-watch <real init> ... ` and read A.
+    speed_override: per-subtune tick length, bypassing the engine's per-song
+              speed table. Same reason: a wrapper can POKE that table before
+              handing control to the real init, so the byte in the file image
+              is not what the song plays at. None = read the table (identity).
     sid_path: SID file to extract from. Defaults to HumanRace (SID_PATH).
     ft_base:  Base address of the freq table for extended-table runtime
               values. Defaults to 0x5428 (Commando-specific). Pass the
@@ -127,9 +140,12 @@ def extract(
         # The engine doesn't know about drums/arpeggio — only the decompiler does.
 
         instruments: list[Instrument] = []
+        song_i = subtune if song_index is None else song_index
         # Per-subtune speed if available; else fall back to default.
-        if decomp.speed_table is not None and subtune < len(decomp.speed_table):
-            speed = decomp.speed_table[subtune]
+        if speed_override is not None:
+            speed = speed_override
+        elif decomp.speed_table is not None and song_i < len(decomp.speed_table):
+            speed = decomp.speed_table[song_i]
         elif decomp.speed is not None:
             speed = decomp.speed
         else:
@@ -210,12 +226,12 @@ def extract(
             ))
 
         # --- S: Score ---
-        if subtune >= len(decomp.songs):
+        if song_i >= len(decomp.songs):
             raise ValueError(
-                f"subtune {subtune} out of range "
+                f"subtune {subtune} -> song {song_i} out of range "
                 f"(have {len(decomp.songs)} songs)"
             )
-        song = decomp.songs[subtune]
+        song = decomp.songs[song_i]
         tick_length = speed + 1
         pat_dict = {p.index: p for p in decomp.patterns}
 

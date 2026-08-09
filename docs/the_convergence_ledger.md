@@ -1124,6 +1124,19 @@ practice, not code to factor).
   0-15, the 8-bit slot*16 base wraps past 15 — C11). A per-subtune
   wave_table-override schema was drafted and REVERTED (the
   position-locked premise was an artifact; name-on-proof held).
+  NOT DMC-SPECIFIC (4th occ, FIRST NON-DMC): Hubbard '85 Human_Race in HVSC
+  #85 — header 6 songs / song table 5, appended init wrapper `CMP #$05 / LDA
+  #$04 / STX <per-song tick byte> / JMP <real init>` = the DEGENERATE form,
+  ONE data poke and no state snapshot, so subtune 6 is song 5 one tick slower.
+  A single poked table byte is the same problem as a whole pasted state block:
+  the file-image byte is STALE for the subtune that plays it. Land as an
+  observed subtune→(song, knob) map + identity-defaulting extract args (every
+  other rip byte-identical). ⚠ MEASURE WITH SIDDUMP not py65 once the poked
+  value reaches the write stream (a TEMPO does): `--pc-watch <real-init PC>
+  0-2 --pc-watch-first` gives A=song and X=the poke, `--memwatch <table>` the
+  table as read. ⚠ `--peek-post-init` CANNOT read a player at $A000-$BFFF —
+  the idle-time port banks BASIC ROM over it and returns the SAME ROM bytes
+  for every subtune (C29's trap in its ordinary form).
   DETECTION IS OBSERVATION-FIRST (3rd carrier, 2nd wrapper shape): when
   the static skeleton misses, run init(A=sub) under py65 per subtune —
   fire iff every subtune enters base with the SAME A and ≥1 non-start
