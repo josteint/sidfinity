@@ -1,0 +1,32 @@
+diff --git a/sidid.c b/sidid.c
+index 6ab33a0..f4a2208 100644
+--- a/sidid.c
++++ b/sidid.c
+@@ -390,9 +390,15 @@ void identifyfile(char *name, char *fullname)
+   fread(buffer, 1, length, in);
+   fclose(in);
+ 
+-  if (!playerid)
+-    fullname[56] = 0;
+-  
++  /* SIDFINITY PATCH: upstream truncates the path to 56 chars for neat
++     display. We consume this output as a machine-readable {path: engine}
++     map, and a truncated path matches no file -- it silently drops every
++     entry whose path is longer, which in HVSC #85 is 1,384 members (2.3%),
++     43% of everything that read as "unclassified". The %-56s below still
++     pads short paths, so columns stay aligned; long ones just run over. */
++  /* if (!playerid)
++    fullname[56] = 0; */
++
+   while (id)
+   {
+     if (identifybuffer(id, buffer, length))
+@@ -424,7 +430,7 @@ void identifyfile(char *name, char *fullname)
+     unidentified++;
+     if ((unknown) || (onlyunknown))
+     {
+-      fullname[56] = 0;
++      /* SIDFINITY PATCH: see the note above -- do not truncate the path. */
+       printf("%-56s *Unidentified*\n", fullname);
+     }
+   }

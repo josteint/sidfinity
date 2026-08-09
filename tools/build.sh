@@ -21,6 +21,20 @@ if [ ! -d "libsidplayfp/src" ]; then
     git clone https://github.com/libsidplayfp/libsidplayfp.git
 fi
 
+# sidid — HVSC playroutine identifier; produces tools/sidid_full.txt, the
+# engine column of the catalogue. PATCHED: upstream truncates paths to 56
+# chars for display, which silently drops 2.3% of HVSC from a dump consumed
+# as a {path: engine} map. Re-cloning without the patch reintroduces that.
+if [ ! -f "sidid/sidid" ]; then
+    echo "Cloning and building sidid..."
+    if [ ! -d "sidid/.git" ]; then
+        git clone https://github.com/cadaver/sidid.git sidid
+        (cd sidid && git apply ../sidid_no_truncate.patch)
+    fi
+    (cd sidid && gcc sidid.c -Wall -O3 -o sidid)
+    echo "  Built tools/sidid/sidid"
+fi
+
 # --- Step 2: Apply overlay (our modifications) ---
 
 echo "Applying overlay files..."

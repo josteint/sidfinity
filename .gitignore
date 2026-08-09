@@ -16,6 +16,9 @@ tools/libsidplayfp/build/
 tools/xa65/
 tools/py65_lib/
 tools/py_test_lib/
+# sidid: upstream clone. The PATCH (tools/sidid_no_truncate.patch) and the
+# generated classification (tools/sidid_full.txt) ARE tracked.
+tools/sidid/
 
 # Compiled binaries (rebuilt by tools/build.sh)
 tools/siddump
