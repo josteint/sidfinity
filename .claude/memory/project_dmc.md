@@ -1,12 +1,44 @@
 ---
 name: project_dmc
-description: "DMC (Demo Music Creator) migration — THE FOCUS ENGINE (10,676 HVSC SIDs, largest family). Round changelog, NEWEST-FIRST: the head of this file IS the current status (counts live there + in MEMORY.md, not here). KEY: data-table addresses are PACKER-PATCHED operands — extract by dataflow, never fixed offsets."
+description: "DMC (Demo Music Creator) migration — THE FOCUS ENGINE (largest HVSC family). Round changelog, NEWEST-FIRST: the head of this file IS the current status (counts live there + in MEMORY.md, not here). KEY: data-table addresses are PACKER-PATCHED operands — extract by dataflow, never fixed offsets."
 metadata: 
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-08T02:27:33.130Z
+  modified: 2026-08-09T20:58:20.639Z
 ---
+
+## HVSC #85: family-1 is 5,445, not 5,401 (2026-08-09) — re-batch RUNNING
+The collection update grew the family. 116 of the #85 catalogue's 10,774 DMC
+members belong to no cluster in `tmp/dmc_families.json` (built over #84): 38
+are new files, 78 became visible when the sidid path-truncation fix landed
+(upstream truncates output paths at 56 chars, which had been silently dropping
+2.3% of HVSC from the engine column — see ledger C20's seventh layer).
+Classified with the census's own method (opcode skeleton, then 4-gram Jaccard
+≥ 0.85 vs family reps): **family-1 +47**, V4-derived +46, V5 line +16, V5
+branch +5, one singleton, one UNASSIGNED
+(`Bayliss_Richard/Santas_Christmas_Delivery`, best Jaccard 0.108 against every
+known DMC family — unlike anything we have, worth a look).
+
+⚠ **A family KEY is the union-find REPRESENTATIVE, not the member's own
+skeleton hash.** Fingerprinting a known f1 member returns a hash that is not
+the family key, which reads convincingly as "the fingerprint function drifted".
+It has not — recomputing against the stored `tmp/dmc_fingerprint.jsonl`
+reproduces the June hashes exactly. Check that before concluding you must
+re-fingerprint all 10,774.
+
+f1 list = 5,445, NOT 5,448: three old paths (`Ares_02`, `Qbhead_01`,
+`ZCHN_Is_Comm`) were RENAMED by #85 and return among the 47 under new names.
+List: `tmp/dmc_f1_members_85.json`; per-member: `tmp/dmc_classify_new.json`.
+
+Also note **every f1 verdict went code_hash-stale** on 2026-08-09: the
+hvsc84→hvsc85 rename edited collection paths inside docstrings of fingerprinted
+engine files, and `code_fingerprint` hashes raw bytes. Nothing is wrong; it is
+pure recompute. The batch running now (`tmp/dmc_f1_85_results.jsonl`, log
+`tmp/dmc_f1_85_batch.log`) clears it AND sweeps the 47 newcomers, written to a
+NEW file so `tmp/dmc_wide_results.jsonl` survives as the #84 baseline for the
+mandatory `batch_diff` closeout. The 47 have never been verified, so their
+results are new coverage — do NOT fold them into regression triage.
 
 ## ✅ B4-onset CLOSED + the vibdel DE-REDIRECT (2026-08-08, commits 2a6d85fe / 57035d3d) — f1 re-batched 5,401/5,401 FULL and corpus-synced
 Two outcomes from one investigation, and the FIRST one refuted its own
