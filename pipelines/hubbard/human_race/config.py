@@ -1,12 +1,27 @@
 """The Human Race EngineConfig — Human Race on the shared Hubbard '85
 core (pipelines/hubbard/).
 
-Rob Hubbard's *The Human Race* (1985 Mastertronic). Load $0980, init
-$0980 (trampoline to $1A9C), play $0986. 5 PSID subtunes, all music
-(V3 unused — only V1 + V2 carry music for the PSID).
+Rob Hubbard's *The Human Race* (1985 Mastertronic). Load $A000, init
+$B1A3, play $A006. All music (V3 unused — only V1 + V2 carry music
+for the PSID).
 
-Instruments at $0DE3 (8-byte records, 23 instruments), freq table
-at $0CE4 (96+ semitone entries). See pipelines/hubbard/human_race/disassembly.s.
+Instruments at $A463 (8-byte records, 23 instruments), freq table
+at $A364 (96+ semitone entries). See pipelines/hubbard/human_race/disassembly.s.
+
+⚠ HVSC #85 SHIPS A RE-ASSEMBLED RIP. #84 loaded at $0980 (init $0980
+trampolining to $1A9C, play $0986); #85 is the SAME player re-assembled
+at $A000 (+$9680), plus an 89-byte tail at $B160-$B1B8 carrying a 6th
+subtune. The two images align at file offset 0 and their freq table and
+instrument records are BYTE-IDENTICAL at the shifted addresses; the ~589
+differing bytes are the absolute-address operands. So the migration was
+exactly these two base constants — subtunes 0-4 verify FULL unchanged.
+The disassembly.s in this directory still documents the #84 addresses;
+subtract $9680 to read it against #85.
+
+The #85 header declares 6 songs (speed $2F: subtunes 0-3 and 5 CIA-timed)
+but the engine's own song table still holds 5, because the 6th is reached
+through the new init at $B1A3 rather than a table entry. `subtunes` below
+therefore stays (0..4) — see the note there.
 """
 
 import os
@@ -33,11 +48,17 @@ def _resetspd(subtune, binary, load):
 HUMAN_RACE = EngineConfig(
     name='human_race',
     sid_path=SID,
-    instr_base=0x0DE3,
+    instr_base=0xA463,
     instr_count=23,
-    freq_table_base=0x0CE4,
+    freq_table_base=0xA364,
     extract=_extract,
     resetspd=_resetspd,
+    # The #85 header declares 6 songs, but the engine's song table holds 5:
+    # the 6th (index 5) is "subtune #5 as slow as Rob Hubbard wanted in 1985"
+    # per the official changelog, reached via the new $B1A3 init rather than a
+    # song-table entry, and CIA-timed (speed bit 5). It is NOT yet extracted —
+    # adding it here without that work would ship a wrong subtune, which is
+    # worse than shipping five right ones.
     subtunes=(0, 1, 2, 3, 4),
     arp_interval=12,
     # HR's `fx_arp` cycles 1 frame base + 7 frames +octave, keyed on
