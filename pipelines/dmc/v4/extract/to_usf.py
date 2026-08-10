@@ -91,7 +91,17 @@ _VIBDEL_ADDR = 0x1771          # per-voice vibrato-DELAY counter ($1771,x)
 # extract proves per-voice constancy (stamping those reads STATIC), the
 # composer drops the proven voices from the redirect.
 _DEREDIRECT_ROWS = {'vibdel': _VIBDEL_ADDR,
-                    'glsp': 0x1741, 'gla': 0x1744, 'glb': 0x1747}
+                    'glsp': 0x1741, 'gla': 0x1744, 'glb': 0x1747,
+                    # the note-init cache family (step 3): written ONLY at
+                    # note-init from an instrument-field table (fe_ni), so a
+                    # voice whose every played instrument yields the
+                    # init-cleared value 0 holds 0 all song. NOT here:
+                    # pwstep/wctrl (written on the EFFECTS path — fx_pulse
+                    # every frame / every wave step — so the note-init proof
+                    # does not cover them; they stay live).
+                    'ioff': 0x174D, 'cpwmin': 0x1756, 'cpwmax': 0x1759,
+                    'cpwbase': 0x175F, 'vibwid': 0x1774, 'cvram': 0x1777,
+                    'fxf': 0x177D, 'vstep': 0x1792, 'vsteph': 0x1795}
 _DEREDIRECT_IDX = {}
 """window idx -> (row label, 1-based voice), over BOTH windows (an address
 can land in the freq-HI window at addr-$16A7 and the freq-LO window at
@@ -193,6 +203,118 @@ def _glide_const_voices(m) -> set:
         return set()                            # never widen on an oddity
 
 
+_CACHE_LABELS = ('ioff', 'cpwmin', 'cpwmax', 'cpwbase', 'vibwid', 'cvram',
+                 'fxf', 'vstep', 'vsteph')
+
+
+def _iflags_model(inst) -> int:
+    """Model-side mirror of composer_asm._Model.iflags (the lossless byte-10
+    reconstruction), on DmcInstrument fields. Bias on any mismatch must be
+    OVER-estimation (nonzero where the composer might emit 0) — that only
+    converts fewer voices, never a wrong one."""
+    f = 0
+    if inst.drum:
+        f |= 0x01
+    if inst.filter_keep_running:
+        f |= 0x02
+    if inst.pw_keep_running:
+        f |= 0x04
+    if inst.gate_mode == 'open' or inst.gate_open:
+        f |= 0x08
+    if inst.gate_mode == 'hold':
+        f |= 0x10
+    if inst.filter_on:
+        f |= 0x20
+    if inst.dual:
+        f |= 0x40
+    if inst.noise_attack:
+        f |= 0x80
+    return f
+
+
+def _cache_note_init_value(lbl: str, inst, iid: int) -> int:
+    """The value note-init writes to cache row `lbl` for instrument `iid` —
+    mirrors the composer's fe_ni table builders (ioffval/ipwmin/ipwmax/
+    ipwbase/ivwid/ivram/iflag). `vstep` uses vib_width as a PROXY: note-init
+    writes vibdepth[curnote] transiently but forces 0 when the width cache
+    is 0 before anything reads it (ni_vib_depth), so width==0 <=> vstep ends
+    0 every init. `vsteph` is 0 unconditionally on canon members (only fe_ni
+    clears it; the family-2 'step' swell is bailed in the caller)."""
+    from pipelines.dmc.composer_asm import _inst_offset
+    if lbl == 'ioff':
+        ro = getattr(inst, 'record_offset', None)
+        return ro if ro is not None else _inst_offset(iid)
+    if lbl == 'cpwmin':
+        return inst.pw_bound_a
+    if lbl == 'cpwmax':
+        return inst.pw_bound_b
+    if lbl == 'cpwbase':
+        return (inst.pw_steps[0] & 0x0F) if inst.pw_steps else 0
+    if lbl == 'vibwid':
+        return inst.vib_width
+    if lbl == 'cvram':
+        if inst.dual:
+            return (inst.slide_step & 0x7F) | \
+                (0x80 if inst.slide_dir == 'up' else 0)
+        return inst.vib_ramp & 0xFF
+    if lbl == 'fxf':
+        return _iflags_model(inst)
+    if lbl == 'vstep':
+        return inst.vib_width
+    if lbl == 'vsteph':
+        return 0
+    raise KeyError(lbl)
+
+
+def _cache_const_voices(m) -> dict:
+    """Per-voice constancy for the note-init cache family (step 3). These
+    rows are written ONLY at note-init, each from an instrument-field table,
+    and init clears them — so a voice is provably constant-0 iff EVERY
+    instrument its rows carry yields the init-cleared value 0 (an idle voice
+    carries none and never note-inits: constant). Soft rows don't note-init
+    but their instruments are still counted — over-approximation only
+    converts fewer.
+
+    Bails: track_ff_reinit_ghost (the ghost frame's aliased ,x writes are
+    outside the note-init write model — same bail as the glide trio),
+    checked on file-level AND per-song params; unexpected voice counts; a
+    row instrument absent from the pool; and vstep/vsteph on a family-2
+    'step' ramp member (its half-cycle swell writes them UNGATED by width).
+    """
+    out = {lbl: set() for lbl in _CACHE_LABELS}
+    try:
+        keys = set(getattr(m, 'extra_params', {}) or {})
+        for song in getattr(m, 'songs', []) or []:
+            keys |= set(getattr(song, 'params', None) or {})
+        if 'track_ff_reinit_ghost' in keys:
+            return out
+        step_ramp = str((getattr(m, 'extra_params', {}) or {})
+                        .get('vib_ramp', 'width')) == 'step'
+        seen = {1: set(), 2: set(), 3: set()}
+        for song in getattr(m, 'songs', []) or []:
+            for vi, v in enumerate(song.voices):
+                if vi > 2:
+                    return out                  # unexpected voice count: bail
+                for e in v.entries:
+                    for r in v.patterns[e]:
+                        seen[vi + 1].add(r.instr)
+        for lbl in _CACHE_LABELS:
+            if lbl in ('vstep', 'vsteph') and step_ramp:
+                continue
+            const = set()
+            for vc in (1, 2, 3):
+                try:
+                    if all(_cache_note_init_value(lbl, m.instruments[i], i)
+                           == 0 for i in seen[vc]):
+                        const.add(vc)
+                except KeyError:
+                    pass                        # unattributable: keep live
+            out[lbl] = const
+        return out
+    except Exception:
+        return {lbl: set() for lbl in _CACHE_LABELS}
+
+
 def _deredirect_const_voices(m) -> dict:
     """Per-row prover registry: row label -> set of provably-constant
     1-based voices (ledger C11, per-voice de-redirect). Rows here must be
@@ -200,7 +322,8 @@ def _deredirect_const_voices(m) -> dict:
     would read as non-canon-geometry evidence."""
     gl = _glide_const_voices(m)
     return {'vibdel': _vibdel_const_voices(m),
-            'gla': gl, 'glb': gl, 'glsp': gl}
+            'gla': gl, 'glb': gl, 'glsp': gl,
+            **_cache_const_voices(m)}
 
 
 def _stamp_live(recs, canon: bool, const_map: dict | None = None) -> list:

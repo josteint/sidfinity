@@ -326,7 +326,17 @@ def signal_for_addr(addr: int):
 # equals the captured window byte by construction (extract
 # _glide_const_voices; bails on track_ff_reinit_ghost / glide_neutered,
 # whose writes fall outside that model).
-DMC_DEREDIRECTABLE = {'vibdel', 'gla', 'glb', 'glsp'}
+# The note-init cache family (step 3): each written ONLY at note-init from
+# an instrument-field table (ioffval/ipwmin/ipwmax/ipwbase/ivwid/ivram/
+# iflag; vstep forced 0 when the width cache is 0, vsteph canon-never-
+# nonzero), init-cleared — constant-0 on a voice whose every played
+# instrument yields 0 (extract _cache_const_voices; bails on
+# track_ff_reinit_ghost + the family-2 'step' swell for vstep/vsteph).
+# pwstep/wctrl are NOT eligible: written on the EFFECTS path (fx_pulse per
+# frame / every wave step), outside the note-init proof — they stay live.
+DMC_DEREDIRECTABLE = {'vibdel', 'gla', 'glb', 'glsp',
+                      'ioff', 'cpwmin', 'cpwmax', 'cpwbase', 'vibwid',
+                      'cvram', 'fxf', 'vstep', 'vsteph'}
 
 
 def _deredirect_expand(rows, dead_by_label):

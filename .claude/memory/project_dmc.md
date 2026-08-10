@@ -5,8 +5,25 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-10T18:27:44.882Z
+  modified: 2026-08-10T19:43:24.261Z
 ---
+
+## ✅ r186 — DE-REDIRECT step 3: the NOTE-INIT CACHE FAMILY — the class is DONE (2026-08-10)
+ioff/cpwmin/cpwmax/cpwbase/vibwid/cvram/fxf/vstep/vsteph joined the
+allowlist: **155 converters, 155/155 FULL**, all synced + rebuild-audited
+(golden 592 = 437 identical + 155 intended). KEY DELTA from the design: the
+"one prover serves all" claim needed a WRITE-SITE AUDIT, which EXCLUDED
+pwstep + wctrl (effects-path writers — fx_pulse per frame / every wave
+step; they stay live). Value functions mirror the composer table builders
+(`_cache_note_init_value`); fxf's iflags mirror biases to OVER-estimate
+(converts fewer, never wrongly); ioff handles the C31 renumber via
+record_offset; vstep proxies on vib_width; vsteph is canon-never-nonzero;
+bails = ghost wedge + family-2 'step' swell (vstep/vsteph only). With steps
+1-3 all landed same-day, the per-voice de-redirect design
+(tmp/deredirect_per_voice_design.md) is FULLY IMPLEMENTED: 4 + 375 + 155 =
+534 members' representations now carry live marks only where the value
+moves. Ledger C11 has all three steps. corpus 12,107 / lint 0/0 /
+regression 0 regressed. f1 code_hash stale (fold into next batch).
 
 ## ✅ r185 — DE-REDIRECT step 2: the GLIDE TRIO (2026-08-10, same day as r184)
 gla/glb/glsp joined `DMC_DEREDIRECTABLE` — the class-wide payoff: **375 of
