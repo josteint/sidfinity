@@ -20,28 +20,59 @@ family-1 onto #85. 46 of the 47 newcomers are FULL.
 diverges at its FIRST note (V1 SR $6A vs $E8, freq $2187 vs $3300, ctrl $21 vs
 $81 — a different note/instrument entirely, not a drifting effect).
 
-DIAGNOSED — it is a **ledger C31 COMPILATION that detection missed** and built
-as `single`, so sub 1 was extracted from the wrong player's data:
-  - header: 2 songs, load $1000, **init $1E40, play $1E43** (NOT the canonical
-    $1000/$1003), image $1000-$2E76
-  - `siddump --pc-watch '*00' 0-2 --pc-watch-first` per subtune (the C31/C18
-    observation technique): sub 0 lands at **$1000** (A=0), sub 1 at **$1F00**
-    (A=0, X=1) — TWO player bases
-  - both are canonical three-JMP DMC heads, the second a relocation of the
-    first: $1000 = `JMP $101D / $1085 / $162F`, $1F00 = `JMP $1F1D / $1F85 /
-    $162F` (note the SHARED third target)
-  - the init vector is the SMC dispatch wrapper: $1E40 `JMP $1E46`, then
-    `TAX / LDA $1E56,X / STA …` — an X-indexed base/song table, C31's
-    described shape
-This member was also one of only 2 newcomers assigned to f1 by JACCARD (0.967)
-rather than an exact skeleton match — consistent with a file whose reachable
-code includes a second player copy.
-NOT FIXED: the lever is DMC detection (shared), so it needs a corpus-wide
-census of the shape + a full re-batch to validate. ⚠ Check the OBSERVATION path
-first — C31's own card says "DON'T keep teaching the static wrapper parser new
-shapes; OBSERVE the landing", and $1F00 is page-aligned, so the ≥2-page-aligned
--base pre-gate should already admit it; find out why the observation path was
-not reached before adding any static shape.
+DIAGNOSED (corrected 2026-08-10 after reading the FULL C31 entry — the first
+pass, from the recognition card alone, got the CONCLUSION wrong):
+
+  ❌ WRONG (what the card-only pass concluded): "a C31 compilation that
+     DETECTION MISSED; the lever is detection, check why the observation path
+     wasn't reached." Also floated the entry's "instrument overflow
+     (Heavy_Metal, 30 > 28)" residue as the likely cause.
+  ✅ MEASURED: `detect_compilation` fires perfectly —
+     `bases [$1000,$1F00], map [(0,0),(1,0)], kinds ['dmc','dmc']`, exactly the
+     landings observed with `--pc-watch '*00'`. Both players extract fine, and
+     the member has 25 instruments (10+15), nowhere near any pool cap — it is
+     NOT the Heavy_Metal overflow residue. The build falls back to `single`
+     through C31's documented "falls back on any merge/compose failure":
+         merge_models -> ValueError: compilation players disagree on the freq table
+
+THE REAL LEVER: `merge_models` (compilation.py:813) asserts the packed players
+share a tuning and REFUSES otherwise — its own comment concedes "freq is
+per-tune content but a compilation's players are usually the standard DMC
+tuning; a mismatch is unmergeable". Here they genuinely differ, and audibly:
+freq_lo differs at 2 of 96 entries (note 31 $06F3 vs $0647 = **-176 cents**,
+nearly a whole tone; note 82 -6.7 cents), freq_hi identical, and `vibdepth`
+differs too. That is real musical content, not a packer artifact.
+
+CANON READING: a tuning table is content, not mechanism (the principle's C7
+category C names tuning tables as the case where bytes ARE the natural musical
+form), so two tunings in one file is representable, not a §7 leak. Both players
+are DMC V4, so ONE composer serves them — `origin_engine`/C35 is NOT implicated
+(its test is "more than one COMPOSER", not "more than one engine"). And the
+schema ALREADY carries the field: `MusicSubtune.freq_table` exists (added
+round 93 for the V5/heterogeneous path), alongside `default_filter` and
+`wave_programs`.
+
+SO THE SHAPE IS THE FAMILIAR ONE — "a per-player fact the merge collapses rides
+a per-subtune override" — for which this entry already records FIVE precedents
+(idle priming, idle_wave, d417_shadow, record_offset, dual_phase, rest_effects).
+Two pieces, neither designed yet:
+  1. `merge_models`: on freq/vibdepth disagreement carry per-song tables instead
+     of raising.
+  2. DMC V4 composer: consume `MusicSubtune.freq_table` (+ vibdepth). It
+     currently reads only the FILE-level `usf.freq_table`
+     (composer_asm.py:2745), though it DOES already consume per-subtune
+     `wave_programs` — so the gating pattern to copy is right there.
+GATE (same as every prior per-player widening): golden byte-identity over
+all-agree members + a corpus census of how many detected compilations actually
+disagree on tuning + a re-batch. NOT a small change; left for a scoped round.
+
+⚠ LESSON: the observations (two bases, the SMC dispatch at $1E40, sub 0 FULL /
+sub 1 wrong from its first note) were all correct — the conclusion was not,
+because it was drawn from the recognition CARD. The ledger says a card is never
+enough to act on; this is what that costs. Reading the entry also corrected a
+second misreading: the two heads SHARING their third JMP target ($162F) is not
+evidence against two independent players — packers point the all-off/sfx entry
+at a shared routine, and merge_models already masks $1006-$100B for it.
 
 ## HVSC #85: family-1 is 5,445, not 5,401 (2026-08-09)
 The collection update grew the family. 116 of the #85 catalogue's 10,774 DMC
