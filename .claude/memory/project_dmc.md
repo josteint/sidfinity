@@ -8,6 +8,41 @@ metadata:
   modified: 2026-08-10T02:03:26.105Z
 ---
 
+## ✅ r182 — PER-SUBTUNE TUNING lands; f1 is 5,445/5,445 FULL (2026-08-10)
+The #85 batch's single partial is closed. Bayliss/Heavy_Metal_Solid_preview
+2/2 FULL, so **family-1 is 5,445/5,445 (100%) on HVSC #85**.
+
+ROOT CAUSE (not what the first pass said — see the corrected entry below):
+`merge_models` REQUIRED the packed players to share a freq table and RAISED
+otherwise, dropping the member to the single-player fallback so sub 1 was built
+from the wrong player's data. The two players are genuinely tuned differently:
+2 of 96 notes, note 31 $06F3 vs $0647 = **-176 cents**. Tuning is per-tune
+CONTENT (principle C7 category C), so it now rides per-subtune like every other
+per-player fact — `MusicSubtune.freq_table`, which has existed since r93, so NO
+schema addition. Composer PATCHES the shared tables at init via a per-subtune
+`(note,lo,hi)` `$FF`-terminated stream beside the existing `ovr` window patch;
+the base must NOT move because freqlo/freqhi are contiguous with the off-table
+window. Commit fbd1f2e3; ledger C31 gained the occurrence.
+
+GATES: byte-identity vs the corpus mass-written minutes earlier with the
+pre-change code — 445/445 identical incl. ALL 45 non-single members; dmc_smoke
+6/6; usf_corpus_check 12,107/12,107; usf_spec_lint 0/0; full regression 0
+regressed; audit_rebuild on the fixed member OK.
+
+⚠ OPEN, MEASURED, DELIBERATELY NOT TAKEN: the same census
+(`tmp/dmc_tuning_census.py`, `tmp/dmc_tuning_census.json`) found tuning
+disagreement in exactly 1 member but **VIBDEPTH disagreement in 22
+compilations**, which `merge_models` collapses to the start player's with NO
+check (`vibdepth=list(b.vibdepth)`). All 22 are currently FULL, so the
+collapsed value is unsonified in them. Fixing it WOULD change their emitted
+bytes, and byte-difference does not imply behaviour change (C7's one-way gate)
+— so it needs a RE-VERIFY of the 22, not a byte-diff. Scoped round, not a free
+ride.
+
+⚠ The f1 batch rows went code_hash-stale again (a42aa07b -> ee1d2247) because
+this touched DMC code. The 445/445 byte-identity proof means the verdicts still
+hold in substance; fold the re-batch into the next planned one.
+
 ## #85 f1 re-batch LANDED: 5,444/5,445 FULL — the 1 partial is a MISSED C31 (2026-08-10)
 Batch `tmp/dmc_f1_85_results.jsonl` (5,445 members) vs the #84 baseline
 `tmp/dmc_wide_results.jsonl`: **REGRESSIONS 0**, gains 0, only-in-old 3 (the

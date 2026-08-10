@@ -993,6 +993,23 @@ practice, not code to factor).
   slots are per-subtune init state) — instrument-usage attribution can't
   disagree, so the extract SPLITS the instrument per sampled VALUE-CLASS
   (clone + remap the disagreeing subtune's rows; `ovr_sub` then serves each).
+- THE MERGE CAN FAIL BY REFUSING, NOT ONLY BY COLLAPSING (r182, Bayliss/
+  Heavy_Metal_Solid_preview +1 FULL): `merge_models` ASSERTED the packed
+  players share a freq table and RAISED, dropping the member to the
+  single-player fallback = every non-start subtune built from the WRONG
+  player's data (sub 0 FULL, sub 1 wrong from its FIRST note). Tuning is
+  per-tune CONTENT (§7/C7 category C), so carry it per-subtune like every fact
+  above — `MusicSubtune.freq_table` already exists (r93), NO schema addition.
+  ⚠ COMPOSER: PATCH the shared tables at init (per-subtune `(note,lo,hi)`
+  stream, `$FF`-terminated, beside the `ovr` window patch) — do NOT repoint the
+  base, `freqlo`/`freqhi` are contiguous with the off-table window and all
+  off-table addressing depends on that adjacency. ⚠ LATENT SIBLING: the census
+  found tuning disagreement in 1 member but VIBDEPTH disagreement in 22, which
+  the merge collapses with NO check; all 22 are FULL (unsonified), and fixing
+  it changes their emitted bytes — so it needs a RE-VERIFY of the 22, not a
+  byte-diff (C7's one-way gate). ⚠ METHOD: this was nearly mis-diagnosed 3 ways
+  (detection miss / instrument-cap residue / C35) by acting on the CARD;
+  detection was fine. Read the entry.
 - IDENTIFYING an unfamiliar packed player: build the opcode skeleton from
   REACHABLE CODE ONLY. A window spanning the player's SMC/scratch bytes is
   member-specific and reports "1 carrier in HVSC" for a player that actually
