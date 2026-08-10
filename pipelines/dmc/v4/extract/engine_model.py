@@ -195,6 +195,19 @@ class DmcSong:
     # a one-frame modulator stall (or its absence) on every event boundary
     # of the other player's subtunes. None = file-level params serve.
     params: dict | None = None
+    # Per-subtune TUNING (ledger C31, same per-player-fact split as everything
+    # above). A compilation's packed players usually share the standard DMC
+    # tuning, and `merge_models` used to REQUIRE that — raising 'players
+    # disagree on the freq table' and dropping the whole member to the
+    # single-player fallback, which builds every non-start subtune from the
+    # WRONG player's data. But a freq table is per-tune musical CONTENT (the
+    # principle's C7 category C: tuning tables are the case where bytes ARE the
+    # natural musical form), so two packed tunes may legitimately be tuned
+    # differently — Bayliss/Heavy_Metal_Solid_preview's two players differ at 2
+    # of 96 notes, one by ~176 cents. None = the model-level table serves,
+    # which is every single-player member and every agreeing compilation.
+    freq_lo: list | None = None
+    freq_hi: list | None = None
 
 
 @dataclass

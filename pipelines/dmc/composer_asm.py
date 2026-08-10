@@ -2831,6 +2831,34 @@ fx_dual_up:
             ovr_stream += [pos, d.get(pos, ovr[pos])]
         ovr_stream.append(0xFF)         # end of this subtune's patch row
 
+    # per-subtune TUNING patch (ledger C31): a compilation's packed players can
+    # be tuned differently (Bayliss/Heavy_Metal_Solid_preview: 2 of 96 notes,
+    # one by ~176 cents), and each subtune runs exactly one player. Same shape
+    # and the same reasoning as the window patch above — PATCH the shared
+    # tables rather than repointing the base, because `freqlo`/`freqhi` are
+    # contiguous with the off-table window and the whole off-table addressing
+    # depends on that adjacency. Every differing note is rewritten on EVERY
+    # init (not just that subtune's own) so a subtune change cannot inherit the
+    # previous one's tuning. GATED on an actual disagreement: with none,
+    # nothing below is emitted and the image is byte-identical.
+    _fsub = []
+    for sub in usf.subtunes:
+        ft = getattr(sub, 'freq_table', None)
+        _fsub.append((list(ft[:96]), list(ft[96:])) if ft else None)
+    fpat_notes = sorted({i for t in _fsub if t for i in range(96)
+                         if t[0][i] != flo[i] or t[1][i] != fhi[i]})
+    # Y walks the patch stream, so it must stay 8-bit; an over-long stream
+    # keeps the static tables (the pre-change behaviour) rather than truncating.
+    if fpat_notes and len(usf.subtunes) * (3 * len(fpat_notes) + 1) > 256:
+        fpat_notes = []
+    fpat_stream, fpat_rowbase = [], []
+    for t in _fsub:
+        fpat_rowbase.append(len(fpat_stream))
+        for i in fpat_notes:
+            fpat_stream += [i, (t[0][i] if t else flo[i]),
+                            (t[1][i] if t else fhi[i])]
+        fpat_stream.append(0xFF)        # end of this subtune's patch row
+
     # Seed the SPARSE glide vars gla/glb from their captured off-table values so
     # they track the orig from init (see DMC_OFFTABLE_STATE). A state var at
     # canonical addr A lands at window position A-ORIG_FLO-192 (LO and HI reads
@@ -2909,6 +2937,9 @@ fx_dual_up:
     if ovr_conflict:
         data.append('ovrbase:\n' + _byt(ovr_rowbase))
         data.append('ovrpat:\n' + _byt(ovr_stream))
+    if fpat_notes:
+        data.append('fpatbase:\n' + _byt(fpat_rowbase))
+        data.append('fpatpat:\n' + _byt(fpat_stream))
     # vibdepth table (96-entry constant) + the off-table overrun window: a
     # note>95 reads `vibdepth[note]` past the table; place the captured depth at
     # pos note-96 so the read resolves to the original's value (it landed on
@@ -3282,6 +3313,28 @@ ovrp_d:
         lda tmp
 ''' if ovr_conflict else '')
 
+    # per-subtune TUNING patch (see `fpat_notes` above). Same placement and the
+    # same tmp-save/restore shape as the window patch, so the two compose; A
+    # still holds the subtune on exit.
+    freq_patch = ('''        sta tmp                      ; per-subtune tuning
+        tax
+        ldy fpatbase,x
+fpat_l:
+        ldx fpatpat,y                ; note index ($FF = row end)
+        cpx #$FF
+        beq fpat_d
+        iny
+        lda fpatpat,y
+        sta freqlo,x
+        iny
+        lda fpatpat,y
+        sta freqhi,x
+        iny
+        bne fpat_l
+fpat_d:
+        lda tmp
+''' if fpat_notes else '')
+
     # route_clear_dead (C19 wedge, 16th occ — Classic_Mix): the note-init's
     # NON-filter route-bit CLEAR (`STA shadow` at canon $12C6) is re-pointed
     # at a void byte, so the $D417 routing bits only ever ACCUMULATE — the
@@ -3468,7 +3521,7 @@ CIA_PERIOD = ${cia_period:04X}
 
 ;; ===================== init (A = subtune) =====================
 init:
-{cursong_save}{ovr_patch}        pha                          ; save subtune
+{cursong_save}{ovr_patch}{freq_patch}        pha                          ; save subtune
         lda #$00
         tax
 ini_st:

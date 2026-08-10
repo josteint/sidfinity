@@ -807,11 +807,15 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
     base_pidx = subtune_map[start][0] if start < len(subtune_map) else 0
     b = models[base_pidx]
 
-    # shared tuning must coincide (freq is per-tune content but a compilation's
-    # players are usually the standard DMC tuning; a mismatch is unmergeable).
-    for m in models:
-        if m.freq_lo != b.freq_lo or m.freq_hi != b.freq_hi:
-            raise ValueError('compilation players disagree on the freq table')
+    # Tuning is PER-TUNE musical content (the principle's C7 category C), so
+    # packed players may legitimately disagree — the merge used to refuse the
+    # whole member here, which sent it to the single-player fallback and built
+    # every non-start subtune from the WRONG player's data. It now carries the
+    # disagreement per-subtune (below, beside idle_wave / d417_shadow /
+    # dual_phase), and the start player's table stays the file-level one so
+    # every agreeing member emits byte-identically.
+    tuning_differs = any(m.freq_lo != b.freq_lo or m.freq_hi != b.freq_hi
+                         for m in models)
 
     merged = em.DmcModel(
         freq_lo=list(b.freq_lo), freq_hi=list(b.freq_hi),
@@ -1037,6 +1041,14 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
         # single-phase members emit nothing).
         if (models[pidx].dual_phase or 0) != (models[0].dual_phase or 0):
             song.dual_phase = models[pidx].dual_phase or 0
+        # ...and its own player's TUNING, when the packed players disagree.
+        # Set only on the subtunes whose table actually differs from the
+        # file-level (start player's) one, so an agreeing member carries
+        # nothing and model_to_usf emits no override.
+        if tuning_differs and (models[pidx].freq_lo != b.freq_lo
+                               or models[pidx].freq_hi != b.freq_hi):
+            song.freq_lo = list(models[pidx].freq_lo)
+            song.freq_hi = list(models[pidx].freq_hi)
         rm = remap[pidx]
         for v in song.voices:
             for rows in v.patterns:
