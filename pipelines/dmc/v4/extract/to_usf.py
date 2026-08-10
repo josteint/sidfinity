@@ -125,19 +125,13 @@ def _vibdel_const_voices(m) -> set:
                 for e in v.entries:
                     for r in v.patterns[e]:
                         seen[vi + 1].add(r.instr)
-        const = {vc for vc in (1, 2, 3) if not (seen[vc] & hot)}
-        # ALL-OR-NOTHING per member: the composer's de-redirect drops the
-        # whole 3-byte vibdel row, so a member that still needs ONE voice
-        # served live must keep every read live. Converting only some would
-        # fill window bytes the surviving redirect then shadows — inert, but
-        # it moves the image for no behavioural gain and breaks the
-        # byte-identity gate's "changed bytes == converted" invariant.
-        for ins in m.instruments.values():
-            for rec in (getattr(ins, 'offtable_freq', None) or []):
-                idx = (rec[0] + rec[1]) & 0xFF
-                if idx in VIBDEL_HI_IDX and VIBDEL_HI_IDX[idx] not in const:
-                    return set()
-        return const
+        # PER-VOICE (ledger C11 de-redirect, per-voice form): the composer
+        # expands the redirect row to contiguous runs of the still-live
+        # voices, so a member with one varying voice converts the provably
+        # constant ones instead of keeping every read live (the old
+        # all-or-nothing collapse existed only because the composer dropped
+        # the 3-byte row whole).
+        return {vc for vc in (1, 2, 3) if not (seen[vc] & hot)}
     except Exception:
         return set()                            # never widen on an oddity
 

@@ -310,6 +310,50 @@ def signal_for_addr(addr: int):
     return None
 
 
+# Rows whose per-voice CONSTANCY the extract can prove from the WRITE SITES
+# (ledger C11 de-redirect refinement): when every off-table record on a
+# voice's byte is stamped STATIC, that voice is dropped from the redirect and
+# the captured window byte serves the read. EXPLICIT allowlist — never infer
+# eligibility from staticness, or every NON-CANON-GEOMETRY member (whose
+# static-at-live reads mean "the state block MOVED", offtable_redirect=0)
+# would be silently reinterpreted as a pile of per-voice de-redirects.
+# Grow row by row as the extract's prover learns them (design:
+# vibdel -> the glide trio -> the note-init cache family).
+DMC_DEREDIRECTABLE = {'vibdel'}
+
+
+def _deredirect_expand(rows, dead_by_label):
+    """Expand redirect rows to their LIVE voices only (ledger C11 de-redirect,
+    per-voice form). For each row whose label has proven-constant (dead)
+    voice offsets, emit one row per maximal CONTIGUOUS RUN of live voices —
+    `(addr+k, 'label+k', run)` is valid generator input because the row is a
+    contiguous index range and the label lands in an asm expression
+    (`lda vibdel+2-204,y`). Contiguous runs (not blind per-voice splits) keep
+    the compare chain minimal (C25 — the chain is on the per-frame wave-step
+    path). No dead voices -> the row is returned UNTOUCHED (byte-identical);
+    all dead -> dropped (the old member-level whole-row drop). Only the
+    emission-side otmap is expanded — DMC_OFFTABLE_STATE itself stays
+    canonical (3-byte rows, plain labels) for signal_for_addr /
+    offtable_live_idx / DMC_SIGNAL_NAMES."""
+    out = []
+    for addr, label, nb in rows:
+        dead = dead_by_label.get(label, set())
+        if not dead:
+            out.append((addr, label, nb))
+            continue
+        k = 0
+        while k < nb:
+            if k in dead:
+                k += 1
+                continue
+            j = k
+            while j + 1 < nb and (j + 1) not in dead:
+                j += 1
+            out.append((addr + k, f'{label}+{k}' if k else label, j - k + 1))
+            k = j + 1
+    return out
+
+
 _OFFTABLE_LIVE_IDX = None
 
 
@@ -745,21 +789,52 @@ class _Model:
             # until the corpus sync retires the flag)
             return (len(r) > 4 and r[4]) or \
                 any(hasattr(x, 'voice') for x in r[2:4])
-        # VIBRATO-DELAY de-redirect. `vibdel` ($1771,x) is the one live-served
-        # signal whose constancy is CHECKABLE: the counter is written only at
-        # that voice's note-init (from the instrument's delay) and otherwise
-        # only DECed, and init clears the block — so on a voice that never
-        # plays a delayed instrument it is 0 all song, and a `live` stamp there
-        # asserts a movement that never happens. When extract stamps those
-        # reads STATIC, honour it: drop the row from the redirect (below) so
-        # the captured window byte is served, and EXEMPT those idx from the
-        # non-canon test — a static read there is a deliberate de-redirect, not
-        # evidence that the member's state geometry moved. No records at those
-        # idx (or any live one) => unchanged, byte-identical.
-        _VIBDEL_IDX = {(0x1771 + k) - ORIG_FHI for k in range(3)}
-        _vd = [r for r in _all if ((r[0] + r[1]) & 0xFF) in _VIBDEL_IDX]
-        self.vibdel_static = bool(_vd) and not any(_rec_live(r) for r in _vd)
-        _exempt = _VIBDEL_IDX if self.vibdel_static else set()
+        # DE-REDIRECT, PER VOICE (ledger C11 refinement, generalised from the
+        # member-level vibdel form). For rows in DMC_DEREDIRECTABLE the
+        # extract can PROVE a voice's value never moves (vibdel: written only
+        # at that voice's note-init, otherwise DECed, init-cleared) and stamps
+        # its reads STATIC; a `live` stamp there would assert a movement that
+        # never happens. Honour it PER VOICE: a row byte whose records are all
+        # static is dropped from the redirect (contiguous-run expansion at the
+        # otmap build below) so the captured window byte serves the read, and
+        # its idx are EXEMPTED from the non-canon test — a static read there
+        # is a deliberate de-redirect, not evidence the member's state
+        # geometry moved. Eligibility is the EXPLICIT allowlist, never
+        # inferred from staticness — a generic "all-static ⇒ de-redirect"
+        # rule would eat the non-canon-geometry detector below. A voice with
+        # NO records at a row byte keeps the redirect (that is what keeps
+        # every member that never reads there byte-identical).
+        self.deredirect_dead = {}      # row label -> {dead voice offsets k}
+        _exempt = set()
+        for _addr, _lbl, _nb in DMC_OFFTABLE_STATE:
+            if _lbl not in DMC_DEREDIRECTABLE:
+                continue
+            _dead, _recbear = set(), set()
+            for _k in range(_nb):
+                _idxs = set()
+                _hi = (_addr + _k) - ORIG_FHI
+                if 96 <= _hi <= 255:
+                    _idxs.add(_hi)
+                _lo = (_addr + _k) - ORIG_FLO
+                if 192 <= _lo <= 255:
+                    _idxs.add(_lo)
+                _recs = [r for r in _all
+                         if ((r[0] + r[1]) & 0xFF) in _idxs]
+                if _recs:
+                    _recbear.add(_k)
+                if _recs and not any(_rec_live(r) for r in _recs):
+                    _dead.add(_k)
+                    _exempt |= _idxs
+            # When EVERY record-bearing voice is dead, drop the WHOLE row —
+            # the record-free voices' rows are write-stream-inert (no read
+            # lands there) and this is the historical member-level form, so
+            # the 27 members converted under it stay byte-identical. Only a
+            # genuinely MIXED member (some voice still live) keeps the
+            # record-free voices' rows (they were live in its old build too)
+            # and drops just the proven-dead ones.
+            if _dead:
+                self.deredirect_dead[_lbl] = (
+                    set(range(_nb)) if _dead == _recbear else _dead)
         _static_at_live = any(not _rec_live(r)
                               and ((r[0] + r[1]) & 0xFF) in _live
                               and ((r[0] + r[1]) & 0xFF) not in _exempt
@@ -3234,11 +3309,13 @@ fx_dual_up:
     # void for non-canon state-geometry members (params offtable_redirect=0,
     # extract-probed): their window bytes are static code/data served by the
     # static capture.
-    # vibdel row dropped when every off-table read of the counter is STATIC
-    # (extract proved it never moves) — the window byte then serves the read.
-    _state_rows = [row for row in DMC_OFFTABLE_STATE
-                   if not (getattr(m, 'vibdel_static', False)
-                           and row[1] == 'vibdel')]
+    # DE-REDIRECTED voices dropped per row (ledger C11, per-voice form): a
+    # voice whose off-table reads of an allowlisted row are all STATIC
+    # (extract proved the value never moves) is served from the captured
+    # window byte; the surviving voices keep live rows via contiguous-run
+    # expansion. Rows with no proven-dead voice pass through untouched.
+    _state_rows = _deredirect_expand(DMC_OFFTABLE_STATE,
+                                     getattr(m, 'deredirect_dead', {}))
     otmap = (_state_rows if m.offtable_redirect else []) \
         + ([DMC_SECTPOS_ROW] if sectpos_on else []) \
         + ([DMC_WAVEPOS_ROW] if (m.wavepos_layout or

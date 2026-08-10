@@ -351,9 +351,13 @@ practice, not code to factor).
   $1771,x: written only at that voice's note-init, else only DECed, init-cleared
   ⇒ a voice that never plays a `vib_delay` instrument holds $00 all song). Prove
   from the WRITE SITES, don't sample — the proof caught 27 members where a
-  siddump census had flagged 18. Drop the row per-member ALL-OR-NOTHING (3 bytes
-  wide) and EXEMPT those idx from `_static_at_live`, or the de-redirect is
-  misread as moved geometry and kills the member's whole redirect.
+  siddump census had flagged 18. Drop PER VOICE (2026-08-10): the row is a
+  contiguous range, so live voices survive as contiguous-run sub-rows with
+  expression labels (`lda vibdel+2-204,y`), expanded at the otmap build only;
+  eligibility = the explicit `DMC_DEREDIRECTABLE` allowlist (inferring from
+  staticness would eat the non-canon detector), and those idx are EXEMPTED
+  from `_static_at_live`. ⚠ when EVERY record-bearing voice is dead the WHOLE
+  row still drops (the historical form — else all 27 prior converts re-churn).
 - ⚠ A RECORDED REJECTION OF A REDIRECT ROW EXPIRES. "Our var doesn't track
   theirs" was measured against ONE composer on ONE date (often on ONE family);
   the composer is re-implemented continuously. RE-MEASURE before accepting it

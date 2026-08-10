@@ -5,8 +5,32 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-10T15:58:16.494Z
+  modified: 2026-08-10T16:52:45.928Z
 ---
+
+## ✅ r184 — PER-VOICE DE-REDIRECT, step 1 (vibdel) lands (2026-08-10)
+The design at `tmp/deredirect_per_voice_design.md` is implemented for its
+step 1 (`DMC_DEREDIRECTABLE = {'vibdel'}`): the extract's per-voice constancy
+prover no longer collapses all-or-nothing, and the composer expands each
+allowlisted redirect row to contiguous runs of the still-LIVE voices
+(`_deredirect_expand`, expression labels like `vibdel+2`; DMC_OFFTABLE_STATE
+stays canonical). +0 FULL by design — a representation-truth fix (live marks
+only where the value moves). TWO CORRECTIONS to the design discovered by the
+golden gate: (1) when EVERY record-bearing voice is dead the WHOLE row must
+still drop (record-free voices included = the historical member-level form)
+or all 27 previously-converted members re-churn — per-voice expansion fires
+only for genuinely MIXED members; (2) the design's "4 known carriers" was
+stale: Yoko/Dream_on_Girl is NOT an f1 member, and the real 4th converter is
+The_Syndrom/Black_It — a heterogeneous compilation whose MERGE creates a
+mixed row (one packed player's static records beside another's live ones).
+GATES: golden 197 = 193 byte-identical / 4 DIFFERS = exactly the converters
+(Top_One_Mix, Goldrake, Something_Broke, Black_It); 4/4 verified FULL vs
+originals; artifacts synced + rebuild-audited; smoke 6/6; corpus_check
+12,107/12,107; spec_lint 0/0; full regression 0 regressed. Ledger C11 has
+the refinement. NEXT (steps 2-3, mechanism unchanged): add the glide trio
+(gla/glb/glsp — must respect m.glide_leftover_cleared + serve the SEED value,
+not 0) then the note-init cache family to the prover registry + allowlist.
+f1 batch code_hash stale again (dmc_v4 touched) — fold into the next batch.
 
 ## ✅ r183b — PER-SUBTUNE VIBDEPTH READS: the r182 latent sibling closed (2026-08-10)
 The 22-compilation vibdepth collapse is resolved (+0 FULL by design — all 22
