@@ -5,10 +5,45 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-09T20:58:20.639Z
+  modified: 2026-08-10T02:03:26.105Z
 ---
 
-## HVSC #85: family-1 is 5,445, not 5,401 (2026-08-09) — re-batch RUNNING
+## #85 f1 re-batch LANDED: 5,444/5,445 FULL — the 1 partial is a MISSED C31 (2026-08-10)
+Batch `tmp/dmc_f1_85_results.jsonl` (5,445 members) vs the #84 baseline
+`tmp/dmc_wide_results.jsonl`: **REGRESSIONS 0**, gains 0, only-in-old 3 (the
+renamed paths), only-in-new 47 (the newcomers). So every carried-over member
+survived the #85 migration + the code_hash churn, and the batch re-baselines
+family-1 onto #85. 46 of the 47 newcomers are FULL.
+
+**The single partial is NEW COVERAGE, not a regression:**
+`MUSICIANS/B/Bayliss_Richard/Heavy_Metal_Solid_preview.sid` — sub 0 FULL, sub 1
+diverges at its FIRST note (V1 SR $6A vs $E8, freq $2187 vs $3300, ctrl $21 vs
+$81 — a different note/instrument entirely, not a drifting effect).
+
+DIAGNOSED — it is a **ledger C31 COMPILATION that detection missed** and built
+as `single`, so sub 1 was extracted from the wrong player's data:
+  - header: 2 songs, load $1000, **init $1E40, play $1E43** (NOT the canonical
+    $1000/$1003), image $1000-$2E76
+  - `siddump --pc-watch '*00' 0-2 --pc-watch-first` per subtune (the C31/C18
+    observation technique): sub 0 lands at **$1000** (A=0), sub 1 at **$1F00**
+    (A=0, X=1) — TWO player bases
+  - both are canonical three-JMP DMC heads, the second a relocation of the
+    first: $1000 = `JMP $101D / $1085 / $162F`, $1F00 = `JMP $1F1D / $1F85 /
+    $162F` (note the SHARED third target)
+  - the init vector is the SMC dispatch wrapper: $1E40 `JMP $1E46`, then
+    `TAX / LDA $1E56,X / STA …` — an X-indexed base/song table, C31's
+    described shape
+This member was also one of only 2 newcomers assigned to f1 by JACCARD (0.967)
+rather than an exact skeleton match — consistent with a file whose reachable
+code includes a second player copy.
+NOT FIXED: the lever is DMC detection (shared), so it needs a corpus-wide
+census of the shape + a full re-batch to validate. ⚠ Check the OBSERVATION path
+first — C31's own card says "DON'T keep teaching the static wrapper parser new
+shapes; OBSERVE the landing", and $1F00 is page-aligned, so the ≥2-page-aligned
+-base pre-gate should already admit it; find out why the observation path was
+not reached before adding any static shape.
+
+## HVSC #85: family-1 is 5,445, not 5,401 (2026-08-09)
 The collection update grew the family. 116 of the #85 catalogue's 10,774 DMC
 members belong to no cluster in `tmp/dmc_families.json` (built over #84): 38
 are new files, 78 became visible when the sidid path-truncation fix landed
@@ -34,11 +69,7 @@ List: `tmp/dmc_f1_members_85.json`; per-member: `tmp/dmc_classify_new.json`.
 Also note **every f1 verdict went code_hash-stale** on 2026-08-09: the
 hvsc84→hvsc85 rename edited collection paths inside docstrings of fingerprinted
 engine files, and `code_fingerprint` hashes raw bytes. Nothing is wrong; it is
-pure recompute. The batch running now (`tmp/dmc_f1_85_results.jsonl`, log
-`tmp/dmc_f1_85_batch.log`) clears it AND sweeps the 47 newcomers, written to a
-NEW file so `tmp/dmc_wide_results.jsonl` survives as the #84 baseline for the
-mandatory `batch_diff` closeout. The 47 have never been verified, so their
-results are new coverage — do NOT fold them into regression triage.
+pure recompute. That re-batch has since LANDED — see the entry above.
 
 ## ✅ B4-onset CLOSED + the vibdel DE-REDIRECT (2026-08-08, commits 2a6d85fe / 57035d3d) — f1 re-batched 5,401/5,401 FULL and corpus-synced
 Two outcomes from one investigation, and the FIRST one refuted its own
