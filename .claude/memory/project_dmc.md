@@ -39,9 +39,12 @@ bytes, and byte-difference does not imply behaviour change (C7's one-way gate)
 — so it needs a RE-VERIFY of the 22, not a byte-diff. Scoped round, not a free
 ride.
 
-⚠ The f1 batch rows went code_hash-stale again (a42aa07b -> ee1d2247) because
-this touched DMC code. The 445/445 byte-identity proof means the verdicts still
-hold in substance; fold the re-batch into the next planned one.
+RE-BATCHED under the new hash the same day: tmp/dmc_f1_85b_results.jsonl =
+**5,445/5,445 FULL**, batch_diff vs the previous #85 batch 0 regressions / 1
+gain (the Bayliss member). The corpus needs NO mass-write — all 5,445 stored
+artifacts rebuild BYTE-IDENTICALLY from their stored .usf under current code
+(`GATE_ALL=1 python3 tmp/dmc_freq_gate.py`), so "what is stored" already equals
+"what was verified".
 
 ## #85 f1 re-batch LANDED: 5,444/5,445 FULL — the 1 partial is a MISSED C31 (2026-08-10)
 Batch `tmp/dmc_f1_85_results.jsonl` (5,445 members) vs the #84 baseline
