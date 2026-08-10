@@ -793,6 +793,12 @@ def _write_subtune(s) -> list[str]:
         if getattr(s, 'wave_programs', None):
             for line in _write_wave_programs(s.wave_programs):
                 lines.append('  ' + line)
+        if getattr(s, 'offtable_vibdepth', None):
+            lines.append('  offtable_vibdepth {  '
+                         '; per-subtune vibrato-depth overrides')
+            for note, depth in s.offtable_vibdepth:
+                lines.append(f'    at({note}, {depth})')
+            lines.append('  }')
         for v in s.voices:
             lines.extend(_write_voice(v))
         # one global block per chip; chip 1 is always the bare form

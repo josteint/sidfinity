@@ -784,7 +784,7 @@ class _T(Transformer):
             params = rest.pop(0)
         if rest and isinstance(rest[0], InitState):
             init = rest.pop(0)
-        sub_freq, sub_dfilt, sub_wave = None, None, None
+        sub_freq, sub_dfilt, sub_wave, sub_vibovr = None, None, None, None
         while rest and isinstance(rest[0], tuple) \
                 and rest[0][0] == '_sub_override':
             ov = rest.pop(0)[1]
@@ -794,6 +794,9 @@ class _T(Transformer):
                 sub_dfilt = ov[1]
             elif isinstance(ov, tuple) and ov and ov[0] == 'wave_programs':
                 sub_wave = ov[1]
+            elif isinstance(ov, tuple) and ov \
+                    and ov[0] == 'offtable_vibdepth':
+                sub_vibovr = ov[1]
         globals_ = {}
         while rest and isinstance(rest[-1], tuple) \
                 and rest[-1][0] == '_global':
@@ -832,6 +835,7 @@ class _T(Transformer):
                           'is_sfx': is_sfx, 'origin_engine': origin_engine,
                           'freq_table': sub_freq, 'default_filter': sub_dfilt,
                           'wave_programs': sub_wave,
+                          'offtable_vibdepth': sub_vibovr,
                           'global_track': globals_.get(1, []),
                           'tempo2': tempos.get(2), 'tempo3': tempos.get(3),
                           'global_track2': globals_.get(2, []),
@@ -932,6 +936,7 @@ class _T(Transformer):
                 freq_table=body_data.get('freq_table'),
                 default_filter=body_data.get('default_filter'),
                 wave_programs=body_data.get('wave_programs'),
+                offtable_vibdepth=body_data.get('offtable_vibdepth'),
                 global_track=body_data.get('global_track', []),
                 tempo2=body_data.get('tempo2'),
                 tempo3=body_data.get('tempo3'),

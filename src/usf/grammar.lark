@@ -599,7 +599,7 @@ music_body: "tempo" ":" INT tempo_chip* origin_engine_field? is_sfx_field? param
 // packed players tune differently / carry their own idle filter sweep).
 // Grouped into one repeated rule, like `top_block`, to keep the LALR table
 // small — a longer chain of optionals blows up table construction.
-sub_override: freq_table_block | default_filter_block | wave_programs_block
+sub_override: freq_table_block | default_filter_block | wave_programs_block | offtable_vibdepth_block
 tempo_chip: "tempo" INT ":" INT
 origin_engine_field: "origin_engine" ":" CNAME
 is_sfx_field: "is_sfx" ":" bool

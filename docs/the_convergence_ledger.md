@@ -1004,10 +1004,14 @@ practice, not code to factor).
   stream, `$FF`-terminated, beside the `ovr` window patch) — do NOT repoint the
   base, `freqlo`/`freqhi` are contiguous with the off-table window and all
   off-table addressing depends on that adjacency. ⚠ LATENT SIBLING: the census
-  found tuning disagreement in 1 member but VIBDEPTH disagreement in 22, which
-  the merge collapses with NO check; all 22 are FULL (unsonified), and fixing
-  it changes their emitted bytes — so it needs a RE-VERIFY of the 22, not a
-  byte-diff (C7's one-way gate). ⚠ METHOD: this was nearly mis-diagnosed 3 ways
+  found tuning disagreement in 1 member but VIBDEPTH disagreement in 22 —
+  RESOLVED 2026-08-10: measured per-index, that signal was ~all the relocating
+  code-overlap head (idx 3-4) + unreached notes (the raw `vibdepth` copy is
+  DEAD — no downstream consumer); the sonifiable fact is the REACHED
+  `offtable_vibdepth` dicts, conflicting in only 4 members, now carried as
+  sparse per-subtune `MusicSubtune.offtable_vibdepth` overrides + a
+  FIXED-LENGTH count-based `vpat` init patch (a $FF terminator collides with
+  idx 255). Gate was the RE-VERIFY of all 22 (C7's one-way gate), 22/22 FULL. ⚠ METHOD: this was nearly mis-diagnosed 3 ways
   (detection miss / instrument-cap residue / C35) by acting on the CARD;
   detection was fine. Read the entry.
 - IDENTIFYING an unfamiliar packed player: build the opcode skeleton from

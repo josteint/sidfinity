@@ -5,8 +5,35 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-10T02:03:26.105Z
+  modified: 2026-08-10T15:58:16.494Z
 ---
+
+## ✅ r183b — PER-SUBTUNE VIBDEPTH READS: the r182 latent sibling closed (2026-08-10)
+The 22-compilation vibdepth collapse is resolved (+0 FULL by design — all 22
+were FULL; this closes the silent per-player collapse). KEY CORRECTION to the
+r182 framing: measured per-index (`tmp/dmc_vibdepth_census.py` →
+`tmp/dmc_vibdepth_census.json`), the "22 disagree on vibdepth" signal was ~all
+NOISE — every member differs only at idx 4 (Mission_Moon also 3) = the
+relocating CODE-OVERLAP-HEAD operand, plus unreached notes; and the merge's
+`vibdepth=list(b.vibdepth)` copy is DEAD (no downstream consumer — the
+composer ships canonical VIBDEPTH + the offtable_vibdepth override list).
+Carrying the raw table per-subtune would have encoded relocation artifacts.
+The SONIFIABLE fact is the reached `offtable_vibdepth` dicts, which the merge
+unioned setdefault-first-wins; exactly **4 members conflict on a reached
+note** (Defuzion_3 + Goldrake_plus_2 note 4; Lane_Crazy 142/248/255;
+Quad_Core 108/245 — off-table window reads into each player's own state
+block). FIX: sparse per-subtune `MusicSubtune.offtable_vibdepth` override
+(new `sub_override` grammar alternative reusing the file-level block) +
+`DmcSong.offtable_vibdepth` (conflict notes only, value ≠ file-level) +
+composer `vpat` init patch — FIXED-LENGTH rows + COUNT-based loop (`tmp2`),
+because a patched idx can be $FF so the ovr/fpat terminator shape collides;
+table extended to cover the max patched idx. GATES: 445/445 byte-identical
+from stored `.usf` (change inert for the existing corpus); re-verify all 22
+fresh = **22/22 FULL**; smoke 6/6; corpus_check 12,107/12,107; spec_lint 0/0;
+the 4 conflict members' artifacts regenerated + rebuild-audited; full
+regression 0 regressed. Ledger C31 gained the occurrence (incl. the
+measure-what-disagrees-first method note). NB the f1 batch rows'
+code_hash is stale again (dmc_v4 files touched) — fold into the next batch.
 
 ## ✅ r182 — PER-SUBTUNE TUNING lands; f1 is 5,445/5,445 FULL (2026-08-10)
 The #85 batch's single partial is closed. Bayliss/Heavy_Metal_Solid_preview
@@ -29,7 +56,7 @@ pre-change code — 445/445 identical incl. ALL 45 non-single members; dmc_smoke
 6/6; usf_corpus_check 12,107/12,107; usf_spec_lint 0/0; full regression 0
 regressed; audit_rebuild on the fixed member OK.
 
-⚠ OPEN, MEASURED, DELIBERATELY NOT TAKEN: the same census
+⚠ OPEN, MEASURED, DELIBERATELY NOT TAKEN [SUPERSEDED — closed by r183b above]: the same census
 (`tmp/dmc_tuning_census.py`, `tmp/dmc_tuning_census.json`) found tuning
 disagreement in exactly 1 member but **VIBDEPTH disagreement in 22
 compilations**, which `merge_models` collapses to the start player's with NO

@@ -817,6 +817,24 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
     tuning_differs = any(m.freq_lo != b.freq_lo or m.freq_hi != b.freq_hi
                          for m in models)
 
+    # The VIBDEPTH sibling (ledger C31): each player's captured
+    # offtable_vibdepth ({note: depth} — reached in-table deviations +
+    # off-table window reads) is measured against ITS OWN memory (the
+    # code-overlap head operand relocates with the base; the off-table window
+    # lands in the player's own state block), so two players can disagree on
+    # a note. The union below keeps first-wins for the file-level table;
+    # conflicting notes additionally ride per-subtune (each subtune gets its
+    # own player's value, emitted only where it differs from the file-level
+    # one). Census 2026-08-10: 22 compilations disagree on SOME vibdepth
+    # byte, but only 4 on a REACHED note (Defuzion_3, Goldrake_plus_2,
+    # Lane_Crazy, Quad_Core) — all currently unsonified (FULL), so this
+    # closes the silent collapse rather than buying coverage.
+    vib_conflict = sorted({
+        n for i, m in enumerate(models)
+        for n, d in m.offtable_vibdepth.items()
+        for m2 in models[i + 1:]
+        if n in m2.offtable_vibdepth and m2.offtable_vibdepth[n] != d})
+
     merged = em.DmcModel(
         freq_lo=list(b.freq_lo), freq_hi=list(b.freq_hi),
         vibdepth=list(b.vibdepth),
@@ -1049,6 +1067,18 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
                                or models[pidx].freq_hi != b.freq_hi):
             song.freq_lo = list(models[pidx].freq_lo)
             song.freq_hi = list(models[pidx].freq_hi)
+        # ...and its own player's value for every CONFLICTING vibdepth-read
+        # note (see vib_conflict above). Only notes where this player's value
+        # differs from the merged file-level one are carried — the composer's
+        # patch writes every conflicting note on every init, falling back to
+        # the file-level value for notes a subtune doesn't override, so a
+        # subtune change can't inherit its predecessor's patch.
+        vd = {n: models[pidx].offtable_vibdepth[n] for n in vib_conflict
+              if n in models[pidx].offtable_vibdepth
+              and models[pidx].offtable_vibdepth[n]
+              != merged.offtable_vibdepth.get(n)}
+        if vd:
+            song.offtable_vibdepth = vd
         rm = remap[pidx]
         for v in song.voices:
             for rows in v.patterns:

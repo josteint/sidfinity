@@ -2962,7 +2962,40 @@ fx_dual_up:
                 if _note >= 96:
                     _win[_note - 96] = _depth
             _vd = _vd + _win
+    # per-subtune VIBDEPTH-read patch (ledger C31, the vibdepth sibling of the
+    # tuning patch above): a compilation's packed players each measure their
+    # vibdepth reads against their OWN memory (the code-overlap head operand
+    # relocates with the base; the off-table window lands in the player's own
+    # state block), so the same note can need a DIFFERENT byte per subtune.
+    # Same init-patch shape as `fpat` — but the patched index spans 0-255
+    # (off-table window reads), so a $FF terminator would collide with a real
+    # index: the rows are FIXED-LENGTH (every conflicting note written on
+    # EVERY init, falling back to the file-level byte where a subtune carries
+    # no override, so a subtune change cannot inherit its predecessor's
+    # patch) and the loop is count-based. GATED on an actual per-subtune
+    # override: with none, nothing below is emitted (byte-identical).
+    _vsub = []
+    for sub in usf.subtunes:
+        ov = getattr(sub, 'offtable_vibdepth', None) or []
+        _vsub.append({int(n): int(d) for n, d in ov})
+    vpat_idx = sorted({n for d in _vsub for n in d})
+    # Y walks the patch stream, so it must stay 8-bit; an over-long stream
+    # keeps the static table (the pre-change behaviour) rather than truncating.
+    if vpat_idx and len(usf.subtunes) * 2 * len(vpat_idx) > 256:
+        vpat_idx = []
+    # the patch is `sta vibdepth,x` — extend the emitted table to cover every
+    # patched index so the store can never poke past the array
+    if vpat_idx and max(vpat_idx) >= len(_vd):
+        _vd = _vd + [0] * (max(vpat_idx) + 1 - len(_vd))
+    vpat_stream, vpat_rowbase = [], []
+    for d in _vsub:
+        vpat_rowbase.append(len(vpat_stream))
+        for n in vpat_idx:
+            vpat_stream += [n, d.get(n, _vd[n])]
     data.append('vibdepth:\n' + _byt(_vd))
+    if vpat_idx:
+        data.append('vpatbase:\n' + _byt(vpat_rowbase))
+        data.append('vpatpat:\n' + _byt(vpat_stream))
     for name, arr in [('iad', iad), ('isr', isr), ('ipwinit', ipwinit),
                       ('ipwmin', ipwmin), ('ipwmax', ipwmax), ('ioffval', ioffval),
                       ('ipwbase', ipwbase),
@@ -3335,6 +3368,27 @@ fpat_d:
         lda tmp
 ''' if fpat_notes else '')
 
+    # per-subtune VIBDEPTH-read patch (see `vpat_idx` above). Same placement
+    # and tmp-save/restore shape as the two patches above, so all three
+    # compose; A still holds the subtune on exit. Rows are FIXED-LENGTH (a
+    # patched index can be $FF, so no terminator byte exists) — `tmp2` counts
+    # the row's entries; it is play-time effect scratch, free at init entry.
+    vib_patch = (f'''        sta tmp                      ; per-subtune vibdepth reads
+        tax
+        ldy vpatbase,x
+        lda #${len(vpat_idx):02X}
+        sta tmp2
+vpat_l:
+        ldx vpatpat,y                ; patched index (0-255, fixed count)
+        iny
+        lda vpatpat,y
+        sta vibdepth,x
+        iny
+        dec tmp2
+        bne vpat_l
+        lda tmp
+''' if vpat_idx else '')
+
     # route_clear_dead (C19 wedge, 16th occ — Classic_Mix): the note-init's
     # NON-filter route-bit CLEAR (`STA shadow` at canon $12C6) is re-pointed
     # at a void byte, so the $D417 routing bits only ever ACCUMULATE — the
@@ -3521,7 +3575,7 @@ CIA_PERIOD = ${cia_period:04X}
 
 ;; ===================== init (A = subtune) =====================
 init:
-{cursong_save}{ovr_patch}{freq_patch}        pha                          ; save subtune
+{cursong_save}{ovr_patch}{freq_patch}{vib_patch}        pha                          ; save subtune
         lda #$00
         tax
 ini_st:

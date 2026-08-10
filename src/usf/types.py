@@ -375,6 +375,15 @@ class MusicSubtune:
     # (Super_Tau-Zeta: the packed V5 player's idle program differs from the
     # V4 players'). None = use the file-level dict.
     wave_programs: Optional[dict] = None
+    # Per-subtune offtable_vibdepth override (same C31 class): SPARSE
+    # (note, depth) entries overriding the file-level list for this subtune
+    # only — notes not listed inherit the file-level value. A compilation's
+    # packed players each overrun the vibdepth table into their OWN state
+    # block (and their code-overlap head bytes relocate with their base), so
+    # the same note can read a DIFFERENT byte per player; the merge used to
+    # collapse those on first-wins. Emitted only for notes where players
+    # actually disagree. None = the file-level list serves.
+    offtable_vibdepth: Optional[list] = None
     kind: str = 'music'
 
 

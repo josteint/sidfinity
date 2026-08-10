@@ -208,6 +208,16 @@ class DmcSong:
     # which is every single-player member and every agreeing compilation.
     freq_lo: list | None = None
     freq_hi: list | None = None
+    # Per-subtune VIBDEPTH-read overrides (ledger C31, the vibdepth sibling of
+    # freq_lo/freq_hi above). Each packed player's captured offtable_vibdepth
+    # ({note: depth} — reached in-table deviations + off-table window reads)
+    # is measured against ITS OWN memory, so two players can hold DIFFERENT
+    # values for the same note (the code-overlap head operand relocates with
+    # the base; the off-table window lands in each player's own state block).
+    # `merge_models` used to union them with setdefault — a silent first-wins.
+    # Set ONLY to the conflicting notes, with this subtune's player's value
+    # (or None where its player never captured the note). None = no conflict.
+    offtable_vibdepth: dict | None = None
 
 
 @dataclass

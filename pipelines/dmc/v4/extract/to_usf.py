@@ -1189,9 +1189,16 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
         # byte-identical. Same 192-byte lo||hi layout as the file-level one.
         sub_freq = (list(song.freq_lo) + list(song.freq_hi)
                     if song.freq_lo is not None else None)
+        # per-subtune VIBDEPTH-read overrides (the vibdepth sibling of the
+        # tuning override above — ledger C31): sparse (note, depth) entries
+        # for the notes where the packed players' captured values conflict.
+        # Absent for every single-player member and agreeing compilation.
+        sub_vibovr = (sorted(song.offtable_vibdepth.items())
+                      if getattr(song, 'offtable_vibdepth', None) else None)
         subtunes.append(MusicSubtune(
             id=song.id, tempo=song.speed, voices=voices, init=sub_init,
             wave_programs=sub_wprog, freq_table=sub_freq,
+            offtable_vibdepth=sub_vibovr,
             # per-subtune composer-param overrides (compilations whose packed
             # players disagree on a wedge knob — ledger C31); None otherwise
             params=(Params(fields=dict(song.params)) if song.params else None)))
