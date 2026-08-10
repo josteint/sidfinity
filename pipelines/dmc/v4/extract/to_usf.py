@@ -85,12 +85,26 @@ def _offtable_live_idx() -> set:
 
 
 _VIBDEL_ADDR = 0x1771          # per-voice vibrato-DELAY counter ($1771,x)
-VIBDEL_HI_IDX = {(_VIBDEL_ADDR + k) - 0x16A7: k + 1 for k in range(3)}
-"""fhi window idx -> 1-based voice, for the vibrato-delay counter (202-204).
 
-The lo landing ($1771-$1647 = 298+) is past the 8-bit index, so the counter is
-only reachable through a freq-HI read.
-"""
+# De-redirectable rows (ledger C11, per-voice form): label -> state base
+# address. Must mirror the composer's DMC_DEREDIRECTABLE allowlist — the
+# extract proves per-voice constancy (stamping those reads STATIC), the
+# composer drops the proven voices from the redirect.
+_DEREDIRECT_ROWS = {'vibdel': _VIBDEL_ADDR,
+                    'glsp': 0x1741, 'gla': 0x1744, 'glb': 0x1747}
+_DEREDIRECT_IDX = {}
+"""window idx -> (row label, 1-based voice), over BOTH windows (an address
+can land in the freq-HI window at addr-$16A7 and the freq-LO window at
+addr-$1647 — gla does both; vibdel's lo landing is past the 8-bit index so
+it is hi-only)."""
+for _lbl, _a in _DEREDIRECT_ROWS.items():
+    for _k in range(3):
+        _hi = (_a + _k) - 0x16A7
+        if 96 <= _hi <= 255:
+            _DEREDIRECT_IDX[_hi] = (_lbl, _k + 1)
+        _lo = (_a + _k) - 0x1647
+        if 192 <= _lo <= 255:
+            _DEREDIRECT_IDX[_lo] = (_lbl, _k + 1)
 
 
 def _vibdel_const_voices(m) -> set:
@@ -136,7 +150,60 @@ def _vibdel_const_voices(m) -> set:
         return set()                            # never widen on an oddity
 
 
-def _stamp_live(recs, canon: bool, vibdel_const: set | None = None) -> list:
+def _glide_const_voices(m) -> set:
+    """1-based voices whose glide state (gla/glb/glsp) is PROVABLY constant.
+
+    The trio is written ONLY in the glide branches — ev_slide (mode 1) and
+    the evflags&2 note branch (mode 0) — plus the arrival clear glsp=0, which
+    is unreachable while glsp stays 0 (fx_glide is gated `lda glsp,x / beq`).
+    So a voice with NO glide rows holds its INIT value for the whole song:
+    the igla/iglb seed where the work-file leftover survives init, 0 where
+    the canon clear wipes it (m.glide_leftover_cleared) — and in BOTH cases
+    the static record's captured post-init byte equals that value, so the
+    conversion is value-neutral by construction.
+
+    Conservative bails (the failure mode must stay "converts fewer"):
+      - track_ff_reinit_ghost: the ghost frame ALIASES writes onto the glide
+        state (INC $1729,x / STA $172F,x at X=$18 land on glsp/glb) — the
+        trio is NOT glide-row-only there.
+      - glide_neutered: the glide-speed store is re-pointed into song data,
+        so the write-site model above doesn't describe that member.
+      - any per-song params carrying those wedges (a compilation merge keeps
+        per-player disagreements on DmcSong.params).
+    """
+    try:
+        bail = {'track_ff_reinit_ghost', 'glide_neutered'}
+        keys = set(getattr(m, 'extra_params', {}) or {})
+        for song in getattr(m, 'songs', []) or []:
+            keys |= set(getattr(song, 'params', None) or {})
+        if bail & keys:
+            return set()
+        gliding = {1: False, 2: False, 3: False}
+        for song in getattr(m, 'songs', []) or []:
+            for vi, v in enumerate(song.voices):
+                if vi > 2:
+                    return set()                # unexpected voice count: bail
+                for e in v.entries:
+                    for r in v.patterns[e]:
+                        if r.glide_to is not None or r.glide_slide \
+                                or r.glide_speed:
+                            gliding[vi + 1] = True
+        return {vc for vc in (1, 2, 3) if not gliding[vc]}
+    except Exception:
+        return set()                            # never widen on an oddity
+
+
+def _deredirect_const_voices(m) -> dict:
+    """Per-row prover registry: row label -> set of provably-constant
+    1-based voices (ledger C11, per-voice de-redirect). Rows here must be
+    allowlisted composer-side (DMC_DEREDIRECTABLE) or the static stamps
+    would read as non-canon-geometry evidence."""
+    gl = _glide_const_voices(m)
+    return {'vibdel': _vibdel_const_voices(m),
+            'gla': gl, 'glb': gl, 'glsp': gl}
+
+
+def _stamp_live(recs, canon: bool, const_map: dict | None = None) -> list:
     """Tag each off-table read `(off, note, lo, hi)` whose canon-geometry
     window landing sonifies a live-varying value.
 
@@ -160,13 +227,14 @@ def _stamp_live(recs, canon: bool, vibdel_const: set | None = None) -> list:
     for rec in recs:
         off, note, lo, hi = rec[:4]
         idx = (off + note) & 0xFF
-        # A live stamp asserts "this value MOVES". For the vibrato-delay
-        # counter that claim is checkable, and on a voice that never plays a
-        # delayed instrument it is false — emit the captured constant instead
-        # (the composer then drops the redirect row and serves it from the
-        # window). Everything else keeps the address-derived stamp.
-        if idx in VIBDEL_HI_IDX and \
-                VIBDEL_HI_IDX[idx] in (vibdel_const or set()):
+        # A live stamp asserts "this value MOVES". For the de-redirectable
+        # rows (vibdel + the glide trio) that claim is checkable per voice,
+        # and on a proven-constant voice it is false — emit the captured
+        # constant instead (the composer then drops that voice from the
+        # redirect and serves it from the window). Everything else keeps
+        # the address-derived stamp.
+        dr = _DEREDIRECT_IDX.get(idx)
+        if dr and dr[1] in (const_map or {}).get(dr[0], set()):
             out.append((off, note, lo, hi))
             continue
         if canon and idx in live_idx:
@@ -391,7 +459,7 @@ def _stated_voice_form(v, ents, intros, loop_slot, soft_flags):
 def _instrument_to_usf(inst, wavepos_layout: bool = False,
                        canon: bool = True,
                        wave_norm: bool = False,
-                       vibdel_const: set | None = None) -> Instrument:
+                       const_map: dict | None = None) -> Instrument:
     effects = set()
     if inst.drum:
         effects.add('drum')
@@ -417,7 +485,7 @@ def _instrument_to_usf(inst, wavepos_layout: bool = False,
         wave_freq=[] if wave_norm else wave_freq,
         wave_start=inst.wave_start if wave_norm else None,
         adsr=(inst.ad, inst.sr),
-        offtable_freq=_stamp_live(inst.offtable_freq, canon, vibdel_const),
+        offtable_freq=_stamp_live(inst.offtable_freq, canon, const_map),
         # editor wave-table position (arrangement) — only for members whose
         # off-table reads sonify a live wave position (see DmcModel)
         wave_table_pos=inst.wave_pool_pos if wavepos_layout else None,
@@ -1258,7 +1326,7 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
         instruments=[_instrument_to_usf(m.instruments[k], m.wavepos_layout,
                                         m.offtable_canon,
                                         wave_norm=_norm is not None,
-                                        vibdel_const=_vibdel_const_voices(m))
+                                        const_map=_deredirect_const_voices(m))
                      for k in sorted(m.instruments)],
         subtunes=subtunes,
         filter_programs={d + 1: dict(v) for d, v in m.filter_defs.items()},

@@ -319,7 +319,14 @@ def signal_for_addr(addr: int):
 # would be silently reinterpreted as a pile of per-voice de-redirects.
 # Grow row by row as the extract's prover learns them (design:
 # vibdel -> the glide trio -> the note-init cache family).
-DMC_DEREDIRECTABLE = {'vibdel'}
+# vibdel: constant on a voice that never note-inits a delayed instrument.
+# gla/glb/glsp: written ONLY in the glide branches (+ the arrival clear,
+# unreachable while glsp=0), so constant on a voice with NO glide rows —
+# the value is the igla/iglb init seed (or 0 under the canon clear), which
+# equals the captured window byte by construction (extract
+# _glide_const_voices; bails on track_ff_reinit_ghost / glide_neutered,
+# whose writes fall outside that model).
+DMC_DEREDIRECTABLE = {'vibdel', 'gla', 'glb', 'glsp'}
 
 
 def _deredirect_expand(rows, dead_by_label):

@@ -5,8 +5,22 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-10T16:52:45.928Z
+  modified: 2026-08-10T18:27:44.882Z
 ---
+
+## ✅ r185 — DE-REDIRECT step 2: the GLIDE TRIO (2026-08-10, same day as r184)
+gla/glb/glsp joined `DMC_DEREDIRECTABLE` — the class-wide payoff: **375 of
+651** reader-members converted (golden: 276 byte-identical + 375 intended),
+**375/375 verified FULL** vs originals, all synced + rebuild-audited. Prover:
+a voice with NO glide rows (glide_to/glide_slide/glide_speed) never writes
+the trio (arrival clear unreachable while glsp=0), so the value = igla/iglb
+seed or the canon-cleared 0 — equal to the captured static byte by
+construction (value-neutral). Bails: track_ff_reinit_ghost + glide_neutered,
+checked on file-level AND per-song params. Composer change = 3 labels; the
+r184 machinery needed zero changes. corpus 12,107 / lint 0/0 / regression 0
+regressed. NEXT: step 3 = the note-init cache family (vibwid/cvram/fxf/ioff/
+cpw*/vstep*/pwstep/wctrl — one prover: constant iff every instrument the
+voice plays gives the init-cleared value). Ledger C11 has both steps.
 
 ## ✅ r184 — PER-VOICE DE-REDIRECT, step 1 (vibdel) lands (2026-08-10)
 The design at `tmp/deredirect_per_voice_design.md` is implemented for its
