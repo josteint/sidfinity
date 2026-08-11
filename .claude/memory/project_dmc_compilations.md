@@ -5,8 +5,20 @@ metadata:
   node_type: memory
   type: project
   originSessionId: dc3e8ab6-14f1-45ad-97c8-053b066d511b
-  modified: 2026-07-23T09:38:50.994Z
+  modified: 2026-08-11T18:21:34.259Z
 ---
+
+**2026-08-11 — Santas_Christmas_Delivery IDENTIFIED (was "UNASSIGNED, player
+unlike any known DMC family").** `MUSICIANS/B/Bayliss_Richard/
+Santas_Christmas_Delivery.sid` is an ordinary C31 compilation: SMC wrapper at
+$5C20 (base_hi_tab `[$50,$50,$5D,$6A]`, song_tab `[0,1,0,0]`) packing THREE
+relocated copies of one player ($5000/$5D00/$6A00, four-JMP heads). The
+packed player's opcode skeleton is SHA1-IDENTICAL to Zyron's family
+`aaedef54…` (family-2, 2,889 members). The 0.108-jaccard "unassigned" verdict
+was the C31 fingerprint trap: the classifier followed the file's init vector
+into the WRAPPER, whose unpatched `JMP $1000` leaves the image → garbage
+skeleton. Belongs to the family-2 campaign (H1); needs only the standard
+compilation path + f2 support, no new engine.
 
 **DMC COMPILATIONS — one file, N independent DMC players, per-subtune dispatch.**
 Characterized 2026-07-10 while fixing the first family-1 partial by path,
