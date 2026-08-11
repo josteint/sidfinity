@@ -35,7 +35,17 @@ TMPDIR = os.path.join(ROOT, 'tmp/basic_program_research/batch')
 
 
 def _dur(songlen):
-    return min(max((songlen or 10) * 1.1, 15.0), 120.0)
+    # songlength * 1.1, floored at 15 s for the tiny tunes. NO upper cap:
+    # the former min(..., 120.0) verified every >109 s member on a truncated
+    # window and recorded FULL on partial evidence — the full-window re-verify
+    # of the 49 exposed stored members found 44 false FULLs (2026-08-11,
+    # tmp/bp_fullwindow_reverify.jsonl; Bright_Eyes_BASIC diverged at ~198 s
+    # of 215). The ratified rule is songlength*1.1, never an arbitrary cap
+    # (feedback_subtune_frames_not_arbitrary). NB the songlength DB itself is
+    # unreliable for BASIC tunes (precalc dead-air breaks SLDB's measurement;
+    # America_the_Beautiful's entry covered ONLY the delay) — corrections go
+    # in tools/songlength_overrides.json, measured never assumed.
+    return max((songlen or 10) * 1.1, 15.0)
 
 
 def process(args):
