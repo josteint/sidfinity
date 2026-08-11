@@ -5,6 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: 31df618e-1d05-4346-8dfa-a60476d0a5cc
+  modified: 2026-08-11T12:06:54.268Z
 ---
 
 **Basic_Program = 486 HVSC SIDs, all RSID v2, load=init=play=0, C64-BASIC flag set.**
@@ -618,7 +619,7 @@ too_few_steps 9 + legato_variable 8 (incl. Chicken_Song/Argument_Emulator/Dunes 
 overlap_diverge 8 (Deutschlandlied close m=1672/1678; Crazy_Conveyors/Dark_Tower/Escape_from_Death early) +
 too_few_after_trim 5 + length_fail 3 + no_note_voices 2 + 1 digi (Black_Box_V8_Demo → Mode 2).
 
-**NEXT:** (1) too_many_pitches ~19 incl. build_fail + several *_variable (vibrato >96 distinct freqs — needs a
+**NEXT [SUPERSEDED by the 2026-08-11 RE-CENSUS below]:** (1) too_many_pitches ~19 incl. build_fail + several *_variable (vibrato >96 distinct freqs — needs a
 glide/vibrato effect representation, the largest remaining coherent bucket); (2) too_few_steps 9 (degenerate/short
 segmentation); (3) the early-diverge misc tail. Iterate via `family_batch.py` (resumes from OUT jsonl).
 METHOD THAT WORKS: census a bucket for a SHARED lever (multi-template +107, multi+split +35, gap-exactness +13).
@@ -631,3 +632,23 @@ STRUCTURE (parametric = mechanism+knobs the engine generates; explicit = arbitra
 case), same axis as NoteRow vs VibratoConfig. Move-1 TODOs in C10: make global_track a SHARED primitive; consider a
 sweep-detecting lift so basic_program's parametric sweeps (Moog_Swing cutoff = 190 explicit events for a sawtooth)
 become filter-programs. Not a rewrite-the-FULLs task.
+
+**🔎 NF ADOPTION RE-CENSUS (2026-08-11, item 2 stage 1 — CURRENT STATUS; supersedes the July numbers).**
+Catalogue is now 524 members (#85 added 38: 2 new + 36 newly classified). Stored: 458 = **226 NF / 232
+legacy**. Three-stage census (tmp/bp_nf_census2.py → bp_nf_stage2.py → bp_nf_stage3.json):
+- **Stage 1 (writer-only, all 232 legacy + 66 no-artifact):** the WRITER-stage ladder collapsed since July —
+  115/232 legacy are now `writer_ok` (NF writes fine); order_conflict 81 / pure_global 14 / nf_conflict 14 /
+  too_few_steps 6 / misc 3. global_repoke + missing_sig + grid_collision are GONE as writer reasons.
+- **Stage 2 (full verified chain on 115 writer_ok + 66 no-artifact):** all 115 writer_ok come back FULL **as
+  legacy** — the NF failure moved to the READER/verify stage. The no-artifact group yields **36 new FULLs
+  (21 NF + 15 legacy)** — the #85 newcomers + residue current code handles; coverage 458→494/524 (94.3%)
+  once written (NOT yet written — a sync decision). Residue: too_many_pitches 12, legato_variable 8,
+  overlap_diverge 4, variable_template 3, misc 5.
+- **Stage 3 (40-sample of the 115, NF attempt status):** nf_grid_collision 17 (~43% ⇒ ~49 of 115) /
+  nf_missing_sig:* 10 (~29; heavily GLIDE sigs — v1_glide etc.) / pure_global 4 / order_conflict 3 /
+  overlap_diverge 4 / misc.
+**THE RE-CENSUSED LADDER (232 legacy):** (1) nf_order_conflict 81 (writer; the recorded sections-as-patterns
+design); (2) nf_grid_collision ~49 (reader union-onset grid — same-onset events on one voice; the July
+"nudge ±1" reader lever shipped but wasn't binding then — reproduce + fix reader-side); (3) nf_missing_sig
+~29 (reader/writer sig asymmetry, mostly glide sigs); (4) pure_global ~25, nf_conflict 14, tail. Levers 2+3
+are READER-side and likely cheaper than sections-as-patterns; either could go first.
