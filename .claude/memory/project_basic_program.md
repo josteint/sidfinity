@@ -673,3 +673,22 @@ writer-side lever. GATES: production verify_usf over ALL 247 stored NF members =
 SHORT-WINDOW artifacts (God_Save/Casino_Poker — long pre-music intros; verify_usf lacks best_attempt's
 extended-window probe; both fail IDENTICALLY pre-change, proven in a worktree); corpus_check 12,142; full
 regression 0 regressed.
+
+**✅ SECTIONS-AS-PATTERNS SHIPPED (2026-08-11, item 2 — the recorded order-conflict design built).** Writer:
+when the tune-wide sig→order map conflicts even at full detail, greedily segment the step sequence at FINEST
+signature detail (a section closes at the first step whose sig demands a different order), cap 8 sections
+(beyond = the interleaved class, still nf_order_conflict residue); each section gets its own coarsest
+conflict-free subset + decl namespace `bp_order_p{N}_<sig>`; voices' rows split at section-boundary FRAMES
+into one Pattern per section sequenced by the Orderlist (rests split freely, instr on the first fragment
+only; a straddling NOTE or a same-frame boundary step → nf_section_span → legacy fallback). bp_loop_to
+unchanged (still the global step index). Reader: concatenates each voice's patterns in orderlist order,
+derives section-start frames from pattern boundaries, scopes decl lookups per section (bisect on the step's
+onset); single-pattern members reconstruct identically by construction. **ADOPTION SWEEP (all 232 legacy):
+35 convert to NF (25 multi-section + 10 via the earlier reader fixes), all verified FULL, 34 audited from
+disk + Pong_BASIC = a 3rd verify_usf SHORT-WINDOW artifact (ok at 120s; God_Save/Casino_Poker class — the
+audit's dur derivation lacks best_attempt's music-start probe, a known tool limitation).** NF adoption
+226→**282 / 493 stored (57%)**; legacy 211. Remaining legacy ladder: the multi-frame spread-chord
+representation gap (the reader buckets' bulk), interleaved >8-section order alternation, pure_global,
+nf_conflict misc, and the vibrato/too_many_pitches residue. corpus_check 12,142; spec_lint 0/0 (sectioned
+files round-trip); stored-NF production gate 245/247 (same 2 window artifacts, pre-existing); full
+regression 0 regressed.

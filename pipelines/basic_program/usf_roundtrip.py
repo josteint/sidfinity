@@ -292,7 +292,8 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
     # median delta as the last step's fallback (its real duration is the loop wrap)
     deltas = [steps[k+1]['on_frame'] - steps[k]['on_frame'] for k in range(len(steps)-1)]
     med = sorted(deltas)[len(deltas)//2] if deltas else 1
-    nf_gregs = None; nf_decls = {}; nf_events = {vc: [] for vc in voices}; nf_steps_ctx = []
+    nf_gregs = None; nf_decls = {}; nf_events = {vc: [] for vc in voices}
+    nf_steps_ctx = []; nf_ons = []; nf_sections = None
     if nf:
         # NF precheck: every global write must coincide with a global-track CHANGE
         # (a re-poked unchanged global is invisible to the reader -> conflict), and
@@ -434,6 +435,7 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
             if any(r not in NF.REG_TOK for r in a_regs + r_regs):
                 raise ValueError('nf_unknown_reg')
             nf_steps_ctx.append((ctx, NF.regs_to_decl(a_regs, r_regs)))
+            nf_ons.append(on)
     if nf:
         # Pick the COARSEST signature detail level with a conflict-free
         # sig -> order map (adaptive refinement: flag soup only when needed).
@@ -448,7 +450,47 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
             if ok2:
                 break
         if not ok2:
-            raise ValueError('nf_order_conflict')      # conflicted even at full detail
+            # ---- SECTIONS AS PATTERNS (the recorded order-conflict design):
+            # the tune's poke loop CHANGES between sections, so one tune-wide
+            # sig->order map conflicts. Greedily segment the step sequence at
+            # FINEST signature detail (a new section starts at the first step
+            # whose sig maps to a different order than the current section
+            # recorded); each section then gets its own coarsest conflict-free
+            # subset and its own decl namespace (bp_order_p{N}_<sig>), and the
+            # voices' rows split into one Pattern per section, sequenced by
+            # the Orderlist. Interleaved order alternation (many segments) is
+            # honest residue — keep the conflict refusal there.
+            _FIN = NF.SIG_SUBSETS[-1]
+            _seg_bounds = [0]
+            _cur = {}
+            for _i, (_ctx, _dc) in enumerate(nf_steps_ctx):
+                _sig = NF.step_sig_at(_ctx, _FIN)
+                if _cur.get(_sig, _dc) != _dc:
+                    _seg_bounds.append(_i)
+                    _cur = {}
+                _cur[NF.step_sig_at(_ctx, _FIN)] = _dc
+            if len(_seg_bounds) > 8:
+                raise ValueError('nf_order_conflict')  # interleaved: residue
+            # a section boundary must be a unique FRAME (rows split by frame;
+            # two same-frame steps straddling a boundary can't be separated)
+            for _b in _seg_bounds[1:]:
+                if nf_ons[_b] == nf_ons[_b - 1]:
+                    raise ValueError('nf_section_span')
+            _seg_bounds.append(len(nf_steps_ctx))
+            nf_sections = []                           # [(start_frame, decls)]
+            for _a, _b in zip(_seg_bounds, _seg_bounds[1:]):
+                for _sub in NF.SIG_SUBSETS:
+                    _d = {}
+                    _okv = True
+                    for _ctx, _dc in nf_steps_ctx[_a:_b]:
+                        _sig = NF.step_sig_at(_ctx, _sub)
+                        if _d.setdefault(_sig, _dc) != _dc:
+                            _okv = False; break
+                    if _okv:
+                        break
+                if not _okv:
+                    raise ValueError('nf_order_conflict')
+                nf_sections.append((nf_ons[_a] if _a else 0, _d))
         # ---- STAGE 3: true tracker rows from the event streams ----
         # Per voice: note rows (duration = sounding hold; a glide head's duration
         # = the tick span; releaseless/legato notes span to the next event), at
@@ -504,15 +546,63 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
         if vc not in inst_voices:
             wave = next((e[2] for e in atk if e[0] == {1:4,2:0xb,3:0x12}[vc] and e[1]=='const'), 0x10)
             instrs.append(Instrument(id=vc, waveform=[wave & 0xF0], adsr=(0, 0)))
+    def _split_rows_at(rows, bounds):
+        """Split a voice's row list at absolute frame boundaries (bounds[0]
+        == 0). A REST row splits freely (the instrument poke sits at the
+        row's start, so only the first fragment keeps `instr`); a NOTE row
+        straddling a boundary refuses — the member falls back to legacy."""
+        segs = [[] for _ in bounds]
+        bi, cum = 0, 0
+        for r in rows:
+            while bi + 1 < len(bounds) and cum >= bounds[bi + 1]:
+                bi += 1
+            d = r.duration
+            first = True
+            while bi + 1 < len(bounds) and cum + d > bounds[bi + 1]:
+                take = bounds[bi + 1] - cum
+                if take > 0:
+                    if not r.pitch.is_rest:
+                        raise ValueError('nf_section_span')
+                    segs[bi].append(NoteRow(pitch=Pitch.rest(), duration=take,
+                                            instr=(r.instr if first else None)))
+                    first = False
+                cum += take
+                d -= take
+                bi += 1
+            if d or first:
+                if first:
+                    frag = (r if d == r.duration else
+                            NoteRow(pitch=r.pitch, duration=d, instr=r.instr,
+                                    fx_flags=r.fx_flags))
+                else:
+                    frag = NoteRow(pitch=Pitch.rest(), duration=d)
+                segs[bi].append(frag)
+                cum += d
+        return segs
+
+    sec_bounds = [b for b, _d in nf_sections] if nf_sections else None
     vblocks = []
     for vc in (1, 2, 3):
         if vc in voices:
-            vblocks.append(VoiceBlock(id=vc,
-                orderlist=Orderlist(entries=[vc],
-                    loop_to=(0 if model['loop_to'] is not None else None),
-                    stop=(model['loop_to'] is None)),
-                patterns=[Pattern(id=vc, length=sum(r.duration for r in vrows[vc]),
-                                  rows=vrows[vc])]))
+            if sec_bounds and len(sec_bounds) > 1:
+                # SECTIONS AS PATTERNS: one Pattern per section, sequenced by
+                # the Orderlist (pattern ids = 1-based section numbers)
+                parts = _split_rows_at(vrows[vc], sec_bounds)
+                vblocks.append(VoiceBlock(id=vc,
+                    orderlist=Orderlist(entries=list(range(1, len(parts) + 1)),
+                        loop_to=(0 if model['loop_to'] is not None else None),
+                        stop=(model['loop_to'] is None)),
+                    patterns=[Pattern(id=s + 1,
+                                      length=sum(r.duration for r in part),
+                                      rows=part)
+                              for s, part in enumerate(parts)]))
+            else:
+                vblocks.append(VoiceBlock(id=vc,
+                    orderlist=Orderlist(entries=[vc],
+                        loop_to=(0 if model['loop_to'] is not None else None),
+                        stop=(model['loop_to'] is None)),
+                    patterns=[Pattern(id=vc, length=sum(r.duration for r in vrows[vc]),
+                                      rows=vrows[vc])]))
         else:
             vblocks.append(VoiceBlock(id=vc, orderlist=Orderlist(stop=True)))
     # chip-global automation: decompose the perstep GLOBAL regs into musical fields
@@ -600,8 +690,15 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
         # changed freq bytes, glide fx, instrument changes, tie/no_release,
         # global-track events); every VALUE is musical (pitch / instrument /
         # global track). No templates, no tids, no masks.
-        for sig, dc in sorted(nf_decls.items()):
-            fields[f'bp_order_{sig}'] = dc
+        if nf_sections:
+            # sections-as-patterns: decls scoped per section (1-based, the
+            # pattern/orderlist-entry numbering)
+            for si, (_bf, dmap) in enumerate(nf_sections):
+                for sig, dc in sorted(dmap.items()):
+                    fields[f'bp_order_p{si + 1}_{sig}'] = dc
+        else:
+            for sig, dc in sorted(nf_decls.items()):
+                fields[f'bp_order_{sig}'] = dc
     elif multi:
         # K per-shape templates + per-step template id (packed 4/int) — the write
         # model, same params{} precedent as bp_atk{i}/bp_mask{k}. Musical content
@@ -717,7 +814,26 @@ def usf_to_model(usf):
     mod_inc = f.get('bp_mod_inc', 0)
     ftab = list(usf.freq_table)
     sub = usf.subtunes[0]
-    vrows = {vb.id: vb.patterns[0].rows for vb in sub.voices if vb.patterns}
+    # sections-as-patterns: concatenate each voice's patterns in orderlist
+    # order and record the section-start FRAMES (cum row-duration at each
+    # pattern boundary) for per-section decl scoping. Single-pattern members
+    # concatenate to exactly patterns[0].rows with bounds [0] — identical.
+    vrows = {}
+    sec_bounds = [0]
+    for vb in sub.voices:
+        if not vb.patterns:
+            continue
+        pat_by_id = {p.id: p for p in vb.patterns}
+        order = list(vb.orderlist.entries or []) or [vb.patterns[0].id]
+        rows, bounds, cum = [], [], 0
+        for pid in order:
+            bounds.append(cum)
+            prows = pat_by_id[pid].rows
+            rows.extend(prows)
+            cum += sum(r.duration for r in prows)
+        vrows[vb.id] = rows
+        if len(bounds) > len(sec_bounds):
+            sec_bounds = bounds
     voices = sorted(vrows)
     # per-note instrument table: id -> (ctrl, ad, sr, pw16), for kind='inst' slots
     itab = {ins.id: (ins.waveform[0] if ins.waveform else 0, ins.adsr[0], ins.adsr[1],
@@ -746,9 +862,25 @@ def usf_to_model(usf):
         if reg == 0x17: return ((run_g.get('res', 0) & 0xF) << 4) | (run_g.get('route', 0) & 0xF)
         if reg == 0x15: return run_g.get('cutoff_lo', 0) & 0xFF   # $D415
         return run_g.get('cutoff', 0) & 0xFF           # $D416
-    nf_decls = {k[len('bp_order_'):]: v for k in list(f)
-                if isinstance(k, str) and k.startswith('bp_order_')
-                for v in (f[k],)}
+    # Order declarations: flat keys (bp_order_<sig>) for single-section
+    # members, section-scoped keys (bp_order_p<N>_<sig>, N = 1-based pattern/
+    # orderlist position) for sections-as-patterns members. `nf_decls` is the
+    # UNION (truthiness gates + the legato derivation scan values only);
+    # sig lookups go through the per-section maps.
+    import re as _re
+    nf_sec_decls = {}
+    nf_decls = {}
+    for k in list(f):
+        if not (isinstance(k, str) and k.startswith('bp_order_')):
+            continue
+        m_ = _re.match(r'bp_order_p(\d+)_(.+)$', k)
+        if m_:
+            nf_sec_decls.setdefault(int(m_.group(1)), {})[m_.group(2)] = f[k]
+            nf_decls[f'p{m_.group(1)}_{m_.group(2)}'] = f[k]
+        else:
+            nf_decls[k[len('bp_order_'):]] = f[k]
+    if not nf_sec_decls:
+        nf_sec_decls = {1: dict(nf_decls)}
     if 'bp_legato' in f:
         legato = bool(f['bp_legato'])
     elif nf_decls:
@@ -851,12 +983,17 @@ def usf_to_model(usf):
             ctx['globals'] = tuple(sorted(gr))
             return ctx
 
-        def _lookup(ctx):
+        from bisect import bisect_right as _bisr
+
+        def _lookup(ctx, on):
             # FINEST-first: a key containing flags outside the writer's subset was
             # never stored (no false hits); coarse-first could hit the wrong branch
             # of a refined pair (a norel step's coarse key = the plain declaration).
+            # Decls are scoped to the SECTION the onset falls in (single-section
+            # members: section 1 always).
+            dmap = nf_sec_decls.get(_bisr(sec_bounds, on), {})
             for _sub in reversed(NF.SIG_SUBSETS):
-                dc = nf_decls.get(NF.step_sig_at(ctx, _sub))
+                dc = dmap.get(NF.step_sig_at(ctx, _sub))
                 if dc is not None:
                     return dc
             return None
@@ -880,7 +1017,7 @@ def usf_to_model(usf):
                 trial, kk, ok = [], k, True
                 for g in groups:
                     ctx = _step_ctx(g, gevents.get(kk))
-                    dc = _lookup(ctx)
+                    dc = _lookup(ctx, on)
                     if dc is None:
                         ok = False
                         break
