@@ -5,8 +5,19 @@ metadata:
   node_type: memory
   type: project
   originSessionId: 31df618e-1d05-4346-8dfa-a60476d0a5cc
-  modified: 2026-08-11T12:06:54.268Z
+  modified: 2026-08-11T19:21:36.538Z
 ---
+
+**2026-08-11 — Bright_Eyes_BASIC is a stale-FULL palimpsest (C20).**
+`DEMOS/UNKNOWN/Bright_Eyes_BASIC` carries stored artifacts, but BOTH the
+stored `.sidfinity.sid` and a fresh build from the stored `.usf` verify
+PARTIAL vs the orig under current code — identical numbers (match 9,072 /
+len_a 10,855 / len_b 11,073, dur 215×1.1). Also fifth-layer: the stored
+`.usf` does not rebuild the stored `.sid` byte-identically (first diff at
+offset 654, 's' vs 'p' in the BASIC text). Found 2026-08-11 by the census
+corpus rewrite's byte-gate (the only refusal in 493); its `.usf` was left
+untouched. Not in the regression portfolio. Needs triage at the next bp
+round: re-extract under current code or reclassify into the residue.
 
 **Basic_Program = 486 HVSC SIDs, all RSID v2, load=init=play=0, C64-BASIC flag set.**
 Each is a tokenized Commodore BASIC V2 program at `$0801` that POKEs the SID — NO
