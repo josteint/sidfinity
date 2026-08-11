@@ -5,8 +5,20 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-11T01:23:50.800Z
+  modified: 2026-08-11T07:48:41.143Z
 ---
+
+## ✅ A2 CLOSED — f1 re-batched + corpus mass-written under current code (2026-08-11)
+The full chain (tmp/a2_overnight.sh, log tmp/a2_overnight_2.log) ran green
+end-to-end on the r187 fix: fresh batch **5,445/5,445 FULL, 0 partial**
+(tmp/dmc_f1_85d_results.jsonl); batch_diff vs 85b **0 regressions / 0
+gains** (identical verdict set); mass-write ok=5,445 err=0 orphans=0,
+from-disk audit 10/10 across all build paths; corpus_check 12,107/12,107;
+spec_lint 0/0; full regression 0 regressed. The stale-code_hash debt is
+CLEARED — batch rows, stored corpus, and code all agree at the current
+fingerprint. Baseline snapshotted to tmp/dmc_f1_prev_batch.jsonl. This also
+family-wide-validates the whole 2026-08-10/11 sequence (per-subtune
+vibdepth + de-redirect steps 1-3 + the canon-evidence gate).
 
 ## ✅ r187 — the de-redirect's §4 trap fires; CANON-EVIDENCE gate lands (2026-08-11)
 The A2 overnight chain's batch_diff gate caught ONE regression
