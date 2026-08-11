@@ -711,3 +711,24 @@ RECOMMENDATION: C for now (adoption is at 282/493 = 57% and the marginal cost pe
 steeply — the saturation shape); if B is ever built, validate spread-constancy per carrier FIRST. The
 cheaper remaining wins are the writer misc rules (pure_global 13 + nf_conflict 17, rule-shaped) and the
 verify-diverge divergence census (56, unknown causes).
+
+**✅ THE SPREAD-CHORD ANSWER: WHOLE-SONG BACKTRACKING PARSER (2026-08-11, item 2 — user chose 'best, most
+elegant' over the honest-residue recommendation, and the elegant answer turned out to need NO representation
+change at all).** THE INSIGHT: the information was in the USF all along — the writer emits every spread part
+as rows (tie-notes, timbre rests) and the decl VOCABULARY records the step grouping ('v1_setup__v2_note_rp'
+says one step pairs v1's setup with v2's note). THE DECLS ARE A GRAMMAR AND THE READER IS ITS PARSER: the
+union-onset grid merges events into per-(onset,voice) ordered queues; a parse slices them into consecutive
+steps — each step consumes the next unconsumed event of some voice subset (per-voice order preserved), must
+resolve a stored decl, and must have instruments established for its inst-regs (not_clean = a parse-time
+candidate reject now). Candidates in the pre-parser precedence (combined → singletons → pairs) so old
+members take identical paths; the new groupings are reached only by BACKTRACKING — which must be WHOLE-SONG
+(iterative, explicit stack, 50k-node cap): a wrong local grouping changes the step COUNT and drifts every
+later step's global-event (k) alignment, so failures surface hundreds of steps downstream. Parse first (freq
++ instrument state and k thread through the search, no side effects), emit only a complete plan.
+RESULTS: +22 converts (the spread class cracking) → **adoption 304/493 (62%)**, all verified FULL + written
++ audited. Stored-NF production gate 279/282 (same 3 short-window artifacts, no new failures). GOTCHAS
+re-learned the hard way: (1) a probe with a WRONG hardcoded duration mimicked a regression (Chromatic_Boogie
+'regressed' only under dur=77 vs the DB's 65.4 — the In_Your_Head lesson again: USE THE DB SONGLENGTH); (2)
+the failure-message onset is the DEEPEST backtrack point, not the cause site. BP_NF_DEBUG=1 env traces
+parse rejects. Remaining legacy 175: interleaved >8-section orders (~55), verify-diverge value-level causes
+(~56, needs its own census), writer misc (~40), vibrato coverage tail.

@@ -437,7 +437,12 @@ practice, not code to factor).
 - CANONICAL: cluster steps by EXACT (attack, release) register-sequence shape
   → K positional templates + per-step template id; K=1 is the special case.
   Prefer deriving WHAT a step writes from row-level event types + a few named
-  order knobs (normal form) — full templates in USF is Pole B.
+  order knobs (normal form) — full templates in USF is Pole B. When the
+  normal form's row-derivation seems to hit its limit (a slow interpreter
+  splits one event's writes MID-VOICE across frames), check whether the decl
+  vocabulary already carries the grouping: THE DECLS ARE A GRAMMAR, THE
+  READER IS ITS PARSER — whole-song backtracking parse of the per-(onset,
+  voice) event queues, combined-candidates first (2026-08-11 refinement).
 - FULL ENTRY: [`ledger/C17.md`](ledger/C17.md) — read it before applying.
 
 ### C18 — play-vector WRAPPER with per-call PHASE behaviour

@@ -11,6 +11,7 @@ packed ints (one per template entry: reg<<16 | kind<<8 | val; kind 0=const,
 and reproduces the exact writelog.
 """
 import os, sys, math
+from itertools import permutations as _permutations
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT); sys.path.insert(0, os.path.join(ROOT, 'src'))
 from src.usf import (UsfFile, PsidMeta, Params, InitState, InitSid, InitFilter,
@@ -947,19 +948,12 @@ def usf_to_model(usf):
                                  'freq': (base + (t // R) * dlt) & 0xFFFF})
                 cum += row.duration
         onsets = sorted(evmap)
-        # expand same-voice dups into SUB-STEPS: sub-step s carries each
-        # voice's s-th event at that onset. depth 1 everywhere (the common
-        # case) reproduces the old one-step-per-onset enumeration exactly.
-        expanded = []
-        for on in onsets:
-            depth = max(len(l) for l in evmap[on].values())
-            for s in range(depth):
-                expanded.append((on, {vc: l[s] for vc, l in evmap[on].items()
-                                      if len(l) > s}))
         run_instr2 = {}
 
-        def _step_ctx(evs, ge2):
-            """Sig context for one candidate step (NO state mutation)."""
+        def _step_ctx(evs, ge2, ph, pl):
+            """Sig context for one candidate step (NO state mutation; running
+            freq state passed explicitly so the parser can thread tentative
+            updates through a multi-step onset)."""
             ctx = {}
             for vc, ev in evs.items():
                 if ev['kind'] == 'tick':
@@ -969,8 +963,8 @@ def usf_to_model(usf):
                 else:
                     fq = _pitch_freq(ev['row'].pitch, ftab) or 0
                     ctx[vc] = {'kind': 'note',
-                               'hi_ch': ((fq >> 8) & 0xFF) != _ph[vc],
-                               'lo_ch': (fq & 0xFF) != _pl[vc],
+                               'hi_ch': ((fq >> 8) & 0xFF) != ph[vc],
+                               'lo_ch': (fq & 0xFF) != pl[vc],
                                'tie': 'tie' in ev['fxs'],
                                'no_rel': gated and ('no_release' in ev['fxs'] or 'tie' in ev['fxs']),
                                'instr_ch': ev['row'].instr is not None}
@@ -998,39 +992,119 @@ def usf_to_model(usf):
                     return dc
             return None
 
-        k = 0
-        for on, evs_all in expanded:
-            # The writer stored decls per MODEL step, and same-onset events on
-            # DIFFERENT voices may have been separate model steps (they arrive
-            # here merged by the union-onset grid). Resolve the grouping from
-            # the stored decls themselves: try the COMBINED step first (the
-            # historical behaviour — every already-NF member resolves here),
-            # else split into per-voice SINGLETON steps in voice order. Each
-            # group consumes its own step index k (matching the writer's
-            # per-model-step numbering). Neither resolving = nf_missing_sig,
-            # exactly as before.
-            candidates = [[evs_all]]
-            if len(evs_all) > 1:
-                candidates.append([{vc: evs_all[vc]} for vc in sorted(evs_all)])
-            plan = None
-            for groups in candidates:
-                trial, kk, ok = [], k, True
-                for g in groups:
-                    ctx = _step_ctx(g, gevents.get(kk))
-                    dc = _lookup(ctx, on)
-                    if dc is None:
-                        ok = False
-                        break
-                    trial.append((g, dc, kk))
-                    kk += 1
-                if ok:
-                    plan = trial
-                    break
-            if plan is None:
-                raise ValueError('nf_missing_sig:' + NF.step_sig_at(
-                    _step_ctx(evs_all, gevents.get(k)), NF.SIG_SUBSETS[-1]))
+        # THE DECLS ARE A GRAMMAR AND THIS IS ITS PARSER — whole-song, with
+        # BACKTRACKING. A model step may group ANY subset of the voices'
+        # events at an onset, and one voice can carry SEVERAL events there (a
+        # BASIC interpreter spreads one chord's pokes over frames, splitting
+        # MID-VOICE — v2's envelope beside v3's freq, then v3's envelope
+        # beside v1's gate). The union-onset grid merges everything into
+        # per-(onset, voice) ordered queues; a parse slices them into
+        # consecutive steps — each step consumes the next unconsumed event of
+        # some voice subset (per-voice order preserved) and must resolve a
+        # stored decl whose instrument-register voices have an established
+        # instrument. Candidate subsets are tried in the pre-parser precedence
+        # (combined, then singletons, then pairs), so a member that parsed
+        # under the old reader takes the identical path; the new groupings are
+        # reached only by BACKTRACKING out of a dead end — which may be MANY
+        # steps downstream, because a wrong local grouping changes the step
+        # COUNT and thereby every later step's global-event (k) alignment.
+        # Parse first (no side effects; freq/instrument state and k thread
+        # through the search), emit only a complete plan. The write-stream
+        # verifier remains the final gate on residual ambiguity; a dead end or
+        # node-cap blowup raises nf_missing_sig (the legacy fallback).
+        def _subsets(vcs):
+            vcs = sorted(vcs)
+            n = len(vcs)
+            yield vcs
+            if n > 1:
+                for v in vcs:
+                    yield [v]
+            if n > 2:
+                for i in range(n):
+                    for j in range(i + 1, n):
+                        yield [vcs[i], vcs[j]]
 
-            for evs, dc, kk in plan:
+        def _try_candidates(oi, counts, kk, ph, pl, rinst):
+            on = onsets[oi]
+            q = evmap[on]
+            avail = {vc: q[vc][counts.get(vc, 0)] for vc in q
+                     if counts.get(vc, 0) < len(q[vc])}
+            ge2 = gevents.get(kk)
+            for gi, g_vcs in enumerate(_subsets(list(avail))):
+                g = {vc: avail[vc] for vc in g_vcs}
+                dc = _lookup(_step_ctx(g, ge2, ph, pl), on)
+                if dc is None:
+                    if gi == 0 and os.environ.get('BP_NF_DEBUG'):
+                        print(f'combined MISS oi={oi} on={on} kk={kk} sig='
+                              + NF.step_sig_at(_step_ctx(g, ge2, ph, pl),
+                                               NF.SIG_SUBSETS[-1]),
+                              file=sys.stderr)
+                    continue
+                ri2 = dict(rinst)
+                for vc, ev in g.items():
+                    if ev['kind'] != 'tick' and ev['row'].instr is not None:
+                        ri2[vc] = ev['row'].instr.id
+                a_regs, r_regs = NF.decl_to_regs(dc)
+                if any(NF.entry_kind(rg) == 'inst'
+                       and REG_VOICE.get(rg) not in ri2
+                       for rg in tuple(a_regs) + tuple(r_regs)):
+                    continue               # not_clean at parse time: reject
+                ph2, pl2 = dict(ph), dict(pl)
+                for vc, ev in g.items():
+                    if ev['kind'] == 'tick':
+                        fq = ev['freq']
+                    elif ev['kind'] == 'note':
+                        fq = _pitch_freq(ev['row'].pitch, ftab) or 0
+                    else:
+                        continue
+                    ph2[vc] = (fq >> 8) & 0xFF
+                    pl2[vc] = fq & 0xFF
+                c2 = dict(counts)
+                for vc in g_vcs:
+                    c2[vc] = c2.get(vc, 0) + 1
+                yield (oi, on, g, dc, kk, c2, ph2, pl2, ri2)
+
+        plan = []                          # [(on, evs, dc, kk)]
+        stack = []                         # [(iterator, plan_len)]
+        st = (0, {}, 0, dict(_ph), dict(_pl), {})
+        nodes = 0
+        while True:
+            oi, counts, kk, ph, pl, rinst = st
+            while oi < len(onsets):        # advance past consumed onsets
+                q = evmap[onsets[oi]]
+                if all(counts.get(vc, 0) >= len(q[vc]) for vc in q):
+                    oi += 1
+                    counts = {}
+                else:
+                    break
+            if oi == len(onsets):
+                break                      # complete parse
+            nodes += 1
+            stack.append((_try_candidates(oi, counts, kk, ph, pl, rinst),
+                          len(plan)))
+            st = None
+            while stack:
+                if nodes > 50000:
+                    stack = []
+                    break
+                it, plen = stack[-1]
+                cand = next(it, None)
+                if cand is None:
+                    stack.pop()
+                    continue
+                c_oi, on, g, dc, kkc, c2, ph2, pl2, ri2 = cand
+                del plan[plen:]
+                plan.append((on, g, dc, kkc))
+                st = (c_oi, c2, kkc + 1, ph2, pl2, ri2)
+                break
+            if st is None:
+                q0 = evmap[onsets[0]] if onsets else {}
+                _lvl0 = {vc: l[0] for vc, l in q0.items()}
+                raise ValueError('nf_missing_sig:' + NF.step_sig_at(
+                    _step_ctx(_lvl0, gevents.get(0), _ph, _pl),
+                    NF.SIG_SUBSETS[-1]) if onsets else 'nf_missing_sig:none')
+
+        for on, evs, dc, kk in plan:
                 ge2 = gevents.get(kk)
                 if ge2 is not None:
                     for fld in ('dyn', 'cutoff', 'cutoff_lo', 'res', 'mode', 'route'):
@@ -1053,6 +1127,10 @@ def usf_to_model(usf):
                         return (fq2 >> 8) & 0xFF if reg in FHI.values() else fq2 & 0xFF
                     iid = run_instr2.get(vc2)
                     if iid is None:
+                        if os.environ.get('BP_NF_DEBUG'):
+                            print(f'not_clean on={on} kk={kk} reg={reg:02x} '
+                                  f'dc={dc!r} evs={sorted(evs)}',
+                                  file=sys.stderr)
                         raise ValueError('not_clean')
                     ctrl, ad, sr, pw, rctrl = itab[iid]
                     fld = REG_FIELD[reg]
@@ -1075,11 +1153,11 @@ def usf_to_model(usf):
                         elif rg == FLO[vc2]: _pl[vc2] = vv
                 k = kk + 1
         T = sum(r2.duration for r2 in vrows[voices[0]])
-        if f['bp_loop_to'] >= 0 and expanded:
-            # loop_to indexes STEPS; with sub-steps the step index is the
-            # expanded position (identical to the onset index when no dups)
-            nf_loop_period = T - expanded[min(f['bp_loop_to'],
-                                              len(expanded) - 1)][0]
+        if f['bp_loop_to'] >= 0 and steps:
+            # loop_to indexes STEPS; the parsed step list carries each step's
+            # onset directly (identical to the onset index when 1 step/onset)
+            nf_loop_period = T - steps[min(f['bp_loop_to'],
+                                           len(steps) - 1)]['on_frame']
     onf = f.get('bp_start_frame', 0)
     for k in range(nsteps):
         hi = k * per_step
