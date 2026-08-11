@@ -1,10 +1,9 @@
 {
   "_comment": "Per-SID songlength overrides applied after HVSC ingest in build_sid_db.py. Keyed by md5(file). Use when HVSC's Songlengths.md5 has anomalously short or otherwise wrong durations and we have a principled reason to correct them. The override survives HVSC re-fetches; the corresponding line in HVSC's Songlengths.md5 is also edited in place but that file is gitignored.",
-
   "0ee2cbed5764580b2a6a4ce44ef80cc3": {
     "seconds": 46.566,
     "path": "MUSICIANS/B/Berry_Vic/Bach_Sonata.sid",
-    "reason": "HVSC had 4.034s but the Bowden-canonical engine plays a 55.88s natural loop (K=254 ticks × tempo 11). All sibling Vic Berry tunes use HVSC = natural/1.2; applying the same rule gives 46.566s."
+    "reason": "HVSC had 4.034s but the Bowden-canonical engine plays a 55.88s natural loop (K=254 ticks \u00d7 tempo 11). All sibling Vic Berry tunes use HVSC = natural/1.2; applying the same rule gives 46.566s."
   },
   "9d27c54671b1db8d1da24f0a684c41d1": {
     "seconds": 9.167,
@@ -15,5 +14,160 @@
     "seconds": 11.733,
     "path": "MUSICIANS/B/Berry_Vic/Te_Deum.sid",
     "reason": "HVSC had 5.868s but natural loop is 14.08s (K=64, tempo=11). Apply natural/1.2 = 11.733s."
+  },
+  "0b8ffd46b01dc70492d250e4326b7cf0": {
+    "seconds": 401.0,
+    "path": "DEMOS/A-F/El-Shaddai_BASIC.sid",
+    "reason": "SLDB 213s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 115.3s, last SID write 401.0s over a 440s capture with a silent tail."
+  },
+  "6c861315951d0e9aeba632aceb2da925": {
+    "seconds": 284.7,
+    "path": "DEMOS/Commodore/Fugue_in_G_Minor_J_S_Bach_BASIC.sid",
+    "reason": "SLDB 217s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 1.4s, last SID write 284.7s over a 446s capture with a silent tail."
+  },
+  "8224767ec49d5166182956f4786878a4": {
+    "seconds": 319.1,
+    "path": "DEMOS/Commodore/Gigue_in_G_Minor_G_F_Handel_BASIC.sid",
+    "reason": "SLDB 293s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 0.3s, last SID write 319.1s over a 560s capture with a silent tail."
+  },
+  "6f6c94eb86824a1c0c33c0b37856f38d": {
+    "seconds": 129.5,
+    "path": "DEMOS/Commodore/Polonaise_in_G_Minor_CPE_Bach_BASIC.sid",
+    "reason": "SLDB 119s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 0.5s, last SID write 129.5s over a 298s capture with a silent tail."
+  },
+  "f84960bf98d66c16a7f403042f583dde": {
+    "seconds": 259.2,
+    "path": "DEMOS/G-L/Jesu_Joy_of_Mans_Desiring_BASIC.sid",
+    "reason": "SLDB 197s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 0.5s, last SID write 259.2s over a 416s capture with a silent tail."
+  },
+  "a1ba42f45dd559ce43393dcbb655b609": {
+    "seconds": 221.2,
+    "path": "DEMOS/M-R/Mozart_Machine_BASIC.sid",
+    "reason": "SLDB 163s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 6.9s, last SID write 221.2s over a 364s capture with a silent tail."
+  },
+  "47448ed5f6b6cbea74a0f3f9c5926139": {
+    "seconds": 135.6,
+    "path": "DEMOS/M-R/Only_You_BASIC.sid",
+    "reason": "SLDB 123s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 0.6s, last SID write 135.6s over a 304s capture with a silent tail."
+  },
+  "b063268f700a3963a9787bb0276c6c22": {
+    "seconds": 437.8,
+    "path": "DEMOS/S-Z/Swan_BASIC.sid",
+    "reason": "SLDB 256s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 100.4s, last SID write 437.8s over a 503s capture with a silent tail."
+  },
+  "ee03b74918994282a40d61c19ff47b22": {
+    "seconds": 124.7,
+    "path": "DEMOS/S-Z/Syndrom_BASIC.sid",
+    "reason": "SLDB 115s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 7.6s, last SID write 124.7s over a 292s capture with a silent tail."
+  },
+  "d34117a3b0418bba2fb59eb9940fedf0": {
+    "seconds": 257.4,
+    "path": "DEMOS/UNKNOWN/Bach_BASIC.sid",
+    "reason": "SLDB 233s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 0.3s, last SID write 257.4s over a 470s capture with a silent tail."
+  },
+  "725b1e0c1fe7eee054d5bf7ea7db8510": {
+    "seconds": 185.6,
+    "path": "DEMOS/UNKNOWN/Bach_Preludium_BASIC.sid",
+    "reason": "SLDB 169s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 0.2s, last SID write 185.6s over a 374s capture with a silent tail."
+  },
+  "a0876c7c70f57ffc0db061f81b622c40": {
+    "seconds": 346.7,
+    "path": "DEMOS/UNKNOWN/Bagpipes_BASIC.sid",
+    "reason": "SLDB 318s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 0.2s, last SID write 346.7s over a 597s capture with a silent tail."
+  },
+  "b5bc68fe80b431c7c92266b73221222b": {
+    "seconds": 158.4,
+    "path": "DEMOS/UNKNOWN/Ballade_Pour_Adeline_BASIC.sid",
+    "reason": "SLDB 145s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 0.3s, last SID write 158.4s over a 338s capture with a silent tail."
+  },
+  "58c87f324c7dac46d4441b52016d289a": {
+    "seconds": 162.5,
+    "path": "DEMOS/UNKNOWN/Flute_BASIC.sid",
+    "reason": "SLDB 121s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 4.6s, last SID write 162.5s over a 302s capture with a silent tail."
+  },
+  "d233f314c92bf9292079f42a689cea8e": {
+    "seconds": 305.3,
+    "path": "DEMOS/UNKNOWN/Medley_BASIC.sid",
+    "reason": "SLDB 231s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 4.7s, last SID write 305.3s over a 466s capture with a silent tail."
+  },
+  "1e9af90bbf0d5abf49c3c3fee2db22d4": {
+    "seconds": 185.8,
+    "path": "DEMOS/UNKNOWN/Pachelbels_Canon_BASIC.sid",
+    "reason": "SLDB 128s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 18.7s, last SID write 185.8s over a 312s capture with a silent tail."
+  },
+  "972be655009dd02a57fb850d9854503b": {
+    "seconds": 147.0,
+    "path": "DEMOS/UNKNOWN/Preludium_BWV_937_BASIC.sid",
+    "reason": "SLDB 128s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 2.5s, last SID write 147.0s over a 312s capture with a silent tail."
+  },
+  "54cf0cd99a61ad91eb0714b9a164b5aa": {
+    "seconds": 165.4,
+    "path": "DEMOS/UNKNOWN/Videobreak_04_BASIC.sid",
+    "reason": "SLDB 151s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 0.2s, last SID write 165.4s over a 346s capture with a silent tail."
+  },
+  "e2c9b9795d22aa5b45493dd87c66c316": {
+    "seconds": 128.3,
+    "path": "DEMOS/UNKNOWN/Videobreak_11_BASIC.sid",
+    "reason": "SLDB 117s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 0.3s, last SID write 128.3s over a 296s capture with a silent tail."
+  },
+  "3ce79d1c483fc53f8d9bb0d787bd0859": {
+    "seconds": 155.5,
+    "path": "DEMOS/UNKNOWN/Videobreak_16_BASIC.sid",
+    "reason": "SLDB 142s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 0.3s, last SID write 155.5s over a 333s capture with a silent tail."
+  },
+  "4fece73291ccf3907325c58db7967b65": {
+    "seconds": 208.2,
+    "path": "DEMOS/UNKNOWN/Videobreak_17_BASIC.sid",
+    "reason": "SLDB 190s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 0.3s, last SID write 208.2s over a 405s capture with a silent tail."
+  },
+  "20fb4cd4d4e9b59c65b7284148aa13c3": {
+    "seconds": 124.5,
+    "path": "DEMOS/UNKNOWN/Videobreak_18_BASIC.sid",
+    "reason": "SLDB 113s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 0.3s, last SID write 124.5s over a 290s capture with a silent tail."
+  },
+  "23cb8385f68446d9a1fa4a5299968e60": {
+    "seconds": 252.7,
+    "path": "DEMOS/UNKNOWN/You_Light_Up_My_Life_BASIC.sid",
+    "reason": "SLDB 180s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 16.2s, last SID write 252.7s over a 390s capture with a silent tail."
+  },
+  "b2aca4a3c9fa77e167216aa8ef37e55c": {
+    "seconds": 425.6,
+    "path": "MUSICIANS/F/Fong_William/Electronic_Foreheads_in_Concert_BASIC.sid",
+    "reason": "SLDB 394s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 192.6s, last SID write 425.6s over a 711s capture with a silent tail."
+  },
+  "92f5721b1bd287f7d0a59f9fbe8ede0c": {
+    "seconds": 182.8,
+    "path": "MUSICIANS/H/Haas_Eric/Stars_and_Stripes_Forever_BASIC.sid",
+    "reason": "SLDB 139s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 0.4s, last SID write 182.8s over a 328s capture with a silent tail."
+  },
+  "4cefbce0e89271eda7e1639720948c9d": {
+    "seconds": 184.5,
+    "path": "MUSICIANS/K/Karlsson_Peter/Kaxiga_Myran_BASIC.sid",
+    "reason": "SLDB 169s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 8.7s, last SID write 184.5s over a 374s capture with a silent tail."
+  },
+  "46d997f88efdd8cfa7bdec550da9fd33": {
+    "seconds": 353.2,
+    "path": "MUSICIANS/L/Latimer_Joey/12_Days_of_Christmas_BASIC.sid",
+    "reason": "SLDB 204s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 86.1s, last SID write 353.2s over a 426s capture with a silent tail."
+  },
+  "1e9559e6ec176dddd02ed8568e35b4d8": {
+    "seconds": 149.0,
+    "path": "MUSICIANS/S/Sterling_Rick/Entertainer_BASIC.sid",
+    "reason": "SLDB 114s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 0.2s, last SID write 149.0s over a 291s capture with a silent tail."
+  },
+  "8afa1c2c43ae45d9fccefe2b43ce3dab": {
+    "seconds": 131.7,
+    "path": "MUSICIANS/V/Vogel_James/Schumann_BASIC.sid",
+    "reason": "SLDB 120s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 0.2s, last SID write 131.7s over a 300s capture with a silent tail."
+  },
+  "e378997bec48447617e86b792a7da3dc": {
+    "seconds": 260.5,
+    "path": "MUSICIANS/W/Weseman_Al/America_the_Beautiful_BASIC.sid",
+    "reason": "SLDB 112s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 113.7s, last SID write 260.5s over a 288s capture with a silent tail."
+  },
+  "0a6408d4dd54a168e72d6bb5d5a02124": {
+    "seconds": 209.0,
+    "path": "MUSICIANS/Y/Yewchuk_Bob/Peter_Piper_BASIC.sid",
+    "reason": "SLDB 158s is wrong for this RSID-BASIC tune (BASIC precalc breaks SLDB measurement): measured 2026-08-11 \u2014 first gate-on 2.2s, last SID write 209.0s over a 357s capture with a silent tail."
   }
 }
