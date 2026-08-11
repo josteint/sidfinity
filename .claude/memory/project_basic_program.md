@@ -652,3 +652,24 @@ design); (2) nf_grid_collision ~49 (reader union-onset grid — same-onset event
 "nudge ±1" reader lever shipped but wasn't binding then — reproduce + fix reader-side); (3) nf_missing_sig
 ~29 (reader/writer sig asymmetry, mostly glide sigs); (4) pure_global ~25, nf_conflict 14, tail. Levers 2+3
 are READER-side and likely cheaper than sections-as-patterns; either could go first.
+
+**✅ GRID-COLLISION READER FIX + THE 36-WRITE (2026-08-11, item 2 continued).** (1) The 36 stage-2 FULLs
+written: 35 kept (audited from disk via verify_usf); Somewhere_over_the_Rainbow REMOVED — in-memory FULL but
+the STORED .usf rebuilds 2557 vs 2449 writes (a writer/parser round-trip infidelity for its winning variant;
+the C20 fifth-layer shape). Coverage 458→**493/524 (94.1%)**. (2) READER fix for the grid_collision bucket:
+evmap slots are now ORDERED LISTS (the writer legally emits zero-duration rows for same-frame same-voice
+events; the old reader raised exactly there, so stored-NF members are untouched by construction), same-voice
+dups expand into SUB-STEPS, glide-tick nudge exhaustion appends instead of raising, and an onset whose
+COMBINED sig is unstored falls back to per-voice SINGLETON steps resolved against the stored decls (each
+consuming its own step index k). bp_loop_to now indexes the EXPANDED step list. (3) MEASURED decomposition
+of the reader-failure buckets (the census's final refinement): only ~11% (3/27 sampled: Brick_Out_64,
+Downhill-Ski_Jump, Bright_Eyes) convert under this fix — the BULK is a REPRESENTATION GAP: multi-frame
+SPREAD CHORD SETUPS (BASIC is slow; one musical chord's pokes span 3-4 frames and the writer's model steps
+split MID-VOICE, e.g. v2's envelope with v3's freq — Ding_Dong_Bells steps at onsets 1035/1036/1038/1038).
+No (onset,voice) partition can reconstruct that grouping; the NF representation would need per-part onsets
+(or these stay honest residue beside the >16-segment interleaved orders). THAT is the real next design for
+the reader-side buckets; sections-as-patterns (order_conflict 81) is unaffected and remains the big
+writer-side lever. GATES: production verify_usf over ALL 247 stored NF members = 245 ok + 2 pre-existing
+SHORT-WINDOW artifacts (God_Save/Casino_Poker — long pre-music intros; verify_usf lacks best_attempt's
+extended-window probe; both fail IDENTICALLY pre-change, proven in a worktree); corpus_check 12,142; full
+regression 0 regressed.

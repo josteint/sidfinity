@@ -779,18 +779,27 @@ def usf_to_model(usf):
             for row in vrows[vc]:
                 fxs = set(row.fx_flags)
                 fl = dict(x.split('=', 1) for x in row.fx_flags if '=' in x)
+                # Same-voice same-onset events are LEGAL: the writer emits a
+                # zero-duration row for two events on one frame (hold-0
+                # chains — two notes poked the same frame), and glide-tick
+                # rounding can land a tick on an occupied onset. Each
+                # (onset, voice) slot is an ORDERED LIST (row order = the
+                # model's step order); the step loop below expands the extras
+                # into SUB-STEPS at the same onset. Members with no dup keep
+                # single-element lists — reconstruction identical (the old
+                # code raised nf_grid_collision exactly where this appends,
+                # so every already-NF stored member is untouched by
+                # construction).
                 if row.pitch.is_rest:
                     if row.instr is not None:
-                        if vc in evmap.setdefault(cum, {}):
-                            raise ValueError('nf_grid_collision')
-                        evmap[cum][vc] = {'kind': 'timbre', 'row': row}
+                        evmap.setdefault(cum, {}).setdefault(vc, []).append(
+                            {'kind': 'timbre', 'row': row})
                 else:
-                    if vc in evmap.setdefault(cum, {}):
-                        raise ValueError('nf_grid_collision')
                     isgl = 'glide_ticks' in fl and ('glide_up' in fl or 'glide_down' in fl)
-                    evmap[cum][vc] = {'kind': 'note', 'row': row, 'fxs': fxs,
-                                      'hold': (row.duration if (gated and 'no_release' not in fxs
-                                                                and not isgl) else None)}
+                    evmap.setdefault(cum, {}).setdefault(vc, []).append(
+                        {'kind': 'note', 'row': row, 'fxs': fxs,
+                         'hold': (row.duration if (gated and 'no_release' not in fxs
+                                                   and not isgl) else None)})
                     if isgl:                           # implied tick events, spread over the span
                         n = int(fl['glide_ticks']); span = row.duration
                         dlt = (int(fl['glide_up'].lstrip('$'), 16) if 'glide_up' in fl
@@ -801,15 +810,24 @@ def usf_to_model(usf):
                             ton = cum + (t * span) // n if n else cum
                             while vc in evmap.setdefault(ton, {}) and ton > cum:
                                 ton -= 1               # nudge off a same-voice collision
-                            if vc in evmap.setdefault(ton, {}):
-                                raise ValueError('nf_grid_collision')
-                            evmap[ton][vc] = {'kind': 'tick',
-                                              'freq': (base + (t // R) * dlt) & 0xFFFF}
+                            evmap.setdefault(ton, {}).setdefault(vc, []).append(
+                                {'kind': 'tick',
+                                 'freq': (base + (t // R) * dlt) & 0xFFFF})
                 cum += row.duration
         onsets = sorted(evmap)
+        # expand same-voice dups into SUB-STEPS: sub-step s carries each
+        # voice's s-th event at that onset. depth 1 everywhere (the common
+        # case) reproduces the old one-step-per-onset enumeration exactly.
+        expanded = []
+        for on in onsets:
+            depth = max(len(l) for l in evmap[on].values())
+            for s in range(depth):
+                expanded.append((on, {vc: l[s] for vc, l in evmap[on].items()
+                                      if len(l) > s}))
         run_instr2 = {}
-        for k, on in enumerate(onsets):
-            evs = evmap[on]
+
+        def _step_ctx(evs, ge2):
+            """Sig context for one candidate step (NO state mutation)."""
             ctx = {}
             for vc, ev in evs.items():
                 if ev['kind'] == 'tick':
@@ -824,66 +842,107 @@ def usf_to_model(usf):
                                'tie': 'tie' in ev['fxs'],
                                'no_rel': gated and ('no_release' in ev['fxs'] or 'tie' in ev['fxs']),
                                'instr_ch': ev['row'].instr is not None}
-                if ev['kind'] != 'tick' and ev['row'].instr is not None:
-                    run_instr2[vc] = ev['row'].instr.id
-            ge2 = gevents.get(k)
             gr = []
             if ge2 is not None:
                 if ge2.dyn is not None or ge2.mode is not None: gr.append(0x18)
                 if ge2.res is not None or ge2.route is not None: gr.append(0x17)
                 if ge2.cutoff is not None: gr.append(0x16)
                 if getattr(ge2, 'cutoff_lo', None) is not None: gr.append(0x15)
-                for fld in ('dyn', 'cutoff', 'cutoff_lo', 'res', 'mode', 'route'):
-                    if getattr(ge2, fld) is not None:
-                        run_g[fld] = getattr(ge2, fld)
             ctx['globals'] = tuple(sorted(gr))
-            dc = None
+            return ctx
+
+        def _lookup(ctx):
             # FINEST-first: a key containing flags outside the writer's subset was
             # never stored (no false hits); coarse-first could hit the wrong branch
             # of a refined pair (a norel step's coarse key = the plain declaration).
             for _sub in reversed(NF.SIG_SUBSETS):
                 dc = nf_decls.get(NF.step_sig_at(ctx, _sub))
                 if dc is not None:
+                    return dc
+            return None
+
+        k = 0
+        for on, evs_all in expanded:
+            # The writer stored decls per MODEL step, and same-onset events on
+            # DIFFERENT voices may have been separate model steps (they arrive
+            # here merged by the union-onset grid). Resolve the grouping from
+            # the stored decls themselves: try the COMBINED step first (the
+            # historical behaviour — every already-NF member resolves here),
+            # else split into per-voice SINGLETON steps in voice order. Each
+            # group consumes its own step index k (matching the writer's
+            # per-model-step numbering). Neither resolving = nf_missing_sig,
+            # exactly as before.
+            candidates = [[evs_all]]
+            if len(evs_all) > 1:
+                candidates.append([{vc: evs_all[vc]} for vc in sorted(evs_all)])
+            plan = None
+            for groups in candidates:
+                trial, kk, ok = [], k, True
+                for g in groups:
+                    ctx = _step_ctx(g, gevents.get(kk))
+                    dc = _lookup(ctx)
+                    if dc is None:
+                        ok = False
+                        break
+                    trial.append((g, dc, kk))
+                    kk += 1
+                if ok:
+                    plan = trial
                     break
-            if dc is None:
-                raise ValueError('nf_missing_sig:' + NF.step_sig_at(ctx, NF.SIG_SUBSETS[-1]))
-            a_regs, r_regs = NF.decl_to_regs(dc)
+            if plan is None:
+                raise ValueError('nf_missing_sig:' + NF.step_sig_at(
+                    _step_ctx(evs_all, gevents.get(k)), NF.SIG_SUBSETS[-1]))
 
-            def _val(reg, release):
-                kd = NF.entry_kind(reg)
-                vc2 = REG_VOICE.get(reg) if reg < 0x15 else None
-                if kd == 'global':
-                    return gpack(reg)
-                if kd == 'perstep':
-                    ev2 = evs.get(vc2)
-                    fq2 = (ev2['freq'] if ev2['kind'] == 'tick'
-                           else (_pitch_freq(ev2['row'].pitch, ftab) or 0))
-                    return (fq2 >> 8) & 0xFF if reg in FHI.values() else fq2 & 0xFF
-                iid = run_instr2.get(vc2)
-                if iid is None:
-                    raise ValueError('not_clean')
-                ctrl, ad, sr, pw, rctrl = itab[iid]
-                fld = REG_FIELD[reg]
-                if fld == 'ctrl':
-                    if release:
-                        return rctrl if rctrl is not None else (ctrl & 0xFE)
-                    return ctrl
-                return {'ad': ad, 'sr': sr, 'pwlo': pw & 0xFF, 'pwhi': (pw >> 8) & 0xFF}[fld]
+            for evs, dc, kk in plan:
+                ge2 = gevents.get(kk)
+                if ge2 is not None:
+                    for fld in ('dyn', 'cutoff', 'cutoff_lo', 'res', 'mode', 'route'):
+                        if getattr(ge2, fld, None) is not None:
+                            run_g[fld] = getattr(ge2, fld)
+                for vc, ev in evs.items():
+                    if ev['kind'] != 'tick' and ev['row'].instr is not None:
+                        run_instr2[vc] = ev['row'].instr.id
+                a_regs, r_regs = NF.decl_to_regs(dc)
 
-            attack = [(rg, _val(rg, False)) for rg in a_regs]
-            release = [(rg, _val(rg, True)) for rg in r_regs]
-            hold2 = next((ev.get('hold') for ev in evs.values() if ev.get('hold') is not None), None)
-            steps.append({'attack': attack, 'release': release or None,
-                          'on_frame': on,
-                          'off_frame': (on + hold2) if (gated and hold2 is not None) else None,
-                          'next': None, 'atk_mask': 0, 'rel_mask': 0, 'tid': 0})
-            for rg, vv in attack:                      # advance running freq (sig tracking)
-                for vc2 in voices:
-                    if rg == FHI[vc2]: _ph[vc2] = vv
-                    elif rg == FLO[vc2]: _pl[vc2] = vv
+                def _val(reg, release, evs=evs):
+                    kd = NF.entry_kind(reg)
+                    vc2 = REG_VOICE.get(reg) if reg < 0x15 else None
+                    if kd == 'global':
+                        return gpack(reg)
+                    if kd == 'perstep':
+                        ev2 = evs.get(vc2)
+                        fq2 = (ev2['freq'] if ev2['kind'] == 'tick'
+                               else (_pitch_freq(ev2['row'].pitch, ftab) or 0))
+                        return (fq2 >> 8) & 0xFF if reg in FHI.values() else fq2 & 0xFF
+                    iid = run_instr2.get(vc2)
+                    if iid is None:
+                        raise ValueError('not_clean')
+                    ctrl, ad, sr, pw, rctrl = itab[iid]
+                    fld = REG_FIELD[reg]
+                    if fld == 'ctrl':
+                        if release:
+                            return rctrl if rctrl is not None else (ctrl & 0xFE)
+                        return ctrl
+                    return {'ad': ad, 'sr': sr, 'pwlo': pw & 0xFF, 'pwhi': (pw >> 8) & 0xFF}[fld]
+
+                attack = [(rg, _val(rg, False)) for rg in a_regs]
+                release = [(rg, _val(rg, True)) for rg in r_regs]
+                hold2 = next((ev.get('hold') for ev in evs.values() if ev.get('hold') is not None), None)
+                steps.append({'attack': attack, 'release': release or None,
+                              'on_frame': on,
+                              'off_frame': (on + hold2) if (gated and hold2 is not None) else None,
+                              'next': None, 'atk_mask': 0, 'rel_mask': 0, 'tid': 0})
+                for rg, vv in attack:                  # advance running freq (sig tracking)
+                    for vc2 in voices:
+                        if rg == FHI[vc2]: _ph[vc2] = vv
+                        elif rg == FLO[vc2]: _pl[vc2] = vv
+                k = kk + 1
         T = sum(r2.duration for r2 in vrows[voices[0]])
-        if f['bp_loop_to'] >= 0 and onsets:
-            nf_loop_period = T - onsets[min(f['bp_loop_to'], len(onsets) - 1)]
+        if f['bp_loop_to'] >= 0 and expanded:
+            # loop_to indexes STEPS; with sub-steps the step index is the
+            # expanded position (identical to the onset index when no dups)
+            nf_loop_period = T - expanded[min(f['bp_loop_to'],
+                                              len(expanded) - 1)][0]
     onf = f.get('bp_start_frame', 0)
     for k in range(nsteps):
         hi = k * per_step
