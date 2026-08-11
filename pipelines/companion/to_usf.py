@@ -106,7 +106,7 @@ def _instrument_from_voice_state(inst_id: int, vs: VoiceState) -> Instrument:
         loop=0,
         pwm=PwmConfig(mode='none', speed=0, init=init_pw, min_hi=0, max_hi=0),
         adsr=(vs.ad, vs.sr),
-        arp=ArpConfig(offsets=[0], period=1),
+        arp=ArpConfig(),  # identity: no arpeggio (inert [0] was extract noise, 2026-08-11)
         vibrato=VibratoConfig(scale=0),
         envelope=EnvelopeConfig(),
     )

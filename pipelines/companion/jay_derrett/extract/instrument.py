@@ -177,7 +177,7 @@ def decode_instrument(inst_id: int, prog: list[int]) -> Instrument:
         loop=0,
         pwm=pwm,
         adsr=(ad, sr),
-        arp=ArpConfig(offsets=[0]),       # jay_derrett doesn't use classical arpeggio
+        arp=ArpConfig(),                  # identity: jay_derrett has no classical arpeggio
         vibrato=VibratoConfig(scale=0),   # no vibrato (engine has no LFO)
         envelope=envelope,
         freq_slide_config=slide,

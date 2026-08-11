@@ -74,7 +74,7 @@ def _instrument_from_timbre(instr_id: int, tb: bytes) -> Instrument:
         loop=0,
         pwm=PwmConfig(mode='none', speed=0, init=pw, min_hi=0, max_hi=0),
         adsr=(tb[3], tb[4]),
-        arp=ArpConfig(offsets=[0], period=1),
+        arp=ArpConfig(),  # identity: no arpeggio (inert [0] was extract noise, 2026-08-11)
         vibrato=VibratoConfig(scale=0),
         envelope=EnvelopeConfig(),
     )
