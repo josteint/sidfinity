@@ -634,8 +634,9 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
     # bp_start_frame is GONE (user policy 2026-07-02): the start-cap normalizes
     # every tune to start at frame 0 — no leading silence in the USF, same
     # structure as the other engine families (the reader defaults to 0).
-    fields = {'bp': 1,
-              'bp_loop_to': model['loop_to'] if model['loop_to'] is not None else -1}
+    # (the former `'bp': 1` form marker had no reader anywhere — dropped
+    # 2026-08-11, per-family census; it was also an origin tag, §8-adjacent)
+    fields = {'bp_loop_to': model['loop_to'] if model['loop_to'] is not None else -1}
     if not nf:
         # NF derives these: legato from the declarations (no release parts, no
         # 'z' flags), rho from the clock (a composer timing constant, not
@@ -656,21 +657,29 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
                 raise ValueError('nf_unknown_reg')
             fields['bp_song_end'] = ' '.join(f'{NF.REG_TOK[r]}=${v:02X}' for r, v in song_end)
     else:
-        fields['bp_songend_n'] = len(song_end)
+        if song_end:                     # reader defaults bp_songend_n to 0
+            fields['bp_songend_n'] = len(song_end)
         for i, (reg, val) in enumerate(song_end):
             fields[f'bp_songend{i}'] = (reg << 8) | (val & 0xFF)
     pw_program = model.get('pw_program') or {}          # per-voice PW sweep PROGRAM (C1 orderlist)
     if nf:
         if pw_program:
-            fields['bp_mod_start'] = model.get('mod_start', 0)
-            fields['bp_mod_inc'] = model.get('mod_inc', 0)
+            # readers default both to 0 — elide the zero values
+            if model.get('mod_start', 0):
+                fields['bp_mod_start'] = model['mod_start']
+            if model.get('mod_inc', 0):
+                fields['bp_mod_inc'] = model['mod_inc']
             for vc, (tab, secs) in pw_program.items():
                 fields[f'bp_sweep{vc}_values'] = ' '.join(f'${b:02X}' for b in tab)
                 fields[f'bp_sweep{vc}_sections'] = ' '.join(f'{off}:{ln}x{rep}' for off, ln, rep in secs)
     else:
-        fields['bp_pwprog_voices'] = sum(1 << (vc - 1) for vc in pw_program)   # bitmask of modulated voices
-        fields['bp_mod_start'] = model.get('mod_start', 0)  # play-frame the sweep begins
-        fields['bp_mod_inc'] = model.get('mod_inc', 0)      # fractional tick rate (per play, /256)
+        # readers default all three to 0 — elide the zero values
+        if pw_program:
+            fields['bp_pwprog_voices'] = sum(1 << (vc - 1) for vc in pw_program)   # bitmask of modulated voices
+        if model.get('mod_start', 0):
+            fields['bp_mod_start'] = model['mod_start']     # play-frame the sweep begins
+        if model.get('mod_inc', 0):
+            fields['bp_mod_inc'] = model['mod_inc']         # fractional tick rate (per play, /256)
         for vc, (tab, secs) in pw_program.items():
             fields[f'bp_pwprog{vc}_ntab'] = len(tab)        # value table (4 bytes per int)
             for i in range((len(tab) + 3) // 4):
