@@ -72,14 +72,67 @@ ALLOWLIST: dict[str, str] = {
                       'constant genuine content; the writer already elides '
                       'the dataclass default 0 (2026-08-11)',
     'hubbard:max_hi': 'see hubbard:min_hi — the paired upper threshold $0E',
-    'hubbard:initial_dir': "Hubbard downslide is SBC-hardcoded => every "
-                           "slide is initial_dir=down; the writer already "
-                           "elides the dataclass default 'up' (2026-08-11)",
+    # --- elided-at-default enums/flags: the writer only prints the
+    # NON-default value, so when the corpus uses exactly one non-default
+    # value the census sees a "100% constant" BY CONSTRUCTION. Working as
+    # intended — the default half is already elided. (2026-08-11 full run)
+    'initial_dir': "slide dir enum elided at 'up'; only 'down' slides exist "
+                   'corpus-wide (5,120 occ, every family) — supersedes the '
+                   'former hubbard:initial_dir entry',
+    'direction': "FC vibrato/slide dir enum elided at 'up'; only 'down' "
+                 'occurs in the stored FC corpus',
+    'gate_open': 'presence-only C30 co-field (`if e.gate_open: gate_open=1`);'
+                 ' absence is the elided default',
+    'slide_phase': 'priming scalar emitted only when observed (is not None); '
+                   'value 1 = the dominant global half-rate parity',
+    'dmc:speed_ctr_init': 'priming scalar emitted only when truthy; 1 is the '
+                          'dominant observed work-file leftover',
+    'dmc:instr': 'init.voice_state starting instrument, emitted only when '
+                 'primed; i1 dominance is a musical fact of the corpus',
+    'soft_cmd': 'NoteRow fx-flag parameter (stated command, C14); presence = '
+                'the byte fact, and 1 is the only parameter value the corpus '
+                'states today',
+    # --- old-form params{} keys DEFERRED to their families' campaigns:
+    # F1 (2026-08-04) typed these but left the stored f2/f4/v5 corpora
+    # old-form on purpose ("swaps at its own campaign").
+    'hard_restart': 'f2 probed param set, old-form params{} until the '
+                    'family-2 campaign (F1 decision 2026-08-04)',
+    'rest_effects': 'see hard_restart',
+    'cymbal_onset': 'see hard_restart',
+    'gate_off_hold': 'see hard_restart',
+    'vib_ramp': 'see hard_restart',
+    'otrk_pad_s1_v1': 'C32 legacy fitted orderlist params in f4/v5 corpora; '
+                      'stated-fold swaps them at those campaigns\' '
+                      'mass-writes',
+    'otrk_pad_s1_v2': 'see otrk_pad_s1_v1',
+    'otrk_pad_s1_v3': 'see otrk_pad_s1_v1',
+    'dmc:otrk_legacy_s1_v3': 'the documented entry+1 otrk approximation '
+                             '(C32 residue), carried until stated-fold '
+                             'covers it',
+    # --- dict-carried / required fields with a family-constant value
+    'd418': 'FC filter-program field, dict-carried like lo/hi (no dataclass '
+            'default to elide against); 0 = no volume-nibble writes, the '
+            'dominant musical case',
+    'basic_program:sid': 'required PSID header model field '
+                         '(feedback_header_flags_audible); every RSID-BASIC '
+                         'rip is a 6581 tune — a collection fact',
+    'basic_program:tempo': 'required MusicSubtune field (no default); the '
+                           'trace-lift grid is 1 frame/step by construction',
+    'basic_program:bp_init0': 'legacy-form encoded init write ((reg<<8)|val; '
+                              '$180F = D418=$0F, every BASIC player\'s first '
+                              'write); disappears as members adopt NF',
+    'basic_program:bp_multi': 'presence-only marker (set to 1 only in the '
+                              'multi-template branch); absence is the elided '
+                              'default',
 }
 
 # Structural keywords the colon-tokenizer must not read as fields (their
 # "value" is the following content token, not a field value).
-SKIP_KEYS = {'stated'}          # `orderlist stated: <entries>`
+SKIP_KEYS = {
+    'stated',                   # `orderlist stated: <entries>`
+    'offtable_freq',            # `offtable_freq: at(...)` — 'at' is the
+                                # read-flag head, not a value
+}
 
 # Census thresholds: a key is flagged when its top value covers >= SHARE of
 # occurrences AND it occurs at least MIN_OCC times in the sample's output.
@@ -177,8 +230,11 @@ def _stratified_sample(files: list[str], n: int, seed: int,
 _TOK_EQ = re.compile(r'\b([a-z_][a-z0-9_]*)=(\[[^\]]*\]|[^\s\]]+)')
 _TOK_COLON = re.compile(
     # value must not itself be a `sub=`-style key (block headers like
-    # `arp: offsets=[]` would otherwise read as key 'arp', value 'offsets')
-    r'\b([a-z_][a-z0-9_]*):\s+(\$[0-9A-Fa-f]+|-?\d+\b|[a-z_][a-z0-9_]*\b(?!\s*=))')
+    # `arp: offsets=[]` would otherwise read as key 'arp', value 'offsets').
+    # Keyword values may be UPPERCASE (`clock: PAL`) — a lowercase-only value
+    # class silently dropped those and censused `clock` as 100% 'unknown'
+    # (the only lowercase value), the 2026-08-11 full-run artifact.
+    r'\b([a-z_][a-z0-9_]*):\s+(\$[0-9A-Fa-f]+|-?\d+\b|[A-Za-z_][A-Za-z0-9_]*\b(?!\s*=))')
 
 
 def _tokenize(text: str) -> Counter:
