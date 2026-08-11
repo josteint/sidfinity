@@ -692,3 +692,22 @@ representation gap (the reader buckets' bulk), interleaved >8-section order alte
 nf_conflict misc, and the vibrato/too_many_pitches residue. corpus_check 12,142; spec_lint 0/0 (sectioned
 files round-trip); stored-NF production gate 245/247 (same 2 window artifacts, pre-existing); full
 regression 0 regressed.
+
+**🔎 SPREAD-CHORD DESIGN ANALYSIS (2026-08-11, item 2 — measured, decision PENDING user ratification).**
+Failure-reason census over the 197 post-sections legacy (tmp/bp_spread_census.json):
+verify-diverge 56 (writer+reader reconstruct, stream wrong — probed 4: NORMAL step shapes, value-level
+causes, NOT the spread class; needs its own divergence census) · nf_missing_sig 46 spread over ~25 DISTINCT
+sigs (the grouping/spread class + ~12 glide-sig asymmetries) · interleaved >8-section order alternation 55
+(July's honest-residue call, reaffirmed) · writer misc 41 (nf_conflict 17, pure_global 13, section_span 3,
+too_few 5, other 3). Stereotypy proxy: 115 legacy are multi-template, median K=7, 51 at K≤6.
+DESIGN OPTIONS (judged against the canon; the class is ledger C17's):
+  A. per-part onsets in rows — REJECTED (Principle §3/§6: the write SCHEDULE in content space).
+  B. MULTI-FRAME ORDER DECLS — extend the decl grammar with frame-gap separators
+     (`"v1_flo v1_fhi | v1_ad v1_sr |2 vol v1_ctrl / ..."`): rows stay musical events at one onset; the
+     spread is per-event-type MECHANISM in the accepted decl knob space (the C16/C17-consistent form).
+     PRECONDITION unvalidated: needs per-tune-CONSTANT spreads, and the 46 carriers fragment over 25 sigs.
+  C. honest residue — the legacy multi-template form IS C17's canonical answer for arbitrary schedules.
+RECOMMENDATION: C for now (adoption is at 282/493 = 57% and the marginal cost per convert is rising
+steeply — the saturation shape); if B is ever built, validate spread-constancy per carrier FIRST. The
+cheaper remaining wins are the writer misc rules (pure_global 13 + nf_conflict 17, rule-shaped) and the
+verify-diverge divergence census (56, unknown causes).
