@@ -124,6 +124,10 @@ ALLOWLIST: dict[str, str] = {
     'basic_program:bp_multi': 'presence-only marker (set to 1 only in the '
                               'multi-template branch); absence is the elided '
                               'default',
+    'basic_program:mode': 'global-track stated nibble (Optional, None=carry; '
+                          'presence = the $D418 write stated it, C32 stated '
+                          'notation) — BASIC tunes just never set filter-mode '
+                          'bits, so the stated value is always $00',
 }
 
 # Structural keywords the colon-tokenizer must not read as fields (their
