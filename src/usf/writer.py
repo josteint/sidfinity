@@ -554,7 +554,11 @@ def _write_instrument(i: Instrument) -> list[str]:
     if i.waveform:
         wave = ' '.join(_hex(b) for b in i.waveform)
         lines.append(f'  waveform: {wave}')
-        lines.append(f'  loop:     {i.loop}')
+        if i.loop:
+            # dataclass default 0 (loop to step 0) — elided (the
+            # per-family census flagged `loop: 0` across 4 families,
+            # 2026-08-11; the grammar's loop line was already optional)
+            lines.append(f'  loop:     {i.loop}')
     if i.wave_freq:
         wf = ', '.join(str(v) for v in i.wave_freq)
         lines.append(f'  wave_freq: [{wf}]')
