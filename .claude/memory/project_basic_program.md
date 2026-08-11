@@ -5,19 +5,30 @@ metadata:
   node_type: memory
   type: project
   originSessionId: 31df618e-1d05-4346-8dfa-a60476d0a5cc
-  modified: 2026-08-11T19:21:36.538Z
+  modified: 2026-08-11T20:57:37.223Z
 ---
 
-**2026-08-11 — Bright_Eyes_BASIC is a stale-FULL palimpsest (C20).**
-`DEMOS/UNKNOWN/Bright_Eyes_BASIC` carries stored artifacts, but BOTH the
-stored `.sidfinity.sid` and a fresh build from the stored `.usf` verify
-PARTIAL vs the orig under current code — identical numbers (match 9,072 /
-len_a 10,855 / len_b 11,073, dur 215×1.1). Also fifth-layer: the stored
-`.usf` does not rebuild the stored `.sid` byte-identically (first diff at
-offset 654, 's' vs 'p' in the BASIC text). Found 2026-08-11 by the census
-corpus rewrite's byte-gate (the only refusal in 493); its `.usf` was left
-untouched. Not in the regression portfolio. Needs triage at the next bp
-round: re-extract under current code or reclassify into the residue.
+**2026-08-12 — THE 120s VERIFY-WINDOW CAP EPISODE (ledger C20 EIGHTH LAYER)
+— family re-baselined: 488/524 FULL, corpus in perfect sync.**
+Bright_Eyes_BASIC's byte-gate refusal (2026-08-11) unravelled to a systemic
+false-FULL class: `family_batch._dur` capped every verify window at 120 s,
+so all 49 stored >109 s members were FULL on truncated evidence — 44 were
+false. Chain: cap removed (3c1066d6) → 44 measured for true extent (SLDB is
+BROKEN for RSID-BASIC: precalc dead-air; America_the_Beautiful's entry was
+ONLY its 114 s delay) → 31 measured `songlength_overrides` entries
+(cadbfa80) → re-lift at honest windows: 38/44 FULL (fifth-layer clean), 6
+casualties orphan-deleted (3× image_too_big Bond_Alan loopers, 2×
+legato_variable, 1× too_few_after_trim) → full batch re-baseline 2026-08-12:
+**488 FULL / 524, 0 orphans, 0 missing, batch_diff vs pre_r7: 0 unexplained
+regressions, 13 gains, 38 new-#85 members swept**. OPEN residue leads:
+(a) the big-looper class needs the lift to FOLD one lap + loop_to instead of
+materializing the whole window (would rescue the 3 image_too_big + shrink
+models); (b) the pw-sweep-program portfolio dimension has NO FULL carrier
+(Cascading was it — portfolio 22→21, gap documented in the json comment);
+(c) `MUSICIANS/P/Pace_Wayne/Polonaise_BASIC` is an OWNERSHIP ANOMALY: it
+carries a bp-pipeline `.usf` but is catalogued `Basic/Jim_Butterfield`, so
+NO batch owns/sweeps it (its params still carry pre-elision zero keys —
+harmless but unowned); decide re-classify vs re-home.
 
 **Basic_Program = 486 HVSC SIDs, all RSID v2, load=init=play=0, C64-BASIC flag set.**
 Each is a tokenized Commodore BASIC V2 program at `$0801` that POKEs the SID — NO

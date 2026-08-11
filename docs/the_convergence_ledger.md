@@ -617,6 +617,16 @@ practice, not code to factor).
   update and carry classifications over by payload. AND renaming the tree edits
   docstrings in fingerprinted files ⇒ `code_fingerprint` changes ⇒ every batch
   verdict goes stale (5,401 DMC rows at once); sequence it with a planned batch.
+- EIGHTH LAYER — the recorded verdict's VERIFY WINDOW was weaker than
+  ratified: a `_dur` cap (bp `min(songlength*1.1, 120)`) recorded FULL on
+  truncated evidence — 44/49 exposed long members were false FULLs, and every
+  gate reused the capped window so the verdicts were self-consistent. TELL:
+  old rows' `len_a` ≪ the ratified-window capture; any cap in a dur helper.
+  CURE: remove the cap, re-verify the WHOLE exposure set at the ratified
+  window, re-lift or orphan-delete casualties. Second-order: the window's
+  SOURCE (SLDB songlength) is itself broken for RSID-BASIC (precalc dead-air)
+  — measure first-gate-on + last-write before trusting an entry
+  (31 measured `songlength_overrides` corrections).
 - THIRD LAYER — the stored ARTIFACT is unreadable by the CURRENT grammar
   (schema drift). A typed-field move orphaned 1,182/11,943 stored .usf (9.9%)
   while regression stayed green — it builds from a ~116-member portfolio,
