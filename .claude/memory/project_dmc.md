@@ -5,8 +5,24 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-10T19:43:24.261Z
+  modified: 2026-08-11T01:23:50.800Z
 ---
+
+## ✅ r187 — the de-redirect's §4 trap fires; CANON-EVIDENCE gate lands (2026-08-11)
+The A2 overnight chain's batch_diff gate caught ONE regression
+(Bakewell_Dwayne/Finale full→partial) and stopped before the mass-write —
+exactly what the gate is for. Root cause: Finale is a NON-CANON-geometry
+member (zero live marks; a static record at idx 254 = gla+1's LO landing was
+the `_static_at_live` detector firing), and step 2's allowlist exemption
+silenced the detector → redirect flipped ON → an UNRECORDED live-idx read
+served live instead of static. FIX: the exemption now requires CANON
+EVIDENCE (≥1 live-stamped record — the extract stamps live only on canon
+members; no geometry param). Fallout handled: 150 canon zero-live-mark
+full-converts flip redirect ON→OFF under the gate — GATE_ALL enumerated
+them (the reader-scan golden structurally can't see zero-live-mark members),
+**150/150 re-verified FULL** + re-synced; Finale byte-identical to its old
+FULL build; smoke 6/6. Lessons in ledger C11 (reach under-enumeration;
+GATE_ALL as the completeness net). A2 chain relaunched after the fix.
 
 ## ✅ r186 — DE-REDIRECT step 3: the NOTE-INIT CACHE FAMILY — the class is DONE (2026-08-10)
 ioff/cpwmin/cpwmax/cpwbase/vibwid/cvram/fxf/vstep/vsteph joined the

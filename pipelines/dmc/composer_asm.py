@@ -823,8 +823,22 @@ class _Model:
         # every member that never reads there byte-identical).
         self.deredirect_dead = {}      # row label -> {dead voice offsets k}
         _exempt = set()
+        # ⚠ CANON-EVIDENCE GATE (2026-08-11, Bakewell_Dwayne/Finale — the §4
+        # trap materialized): a static record at an allowlisted idx is a
+        # deliberate de-redirect ONLY on a canon-geometry member; on a
+        # NON-CANON member (state block moved) the same shape is the
+        # non-canon DETECTOR firing, and exempting it flips the redirect ON —
+        # which mis-serves the member's UNRECORDED runtime reads at live idx
+        # (reach is under-enumerated; never conclude "no read lands there"
+        # from the records alone). Canonness is derivable from the stamps
+        # with no geometry param: the extract stamps reads LIVE only on
+        # canon members, so >=1 live-stamped record IS the evidence. A
+        # zero-live-mark member gets no exemption -> its static-at-live
+        # reads keep the non-canon meaning (redirect OFF), the pre-step-1
+        # behaviour.
+        _canon_evidence = any(_rec_live(r) for r in _all)
         for _addr, _lbl, _nb in DMC_OFFTABLE_STATE:
-            if _lbl not in DMC_DEREDIRECTABLE:
+            if _lbl not in DMC_DEREDIRECTABLE or not _canon_evidence:
                 continue
             _dead, _recbear = set(), set()
             for _k in range(_nb):
