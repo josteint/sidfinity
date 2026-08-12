@@ -5016,6 +5016,103 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc85',
                     base, layout = b, lay
                     break
     if base is None:
+        # FAMILY-2 NEAR-MISS fallbacks (2026-08-12, the "easy-8" unsupported
+        # census — see pipelines/dmc/family2/RE_NOTES.md). These run ONLY
+        # after every detection above failed, so no previously-detected
+        # member's dispatch can change. The family-2 body offsets are the
+        # anchor: init sits at base+$37 and play at base+$85, so any pair of
+        # candidate targets (ti, tp) with ti-$37 == tp-$85 names ONE
+        # consistent base — a wrapper that re-points a single vector fails
+        # the equation structurally (verified on the wrapper-class members).
+        # build+verify is the real judge downstream (the identity compare is
+        # advisory for family 2).
+        _NEUTRAL_1 = {0xAA, 0xA8, 0x8A, 0x98, 0xC8, 0xE8, 0xEA}  # trans/inc
+        _NEUTRAL_2 = {0xA9, 0xA2, 0xA0,               # LDA/LDX/LDY #imm
+                      0xA5, 0xA6, 0xA4,               # LDA/LDX/LDY zp
+                      0x85, 0x86, 0x84, 0xE6, 0xC6,   # STA/STX/STY/INC/DEC zp
+                      0xC9, 0xE0, 0xC0,               # CMP/CPX/CPY #imm
+                      0xD0, 0xF0}                     # BNE/BEQ (fallthrough)
+
+        def _neutral_walk(pc, depth=24):
+            """Follow a write-stream-NEUTRAL wrapper (zp counters, register
+            transfers, forward branches) to its terminal JMP target. The
+            CORE TENET makes such a wrapper irrelevant to the rebuild: it
+            touches no SID register, so the write stream is the wrapped
+            body's alone (Soul_tune_1/2's zp frame counter). Any absolute
+            store, JSR, or unknown opcode refuses (returns None)."""
+            jmps = 0
+            for _ in range(depth):
+                op = mem[pc]
+                if op == 0x4C:
+                    tgt = _rd16(mem, pc + 1)
+                    jmps += 1
+                    if jmps > 2 or not (0 < tgt < 0xFFF0):
+                        return None
+                    if tgt == pc:
+                        return None
+                    pc = tgt
+                    # a JMP target is a candidate terminal; the consistency
+                    # equation at the caller decides, so keep walking only
+                    # if the caller finds no pairing (handled by returning
+                    # the FIRST target — the wrappers seen end in one JMP).
+                    return tgt
+                if op in _NEUTRAL_1:
+                    pc += 1
+                elif op in _NEUTRAL_2:
+                    pc += 2
+                else:
+                    return None
+            return None
+
+        def _mvol_prime_walk(pc):
+            """The Note_from_Tonka init-wrapper shape: `JSR real_init /
+            LDA #imm / STA $D418 / RTS` — pure trichotomy §4.2 master-vol
+            priming around the canonical init. Returns (real_init, imm)."""
+            if (mem[pc] == 0x20 and mem[pc + 3] == 0xA9
+                    and mem[pc + 5] == 0x8D and _rd16(mem, pc + 6) == 0xD418
+                    and mem[pc + 8] == 0x60):
+                return _rd16(mem, pc + 1), mem[pc + 4]
+            return None
+
+        def _f2_base(ti, tp):
+            if ti is None or tp is None:
+                return None
+            b2 = tp - 0x85
+            if ti - 0x37 != b2 or not (0 < b2 and b2 + 0x8E7 < 0x10000):
+                return None
+            return b2
+
+        # candidate (init, play) target pairs, most-direct first: JT slots
+        # with the opcode relaxed to JSR (Merilyn's `JSR $1085/RTS` play
+        # slot, Yoko's JSR init slot), then the raw header vectors (the
+        # KERNAL-reset trap JT whose header points straight at the bodies),
+        # each combined with a neutral-walked resolution of either side.
+        cands = []
+        for b in dict.fromkeys((s['play'] - 3, s['load'])):
+            if (0 < b and _floor <= b and b + 9 < 0x10000
+                    and mem[b] in (0x4C, 0x20) and mem[b + 3] in (0x4C, 0x20)):
+                cands.append((_rd16(mem, b + 1), _rd16(mem, b + 4)))
+        cands.append((s['init'], s['play']))
+        _mvol_prime = None
+        for ti0, tp0 in cands:
+            mp = _mvol_prime_walk(ti0) if s['load'] <= ti0 else None
+            ti_opts = [ti0] + ([mp[0]] if mp else []) + \
+                ([_neutral_walk(ti0)] if s['load'] <= ti0 else [])
+            tp_opts = [tp0] + \
+                ([_neutral_walk(tp0)] if s['load'] <= tp0 else [])
+            for ti in ti_opts:
+                for tp in tp_opts:
+                    b2 = _f2_base(ti, tp)
+                    if b2 is not None:
+                        base, layout = b2, 'family2'
+                        if mp and ti == mp[0]:
+                            _mvol_prime = mp[1]
+                        break
+                if base is not None:
+                    break
+            if base is not None:
+                break
+    if base is None:
         b = s['play'] - 3
         reason = ('no_jumptable' if 0 < b and s['load'] <= b
                   else 'nonstandard_vectors')
