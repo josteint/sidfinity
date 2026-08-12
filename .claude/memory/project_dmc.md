@@ -5,8 +5,32 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-12T04:58:00.783Z
+  modified: 2026-08-12T07:13:54.490Z
 ---
+
+## ▶ F2 BATCH LANDED (2026-08-12 later): **2,611/2,924 FULL (89.3%)**, 0 regressions — residue = C11 freq class
+Fresh batch complete (`tmp/dmc_f2_85_results.jsonl`): **2,611 full / 298
+partial / 15 unsupported** (89.3%; July was 2,507/2,889 = 86.8%).
+batch_diff vs `tmp/dmc_f2_full.jsonl`: **0 REGRESSIONS**, 71 not-full→full
+gains + 9 error/unsupported→partial (the r113-r187 f1 rounds, free).
+Analysis log: `tmp/f2_postbatch.log`. Partial queue seeded:
+`tmp/dmc_f2_partials.jsonl` (use `dmc_next_partial --list` with it).
+- **Census** (298 partials): ~214 are FREQ-LO divergences (V3 74-deep +
+  V2 33-deep + 28-early, V1 22-deep, + smaller), 12 V3-ctrl-deep
+  ($51 vs $41 = triangle bit), long tail 28 clusters. The June "hard freq
+  tail" is now the whole game, as the wedge audit predicted.
+- **Probe on the dominant-cluster rep** (Snap.sid, V3 freqlo @8499):
+  off-table idx 234 lo→$1731 = **fbl+2, ALREADY live-served** — NOT a
+  missing redirect; our fbl+2 VALUE drifts from orig's (upstream V3 state
+  divergence; suspect interaction with f2 `rest_effects='skip'` hold
+  semantics). Next: C11 re-measure protocol (memwatch orig-vs-rebuild on
+  fbl+2 event-by-event). NB idx 234 hi→$1791 is not a mapped state var.
+- **Wedge carriers split** (canon_diff --status): hold_gateoff 265f/15p,
+  filter-mode 19f/10p (probes working); `$12F4 LSR→TAY` note-init-tail
+  cluster = 4 carriers ALL partial (unprobed vib_ramp variant — a real
+  small lever); ~15 partial singleton wedges for later C19 probes.
+- READY, awaiting owner: corpus sync (batch is complete + 0 regressions —
+  both recorded preconditions met); dual_phase patch (tmp/dual_phase_f2.patch).
 
 ## ▶ FAMILY-2 RESUMED (2026-08-12) — #85 membership + fresh batch RUNNING + wedge space enumerated
 Owner-directed resumption after f1 closed at 100%. Done this session:
