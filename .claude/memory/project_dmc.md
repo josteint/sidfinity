@@ -5,8 +5,34 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-12T19:54:10.466Z
+  modified: 2026-08-12T20:57:22.964Z
 ---
+
+## ▶ OVERNIGHT (2026-08-12/13): dual_phase = THE DEEP-FREQ LEVER; typed filter_mod landed; full re-batch RUNNING
+Three things landed overnight (owner asleep; all gated):
+- **filter_mod TYPED generalization committed (21875537)** — the 4k_Byter
+  contour + FC/Ed LFOs are one parameter space (stop_phase optional =
+  single tap; `once` = one-shot/terminal hold). playfdc + the
+  filter_init_contour params key DELETED; playfmod generalized. Ed
+  loop-carriers byte-identical; 4kB pair FULL via typed path, artifacts
+  regenerated + audited; corpus 12,253/12,253. backlog caveat 3 CLOSED
+  by inspection (equal-phases = both cells genuinely animated — different
+  fact from omitted-stop, no dual encoding).
+- **dual_phase fix committed (f7d36616)**: `dual_parity_addr=at(0x1035)`
+  in _family2_build. Census 13 static carriers (parity bits differ + dual
+  instr): 10 FULL→FULL (0 regressions), Real_Shit partial→FULL. **THE BIG
+  FIND: the fix reaches FAR beyond the census — Snap.sid (the 74-member
+  V3-freqlo-deep cluster rep) went FULL.** Mechanism: the mis-seeded $40
+  half-rate parity shifts every VIBRATO voice's wave-step phase by one
+  play (r168's note) → fbl caches sample one play off → the deep off-table
+  freq divergences. C11 re-measure proved fbl+2 event-streams IDENTICAL
+  under the fix (8,807 events) = the "missing/extra emission" theorem's
+  happy case. The June "hard freq tail" was largely THIS ONE BYTE.
+- **Full f2 re-batch RUNNING** (tmp/f2_overnight.sh → tmp/f2_overnight.log;
+  results tmp/dmc_f2_85_results.jsonl, prev snapshot tmp/dmc_f2_85_prev
+  .jsonl): batch → batch_diff --fail-on-regression → mass-write → corpus
+  _check → spec_lint → composer_param_lint. Chain STOPS before sync on any
+  regression. Expect a large partial→FULL wave from dual_phase.
 
 ## ✅ F2 UNSUPPORTED CLASS CLOSED (2026-08-12, commits 5e2ab61b + d31649af): **2,624/2,924 FULL (89.7%)**, 0 unsupported
 All 15 former unsupported resolved: 13 FULL + 2 into known partial clusters
