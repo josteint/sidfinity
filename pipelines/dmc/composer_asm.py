@@ -2433,20 +2433,44 @@ fx_dual_up:
                 rem -= f
             return val, 0, _runs[0][1]
 
-        _sa = [_fm_seed(_fm['init_phase']), _fm_seed(_fm['stop_phase'])]
+        # tap layout: index-0 tap always feeds fdinit; the stop tap exists
+        # only when stop_phase is set (a one-tap contour animates the def's
+        # init cutoff alone — the 4k_Byter one-shot). `loop` False freezes a
+        # walker at the end of its last run (terminal hold, C1's one-shot
+        # form) via an index sentinel instead of wrapping to run 0.
+        _two = _fm.get('stop_phase') is not None
+        _loop = _fm.get('loop', True)
+        _sa = [_fm_seed(_fm['init_phase'])] + \
+            ([_fm_seed(_fm['stop_phase'])] if _two else [])
         _s = f'{_slot}'
+        _stop_tap = (f'        lda fmv{_s}+1\n'
+                     f'        sta fdstop+{_slot}\n'
+                     '        ldx #$00\n'
+                     f'        jsr fmadv{_s}\n'
+                     '        ldx #$01\n') if _two else '        ldx #$00\n'
+        if _loop:
+            _wrap = (f'        cpy #{len(_runs)}\n'
+                     f'        bne fmadv_set{_s}\n'
+                     '        ldy #$00\n')
+        else:
+            _wrap = (f'        cpy #{len(_runs)}\n'
+                     f'        bne fmadv_set{_s}\n'
+                     '        lda #$FF                     ; ended: hold\n'
+                     f'        sta fmi{_s},x\n'
+                     f'fmadv_rts2{_s}:\n'
+                     '        rts\n')
+        _guard = ('' if _loop else
+                  f'        cpy #$FF\n'
+                  f'        beq fmadv_rts2{_s}\n')
         play_wrapper = (
-            f'playfmod{_s}:                            ; global cutoff LFO\n'
+            f'playfmod{_s}:                            ; global cutoff contour\n'
             f'        lda fmv{_s}+0\n'
             f'        sta fdinit+{_slot}\n'
-            f'        lda fmv{_s}+1\n'
-            f'        sta fdstop+{_slot}\n'
-            '        ldx #$00\n'
-            f'        jsr fmadv{_s}\n'
-            '        ldx #$01\n'
+            + _stop_tap +
             f'        jsr fmadv{_s}\n'
             f'        jmp {play_entry}\n'
             f'fmadv{_s}:  ldy fmi{_s},x\n'
+            + _guard +
             f'        lda fmv{_s},x\n'
             '        clc\n'
             f'        adc fmrate{_s},y\n'
@@ -2454,9 +2478,7 @@ fx_dual_up:
             f'        dec fmc{_s},x\n'
             f'        bne fmadv_rts{_s}\n'
             '        iny\n'
-            f'        cpy #{len(_runs)}\n'
-            f'        bne fmadv_set{_s}\n'
-            '        ldy #$00\n'
+            + _wrap +
             f'fmadv_set{_s}:\n'
             '        tya\n'
             f'        sta fmi{_s},x\n'
@@ -2464,9 +2486,9 @@ fx_dual_up:
             f'        sta fmc{_s},x\n'
             f'fmadv_rts{_s}:\n'
             '        rts\n'
-            f'fmv{_s}:    .byt {_sa[0][0]},{_sa[1][0]}\n'
-            f'fmi{_s}:    .byt {_sa[0][1]},{_sa[1][1]}\n'
-            f'fmc{_s}:    .byt {_sa[0][2]},{_sa[1][2]}\n'
+            f'fmv{_s}:    .byt ' + ','.join(str(a[0]) for a in _sa) + '\n'
+            f'fmi{_s}:    .byt ' + ','.join(str(a[1]) for a in _sa) + '\n'
+            f'fmc{_s}:    .byt ' + ','.join(str(a[2]) for a in _sa) + '\n'
             f'fmrate{_s}: ' + _byt([d for d, _ in _runs]) + '\n'
             f'fmlen{_s}:  ' + _byt([f & 0xFF for _, f in _runs]) + '\n\n'
             ) + play_wrapper
@@ -3167,66 +3189,6 @@ fx_dual_up:
         play_entry = 'playclk'
         cia_init = cia_init + ''.join(
             f'        lda #$FF\n        sta {l}\n' for l in clk_labels)
-    # filter_init_contour (C1): one filter def's INIT CUTOFF follows a
-    # piecewise contour over the song — 'def,start,delta:count,...' (hex,
-    # delta = signed byte, terminal hold implicit). This is MUSICAL content
-    # (a cutoff automation, ledger C1's swept-value form); the composer
-    # interprets it with a GENERIC contour player — per play: serve the
-    # current value to fdinit+def (read at each filter claim, exactly where
-    # the orig's driver pokes land), run the play body, then advance the
-    # contour one play. No engine mechanism is reproduced.
-    _fdc = usf.params.fields.get('filter_init_contour', None)
-    if _fdc is not None:
-        _parts = str(_fdc).split(',')
-        _def, _start = int(_parts[0], 16), int(_parts[1], 16)
-        _ph = [(int(a, 16), int(b, 16)) for a, b in
-               (p.split(':') for p in _parts[2:])]
-        _fdctab = []
-        for _d, _n in _ph:
-            _fdctab += [_d, _n]
-        _fdctab.append(0x00)                     # sentinel: delta 0 after end
-        play_wrapper = (
-            'playfdc:                             ; filter init-cutoff contour\n'
-            '        lda fdcval\n'
-            f'        sta fdinit+{_def}\n'
-            '        jsr fdcbody                  ; real play\n'
-            '        ldx fdcpix\n'
-            '        cpx #$FF\n'
-            '        beq fdcdone                  ; contour ended: hold\n'
-            '        lda fdcval\n'
-            '        clc\n'
-            '        adc fdctab,x                 ; += current phase delta\n'
-            '        sta fdcval\n'
-            '        dec fdccnt\n'
-            '        bne fdcdone\n'
-            '        inx\n'
-            '        inx\n'
-            f'        cpx #${len(_fdctab) - 1:02X}\n'
-            '        bcc fdcnext\n'
-            '        ldx #$FF                     ; past the last phase\n'
-            '        stx fdcpix\n'
-            '        rts\n'
-            'fdcnext:stx fdcpix\n'
-            '        lda fdctab+1,x\n'
-            '        sta fdccnt\n'
-            'fdcdone:rts\n'
-            f'fdcbody:jmp {play_entry}\n'
-            f'fdcval: .byt ${_start:02X}\n'
-            'fdcpix: .byt 0\n'
-            f'fdccnt: .byt ${_ph[0][1] if _ph else 1:02X}\n'
-            'fdctab: ' + _byt(_fdctab) + '\n\n') + play_wrapper
-        cia_init = cia_init + (
-            f'        lda #${_start:02X}\n'
-            '        sta fdcval\n'
-            f'        sta fdinit+{_def}\n'
-            '        lda #0\n'
-            '        sta fdcpix\n'
-            f'        lda #${_ph[0][1] if _ph else 1:02X}\n'
-            '        sta fdccnt\n')
-        _rawbody = 'fdcbody'
-        play_entry = 'playfdc'
-    else:
-        _rawbody = play_entry
     # init_plays (C24 temporal family, sibling of play_repeat): the orig's
     # init wrapper runs the RAW play body N times before returning (before
     # any per-play wrapper logic), so the song's first N frames happen at
@@ -3234,7 +3196,7 @@ fx_dual_up:
     _inp = usf.params.fields.get('init_plays', None)
     if _inp:
         cia_init = cia_init + (
-            f'        jsr {_rawbody}\n' * int(_inp))
+            '        jsr playframe\n' * int(_inp))
     # master_vol_fade (C10 / song-end fade+restart wrapper, Slayer): an appended
     # play wrapper counts play() invocations; at play N it fades the master
     # volume `mvol` by 1 every STEP plays (the normal note-init `ora mvol /

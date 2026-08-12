@@ -446,11 +446,15 @@ def _write_filter_programs(progs: dict) -> list[str]:
 def _write_filter_mod(mods: dict) -> list[str]:
     """Emit `filter_mod { prog N: start= init_phase= stop_phase=
     step (d, f) ... }` — the song-global looped cutoff LFO."""
-    lines = ['filter_mod {  ; song-global looped cutoff LFO (two phase-offset taps)']
+    lines = ['filter_mod {  ; song-global cutoff contour '
+             '(looped LFO, or one-shot `once`)']
     for n in sorted(mods):
         m = mods[n]
-        parts = [f'start={m["start"]}', f'init_phase={m["init_phase"]}',
-                 f'stop_phase={m["stop_phase"]}']
+        parts = [f'start={m["start"]}', f'init_phase={m["init_phase"]}']
+        if m.get('stop_phase') is not None:
+            parts.append(f'stop_phase={m["stop_phase"]}')
+        if not m.get('loop', True):
+            parts.append('once')
         for d, f in m['steps']:
             parts.append(f'step ({d}, {f})')
         lines.append(f'  prog {n}: ' + ' '.join(parts))

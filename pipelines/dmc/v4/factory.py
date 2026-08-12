@@ -5470,12 +5470,14 @@ def _fdinit_contour_probe(mem, s, base):
       4. run-length-compresses that series into a C1 piecewise contour:
          start + (delta, count) phases, terminal hold implicit.
 
-    Returns (contour_param, init_plays) where contour_param =
-    'def,start,delta:count,...' (hex, delta signed two's-complement byte)
-    — the MUSICAL fact (a cutoff contour over time); the engine mechanism
-    (counters, phases, SMC) never leaves this function. init_plays = the
-    number of raw play-body calls the orig's init wrapper makes before
-    returning (a C24-family temporal/dispatch fact). None if no match."""
+    Returns (filter_mod_param, init_plays) where filter_mod_param feeds the
+    TYPED `filter_mod` block ('prog|start|0||delta:count,...|once' — a
+    single-tap ONE-SHOT contour on the def's init cutoff, the same musical
+    space as the FC/Ed looped LFO drivers) — the MUSICAL fact; the engine
+    mechanism (counters, phases, SMC) never leaves this function.
+    init_plays = the number of raw play-body calls the orig's init wrapper
+    makes before returning (a C24-family temporal/dispatch fact). None if
+    no match."""
     t = _rd16(mem, base + 4)                     # JT play slot -> the driver
     ii = _rd16(mem, base + 1)                    # JT init slot -> init wrapper
     if not (s['load'] <= t < 0xFFE0 and s['load'] <= ii < 0xFFE0):
@@ -5569,9 +5571,9 @@ def _fdinit_contour_probe(mem, s, base):
             phases.append([d, 1])
     if len(phases) > 100:
         return None                              # not contour-shaped: refuse
-    contour = f'{dnum:X},{prime:X},' + ','.join(
-        f'{d:X}:{n:X}' for d, n in phases)
-    return contour, plays
+    steps = ','.join(f'{d if d < 0x80 else d - 0x100}:{n}'
+                     for d, n in phases)
+    return f'{dnum + 1}|{prime}|0||{steps}|once', plays
 
 
 def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
@@ -5680,7 +5682,7 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
         extra_params={'cymbal_onset': 1, 'vib_ramp': 'step',
                       'hold_gateoff': hold_gateoff, 'hard_restart': 'none',
                       'rest_effects': 'skip',
-                      **(dict(zip(('filter_init_contour', 'init_plays'),
+                      **(dict(zip(('filter_mod', 'init_plays'),
                                   _fdc))
                          if (_fdc := _fdinit_contour_probe(mem, s, base))
                          else {})},

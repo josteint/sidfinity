@@ -2,63 +2,190 @@
   "_doc": [
     "Reviewed registry of every params.fields key a COMPOSER consumes.",
     "tools/composer_param_lint.py errors on any composer-consumed key not",
-    "registered here — so adding one forces the question this registry",
+    "registered here \u2014 so adding one forces the question this registry",
     "encodes: is the key MUSIC or MECHANISM, and which ledger entry / canon",
     "section licenses it?  Categories:",
-    "  musical-content    — the value IS music (a contour, a fade formula);",
+    "  musical-content    \u2014 the value IS music (a contour, a fade formula);",
     "                       the model can learn it; preferred (C1/C10/C14).",
-    "  mechanism-knob     — reproduces a per-member player mechanism the",
+    "  mechanism-knob     \u2014 reproduces a per-member player mechanism the",
     "                       write stream demands (C19 wedges etc.). Each is",
     "                       a standing DECONSTRUCTION candidate; note it.",
-    "  temporal-dispatch  — WHEN play runs, not what it plays (C18/C24/C31).",
-    "  environment        — host/timer facts (trichotomy section 4.3).",
+    "  temporal-dispatch  \u2014 WHEN play runs, not what it plays (C18/C24/C31).",
+    "  environment        \u2014 host/timer facts (trichotomy section 4.3).",
     "A key a musician could not read that is NOT a mechanism demanded by",
     "the write stream is the principle-section-8 leak in param clothing."
   ],
   "pipelines/composer.py": {
-    "digi_player":            {"category": "mechanism-knob", "licensed_by": "digi pipeline (C7 category C: PCM is natural musical form)", "note": "REVIEW: a NAME indexing an engine-side digi-player registry is borderline section-7 (an engine library the USF indexes into); flagged by the first lint run 2026-08-12"}
+    "digi_player": {
+      "category": "mechanism-knob",
+      "licensed_by": "digi pipeline (C7 category C: PCM is natural musical form)",
+      "note": "REVIEW: a NAME indexing an engine-side digi-player registry is borderline section-7 (an engine library the USF indexes into); flagged by the first lint run 2026-08-12"
+    }
   },
   "pipelines/dmc/composer_asm.py": {
-    "cia_rearm_per_play":       {"category": "mechanism-knob", "licensed_by": "C25 (mirrored class)"},
-    "cymbal_burst":             {"category": "mechanism-knob", "licensed_by": "C19 (probed articulation immediate)"},
-    "cymbal_ctrl":              {"category": "mechanism-knob", "licensed_by": "C19 26th (cymbal ctrl immediate)"},
-    "d417_tail_anim":           {"category": "mechanism-knob", "licensed_by": "C19 (playgfa animator)", "note": "deconstruction candidate -> C1 contour"},
-    "drum_fhi_to_pw":           {"category": "mechanism-knob", "licensed_by": "C19 (drum freq-hi store repoint)"},
-    "dual_freq_generator":      {"category": "mechanism-knob", "licensed_by": "C19 (dual freq generator wedge)"},
-    "dual_generator_steps":     {"category": "mechanism-knob", "licensed_by": "C19 (dual freq generator wedge)"},
-    "effect_entry_variant":     {"category": "mechanism-knob", "licensed_by": "C18 (vibflip arm entry)"},
-    "fclaim_clear_dead":        {"category": "mechanism-knob", "licensed_by": "C19 21st (fclaim clear repointed to void)"},
-    "filter_cut_from_fbase":    {"category": "mechanism-knob", "licensed_by": "C19 42nd (filter-tail load repoint)"},
-    "filterdef_anim":           {"category": "mechanism-knob", "licensed_by": "C19 (Ed filter-def driver)", "note": "deconstruction candidate -> C1 contour"},
-    "filterdef_anim3":          {"category": "mechanism-knob", "licensed_by": "C19 20th (Only_Ones driver)", "note": "deconstruction candidate -> C1 contour"},
-    "filter_init_contour":      {"category": "musical-content", "licensed_by": "C1 (swept value -> piecewise contour); deconstructed from the 4k_Byter driver per C19 33rd"},
-    "filter_static":            {"category": "mechanism-knob", "licensed_by": "C19 37th (filter stores NOPed)"},
-    "fphase_repeat":            {"category": "temporal-dispatch", "licensed_by": "C18 (F-phase per-voice repeat)"},
-    "hardrestart_smc_variant":  {"category": "mechanism-knob", "licensed_by": "C19 (hard-restart SMC variant)"},
-    "hardrestart_test_init":    {"category": "mechanism-knob", "licensed_by": "C19 (hard-restart prep variant)"},
-    "hr_prep_gate":             {"category": "mechanism-knob", "licensed_by": "C23 (hr prep $08-then-$09 footprint)"},
-    "init_plays":               {"category": "temporal-dispatch", "licensed_by": "C24 family (init wrapper runs the raw play body N times; 4k_Byter)"},
-    "master_vol_every_play":    {"category": "mechanism-knob", "licensed_by": "C19 ($D418-every-play wrapper)"},
-    "master_vol_fade":          {"category": "musical-content", "licensed_by": "C10/C38 (parametric song-end fade)"},
-    "master_vol_reassert_filter_tail": {"category": "mechanism-knob", "licensed_by": "C19 ($D418 reassert site)"},
-    "master_vol_static":        {"category": "mechanism-knob", "licensed_by": "C19 36th (static $D418)"},
-    "medley":                   {"category": "temporal-dispatch", "licensed_by": "C31 (time-medley wrapper)"},
-    "multisid_keep_regs":       {"category": "mechanism-knob", "licensed_by": "C27 (per-chip write-stream quirks)"},
-    "noteinit_deferred":        {"category": "mechanism-knob", "licensed_by": "C23 (deferred 2-frame arm)"},
-    "noteinit_defer_wave":      {"category": "mechanism-knob", "licensed_by": "C23 general form"},
-    "play_phases":              {"category": "temporal-dispatch", "licensed_by": "C18 (per-call phase schedule)"},
-    "play_unit_repeat":         {"category": "temporal-dispatch", "licensed_by": "C24 (unit repeat)"},
-    "pulsewidth_dir_persist":   {"category": "mechanism-knob", "licensed_by": "C19 (pw_dir_persist repoint)"},
-    "pulsewidth_hi_const":      {"category": "mechanism-knob", "licensed_by": "C19 (pw_hi_const wedge)"},
-    "pw_base_sid_read":         {"category": "mechanism-knob", "licensed_by": "C19 31st (ADC into SID-mirror space)"},
-    "pw_bound_shift":           {"category": "mechanism-knob", "licensed_by": "C19 (PWM bound-shift wedge)"},
-    "pw_up_reverse":            {"category": "mechanism-knob", "licensed_by": "C19 35th (up-reversal bound repoint)"},
-    "route_clear_dead":         {"category": "mechanism-knob", "licensed_by": "C19 ($D417 route-bit clear to void)"},
-    "rphase_variant":           {"category": "mechanism-knob", "licensed_by": "C18 (R-phase entry variant)"},
-    "switch_toggle_mask":       {"category": "mechanism-knob", "licensed_by": "C19 (SWITCH gate-toggle EOR immediate)"},
-    "track_fe_reset":           {"category": "mechanism-knob", "licensed_by": "C19 40th ($FE -> KERNAL reset halt)"},
-    "track_ff_reinit":          {"category": "mechanism-knob", "licensed_by": "C19 22nd ($FF -> init restart)"},
-    "track_ff_reinit_ghost":    {"category": "mechanism-knob", "licensed_by": "C19 (shape B/39th ghost restart)"},
-    "track_loop_dead":          {"category": "mechanism-knob", "licensed_by": "C19 43rd (dead loop store: halt-and-hold)"}
+    "cia_rearm_per_play": {
+      "category": "mechanism-knob",
+      "licensed_by": "C25 (mirrored class)"
+    },
+    "cymbal_burst": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (probed articulation immediate)"
+    },
+    "cymbal_ctrl": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 26th (cymbal ctrl immediate)"
+    },
+    "d417_tail_anim": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (playgfa animator)",
+      "note": "deconstruction candidate -> C1 contour"
+    },
+    "drum_fhi_to_pw": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (drum freq-hi store repoint)"
+    },
+    "dual_freq_generator": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (dual freq generator wedge)"
+    },
+    "dual_generator_steps": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (dual freq generator wedge)"
+    },
+    "effect_entry_variant": {
+      "category": "mechanism-knob",
+      "licensed_by": "C18 (vibflip arm entry)"
+    },
+    "fclaim_clear_dead": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 21st (fclaim clear repointed to void)"
+    },
+    "filter_cut_from_fbase": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 42nd (filter-tail load repoint)"
+    },
+    "filterdef_anim": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (Ed filter-def driver)",
+      "note": "deconstruction candidate -> C1 contour"
+    },
+    "filterdef_anim3": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 20th (Only_Ones driver)",
+      "note": "deconstruction candidate -> C1 contour"
+    },
+    "filter_static": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 37th (filter stores NOPed)"
+    },
+    "fphase_repeat": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C18 (F-phase per-voice repeat)"
+    },
+    "hardrestart_smc_variant": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (hard-restart SMC variant)"
+    },
+    "hardrestart_test_init": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (hard-restart prep variant)"
+    },
+    "hr_prep_gate": {
+      "category": "mechanism-knob",
+      "licensed_by": "C23 (hr prep $08-then-$09 footprint)"
+    },
+    "init_plays": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C24 family (init wrapper runs the raw play body N times; 4k_Byter)",
+      "note": "the contour itself moved to the TYPED filter_mod block (one-shot single-tap form) 2026-08-12; only this temporal knob remains a param"
+    },
+    "master_vol_every_play": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 ($D418-every-play wrapper)"
+    },
+    "master_vol_fade": {
+      "category": "musical-content",
+      "licensed_by": "C10/C38 (parametric song-end fade)"
+    },
+    "master_vol_reassert_filter_tail": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 ($D418 reassert site)"
+    },
+    "master_vol_static": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 36th (static $D418)"
+    },
+    "medley": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C31 (time-medley wrapper)"
+    },
+    "multisid_keep_regs": {
+      "category": "mechanism-knob",
+      "licensed_by": "C27 (per-chip write-stream quirks)"
+    },
+    "noteinit_deferred": {
+      "category": "mechanism-knob",
+      "licensed_by": "C23 (deferred 2-frame arm)"
+    },
+    "noteinit_defer_wave": {
+      "category": "mechanism-knob",
+      "licensed_by": "C23 general form"
+    },
+    "play_phases": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C18 (per-call phase schedule)"
+    },
+    "play_unit_repeat": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C24 (unit repeat)"
+    },
+    "pulsewidth_dir_persist": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (pw_dir_persist repoint)"
+    },
+    "pulsewidth_hi_const": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (pw_hi_const wedge)"
+    },
+    "pw_base_sid_read": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 31st (ADC into SID-mirror space)"
+    },
+    "pw_bound_shift": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (PWM bound-shift wedge)"
+    },
+    "pw_up_reverse": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 35th (up-reversal bound repoint)"
+    },
+    "route_clear_dead": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 ($D417 route-bit clear to void)"
+    },
+    "rphase_variant": {
+      "category": "mechanism-knob",
+      "licensed_by": "C18 (R-phase entry variant)"
+    },
+    "switch_toggle_mask": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (SWITCH gate-toggle EOR immediate)"
+    },
+    "track_fe_reset": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 40th ($FE -> KERNAL reset halt)"
+    },
+    "track_ff_reinit": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 22nd ($FF -> init restart)"
+    },
+    "track_ff_reinit_ghost": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (shape B/39th ghost restart)"
+    },
+    "track_loop_dead": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 43rd (dead loop store: halt-and-hold)"
+    }
   }
 }

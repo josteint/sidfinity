@@ -1348,15 +1348,19 @@ class UsfFile:
     # `final` past `end`, and routes filter via `d418` ($D418). Empty dict
     # when no filter programs are used.
     filter_programs: dict[int, dict] = field(default_factory=dict)
-    # Song-global filter-cutoff modulation (a free-running looped LFO with
-    # two phase-offset taps). Maps filter-program index N to
-    # {'start': int, 'init_phase': int, 'stop_phase': int,
-    #  'steps': [(delta, frames)*]}: the contour advances one position per
-    # play() call; each frame prog N's `init` cutoff takes the contour value
-    # at (init_phase + t) mod period and its `stop` cutoff the value at
-    # (stop_phase + t). The engine samples both at filter note-init, so each
-    # filter note starts/freezes wherever the LFO currently sits. Empty dict
-    # when no modulation is active.
+    # Song-global filter-cutoff modulation (a free-running contour with up
+    # to two phase-offset taps). Maps filter-program index N to
+    # {'start': int, 'init_phase': int, 'stop_phase': int|None,
+    #  'loop': bool (default True), 'steps': [(delta, frames)*]}: the
+    # contour advances one position per play() call; each frame prog N's
+    # `init` cutoff takes the contour value at (init_phase + t) and — when
+    # `stop_phase` is not None — its `stop` cutoff the value at
+    # (stop_phase + t). `loop` True wraps mod the contour period (the FC/Ed
+    # LFO drivers); False holds the final value forever (a one-shot sweep —
+    # the SilverFox 4k_Byter staircase+ramp morph, ledger C1's piecewise
+    # form). The engine samples the tap(s) at filter note-init, so each
+    # filter note starts/freezes wherever the contour currently sits.
+    # Empty dict when no modulation is active.
     filter_mod: dict[int, dict] = field(default_factory=dict)
     # FC drum (percussion) program library (v0). Maps drum index N (an
     # instrument's fx1 & $0F when its drum flag is set) to two parallel

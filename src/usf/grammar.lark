@@ -75,7 +75,8 @@ fp_seg: "seg" number number
 // LFO. The engine samples both at filter note-init, so musically every
 // filter note starts (and freezes) wherever the LFO currently sits.
 filter_mod_block: "filter_mod" "{" filter_mod_entry* "}"
-filter_mod_entry: "prog" INT ":" "start" "=" number "init_phase" "=" INT "stop_phase" "=" INT fp_step+
+filter_mod_entry: "prog" INT ":" "start" "=" number "init_phase" "=" INT ["stop_phase" "=" INT] [FM_ONCE] fp_step+
+FM_ONCE: "once"
 
 // ----- drum programs (FC percussion library) -----
 // `drum N: wave=[..] tone=[..]` — parallel per-step waveform ($D404) and

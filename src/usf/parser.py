@@ -1525,10 +1525,24 @@ class _T(Transformer):
 
     def filter_mod_entry(self, items):
         n = int(items[0])
-        start, ip, sp = int(items[1]), int(items[2]), int(items[3])
-        steps = [v for k, v in items[4:] if k == 'step']
-        return (n, {'start': start, 'init_phase': ip, 'stop_phase': sp,
-                    'steps': steps})
+        start, ip = int(items[1]), int(items[2])
+        # tail: optional stop_phase INT, optional `once` marker, then steps.
+        # (LALR without placeholders: classify by shape — a step is a
+        # ('step', v) tuple, `once` arrives as its FM_ONCE token, a bare
+        # remaining scalar is the stop_phase.)
+        sp, loop, steps = None, True, []
+        for it in items[3:]:
+            if isinstance(it, tuple) and it and it[0] == 'step':
+                steps.append(it[1])
+            elif str(it) == 'once':
+                loop = False
+            elif it is not None:
+                sp = int(it)
+        e = {'start': start, 'init_phase': ip, 'stop_phase': sp,
+             'steps': steps}
+        if not loop:
+            e['loop'] = False
+        return (n, e)
 
     def filter_mod_block(self, items):
         return ('filter_mod', {n: e for n, e in items})

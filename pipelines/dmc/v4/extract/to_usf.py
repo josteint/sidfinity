@@ -1400,12 +1400,19 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
     fm = m.extra_params.pop('filter_mod', None)
     if fm:
         for seg in fm.split(';'):        # multi-tap probe joins progs by ';'
-            prog, start, ip, sp, steps = seg.split('|')
-            filter_mod[int(prog)] = {
-                'start': int(start), 'init_phase': int(ip),
-                'stop_phase': int(sp),
-                'steps': [(int(d), int(f)) for d, f in
-                          (t.split(':') for t in steps.split(','))]}
+            # 5 fields = the looped two-tap LFO probe (Ed drivers);
+            # 6 fields = 'prog|start|ip|sp|steps|flags' with sp allowed
+            # empty (single tap) and flags 'once' (one-shot contour — the
+            # 4k_Byter staircase+ramp morph, C1 piecewise form).
+            f5 = seg.split('|')
+            prog, start, ip, sp, steps = f5[:5]
+            e = {'start': int(start), 'init_phase': int(ip),
+                 'stop_phase': int(sp) if sp != '' else None,
+                 'steps': [(int(d), int(f)) for d, f in
+                           (t.split(':') for t in steps.split(','))]}
+            if len(f5) > 5 and 'once' in f5[5]:
+                e['loop'] = False
+            filter_mod[int(prog)] = e
     return UsfFile(
         psid=PsidMeta(title=m.title, author=m.author, released=m.released,
                       clock=m.clock, sid=m.sid_model,
