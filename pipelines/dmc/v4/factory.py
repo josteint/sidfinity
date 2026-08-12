@@ -5676,6 +5676,11 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
         op_secp_lo=at(0x1103), op_secp_hi=at(0x1108),
         freq_lo_addr=at(0x1647), freq_hi_addr=at(0x16A7),
         vibdepth_addr=at(0x1888), d417_shadow_addr=at(0x1034),
+        # family-2's $40 half-rate slide/vib parity lives beside its $1034
+        # routing shadow (canon pairs $1018/$1019 the same way). Unset, the
+        # post-init capture fell back to canon base+$19 = init-code bytes in
+        # an f2 image (RE_NOTES known bug; 13 carriers censused 2026-08-12).
+        dual_parity_addr=at(0x1035),
         track_loop_target=False, cia_period=cia_period,
         play_repeat=play_repeat,
         sector_format='family2',
