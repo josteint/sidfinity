@@ -5,8 +5,38 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-12T18:46:02.962Z
+  modified: 2026-08-12T19:54:10.466Z
 ---
+
+## ✅ F2 UNSUPPORTED CLASS CLOSED (2026-08-12, commits 5e2ab61b + d31649af): **2,624/2,924 FULL (89.7%)**, 0 unsupported
+All 15 former unsupported resolved: 13 FULL + 2 into known partial clusters
+(Soul_tune_1 → V3-ctrl triangle-bit cluster; Twin_Russian → the fbl freq
+cluster, base $8739, play_repeat=2 via `JSR T/JMP T`). Landed in 3 rounds:
+easy-9 (prev entry), the loop-poke round (X-mas `subtune_loop_reset` {0:7} —
+both subs FULL incl. the loop-to-7 wrap; Soul_tune_4 + Soul_partselector via
+extended neutral walk with static-branch following), and the 4k_Byter pair.
+**THE 4k_BYTER LESSON (owner-caught §8 misstep → reverted → redone right):**
+the appended SMC sequencer ramping filter def 0's INIT CUTOFF was FIRST
+implemented as a mechanism param (`pulsebyte_anim`) + composer driver-
+emulator chunk — verified FULL but WRONG representation (the ledger had
+already decided it: C19 33rd — a wedge changing a MUSICAL VALUE is
+DECONSTRUCTED, never reproduced as a composer mechanism; and C1's card IS
+"cutoff contour"). REVERTED (uncommitted), REDONE: the probe template-
+matches the driver, SIMULATES it in Python, and emits `filter_init_contour`
+= 'def,start,delta:count,...' (C1 piecewise form, readable music) +
+`init_plays: 3` (C24 temporal — the orig init runs the raw play body 3×).
+Composer gained a GENERIC C1 contour interpreter (serve value → body →
+advance) + N init JSRs. Both FULL, synced + audited. MEASURED: 25 distinct
+claim-start cutoff values (88 claims) → def clone-and-remap (16 nibble
+slots) CANNOT encode it; the contour is also the truer musical object.
+**META-PIPELINE HARDENING (the prevention ask):** `tools/
+composer_param_lint.py` + `tools/composer_params.json` — a reviewed
+registry of every composer-consumed params key (category + licensing
+ledger entry); lint ERRORS on unregistered keys. First run immediately
+flagged `digi_player` (a name indexing an engine-side registry — borderline
+§7, noted for review). CLAUDE.md gained the C19-33rd tripwire bullet.
+Remaining f2 residue: 299+... partials (C11 fbl freq class dominant, the
+$12F4 vib-tail 4-carrier cluster, V3-ctrl cluster) — the next rounds.
 
 ## ✅ F2 EASY-9 LANDED (2026-08-12, commit 7388e89f): **2,619/2,924 FULL (89.6%)**, 6 unsupported left
 The near-miss detection fallback (factory.py, fires ONLY after all prior

@@ -258,6 +258,22 @@ HVSC original at `hvsc85/MUSICIANS/H/Hubbard_Rob/<Engine>.{usf, sidfinity.sid}`.
 - **Commit early.** Each verified delta is one commit. No `Co-Authored-By`.
 - **Propose options before code** for non-trivial work. Honest scope. Pause at decision points.
 - **Schema additions are suspicious by default** — see [`feedback_schema_addition_discipline`](.claude/memory/feedback_schema_addition_discipline.md). Exhaust derivation / `engine_constants` / existing-params alternatives first. `bytes`-typed fields almost always mean you're papering over a representation gap.
+- **A new composer play-wrapper or params key is a REPRESENTATION decision,
+  not an implementation detail.** BEFORE writing it, run the C19 33rd-occurrence
+  test: does the mechanism change a MUSICAL VALUE? If yes, DECONSTRUCT to
+  content (C1 contour / C10 parametric / C14 row flags / per-row extract-only)
+  — a params key a musician couldn't read is the Principle §8 leak in param
+  clothing. The mechanical gate is `tools/composer_param_lint.py`: every
+  composer-consumed `params.fields` key must be registered in
+  `tools/composer_params.json` with a category (musical-content /
+  mechanism-knob / temporal-dispatch / environment) and the ledger entry that
+  licenses it — the lint ERRORS on unregistered keys. Run it beside
+  `usf_corpus_check` + `usf_spec_lint` after any composer params-surface
+  change. Born 2026-08-12 after a driver-mechanism param (`pulsebyte_anim`)
+  reached a verified build before the deconstruction question was asked; the
+  owner's smell caught it, the ledger had already decided it (C19 33rd), and
+  the fix (`filter_init_contour`, a C1 piecewise form) was better on every
+  axis.
 - **The shared core stays parametric.** New engine quirks become config fields on `EngineConfig`, never `if engine == "Foo"` branches.
 
 ## Memory hygiene
