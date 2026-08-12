@@ -5,8 +5,40 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-11T07:48:41.143Z
+  modified: 2026-08-12T04:58:00.783Z
 ---
+
+## ▶ FAMILY-2 RESUMED (2026-08-12) — #85 membership + fresh batch RUNNING + wedge space enumerated
+Owner-directed resumption after f1 closed at 100%. Done this session:
+- **#85 membership derived**: `tmp/dmc_f2_members_85.json` = **2,924** (2,878
+  of the June 2,889 still present + 46 #85-classified V4-derived from
+  `tmp/dmc_classify_new.json`; 11 old paths gone = renames among the 46, f1
+  precedent). C20 seventh layer honored — no whole-file-hash matching.
+- **Fresh full f2 batch RUNNING** (2026-08-12, background):
+  `tools/dmc_family_batch.py --members tmp/dmc_f2_members_85.json --out
+  tmp/dmc_f2_85_results.jsonl`, log `tmp/dmc_f2_85_batch.log`. Early mix at
+  90 members: 82 full / 8 partial (91% — above July's 86.8%, the r113-r187
+  shared rounds paying out). ~8 h on the X230. July baseline for batch_diff:
+  `tmp/dmc_f2_full.jsonl` (2,507/2,889 FULL).
+- **Wedge space enumerated a-priori** (`dmc_canon_diff --family2`, NEW mode,
+  commit d1497e58; results `tmp/dmc_f2_canon_diff.log` + `tmp/dmc_f2_wedges.csv`):
+  **2,872/2,924 (98%) align linearly to the carved f2 reference**, 52
+  reassembled, 0 anomalous. Only 2 multi-carrier clusters, BOTH already
+  probed (hold_gateoff ×280, filter-mode AND ×29); 35 unhandled clusters are
+  all 1-2 carriers. Conclusion: f2 residue is DATA/off-table-shaped, not
+  code-wedge-shaped — same structure as f1's audit.
+- **Post-batch analysis ready**: `tmp/f2_postbatch.sh` (batch_diff report +
+  divergence_census --partials + canon_diff --status split; NON-destructive).
+- **CORPUS SYNC HELD**: whole f2 stored corpus (~2,508 artifacts) is
+  July-stale (pre-C32 params, 52 live()-form .usf). Mass-write
+  (`dmc_mass_write --results tmp/dmc_f2_85_results.jsonl`, build_path
+  replay + orphan delete + audit) prepared but NOT run — owner go-ahead
+  needed for the destructive step. The live()-grammar deletion rides the
+  f2 extract migration after the sync.
+- QUEUED (post-batch, code_hash discipline — NO pipelines/ edits while the
+  batch runs): dual_phase read-site fix (canon $1019 → f2 base+$35, RE_NOTES
+  known bug; census dual-instr carriers first), f2 vibdepth-address confirm,
+  seed `tmp/dmc_f2_partials.jsonl` for `dmc_next_partial --list`.
 
 ## ✅ A2 CLOSED — f1 re-batched + corpus mass-written under current code (2026-08-11)
 The full chain (tmp/a2_overnight.sh, log tmp/a2_overnight_2.log) ran green
