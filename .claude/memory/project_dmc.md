@@ -5,8 +5,35 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-12T07:13:54.490Z
+  modified: 2026-08-12T17:56:03.928Z
 ---
+
+## ▶ F2 UNSUPPORTED CENSUS (2026-08-12): all 15 identified, no new classes — 8 easy
+The 15 unsupported (14 no_jumptable + 1 nonstandard_vectors) fully decompose:
+- **JT near-misses (5, C13)**: Merilyn_part_7 (play slot `JSR $1085/RTS`),
+  Yoko_02 (init slot JSR → init runs one play), Power_of_Lard_part_4 (JT is
+  a `JMP $FCE2` KERNAL-reset TRAP; header vectors point at the f2 bodies),
+  Lithium_Logo_2 (whole player shifted +1: targets $1038/$1086/$1630/$163F),
+  Entropy_Intro (2-entry JT shifted −4: $1033/$1081).
+- **Write-stream-neutral wrappers (3)**: Soul_tune_1/2 (play = zp 16-bit
+  frame counter `INC $ED/$EE` then JMP $1085 — no SID touch; init zeroes it
+  then JMP $1037), Note_from_Tonka (init = `JSR $1037 / LDA #$1F / STA
+  $D418 / RTS` = pure §4.2 priming → existing `init.sid.master_vol`).
+- **Per-subtune poke wrappers (2, C37 degenerate)**: X-mas_Cooperation_tune_2
+  (init wrapper pokes table[sub] into $10DE = the $FF track-loop handler's
+  loop-to IMMEDIATE — a knob C19 knows), Soul_partselector (play → $1CF0
+  selector, needs a deeper look).
+- **Appended drivers (5, C24/C38)**: 4k_Byter + 4k_Byter_2K1 (init runs
+  play 3×, poke $17F4, counter-driven per-frame sequencer), Twin_Russian
+  (`JSR T/JMP T` = C24 whole-play 2×, re-assembled @ $8700), Soul_tune_4
+  (Soul wrapper family relocated @ $9000, both vectors appended).
+PLAN for the easy 8 (approved, start post-sync): _jt_layout consistent-base
+rule (e0−$37 == e1−$85 → base = that value; catches ±shifts; wrappers fail
+the equation structurally) + header-vector fallback + JSR-slot opcode relax
++ neutral-wrapper follow (terminal JMP, no SID writes en route) + the
+master_vol init-wrapper probe. GATE: detection diff over all 2,924 (only
+the intended members may change (base,layout)) + build+verify the 8 +
+golden byte-identity sample.
 
 ## ▶ F2 BATCH LANDED (2026-08-12 later): **2,611/2,924 FULL (89.3%)**, 0 regressions — residue = C11 freq class
 Fresh batch complete (`tmp/dmc_f2_85_results.jsonl`): **2,611 full / 298
