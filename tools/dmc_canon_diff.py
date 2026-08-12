@@ -72,6 +72,19 @@ from src.jobs import default_jobs  # noqa: E402
 _FIXED_TABLES = {0x1647, 0x16A7, 0x1018}          # freq_lo, freq_hi, d417 shadow
 _PLAYER_LO, _PLAYER_HI = 0x1000, 0x17FF           # code + per-voice state window
 
+# --family2 mode: diff against the carved family-2 reference player
+# (pipelines/dmc/docs/dmc4_family2_player_1000.bin, from Kajun_Klog,
+# $1000-$17B0). Family-2 keeps the 4-entry JT shape but init JMPs base+$37
+# (canon $1D); play/all-off/sfx offsets $85/$62F/$63E are canon-shared. The
+# $D417 routing shadow lives at $1034 (canon $1018); the instrument table at
+# $17B0 is read via the canon $1227 operand site and is IN the player window,
+# so per-member instr relocations surface as (bulk-filtered) repoints.
+_F2 = False
+_F2_CANON_PATH = os.path.join('pipelines', 'dmc', 'docs',
+                              'dmc4_family2_player_1000.bin')
+_F2_FIXED_TABLES = {0x1647, 0x16A7, 0x1034}
+_F2_INIT_OFF = 0x37
+
 # Known wedge INSTRUCTION sites (canonical address -> the factory probe that
 # HANDLES it), from the `_*_probe` docstrings + the PoC + this tool's own
 # validation. Windows over the instruction site (NOT the operand target); used
@@ -94,6 +107,19 @@ _KNOWN_SITES = [
     (0x1848, 0x184E, 'hardrestart_smc_variant (sub_184B)'),
 ]
 
+# Family-2 known sites: the 5 factory-probed write-stream knobs (RE_NOTES) +
+# the generic wrapper windows. Refined as the f2 sweep reveals true sites.
+_F2_KNOWN_SITES = [
+    (0x1000, 0x100B, 'play-vector (every_play/unit_repeat/repeat)'),
+    (0x10DD, 0x10E1, 'track_loop_hook (C13 dataflow)'),
+    (0x11D9, 0x11DF, 'hard_restart (probed: none/helper)'),
+    (0x1174, 0x1185, 'rest/switch dispatch (rest_effects probe)'),
+    (0x129F, 0x12A3, 'filter-mode AND variant (probed)'),
+    (0x12C9, 0x1300, 'note-init tail (cymbal_onset/vib_ramp probes)'),
+    (0x133D, 0x1341, 'hold_gateoff (probed: mask_only/helper)'),
+    (0x1630, 0x1646, 'injected-wrapper ($16xx: d418/play_unit)'),
+]
+
 _MNE = {0x8D: 'STA a', 0x9D: 'STA a,x', 0x99: 'STA a,y', 0xB9: 'LDA a,y',
         0xBD: 'LDA a,x', 0xAD: 'LDA a', 0xA9: 'LDA #', 0xA6: 'LDX z',
         0xBC: 'LDY a,x', 0x20: 'JSR', 0x4C: 'JMP', 0x2C: 'BIT', 0x60: 'RTS',
@@ -107,7 +133,7 @@ def _mne(op):
 
 
 def _known(addr):
-    for lo, hi, lbl in _KNOWN_SITES:
+    for lo, hi, lbl in (_F2_KNOWN_SITES if _F2 else _KNOWN_SITES):
         if lo <= addr <= hi:
             return lbl
     return None
@@ -122,7 +148,14 @@ def _canon_map():
     global _CANON
     if _CANON is None:
         from pipelines.dmc.v4 import dataflow as D
-        _CANON = {a: (o, v) for a, o, v in D._canon_instrs()}
+        if _F2:
+            ref = open(os.path.join(ROOT, _F2_CANON_PATH), 'rb').read()
+            cm = bytearray(0x10000)
+            cm[0x1000:0x1000 + len(ref)] = ref
+            _CANON = {a: (o, v) for a, o, v in
+                      D._instrs(cm, 0x1000, 0x1003, (0x1006, 0x1009))}
+        else:
+            _CANON = {a: (o, v) for a, o, v in D._canon_instrs()}
     return _CANON
 
 
@@ -131,10 +164,11 @@ def _canon_base(mem, s):
     (`JMP base+$1D / JMP base+$85`); else None (relocated dispatch / family-2 /
     re-assembled — not linearly alignable)."""
     load = s['load']
+    init_off = _F2_INIT_OFF if _F2 else 0x1D
     for b in (s['play'] - 3, load):
         if (0 < b <= 0xFFFF - 6 and load <= b and mem[b] == 0x4C
                 and mem[b + 3] == 0x4C
-                and (mem[b + 1] | (mem[b + 2] << 8)) == (b + 0x1D) & 0xFFFF):
+                and (mem[b + 1] | (mem[b + 2] << 8)) == (b + init_off) & 0xFFFF):
             return b
     return None
 
@@ -167,7 +201,10 @@ def _diff_member(rel: str) -> dict:
     if base is None:
         return {'rel': rel, 'status': 'reassembled'}
     try:
-        mI = D._instrs(mem, base, base + 3, (base + 6, base + 9))
+        # family-2 has a 2-entry JT sub-build (all-off/sfx slots zeroed) —
+        # trace only from slots that actually hold a JMP.
+        extras = tuple(e for e in (base + 6, base + 9) if mem[e] == 0x4C)
+        mI = D._instrs(mem, base, base + 3, extras)
     except Exception:
         return {'rel': rel, 'status': 'error', 'detail': 'trace'}
     canon = _canon_map()
@@ -182,7 +219,8 @@ def _diff_member(rel: str) -> dict:
         if co != mo:
             opcode.append((ca, co, mo))
         elif (cv is not None and mv is not None and mv != cv
-                and _PLAYER_LO <= cv <= _PLAYER_HI and cv not in _FIXED_TABLES):
+                and _PLAYER_LO <= cv <= _PLAYER_HI
+                and cv not in (_F2_FIXED_TABLES if _F2 else _FIXED_TABLES)):
             repoint.append((ca, mo, cv, mv))
     # drop bulk state-block/table relocations (a delta recurring >= _RELOC_MIN
     # times), keep isolated wedge repoints.
@@ -237,7 +275,16 @@ def main():
     ap.add_argument('--status', default='',
                     help='batch results jsonl -> split each cluster into '
                          'partial/full carriers')
+    ap.add_argument('--family2', action='store_true',
+                    help='diff against the family-2 reference player '
+                         '(init JMP base+$37; default members = '
+                         'tmp/dmc_f2_members_85.json)')
     args = ap.parse_args()
+    if args.family2:
+        global _F2
+        _F2 = True
+        if args.members == 'family1':
+            args.members = os.path.join(ROOT, 'tmp', 'dmc_f2_members_85.json')
     status_map = _load_status(args.status) if args.status else None
 
     members = _load_members(args.members)
