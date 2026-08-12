@@ -5128,7 +5128,8 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc85',
         for ti0, tp0 in cands:
             mp = _mvol_prime_walk(ti0) if s['load'] <= ti0 else None
             ti_opts = [ti0] + ([mp[0]] if mp else []) + \
-                ([_neutral_walk(ti0), _poke_wrapper_walk(ti0)]
+                ([_neutral_walk(ti0), _poke_wrapper_walk(ti0),
+                  _jsr_body_walk(ti0)]
                  if s['load'] <= ti0 else [])
             tp_opts = [tp0] + \
                 ([_neutral_walk(tp0), _jsr_body_walk(tp0)]
@@ -5452,6 +5453,127 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc85',
     )
 
 
+def _fdinit_contour_probe(mem, s, base):
+    """SilverFox 4k_Byter appended sequencer, DECONSTRUCTED to musical
+    content (ledger C1 + C19 33rd occurrence — a driver that changes a
+    MUSICAL VALUE is deconstructed, never reproduced as a composer
+    mechanism). The appended play wrapper steps/ramps ONE filter def's
+    INIT-CUTOFF byte over the song via an SMC counter-retarget sequencer.
+    The sequencer is fully deterministic, so this probe:
+
+      1. template-matches the driver (anchored opcodes + operand
+         cross-references, the C19 idiom) and captures its constants;
+      2. classifies the animated byte — it must be a filter-def record's
+         byte 1 (the def's init cutoff);
+      3. SIMULATES the sequencer play-by-play (the literal disasm
+         semantics) to get the cutoff value each play body observes;
+      4. run-length-compresses that series into a C1 piecewise contour:
+         start + (delta, count) phases, terminal hold implicit.
+
+    Returns (contour_param, init_plays) where contour_param =
+    'def,start,delta:count,...' (hex, delta signed two's-complement byte)
+    — the MUSICAL fact (a cutoff contour over time); the engine mechanism
+    (counters, phases, SMC) never leaves this function. init_plays = the
+    number of raw play-body calls the orig's init wrapper makes before
+    returning (a C24-family temporal/dispatch fact). None if no match."""
+    t = _rd16(mem, base + 4)                     # JT play slot -> the driver
+    ii = _rd16(mem, base + 1)                    # JT init slot -> init wrapper
+    if not (s['load'] <= t < 0xFFE0 and s['load'] <= ii < 0xFFE0):
+        return None
+    if not (mem[t] == 0x20 and _rd16(mem, t + 1) == base + 0x85
+            and mem[t + 3] == 0xAD and mem[t + 6] == 0xD0
+            and mem[t + 8] == 0xAD and mem[t + 11] == 0xC9
+            and mem[t + 13] == 0xF0 and mem[t + 15] == 0xEE
+            and mem[t + 18] == 0xAD
+            and _rd16(mem, t + 16) == _rd16(mem, t + 19)   # INC/LDA same cell
+            and mem[t + 21] == 0xD0 and mem[t + 23] == 0xAE
+            and mem[t + 26] == 0xBD and mem[t + 29] == 0xD0
+            and mem[t + 31] == 0x8D
+            and mem[t + 34] == 0xA9 and mem[t + 36] == 0xA0):
+        return None
+    tgt = _rd16(mem, t + 9)                      # the animated byte
+    if _rd16(mem, t + 32) != tgt:
+        return None
+    if (mem[t + 35], mem[t + 37]) != (tgt >> 8, tgt & 0xFF):
+        return None                              # SMC retarget aims elsewhere
+    cap = mem[t + 12]
+    tab = _rd16(mem, t + 27)
+    phcap = idxcap = None                        # the two step-cap compares
+    for off in range(0x38, 0x58):
+        if mem[t + off] == 0xAD and mem[t + off + 3] == 0xC9:
+            v = mem[t + off + 4]
+            if phcap is None:
+                phcap = v
+            else:
+                idxcap = v
+                break
+    if phcap is None or idxcap is None:
+        return None
+    # init wrapper: JSR base+$37 / LDA #prime / STA tgt / (JSR base+$85) x N
+    if not (mem[ii] == 0x20 and _rd16(mem, ii + 1) == base + 0x37
+            and mem[ii + 3] == 0xA9 and mem[ii + 5] == 0x8D
+            and _rd16(mem, ii + 6) == tgt):
+        return None
+    prime = mem[ii + 4]
+    plays = 0
+    pc = ii + 8
+    while mem[pc] == 0x20 and _rd16(mem, pc + 1) == base + 0x85:
+        plays += 1
+        pc += 3
+    # the animated byte must be a filter-def record's INIT byte (offset 1 of
+    # a 4-byte def record). Anything else refuses — the member stays
+    # honestly partial rather than carrying a wrong deconstruction.
+    filtdef = _rd16(mem, base + 0x296)
+    if not (filtdef <= tgt and (tgt - filtdef) % 4 == 1
+            and (tgt - filtdef) // 4 < 16):
+        return None
+    dnum = (tgt - filtdef) // 4
+    tabbytes = [mem[tab + k] for k in range(idxcap + 1)]
+    # ---- simulate the literal driver semantics; v[k] = the byte value the
+    # play body of PSID play k observes (the driver runs AFTER each body).
+    val, cnt, idx, ph, cell_mode = prime, 0, 0, 0, False
+    series = []
+    for _ in range(65536):
+        series.append(val)                       # body sees current value
+        if ph == 0 and val == cap:
+            continue                             # halted
+        if cell_mode:
+            val = (val + 1) & 0xFF
+            c = val
+        else:
+            cnt = (cnt + 1) & 0xFF
+            c = cnt
+        if c:
+            continue
+        step = tabbytes[idx] if idx < len(tabbytes) else 0
+        val = step
+        if step == 0:
+            cell_mode = True
+            ph += 1
+        idx += 1
+        cnt = 0
+        if ph == phcap and idx == idxcap:
+            cell_mode = False
+            ph = 0
+    # RLE-compress the deltas into C1 (delta, count) phases; stop at the
+    # terminal hold (the tail where the value never changes again).
+    last_change = max((k for k in range(1, len(series))
+                       if series[k] != series[k - 1]), default=0)
+    deltas = [(series[k] - series[k - 1]) & 0xFF
+              for k in range(1, last_change + 1)]
+    phases = []
+    for d in deltas:
+        if phases and phases[-1][0] == d and phases[-1][1] < 255:
+            phases[-1][1] += 1
+        else:
+            phases.append([d, 1])
+    if len(phases) > 100:
+        return None                              # not contour-shaped: refuse
+    contour = f'{dnum:X},{prime:X},' + ','.join(
+        f'{d:X}:{n:X}' for d, n in phases)
+    return contour, plays
+
+
 def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
                    play_repeat=1):
     """Family-2 config: masked identity compare vs the carved family-2
@@ -5557,5 +5679,9 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
         sector_format='family2',
         extra_params={'cymbal_onset': 1, 'vib_ramp': 'step',
                       'hold_gateoff': hold_gateoff, 'hard_restart': 'none',
-                      'rest_effects': 'skip'},
+                      'rest_effects': 'skip',
+                      **(dict(zip(('filter_init_contour', 'init_plays'),
+                                  _fdc))
+                         if (_fdc := _fdinit_contour_probe(mem, s, base))
+                         else {})},
     )

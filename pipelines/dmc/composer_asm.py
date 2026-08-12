@@ -3167,6 +3167,74 @@ fx_dual_up:
         play_entry = 'playclk'
         cia_init = cia_init + ''.join(
             f'        lda #$FF\n        sta {l}\n' for l in clk_labels)
+    # filter_init_contour (C1): one filter def's INIT CUTOFF follows a
+    # piecewise contour over the song — 'def,start,delta:count,...' (hex,
+    # delta = signed byte, terminal hold implicit). This is MUSICAL content
+    # (a cutoff automation, ledger C1's swept-value form); the composer
+    # interprets it with a GENERIC contour player — per play: serve the
+    # current value to fdinit+def (read at each filter claim, exactly where
+    # the orig's driver pokes land), run the play body, then advance the
+    # contour one play. No engine mechanism is reproduced.
+    _fdc = usf.params.fields.get('filter_init_contour', None)
+    if _fdc is not None:
+        _parts = str(_fdc).split(',')
+        _def, _start = int(_parts[0], 16), int(_parts[1], 16)
+        _ph = [(int(a, 16), int(b, 16)) for a, b in
+               (p.split(':') for p in _parts[2:])]
+        _fdctab = []
+        for _d, _n in _ph:
+            _fdctab += [_d, _n]
+        _fdctab.append(0x00)                     # sentinel: delta 0 after end
+        play_wrapper = (
+            'playfdc:                             ; filter init-cutoff contour\n'
+            '        lda fdcval\n'
+            f'        sta fdinit+{_def}\n'
+            '        jsr fdcbody                  ; real play\n'
+            '        ldx fdcpix\n'
+            '        cpx #$FF\n'
+            '        beq fdcdone                  ; contour ended: hold\n'
+            '        lda fdcval\n'
+            '        clc\n'
+            '        adc fdctab,x                 ; += current phase delta\n'
+            '        sta fdcval\n'
+            '        dec fdccnt\n'
+            '        bne fdcdone\n'
+            '        inx\n'
+            '        inx\n'
+            f'        cpx #${len(_fdctab) - 1:02X}\n'
+            '        bcc fdcnext\n'
+            '        ldx #$FF                     ; past the last phase\n'
+            '        stx fdcpix\n'
+            '        rts\n'
+            'fdcnext:stx fdcpix\n'
+            '        lda fdctab+1,x\n'
+            '        sta fdccnt\n'
+            'fdcdone:rts\n'
+            f'fdcbody:jmp {play_entry}\n'
+            f'fdcval: .byt ${_start:02X}\n'
+            'fdcpix: .byt 0\n'
+            f'fdccnt: .byt ${_ph[0][1] if _ph else 1:02X}\n'
+            'fdctab: ' + _byt(_fdctab) + '\n\n') + play_wrapper
+        cia_init = cia_init + (
+            f'        lda #${_start:02X}\n'
+            '        sta fdcval\n'
+            f'        sta fdinit+{_def}\n'
+            '        lda #0\n'
+            '        sta fdcpix\n'
+            f'        lda #${_ph[0][1] if _ph else 1:02X}\n'
+            '        sta fdccnt\n')
+        _rawbody = 'fdcbody'
+        play_entry = 'playfdc'
+    else:
+        _rawbody = play_entry
+    # init_plays (C24 temporal family, sibling of play_repeat): the orig's
+    # init wrapper runs the RAW play body N times before returning (before
+    # any per-play wrapper logic), so the song's first N frames happen at
+    # INIT time. A dispatch/environment fact, not composer content.
+    _inp = usf.params.fields.get('init_plays', None)
+    if _inp:
+        cia_init = cia_init + (
+            f'        jsr {_rawbody}\n' * int(_inp))
     # master_vol_fade (C10 / song-end fade+restart wrapper, Slayer): an appended
     # play wrapper counts play() invocations; at play N it fades the master
     # volume `mvol` by 1 every STEP plays (the normal note-init `ora mvol /
