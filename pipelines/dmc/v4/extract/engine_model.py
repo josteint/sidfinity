@@ -2070,7 +2070,11 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc85') -> DmcModel:
             # loop_reset_pos is either a scalar N (reset-all-to-N, every voice
             # loops to the same position) or a per-voice tuple (reset-all with
             # a distinct loop position per voice — ledger C13 refinement).
-            lrp = cfg.loop_reset_pos
+            # A C37-degenerate poke wrapper makes it PER-SUBTUNE instead
+            # (subtune_loop_reset {sub: N}; absent subtunes keep the
+            # member-level value — identity for the canon imm 0).
+            _slr = getattr(cfg, 'subtune_loop_reset', None) or {}
+            lrp = _slr.get(sub, cfg.loop_reset_pos)
             if isinstance(lrp, tuple):
                 lrp = lrp[vi]
             fmt = _SECFMT[cfg.sector_format]

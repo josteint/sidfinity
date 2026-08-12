@@ -157,6 +157,12 @@ class DMCV4Config:
     # takes precedence over forced_subtune. None = the PSID subtune indexes the
     # record normally. Extract-only (factory-observed, ledger C31/C19).
     subtune_songs: list = None
+    # C37-degenerate per-subtune KNOB-POKE wrapper (X-mas_Cooperation_tune_2):
+    # an init wrapper pokes table[subtune] into the family-2 $FF track-loop
+    # handler's `LDA #imm` operand (canon $10DE) — the loop-to-N track
+    # position, per subtune. {subtune: N}; absent subtunes use
+    # `loop_reset_pos` (canon imm 0 = loop-to-start). Extract-only.
+    subtune_loop_reset: dict = None
     # C37 subtune SAVE-STATE RESUME wrapper: {subtune: {addr: byte}} — the
     # per-subtune state-copy SURVIVORS (bytes the wrapper pastes BEFORE the
     # real init that the init wipe does NOT erase: sticky curnote/cache

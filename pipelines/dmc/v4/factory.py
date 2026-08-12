@@ -5040,25 +5040,37 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc85',
             touches no SID register, so the write stream is the wrapped
             body's alone (Soul_tune_1/2's zp frame counter). Any absolute
             store, JSR, or unknown opcode refuses (returns None)."""
-            jmps = 0
+            acc = None                # last LDA #imm value, if known
             for _ in range(depth):
                 op = mem[pc]
                 if op == 0x4C:
                     tgt = _rd16(mem, pc + 1)
-                    jmps += 1
-                    if jmps > 2 or not (0 < tgt < 0xFFF0):
+                    if not (0 < tgt < 0xFFF0) or tgt == pc:
                         return None
-                    if tgt == pc:
-                        return None
-                    pc = tgt
-                    # a JMP target is a candidate terminal; the consistency
-                    # equation at the caller decides, so keep walking only
-                    # if the caller finds no pairing (handled by returning
-                    # the FIRST target — the wrappers seen end in one JMP).
+                    # terminal: the consistency equation at the caller decides
+                    # (the wrappers seen end in exactly one JMP into the body).
                     return tgt
+                if op in (0xF0, 0xD0) and acc is not None:
+                    # after `LDA #imm` the branch direction is STATIC — follow
+                    # the taken path (Soul_partselector's `LDA #0 / BEQ ->
+                    # JMP $1085` obfuscated jump); an unknown-flag branch
+                    # still falls through as before.
+                    taken = (acc == 0) == (op == 0xF0)
+                    off = mem[pc + 1]
+                    pc += 2
+                    if taken:
+                        pc = (pc + (off - 0x100 if off >= 0x80 else off)) \
+                            & 0xFFFF
+                    continue
                 if op in _NEUTRAL_1:
+                    if op in (0x8A, 0x98):   # TXA/TYA load A: unknown
+                        acc = None
                     pc += 1
                 elif op in _NEUTRAL_2:
+                    if op == 0xA9:
+                        acc = mem[pc + 1]
+                    elif op == 0xA5:
+                        acc = None           # LDA zp: unknown
                     pc += 2
                 else:
                     return None
@@ -5072,6 +5084,25 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc85',
                     and mem[pc + 5] == 0x8D and _rd16(mem, pc + 6) == 0xD418
                     and mem[pc + 8] == 0x60):
                 return _rd16(mem, pc + 1), mem[pc + 4]
+            return None
+
+        def _poke_wrapper_walk(pc):
+            """The X-mas_Cooperation init-wrapper shape: `TAY / LDA tab,Y /
+            STA tgt / TYA / JMP real_init` — a C37-degenerate per-subtune
+            KNOB poke (classified downstream in _family2_build). Returns the
+            real_init target for the consistency equation."""
+            if (mem[pc] == 0xA8 and mem[pc + 1] == 0xB9 and mem[pc + 4] == 0x8D
+                    and mem[pc + 7] == 0x98 and mem[pc + 8] == 0x4C):
+                return _rd16(mem, pc + 9)
+            return None
+
+        def _jsr_body_walk(pc):
+            """A C24 whole-play wrapper (`JSR T ... JMP T|RTS`) names the
+            real play body T; _detect_play_repeat later derives the repeat
+            count from the same shape (Twin_Russian: `JSR $87BE/JMP $87BE`
+            on a re-assembled 2-vector player)."""
+            if mem[pc] == 0x20:
+                return _rd16(mem, pc + 1)
             return None
 
         def _f2_base(ti, tp):
@@ -5097,9 +5128,11 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc85',
         for ti0, tp0 in cands:
             mp = _mvol_prime_walk(ti0) if s['load'] <= ti0 else None
             ti_opts = [ti0] + ([mp[0]] if mp else []) + \
-                ([_neutral_walk(ti0)] if s['load'] <= ti0 else [])
+                ([_neutral_walk(ti0), _poke_wrapper_walk(ti0)]
+                 if s['load'] <= ti0 else [])
             tp_opts = [tp0] + \
-                ([_neutral_walk(tp0)] if s['load'] <= tp0 else [])
+                ([_neutral_walk(tp0), _jsr_body_walk(tp0)]
+                 if s['load'] <= tp0 else [])
             for ti in ti_opts:
                 for tp in tp_opts:
                     b2 = _f2_base(ti, tp)
@@ -5489,10 +5522,31 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
             f'instr=${instr:04X} wc=${wavectrl:04X} wf=${wavefreq:04X} '
             f'fd=${filtdef:04X} tt=${tunetab:04X} '
             f'sl=${secp_lo:04X} sh=${secp_hi:04X}')
+    # C37-degenerate per-subtune KNOB-POKE wrapper (X-mas_Cooperation_tune_2):
+    # the JT init slot (or header init) points at `TAY / LDA tab,Y / STA tgt /
+    # TYA / JMP base+$37`. When tgt is the $FF track-loop handler's `LDA #imm`
+    # operand (canon $10DE — the loop-to-N track position this build family
+    # ships with imm=0), the poke IS a per-subtune loop target: record
+    # {subtune: table[subtune]} for the non-zero entries (zero = the canon
+    # default, identity — such subtunes build byte-identically).
+    subtune_loop_reset = None
+    for _iv in {_rd16(mem, base + 1), s['init']}:
+        if not (s['load'] <= _iv < 0xFFF0):
+            continue
+        if (mem[_iv] == 0xA8 and mem[_iv + 1] == 0xB9 and mem[_iv + 4] == 0x8D
+                and mem[_iv + 7] == 0x98 and mem[_iv + 8] == 0x4C
+                and _rd16(mem, _iv + 9) == base + 0x37
+                and _rd16(mem, _iv + 5) == at(0x10DE)):
+            _tab = _rd16(mem, _iv + 2)
+            _n = s.get('songs', 1)
+            _m = {k: mem[_tab + k] for k in range(_n) if mem[_tab + k]}
+            subtune_loop_reset = _m or None
+            break
     return DMCV4Config(
         sid_path=sid_path,
         name=os.path.splitext(os.path.basename(sid_path))[0],
         base=base,
+        subtune_loop_reset=subtune_loop_reset,
         op_instr=at(0x1227), op_wavectrl=at(0x159C), op_wavefreq=at(0x15B9),
         op_filtdef=at(0x1296), op_tunetab=at(0x1051),
         op_secp_lo=at(0x1103), op_secp_hi=at(0x1108),
