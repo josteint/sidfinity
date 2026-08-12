@@ -5,8 +5,31 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-12T17:56:03.928Z
+  modified: 2026-08-12T18:46:02.962Z
 ---
+
+## ✅ F2 EASY-9 LANDED (2026-08-12, commit 7388e89f): **2,619/2,924 FULL (89.6%)**, 6 unsupported left
+The near-miss detection fallback (factory.py, fires ONLY after all prior
+detection fails — previously-detected members structurally unchanged):
+consistent-base rule (init_tgt−$37 == play_tgt−$85 names the base — lands
+±shift re-assemblies Lithium +1/Entropy −4, and via raw header vectors the
+Power_of_Lard junk-JT KERNAL-reset trap), JSR-slot opcode relax (Merilyn
+play `JSR/RTS`, Yoko init JSR), neutral-wrapper follow (zp counters/loads/
+compares + fwd branches → terminal JMP; CORE TENET — no SID touch; Soul_tune
+_1/2, and BONUS Unbelievable_Music's $2200 wrapper resolved through it), and
+the Tonka `JSR init / LDA #$1F / STA $D418 / RTS` mvol-prime shape (probe
+value UNUSED — Check A absorbed the prime; `_mvol_prime` wired but inert).
+RESULT: 8 unsupported → FULL (all synced + audited 8/8), Soul_tune_1 →
+partial in the KNOWN V3-ctrl-$21-vs-$41 triangle-bit cluster (12+1 members,
+diverges f423 — take with that cluster). GATES: golden 10/10 byte-identical
+vs the freshly-synced corpus, smoke 6/6, full regression 0 regressed,
+detection empirically changed only the 15 prior-unsupported.
+REMAINING 6 unsupported: X-mas_Cooperation (C37 poke → per-subtune
+loop_reset_pos: wrapper pokes table[$1028+sub] into the $FF handler's
+loop-to IMMEDIATE $10DE — extract-only, lrp machinery exists),
+Soul_partselector ($1CF0 selector), Soul_tune_4 (wrapper family @ $9000),
+4k_Byter ×2 (C38-ish driver: init runs play 3×, counter sequencer),
+Twin_Russian (C24 `JSR T/JMP T` 2×, re-assembled @ $8700).
 
 ## ▶ F2 UNSUPPORTED CENSUS (2026-08-12): all 15 identified, no new classes — 8 easy
 The 15 unsupported (14 no_jumptable + 1 nonstandard_vectors) fully decompose:
