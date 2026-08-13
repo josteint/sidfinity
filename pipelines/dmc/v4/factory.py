@@ -5684,7 +5684,14 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
         track_loop_target=False, cia_period=cia_period,
         play_repeat=play_repeat,
         sector_format='family2',
-        extra_params={'cymbal_onset': 1, 'vib_ramp': 'step',
+        # $12F4 vib-swell increment: canon f2 `LSR` = freq_hi(note)>>1; the
+        # Brian build variant replaces it with `TAY` (A untouched) = the FULL
+        # freq_hi — a double-rate vibrato swell (4 carriers, all partial
+        # before this probe). Any other opcode keeps canon (advisory compare
+        # + build+verify judge, as for every f2 sub-build knob).
+        extra_params={'cymbal_onset': 1,
+                      'vib_ramp': ('step_full' if mem[at(0x12F4)] == 0xA8
+                                   else 'step'),
                       'hold_gateoff': hold_gateoff, 'hard_restart': 'none',
                       'rest_effects': 'skip',
                       **(dict(zip(('filter_mod', 'init_plays'),

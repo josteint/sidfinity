@@ -3325,14 +3325,17 @@ fx_dual_up:
                   'rf_nocym:\n')
 
     # vibrato note-init step setup + half-cycle swell (canon vs family 2)
-    if vib_ramp == 'step':
+    if vib_ramp in ('step', 'step_full'):
         # family 2: vstep/vsteph already 0 (note-init clear); the per-note
         # increment = freq_hi(note) >> 1 (the original's $16A7>>1 -> $178C).
+        # 'step_full' (the Brian sub-build, $12F4 LSR->TAY): the increment is
+        # the UNSHIFTED freq_hi — a double-rate vibrato swell.
         ni_vib_depth = (
             '        ldy curnote,x\n'
             '        lda freqhi,y                 ; family-2 vib increment\n'
-            '        lsr                          ; = freq_hi(note) >> 1\n'
-            '        sta vdep,x\n')
+            + ('' if vib_ramp == 'step_full' else
+               '        lsr                          ; = freq_hi(note) >> 1\n')
+            + '        sta vdep,x\n')
         vib_swell = (
             '        lda vstep,x                  ; swell: step += increment\n'
             '        clc\n'
