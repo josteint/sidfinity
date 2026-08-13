@@ -139,7 +139,9 @@ practice, not code to factor).
   oscillator is the special case `start + [(+s,n),(−s,n)], loop=0`. Divergent
   per-family forms exist (Hubbard pwm / FC programs / DMC v4 pwm vs v5 env) —
   Move-1 decisions D1/D2. Song-global cutoff contours: the TYPED `filter_mod`
-  block (loop/once, 1-2 taps) + ONE generalized interpreter (DMC `playfmod`)
+  block (loop/once, 1-2 taps, and a `direct` routing marker — the LFO writes
+  the cutoff REGISTER itself each play instead of feeding def cells, No_End's
+  appended table cycler) + ONE generalized interpreter (DMC `playfmod`)
   now serve FC/Ed LFOs AND the 4k_Byter one-shot morph — see entry.
 - FULL ENTRY: [`ledger/C1.md`](ledger/C1.md) — read it before applying.
 
@@ -521,12 +523,19 @@ practice, not code to factor).
   KB/PVCF relocated members store to un-relocated $1726 but never reach the
   hook, and the recorded songlength can end at the fade SHORT of the halt) →
   extract walks $FF as STOP + composer halt-and-hold ($FE handler, the
-  track_fe_reset machinery minus its $D418 write). 45 occurrences (44th: the f2 $11C4
+  track_fe_reset machinery minus its $D418 write). 48 occurrences (44th: the f2 $11C4
   rampctr CLEAR re-pointed dead = the vibrato swell PERSISTS across notes
   (legato swell) -> typed `vibrato_ramp_persist`; 45th: the 4k_Byter
   instrument-byte animator NOT probed as a wedge — deconstructed per the
   33rd-occ rule to the C1 one-shot filter_mod contour, now enforced
-  mechanically by tools/composer_param_lint.py; 28th: the
+  mechanically by tools/composer_param_lint.py; 46th: the f2 fetch-frame
+  PREP-CTRL immediate $08→$40 (`prep_ctrl`, 3 Brian carriers incl.
+  Rowdy's relocated sub-player = the C31 per-subtune form); 47th: the f2
+  filter note-init `STA $D418` killed while the INIT mvol store survives
+  (`d418_noteinit_dead` — distinct from the 36th's master_vol_static);
+  48th: the f2 filter-tail `STA $D416` NOPed (`filter_cut_static`) beside
+  an appended cutoff-table cycler deconstructed to the C1 `filter_mod`
+  DIRECT entry; 28th: the
   negative-transpose ADC immediate — canon
   `EOR #$1F/ADC #$01` biased to #$11, $81 → +$0F; extract-only
   `transpose_neg_bias`) — the full entry catalogues every known wedge.
@@ -1001,7 +1010,9 @@ practice, not code to factor).
   player are a recurring family: `d417_shadow` (→ per-subtune
   `init.sid.filter.res_routing`, no schema addition), a disagreeing WEDGE
   KNOB (`rest_effects` → `MusicSubtune.params` + gated composer runtime
-  dispatch, Super_Seven), `idle_wave` (→ per-subtune `MusicSubtune.
+  dispatch, Super_Seven; 2nd/3rd knobs `vib_ramp` + `prep_ctrl`, Rowdy —
+  sparse overrides, file-level stays the START player's; the standalone
+  per-player build+compare splits merge-loss from missing-probe), `idle_wave` (→ per-subtune `MusicSubtune.
   wave_programs[0]`, Mission_Moon), the INSTRUMENT NUMBER a note sonifies via
   the off-table `ioff` read (idx 166-168 = orig inst# * 11; the merge
   RENUMBERS each player's instruments into one pool → `record_offset` per-
