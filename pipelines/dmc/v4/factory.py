@@ -5765,6 +5765,46 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
                          else {}),
                       'hold_gateoff': hold_gateoff, 'hard_restart': 'none',
                       'rest_effects': 'skip',
+                      # $11BE note-init `STA $1768,x` (vib direction clear)
+                      # patched to the 2-byte `EOR $68,x` (C19 — Shock/
+                      # Mea_Culpa_end `55`): the stream MISALIGNS so the
+                      # following `STA $176B,x` (vib half-cycle counter
+                      # clear) decodes as filler too — the vibrato PHASE
+                      # persists across notes; the re-aligned `STA $176E,x`
+                      # (rampctr) survives. Anchor: the preceding canon
+                      # `STA $1738,x` + the surviving rampctr store.
+                      **({'vib_phase_persist': '1'}
+                         if (mem[at(0x11BB)] == 0x9D
+                             and _rd16(mem, at(0x11BC)) == base + 0x738
+                             and mem[at(0x11BE)] == 0x55
+                             and mem[at(0x11BF)] == 0x68
+                             and mem[at(0x11C4)] == 0x9D
+                             and _rd16(mem, at(0x11C5)) == base + 0x76E)
+                         else {}),
+                      # $12F5 vib-increment store `STA $178C,x` re-pointed
+                      # to a CMP (C19 — Shade/For_Moonlight `D9`): vdep is
+                      # never written per note, so the vibrato swell ramps
+                      # by 0. Anchor: the $12F4 LSR/TAY + the operand still
+                      # naming base+$78C (fail-open otherwise).
+                      **({'vib_step_dead': '1'}
+                         if (mem[at(0x12F4)] in (0x4A, 0xA8)
+                             and mem[at(0x12F5)] != 0x9D
+                             and _rd16(mem, at(0x12F6)) == base + 0x78C)
+                         else {}),
+                      # Per-voice INIT-call skip = a voice REMOVED (C24
+                      # zero-count form via the INIT, not the play body —
+                      # Riot/Koshimo_preview_1: the first of the three
+                      # `JSR base+$B0` per-voice init calls at base+$95/
+                      # $99/$9D is re-pointed at base+$AF = the filter
+                      # tail's RTS, so that voice's vactive is never set
+                      # and it emits ZERO writes all song; the composer's
+                      # canonical build would run a phantom voice). A call
+                      # is intact iff its JSR/JMP targets base+$B0; any
+                      # other target = voice removed. Fires only when some
+                      # voice is skipped (else byte-identical).
+                      **({'play_unit_repeat': _pur}
+                         if (_pur := _f2_init_skip_units(mem, at, base))
+                         else {}),
                       # $12A8 filter note-init `STA $D418` KILLED (C19 —
                       # Third_Zak's `85 xx` zp-redirect / Chance_for_Win's
                       # `EA EA EA` NOP; the INIT master-vol store at base+$5C
@@ -5807,6 +5847,36 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
                          if (_cta := _cutoff_table_anim_probe(mem, s, base))
                          else {})},
     )
+
+
+def _f2_init_skip_units(mem, at, base):
+    """C24 zero-count units at the f2 play body's voice-call chain
+    (Riot/Koshimo_preview_1): the three per-voice calls `JSR base+$B0` at
+    base+$95/$99/$9D, falling through into the filter tail (base+$A0) and
+    its RTS (base+$AF). Two wedge forms, both observed on Koshimo:
+    - a voice call re-pointed at base+$AF (the RTS) = that voice runs
+      NOTHING, zero writes all song (the canonical build runs a phantom
+      voice);
+    - the LAST call's JSR patched to JMP (a tail-call) = the fall-through
+      into the filter tail never happens, so $D416/$D417 are never
+      written = the FILTER unit removed.
+    A call is intact iff it targets base+$B0; removed iff it JSRs
+    base+$AF; ANY other shape aborts (fail-open — re-assembled bodies must
+    not read as removals). Returns 'v0,v1,v2,f' when any unit is removed,
+    else None (canon → no param, byte-identical)."""
+    counts = []
+    for v in range(3):
+        op = mem[at(0x1095 + 4 * v)]
+        tgt = _rd16(mem, at(0x1096 + 4 * v))
+        if op in (0x20, 0x4C) and tgt == base + 0xB0:
+            counts.append('1')
+        elif op == 0x20 and tgt == base + 0xAF:
+            counts.append('0')
+        else:
+            return None
+    filt = '0' if mem[at(0x109D)] == 0x4C else '1'
+    counts.append(filt)
+    return ','.join(counts) if '0' in counts else None
 
 
 def _cutoff_table_anim_probe(mem, s, base):

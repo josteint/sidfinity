@@ -1727,6 +1727,17 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
                        or 0)
     rampctr_clear = ('' if _vib_persist
                      else '        sta rampctr,x\n')
+    # vib_phase_persist (C19 — Shock/Mea_Culpa_end): the note-init clear
+    # run's `STA $1768,x` is patched to `EOR $68,x` (2-byte), which
+    # MISALIGNS the stream so the following `STA $176B,x` decodes as
+    # illegal-opcode filler too — BOTH the vibrato direction ($1768) and
+    # half-cycle counter ($176B) clears are dead, so the vibrato PHASE
+    # persists across note boundaries (the re-aligned rampctr clear at
+    # $11C4 survives). Sibling of vib_ramp_persist (44th occ family).
+    vibphase_clear = ('' if str(usf.params.fields.get('vib_phase_persist',
+                                                      '0')) == '1'
+                      else '        sta vibdir,x\n'
+                           '        sta vibctr,x\n')
     # holding-instrument gate-off: 'adsr_clear' (canon) also zeroes AD+SR
     # (the original's sub_17EC); 'mask_only' (family 2) just drops the gate
     # bit via the mask. Family 2 relocated its instrument table over
@@ -2784,7 +2795,10 @@ fx_dual_up:
     except ValueError:
         play_unit_repeat = [1, 1, 1, 1]
     play_unit_repeat = (play_unit_repeat + [1, 1, 1, 1])[:4]
-    play_unit_repeat[3] = max(1, play_unit_repeat[3])
+    # An explicit 0 filter unit is honored (Koshimo: the f2 play body's last
+    # voice call is a tail-call JMP, so the fall-through into the filter
+    # tail never happens — no $D416/$D417 writes all song). Members without
+    # the param keep the default 1.
     # fclaim_clear_dead wedge (C19, Jezuseczek): the orig's per-play fclaim
     # clear is re-pointed at a void — the claim persists forever after the
     # first filter voice sets it, freezing the filter program (cutoff then
@@ -3423,6 +3437,12 @@ fx_dual_up:
                 + ('' if vib_ramp == 'step_full' else
                    '        lsr                          ; = freq_hi(note) >> 1\n')
                 + '        sta vdep,x\n')
+        # vib_step_dead (C19 — Shade/For_Moonlight): the per-note
+        # vib-increment store at f2 base+$2F5 `STA $178C,x` re-pointed to a
+        # CMP — vdep is never written, stays init-cleared 0, so the swell
+        # ramps by 0 (vstep frozen; vibrato contributes nothing).
+        if str(usf.params.fields.get('vib_step_dead', '0')) == '1':
+            ni_vib_depth = ''
         vib_swell = (
             '        lda vstep,x                  ; swell: step += increment\n'
             '        clc\n'
@@ -4169,9 +4189,7 @@ ev_n_hard:
         lda #$00                     ; hard restart prep
         sta accl,x
         sta acch,x
-        sta vibdir,x
-        sta vibctr,x
-{rampctr_clear}        sta slal,x
+{vibphase_clear}{rampctr_clear}        sta slal,x
         sta slah,x
         ldy sidoff,x
 {hr_test_write}{hard_restart_adsr}        lda #$FF
