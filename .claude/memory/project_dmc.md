@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-13T17:45:23.779Z
+  modified: 2026-08-13T17:47:47.151Z
 ---
 
 ## ▶ SINGLES ROUND 2 LANDED (2026-08-13 eve): Koshimo + For_Moonlight + Mea_Culpa_end = **+3 FULL, f2 residue 31 → 28**
@@ -13,19 +13,25 @@ Commit 4d2e6867; regression 0 regressed, golden 21/21, smoke 6/6. C24 f2
 form (play_unit_repeat '0,1,1,0' via the play-body call-chain patches;
 filter clamp now honors explicit 0) + C19 49th (vib_step_dead) + 50th
 (vib_phase_persist — hypothesis verified by the 233,851-write stream).
-SPICE_UP RE (in flight, the reg0E cluster rep): C11 measurement PINNED the
-divergence — glsp event-streams IDENTICAL through 9,541 events, then at a
-fast ($0F) re-commanded glide the ORIG ARRIVES (glsp cleared at the canon
-$1481 arrival: curnote=target + fb-cache reload + glsp/acc clear) one step
-BEFORE ours (still gliding, D40E=$7C = our mid-glide sum). Same compare
-shape both sides ⇒ suspect the ACC/FB SPLIT (sum matches, carry into the
-hi-byte compare differs — C22 flavor) or a re-command acc nuance ($D0 soft
-form keeps running acc, $C0 form re-inits via $11A6). NEXT MEASUREMENT:
-memwatch $1735/$1738 (acc) + $172F/$1732 (fb cache) vs our
-accl/acch/fbl/fbh around event 9,542. Canon glide row forms RE'd: $C0 =
-explicit gla+glb bytes (retrigger via $11A6), $D0 = glb only, gla=curnote
-(soft, keeps acc). Good_Beat deferred (misaligned illegals + a live poke
-into instrument bytes at $17AB+x).
+SPICE_UP RE — ROOT CAUSE PINNED (the reg0E cluster rep, NOT yet fixed):
+the C11 acc/fb/glsp event-stream measurement (memwatch D40E of
+$1731/$1734/$1737/$173A/$1743 vs our fbl/fbh/accl/acch/glsp +2) shows
+BOTH sides glide identically (fb=$010C, acc stepping, glsp 02→$0F
+re-command) — then at the arrival compare the ORIG's target is freq
+$0100 while OURS reloads fb=$0200: **our decoded glide-TARGET note is an
+OCTAVE (+12) off** for this re-commanded glide. The audible stream
+coincides all glide long (the target only matters at the arrival
+compare), so the member diverges DEEP (event 9,542 of 10,147; frame
+~10,916). ⇒ an EXTRACT-WALK bug in the glide-target + transpose
+computation at that track position (canon adds $172C,X transpose at
+PARSE; forms: $C0 = explicit gla+glb bytes, retrigger via $11A6; $D0 =
+glb only, gla=curnote, soft, keeps running acc) — C34/C11 territory, NOT
+a serving fix. NEXT: dump our USF's glide row at that position vs the
+orig's stream bytes (which form, which target byte, what transpose the
+walk had). Likely serves the whole reg0E cluster (Session /
+Knowledge_Posse_3 / Petshopmix / Conversion / Spice_Up pair).
+Good_Beat deferred (misaligned illegals + a live poke into instrument
+bytes at $17AB+x).
 
 ## ▶ [SUPERSEDED by the entry above] WEDGE ROUNDS LANDED (2026-08-13 pm): Rowdy 10/10 + 6 more = **+7 FULL, f2 residue 38 → 31**
 Two rounds, all gates green (golden 24/24 byte-identical ×2 samples over
