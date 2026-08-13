@@ -89,6 +89,44 @@ def verify_dmc(cfg: DMCV4Config, hvsc_root: str | None = None) -> dict:
                 }, full
             else:
                 r = compare_instruction_stream(a, b, mode='trichotomy')
+                if not r['is_full']:
+                    # C21: an orig whose INIT SPILLS past the frame-0 bucket
+                    # (Rowdy's relocating wrapper banks + copies ~10 pages +
+                    # runs the copied player's init = 2-3 frames, so its init
+                    # writes land in the flat capture's "play" frames and the
+                    # trichotomy compare misaligns from write 0). RETRY with
+                    # the per-play() capture — there the init prefix is
+                    # everything before the first play ENTRY, immune to
+                    # bucket spill — and apply the ratified CIA-branch
+                    # play-stream verdict. FULL members never reach this
+                    # (zero-regression); a flip to full carries the same
+                    # strict flat play-stream evidence as every CIA member.
+                    a2 = writelog_per_irq_capture(
+                        orig, subtune=sub, duration=dur,
+                        force_rsid=rsid, keep_init=True)
+                    b2 = writelog_per_irq_capture(
+                        tmp, subtune=sub, duration=dur, keep_init=True)
+                    # Check A stays (C15: never relax the verdict): end-of-
+                    # init chip state = last write per register over the
+                    # init chunk (|N, both sides symmetric — the Kordiaukis
+                    # keep_init machinery), then the play chunks flat.
+                    def _st(ch):
+                        st = {}
+                        for (_c, reg, val) in (ch[0] if ch else []):
+                            st[reg] = val
+                        return st
+                    state2 = _st(a2) == _st(b2)
+                    r2 = compare_instruction_stream(a2[1:], b2[1:])
+                    la, lb = r2['len_all_a'], r2['len_all_b']
+                    full2 = (state2 and r2['match_all'] == min(la, lb)
+                             and abs(la - lb) <= max(128, max(la, lb) // 200))
+                    if full2:
+                        return sub, {
+                            'is_full': True, 'state_match': True,
+                            'play_match': r2['match_all'],
+                            'overlap': min(la, lb),
+                            'via': 'per_irq_retry',
+                        }, True
                 return sub, {
                     'is_full': r['is_full'], 'state_match': r['state_match'],
                     'play_match': r['play_match'], 'overlap': r['play_overlap'],
