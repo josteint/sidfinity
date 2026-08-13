@@ -5,10 +5,24 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-12T20:57:22.964Z
+  modified: 2026-08-13T02:10:47.392Z
 ---
 
-## ▶ OVERNIGHT (2026-08-12/13): dual_phase = THE DEEP-FREQ LEVER; typed filter_mod landed; full re-batch RUNNING
+## ✅ OVERNIGHT CHAIN LANDED (2026-08-13): **f2 = 2,879/2,924 FULL (98.5%)**, 45 partials, corpus synced
+The re-batch confirmed dual_phase as the deep-freq lever: **+254
+partial→FULL in one fix, 0 regressions** (batch_diff gate vs
+tmp/dmc_f2_85_prev.jsonl), mass-write ok=2,879 err=0 orphans=0, disk audit
+12/12, corpus_check 12,508/12,508, spec_lint 0/0, composer_param_lint
+clean. Family-2 went 86.8% → 98.5% in ONE DAY (easy-9 + loop-poke +
+4k_Byter contour + dual_phase). RESIDUE = 45 partials, a TRUE LONG TAIL
+(census in tmp/f2_overnight.log era: top cluster 7×V3-freqlo-deep, then
+5/3/3/3/2s + singletons; the $12F4 vib-tail canon_diff singletons sit in
+the V1-freqlo cluster as predicted) — per-member C19 wedge rounds next,
+via `dmc_next_partial --list tmp/dmc_f2_partials.jsonl` (RE-SEED the
+queue from the fresh results first). Baseline for future batch_diff:
+tmp/dmc_f2_85_results.jsonl.
+
+## ▶ [SUPERSEDED by the entry above — kept for the round narrative] OVERNIGHT (2026-08-12/13): dual_phase = THE DEEP-FREQ LEVER; typed filter_mod landed; full re-batch RUNNING
 Three things landed overnight (owner asleep; all gated):
 - **filter_mod TYPED generalization committed (21875537)** — the 4k_Byter
   contour + FC/Ed LFOs are one parameter space (stop_phase optional =
