@@ -5,10 +5,45 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-13T12:23:59.982Z
+  modified: 2026-08-13T17:15:34.131Z
 ---
 
-## ▶ ROWDY DIAGNOSED (2026-08-13): an f2 RELOCATING COMPILATION — detection/build WORK (8/10 subs FULL); residue = per-player knob carriage
+## ▶ WEDGE ROUNDS LANDED (2026-08-13 pm): Rowdy 10/10 + 6 more = **+7 FULL, f2 residue 38 → 31**
+Two rounds, all gates green (golden 24/24 byte-identical ×2 samples over
+every build path, corpus_check 12,515/12,515, spec_lint 0/0,
+composer_param_lint clean, smoke 6/6; regression #1 (Rowdy round) 0
+regressed, regression #2 (statics round) run before commit):
+- **Rowdy round (C31 knob-by-knob + C19 46th):** per-song `vib_ramp`
+  ('step' vs 'step_full' — tune-record byte +10, `bit vibfull` gate over
+  the one LSR) + `prep_ctrl` (the f2 $11D9 prep-ctrl immediate $08→$40,
+  byte +11) carried as SPARSE MusicSubtune.params overrides; file-level
+  stays the START player's value. Rowdy 10/10 FULL; the probe also landed
+  the two whole-file carriers Mad_Eddie + Rock_Zak_1. KEY DIAGNOSTIC: the
+  standalone per-player build ($9300 FULL vs $F000 partial) split
+  merge-loss from missing-probe in one measurement.
+- **Statics round (C19 47th/48th + C1 direct):** `d418_noteinit_dead`
+  (f2 $12A8 store killed, init mvol survives — Third_Zak zp-redirect +
+  Chance_for_Win NOP, exposure Note_from_Tonka stays FULL) +
+  `filter_cut_static` (f2 $10A3 $D416 store NOPed — No_End) + the No_End
+  appended 256-entry cutoff-table cycler DECONSTRUCTED to the typed
+  `filter_mod` DIRECT entry (`target: cutoff`, new `direct` grammar
+  marker; delta-run encoding, exact; NOT a sine — 88/256 best-fit errors,
+  so the table's exact deltas ARE the musical form). No_End FULL at
+  387,937 writes.
+- REMAINING 31 partials incl. investigated-but-not-landed singleton
+  wedges (read from tmp/dmc_f2_wedges.csv + byte dumps): For_Moonlight
+  $12F5 `9D→D9` = the vdep (vib-increment) note-init store KILLED;
+  Mea_Culpa_end $11BE `9D→55` = one note-init state clear ($1768,x)
+  killed; Good_Beat TWO wedges ($1512 `9D→55` slide-down writeback killed
+  + $1571 repoint $176B,x→$17AB,x = clear lands in instrument area, the
+  C19 data-poke variant); Koshimo $1095/$109D init-flow JSR repoints.
+  Plus the reg0E (V3 freq lo) cluster: Spice_Up pair diverges o00 r7C
+  where our $7C is a COMPUTED table freq (not a window byte) ⇒ the INDEX
+  diverges upstream — needs real RE, not a serving fix. NB the f2 batch
+  code_hash is STALE after these rounds — re-batch + mass-write at
+  closeout.
+
+## ▶ [SUPERSEDED — subs 1/2 landed, see head] ROWDY DIAGNOSED (2026-08-13): an f2 RELOCATING COMPILATION — detection/build WORK (8/10 subs FULL); residue = per-player knob carriage
 Brian/Rowdy = C31 relocating compilation, THREE family-2 players: $1000
 in-image (8 songs, all FULL), plus per-subtune COPIES to **$F000 (under
 KERNAL — the wrapper banks $01=$35 around play!)** and $9300, ~10/12 pages
