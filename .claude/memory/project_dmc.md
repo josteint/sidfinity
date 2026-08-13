@@ -5,8 +5,27 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-13T17:47:47.151Z
+  modified: 2026-08-13T22:06:53.892Z
 ---
+
+## ⏸ PROPOSAL AWAITING OWNER (2026-08-14 am): the vdep redirect row — COMPLETE FIX PARKED at tmp/vdep_row_fix.patch (one OFSIG grammar word short)
+The Spice_Up cluster fix is fully implemented + designed (C11 canonical
+redirect row, f2-scoped): `DMC_VDEP_ROW (0x178C,'vdep',3)`, parametric
+`offtable_live_idx(vib_step)` so f1 extracts stay byte-identical, otmap
+gate, extract stamping threaded (`vibrato_increment(vN)` LiveSignal).
+BLOCKED at the last step by the OWNER-APPROVAL GATE (ratified 2026-08-13):
+the record's signal name needs ONE WORD added to the grammar's `OFSIG`
+terminal (the live-signal name allowlist) = a grammar.lark edit = RED.
+Note the stamping CANNOT be skipped: a static-stamped read at a live idx
+is the non-canon detector — it would disable the member's whole redirect.
+PROPOSAL FOR THE OWNER: add `vibrato_increment` to OFSIG (the same
+mechanical growth every prior redirect row did — sectpos/wavepos names);
+recommendation = approve; alternative = pick a different name or park the
+cluster as residue. On approval: `git apply tmp/vdep_row_fix.patch`, add
+the OFSIG word, then verify Spice pair + Session (expected FULL) +
+Trekky + Castle (exposure, must stay FULL), golden f1 sample, gates,
+regression, commit. Post-chain state: **f2 = 2,895/2,924 (99.0%), 29
+partials**, corpus synced clean (2,895 ok / 0 err / 0 orphans).
 
 ## ▶ SINGLES ROUND 2 LANDED (2026-08-13 eve): Koshimo + For_Moonlight + Mea_Culpa_end = **+3 FULL, f2 residue 31 → 28**
 Commit 4d2e6867; regression 0 regressed, golden 21/21, smoke 6/6. C24 f2
