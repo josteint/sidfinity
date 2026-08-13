@@ -5,8 +5,28 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-13T02:10:47.392Z
+  modified: 2026-08-13T12:23:59.982Z
 ---
+
+## ▶ ROWDY DIAGNOSED (2026-08-13): an f2 RELOCATING COMPILATION — detection/build WORK (8/10 subs FULL); residue = per-player knob carriage
+Brian/Rowdy = C31 relocating compilation, THREE family-2 players: $1000
+in-image (8 songs, all FULL), plus per-subtune COPIES to **$F000 (under
+KERNAL — the wrapper banks $01=$35 around play!)** and $9300, ~10/12 pages
+from $1CB9/$276A, landing `JSR dst<<8` with A=song. `detect_compilation`
+fires CORRECTLY (observe path; reloc={F000:1, 9300:2}), `_player_cfg`
+threads post_init_sub, the f2 path accepts the copied heads, sub 0+3-9 all
+FULL. REMAINING (subs 1/2, diverge at play-write 0 per-IRQ): the copied
+players are **vib_ramp='step_full'** builds while $1000 is 'step' — the
+MERGE COLLAPSES extra_params to the start player's (the C31 per-player-fact
+family; carry per-song like rest_effects) — PLUS an UNPROBED first-frame
+prep variant (orig ctrl $40×3 vs our $08 TEST at play 1; routing $00 vs
+$02; V1 SR $D7 vs $D6) needing RE against the $F000 post-init image.
+ALSO LANDED (uncommitted, gating in flight): the C21 per-IRQ RETRY in
+verify_dmc — a vblank subtune whose flat trichotomy fails re-verifies via
+keep_init per-IRQ capture (init prefix = pre-first-play-entry, immune to
+multi-frame init SPILL like Rowdy's copy loop) WITH Check A kept (last-
+write-per-register over the |N init chunk — C15, no relaxation). Full f2
+re-batch running as the retry census + closeout.
 
 ## ✅ OVERNIGHT CHAIN LANDED (2026-08-13): **f2 = 2,879/2,924 FULL (98.5%)**, 45 partials, corpus synced
 The re-batch confirmed dual_phase as the deep-freq lever: **+254
