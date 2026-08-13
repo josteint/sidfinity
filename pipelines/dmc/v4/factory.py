@@ -1454,13 +1454,19 @@ def _subtune_song_map_probe(path: str, base: int,
     songs = s.get('songs', 1)
     if init == base or songs < 2 or not (0 <= init and init + 4 <= 0xFFFF):
         return None
-    # base must be the standard tune-select dispatch (JMP base+$1D), as in
-    # _forced_subtune_probe — a non-dispatch base can't be record-indexed.
+    # base must be a tune-select dispatch — canon `JMP base+$1D` or the
+    # family-2 form `JMP base+$37` (both inits are record-indexed via the
+    # tunetab; the f2 body just sits at a different offset). The canon-only
+    # guard blinded EVERY per-subtune wrapper probe to family-2
+    # (Fuckin_Birds/NemTP's conditional song-0 remap, found 2026-08-13).
     if not (mem[base] == 0x4C and
-            (mem[base + 1] | (mem[base + 2] << 8)) == (base + 0x1D) & 0xFFFF):
+            (mem[base + 1] | (mem[base + 2] << 8)) in
+            ((base + 0x1D) & 0xFFFF, (base + 0x37) & 0xFFFF)):
         return None
     # STATIC anchor gate (perf): an `LDA #imm` reaching base (fall-through /
-    # JMP base) OR an `LDA #imm / JSR base` in the wrapper window. Only then
+    # JMP base) OR an `LDA #imm / JSR base` in the wrapper window, OR an
+    # `LDA #imm` followed within 10 bytes by `JMP base` (the Arthur wrapper
+    # interposes two STx stores between the force and the jump). Only then
     # pay for the per-subtune py65 observation.
     anchor = mem[init] == 0xA9 and (
         init + 2 == base or
@@ -1472,6 +1478,15 @@ def _subtune_song_map_probe(path: str, base: int,
             if (mem[a] == 0xA9 and mem[a + 2] == 0x20 and
                     (mem[a + 3] | (mem[a + 4] << 8)) == base):
                 anchor = True
+                break
+            if mem[a] == 0xA9:
+                for j in range(a + 2, min(a + 12, end)):
+                    if (mem[j] == 0x4C and
+                            (mem[j + 1] | (mem[j + 2] << 8)) == base):
+                        anchor = True
+                        break
+            if anchor:
+                break
                 break
     if not anchor:
         return None
@@ -1775,6 +1790,44 @@ def _init_forced_changes_state(path: str, base: int, forced: int) -> bool:
         return False
     # compare the player + data image (skip zero page / stack / IO)
     return a0[0x0400:0x8000] != af[0x0400:0x8000]
+
+
+def _medley_switch_probe(path: str, base: int,
+                         post_init_sub: 'int | None' = None):
+    """PER-SUBTUNE TIME-MEDLEY SWITCH (C31 medley variant, per-subtune form —
+    Arthur/Fuckin_Birds + NemTP): the play vector is a countdown wrapper
+    `LDA v0 / ORA v1 / BEQ play / DEC v1 / BNE play / DEC v0 / BNE play /
+    LDA #target / JMP base(init)`, and the INIT wrapper arms (v0,v1) only
+    for specific subtunes (Arthur: sub 2 = song 0 for $03FF plays, then
+    re-init into song 1 forever; unarmed subtunes play plain). The armed
+    values are OBSERVED per subtune from post-init RAM (py65-trustworthy:
+    written by the init wrapper itself), never parsed from the branch chain
+    (C18/C31). Returns 'sub:target:lo:hi[;...]' or None."""
+    mem, s = _load(path, post_init_sub)
+    p = s['play']
+    if not (0 < p < 0xFFE0):
+        return None
+    # the exact countdown shape (offsets fixed; operands = the two counters)
+    if not (mem[p] == 0xAD and mem[p + 3] == 0x0D and mem[p + 6] == 0xF0
+            and mem[p + 8] == 0xCE and mem[p + 11] == 0xD0
+            and mem[p + 13] == 0xCE and mem[p + 16] == 0xD0
+            and mem[p + 18] == 0xA9 and mem[p + 20] == 0x4C
+            and _rd16(mem, p + 21) == base):
+        return None
+    v0 = _rd16(mem, p + 1)
+    v1 = _rd16(mem, p + 4)
+    if {v0, v1} != {_rd16(mem, p + 14), _rd16(mem, p + 9)}:
+        return None                       # DECs must hit the same two counters
+    target = mem[p + 19]
+    segs = []
+    for sub in range(s.get('songs', 1)):
+        ram = _post_init_ram(path, sub)
+        if ram is None:
+            return None
+        hi, lo = ram[v0], ram[v1]
+        if hi or lo:
+            segs.append(f'{sub}:{target}:{lo:X}:{hi:X}')
+    return ';'.join(segs) or None
 
 
 def _state_resume_probe(path: str, base: int,
@@ -4608,6 +4661,10 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc85',
         sr = _state_resume_observe(path, cfg.base, post_init_sub)
     if sr is not None:
         cfg.forced_subtune, cfg.subtune_state_copy = sr
+    # per-subtune time-medley switch (C31 medley variant — Arthur pair).
+    msw = _medley_switch_probe(path, cfg.base, post_init_sub)
+    if msw is not None:
+        cfg.extra_params['medley_switch'] = msw
     return cfg
 
 

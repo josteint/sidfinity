@@ -211,6 +211,10 @@
       "category": "musical-content",
       "licensed_by": "principle section-4 small musical enum (width/step/step_full = vibrato swell algorithm; f2 RE + the Brian step_full round); typed as init_behavior.vibrato_ramp, key = fallback",
       "note": "CONVERSION TRIGGER (principle section-4 parameter-vs-kind, review 2026-08-13): 'step' vs 'step_full' differ by an ORDERED shift amount (freq_hi>>1 vs freq_hi), not a category. At two values the enum is readable; if a THIRD swell rate ever appears, convert to a numeric field (e.g. swell_shift) instead of minting a fourth enum value."
+    },
+    "medley_switch": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C31 medley variant, per-subtune form (Arthur/Fuckin_Birds + NemTP): an armed subtune plays its own song for a hi:lo play countdown then re-inits into a target song"
     }
   }
 }

@@ -3714,6 +3714,71 @@ vpat_l:
         pf_exit_label = ''
         halted_var = ''
 
+    # PER-SUBTUNE TIME-MEDLEY SWITCH (C31 medley variant, Arthur pair):
+    # 'sub:target:lo:hi[;...]' — an armed subtune plays its own song for the
+    # hi:lo countdown, then a play() call runs INIT(A=target) in place of the
+    # play body (the orig's `LDA #t / JMP init`) and the target song plays on.
+    # The arm loads per-song at init end (indexed by cursong), so the switch's
+    # own re-init reads the TARGET song's row = 0/0 = disarmed — the
+    # re-arm problem solves itself. Outermost wrapper (mirrors the orig's
+    # play-vector placement).
+    _msw = usf.params.fields.get('medley_switch', None)
+    if _msw is not None:
+        _segs = [tuple(p.split(':')) for p in str(_msw).split(';')]
+        _tgts = {int(t) for _, t, _l, _h in _segs}
+        if len(_tgts) != 1:
+            raise ValueError(f'medley_switch: multiple targets {_tgts}')
+        _msw_tgt = _tgts.pop()
+        _nsongs = len(m.subtunes)
+        _mlo = [0] * _nsongs
+        _mhi = [0] * _nsongs
+        for _sub, _t, _l, _h in _segs:
+            _mlo[int(_sub)] = int(_l, 16)
+            _mhi[int(_sub)] = int(_h, 16)
+        if not cursong_save:
+            cursong_save = ('        sta cursong                  ; subtune '
+                            'for the medley arm\n')
+            cursong_var = 'cursong:  .dsb 1, 0\n'
+        play_wrapper = (
+            'playmsw:                             ; per-subtune medley switch\n'
+            '        lda mswhi\n'
+            '        ora mswlo\n'
+            '        beq msw_go                   ; unarmed: plain play\n'
+            '        dec mswlo\n'
+            '        bne msw_go\n'
+            '        dec mswhi\n'
+            '        beq msw_x                    ; expired: out-of-line switch\n'
+            f'msw_go: jmp {play_entry}\n'
+            'msw_x:\n'
+            + ''.join(f'        lda {a}+{i}\n        sta mswsav+{k}\n'
+                      for k, (a, i) in enumerate(
+                          (a, i) for a in ('gatemask', 'curnote', 'curinst')
+                          for i in range(3))) +
+            '        lda shadow17                 ; the orig re-init PRESERVES\n'
+            '        sta mswsav+9                 ; the init-UNCLEARED note-\n'
+            f'        lda #${_msw_tgt:02X}                     ; state block '
+            '($100F-$1018:\n'
+            '        jsr init                     ; gatemask/curnote/curinst/\n'
+            + ''.join(f'        lda mswsav+{k}\n        sta {a}+{i}\n'
+                      for k, (a, i) in enumerate(
+                          (a, i) for a in ('gatemask', 'curnote', 'curinst')
+                          for i in range(3))) +
+            '        lda mswsav+9                 ; shadow17 — C38/C31 carry)\n'
+            '        sta shadow17\n'
+            '        rts                          ; init ran in place of play\n'
+            'mswsav: .dsb 10, 0\n'
+            'mswlo:  .byt 0\n'
+            'mswhi:  .byt 0\n'
+            'mswlt:  ' + _byt(_mlo) + '\n'
+            'mswht:  ' + _byt(_mhi) + '\n\n') + play_wrapper
+        play_entry = 'playmsw'
+        cia_init = cia_init + (
+            '        ldx cursong                  ; arm the medley countdown\n'
+            '        lda mswlt,x\n'
+            '        sta mswlo\n'
+            '        lda mswht,x\n'
+            '        sta mswhi\n')
+
     asm = f"""
 SLIDE_PHASE = ${slide_phase:02X}
 CIA_PERIOD = ${cia_period:04X}
