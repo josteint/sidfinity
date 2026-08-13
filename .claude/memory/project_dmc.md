@@ -25,8 +25,9 @@ ALSO LANDED (uncommitted, gating in flight): the C21 per-IRQ RETRY in
 verify_dmc — a vblank subtune whose flat trichotomy fails re-verifies via
 keep_init per-IRQ capture (init prefix = pre-first-play-entry, immune to
 multi-frame init SPILL like Rowdy's copy loop) WITH Check A kept (last-
-write-per-register over the |N init chunk — C15, no relaxation). Full f2
-re-batch running as the retry census + closeout.
+write-per-register over the |N init chunk — C15, no relaxation). Full f2 re-batch LANDED: 2,886/2,924 identical counts (0 verdict flips
+= the retry validated), corpus re-synced under the new code_hash
+(2,886 written, 0 err, 12/12 audit, corpus 12,515/12,515).
 
 ## ✅ OVERNIGHT CHAIN LANDED (2026-08-13): **f2 = 2,879/2,924 FULL (98.5%)**, 45 partials, corpus synced
 The re-batch confirmed dual_phase as the deep-freq lever: **+254
