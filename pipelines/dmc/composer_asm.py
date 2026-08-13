@@ -1695,6 +1695,13 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # by freq_hi(note)>>1 each half-cycle (16-bit). The per-note increment
     # is derived from the freq table the composer already carries.
     vib_ramp = str(_artic('vibrato_ramp', 'vib_ramp', 'width'))
+    # vibrato_ramp_persist (C19 clear-repointed family, the $11C4 pair):
+    # the note-init's rampctr clear is dead in the orig, so the vibrato
+    # swell counter PERSISTS across note boundaries — a legato swell.
+    _vib_persist = int(_artic('vibrato_ramp_persist', 'vib_ramp_persist', 0)
+                       or 0)
+    rampctr_clear = ('' if _vib_persist
+                     else '        sta rampctr,x\n')
     # holding-instrument gate-off: 'adsr_clear' (canon) also zeroes AD+SR
     # (the original's sub_17EC); 'mask_only' (family 2) just drops the gate
     # bit via the mask. Family 2 relocated its instrument table over
@@ -4019,8 +4026,7 @@ ev_n_hard:
         sta acch,x
         sta vibdir,x
         sta vibctr,x
-        sta rampctr,x
-        sta slal,x
+{rampctr_clear}        sta slal,x
         sta slah,x
         ldy sidoff,x
 {hr_test_write}{hard_restart_adsr}        lda #$FF

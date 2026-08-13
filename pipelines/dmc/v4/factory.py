@@ -5692,6 +5692,15 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
         extra_params={'cymbal_onset': 1,
                       'vib_ramp': ('step_full' if mem[at(0x12F4)] == 0xA8
                                    else 'step'),
+                      # $11C4: the note-init `STA rampctr,x` clear re-pointed
+                      # off its state var (Dreaming -> unused RAM, X-mas_end
+                      # -> out of image) = the clear is DEAD, the vibrato
+                      # swell counter persists across notes (legato swell,
+                      # C19 clear-repointed family).
+                      **({'vib_ramp_persist': 1}
+                         if (mem[at(0x11C4)] == 0x9D
+                             and _rd16(mem, at(0x11C5)) != base + 0x76E)
+                         else {}),
                       'hold_gateoff': hold_gateoff, 'hard_restart': 'none',
                       'rest_effects': 'skip',
                       **(dict(zip(('filter_mod', 'init_plays'),

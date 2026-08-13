@@ -186,6 +186,30 @@
     "track_loop_dead": {
       "category": "mechanism-knob",
       "licensed_by": "C19 43rd (dead loop store: halt-and-hold)"
+    },
+    "vib_ramp_persist": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 clear-repointed family ($11C4 note-init rampctr clear dead -> legato vibrato swell); typed as init_behavior.vibrato_ramp_persist, this key is the old-corpus params fallback"
+    },
+    "hold_gateoff": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (f2 sub-build gate-off: mask_only vs adsr_clear helper); typed as init_behavior.gate_off_hold (C33 2026-08-04), key = old-corpus fallback"
+    },
+    "rest_effects": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 15th/C31 (rest/switch dispatch tail variant); typed as init_behavior.rest_effects, key = fallback"
+    },
+    "hard_restart": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (hard-restart prep variants: none/helper/preset); typed as init_behavior.hard_restart, key = fallback"
+    },
+    "cymbal_onset": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (f2 note-init tail skips the cymbal check -> burst fires frame 2); typed as init_behavior.cymbal_onset, key = fallback"
+    },
+    "vib_ramp": {
+      "category": "musical-content",
+      "licensed_by": "principle section-4 small musical enum (width/step/step_full = vibrato swell algorithm; f2 RE + the Brian step_full round); typed as init_behavior.vibrato_ramp, key = fallback"
     }
   }
 }

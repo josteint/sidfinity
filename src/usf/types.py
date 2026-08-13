@@ -1103,6 +1103,11 @@ class InitBehaviorConfig:
     # Vibrato depth-ramp shape: 'width' = amplitude-scaled ramp,
     # 'step' = fixed per-half-cycle step.
     vibrato_ramp: Optional[str] = None
+    # 1 = the vibrato ramp counter PERSISTS across note boundaries (the
+    # swell continues instead of restarting per note — a legato swell,
+    # same musical family as filter keep_running). None/0 = canon
+    # (note-init restarts the swell).
+    vibrato_ramp_persist: Optional[int] = None
     # When non-zero, the engine writes this value to $D418 (master volume)
     # on EVERY note-load — once per voice that advances to a new pattern
     # entry. Devils Galop does this: its $13B7 vol write sits inline in the

@@ -31,6 +31,11 @@ REGISTRY = os.path.join(ROOT, 'tools', 'composer_params.json')
 
 _KEY_RE = re.compile(
     r"params\.fields(?:\.get\(|\[)\s*'([a-z0-9_]+)'")
+# typed-field readers with a params-fields FALLBACK (the DMC `_artic`
+# helper): the params key is the SECOND argument — invisible to the direct
+# pattern above (found 2026-08-13 when vib_ramp_persist's fallback slipped
+# past the first regex).
+_ARTIC_RE = re.compile(r"_artic\(\s*'[a-z0-9_]+',\s*'([a-z0-9_]+)'")
 
 
 def main() -> int:
@@ -44,7 +49,9 @@ def main() -> int:
         if not os.path.exists(path):
             errors.append(f'registered composer file missing: {relf}')
             continue
-        consumed[relf] = set(_KEY_RE.findall(open(path).read()))
+        _src = open(path).read()
+        consumed[relf] = set(_KEY_RE.findall(_src)) | \
+            set(_ARTIC_RE.findall(_src))
     # composer files with a params surface that are NOT registered at all
     for relf in ('pipelines/dmc/composer_asm.py',
                  'pipelines/dmc/v5/composer_v5.py',

@@ -1402,7 +1402,8 @@ class _T(Transformer):
     # note — keyword terminals would shadow CNAME in old-corpus params{}).
     _IB_ARTIC = {'gate_off_hold': str, 'rest_effects': str,
                  'hard_restart': str,          # CNAME or INT, normalized str
-                 'cymbal_onset': int, 'vibrato_ramp': str}
+                 'cymbal_onset': int, 'vibrato_ramp': str,
+                 'vibrato_ramp_persist': int}
 
     def ib_artic(self, items):
         key, val = str(items[0]), items[1]
