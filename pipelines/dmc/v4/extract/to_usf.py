@@ -39,7 +39,8 @@ from src.usf.types import (
 # vib_ramp -> vibrato_ramp; values pass through (hard_restart normalized to
 # str, cymbal_onset to int).
 _ARTICULATION_KEYS = {'hold_gateoff', 'rest_effects', 'hard_restart',
-                      'cymbal_onset', 'vib_ramp', 'vib_ramp_persist'}
+                      'cymbal_onset', 'vib_ramp', 'vib_ramp_persist',
+                      'vib_step_dead', 'vib_phase_persist'}
 
 
 def _articulation_block(extra: dict) -> 'InitBehaviorConfig | None':
@@ -60,6 +61,10 @@ def _articulation_block(extra: dict) -> 'InitBehaviorConfig | None':
         cfg.vibrato_ramp = str(extra['vib_ramp'])
     if 'vib_ramp_persist' in extra:
         cfg.vibrato_ramp_persist = int(extra['vib_ramp_persist'])
+    if 'vib_step_dead' in extra:
+        cfg.vibrato_step_dead = int(extra['vib_step_dead'])
+    if 'vib_phase_persist' in extra:
+        cfg.vibrato_phase_persist = int(extra['vib_phase_persist'])
     return cfg
 from src.usf.writer import write_file
 from pipelines.dmc.v4.config import DMCV4Config

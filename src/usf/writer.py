@@ -990,6 +990,10 @@ def _write_init_behavior(cfg: InitBehaviorConfig) -> list[str]:
         parts.append(f'  vibrato_ramp: {cfg.vibrato_ramp}')
     if cfg.vibrato_ramp_persist is not None:
         parts.append(f'  vibrato_ramp_persist: {cfg.vibrato_ramp_persist}')
+    if cfg.vibrato_step_dead is not None:
+        parts.append(f'  vibrato_step_dead: {cfg.vibrato_step_dead}')
+    if cfg.vibrato_phase_persist is not None:
+        parts.append(f'  vibrato_phase_persist: {cfg.vibrato_phase_persist}')
     return ['init_behavior {  ; engine play behavior', *parts, '}']
 
 
@@ -1056,7 +1060,9 @@ def write(usf: UsfFile) -> str:
             or usf.init_behavior.hard_restart is not None
             or usf.init_behavior.cymbal_onset is not None
             or usf.init_behavior.vibrato_ramp is not None
-            or usf.init_behavior.vibrato_ramp_persist is not None):
+            or usf.init_behavior.vibrato_ramp_persist is not None
+            or usf.init_behavior.vibrato_step_dead is not None
+            or usf.init_behavior.vibrato_phase_persist is not None):
         lines.append('')
         lines.extend(_write_init_behavior(usf.init_behavior))
     if usf.master_vol is not None:

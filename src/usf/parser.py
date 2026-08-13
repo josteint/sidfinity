@@ -1403,7 +1403,8 @@ class _T(Transformer):
     _IB_ARTIC = {'gate_off_hold': str, 'rest_effects': str,
                  'hard_restart': str,          # CNAME or INT, normalized str
                  'cymbal_onset': int, 'vibrato_ramp': str,
-                 'vibrato_ramp_persist': int}
+                 'vibrato_ramp_persist': int,
+                 'vibrato_step_dead': int, 'vibrato_phase_persist': int}
 
     def ib_artic(self, items):
         key, val = str(items[0]), items[1]

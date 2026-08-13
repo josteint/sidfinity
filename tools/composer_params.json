@@ -48,12 +48,12 @@
       "licensed_by": "C19 (f2 $10A3 play filter-tail STA $D416 NOPed — SilverFox/No_End; $D417 store survives)"
     },
     "vib_phase_persist": {
-      "category": "mechanism-knob",
-      "licensed_by": "C19 (f2 $11BE vibdir clear patched to EOR zp,x, misalignment kills the vibctr clear too — Shock/Mea_Culpa_end; vibrato phase persists across notes, 44th-occ persist family)"
+      "category": "musical-content",
+      "licensed_by": "C19 (f2 $11BE vibdir clear patched to EOR zp,x, misalignment kills the vibctr clear too — Shock/Mea_Culpa_end; vibrato phase persists across notes, 44th-occ persist family); typed as init_behavior.vibrato_phase_persist (C33, 2026-08-13), key = fallback"
     },
     "vib_step_dead": {
-      "category": "mechanism-knob",
-      "licensed_by": "C19 (f2 $12F5 vib-increment store re-pointed to CMP — Shade/For_Moonlight; vdep never written, swell ramps by 0)"
+      "category": "musical-content",
+      "licensed_by": "C19 (f2 $12F5 vib-increment store re-pointed to CMP — Shade/For_Moonlight; vdep never written, swell ramps by 0); typed as init_behavior.vibrato_step_dead (C33, 2026-08-13), key = fallback"
     },
     "d417_tail_anim": {
       "category": "mechanism-knob",

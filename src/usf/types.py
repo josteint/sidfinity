@@ -1108,6 +1108,14 @@ class InitBehaviorConfig:
     # same musical family as filter keep_running). None/0 = canon
     # (note-init restarts the swell).
     vibrato_ramp_persist: Optional[int] = None
+    # 1 = the per-note vibrato swell INCREMENT is never set (the store is
+    # dead in the member's player), so the swell ramps by 0 — vibrato
+    # contributes nothing. None/0 = canon.
+    vibrato_step_dead: Optional[int] = None
+    # 1 = the vibrato PHASE (direction + half-cycle counter) persists
+    # across note boundaries instead of restarting per note. Sibling of
+    # vibrato_ramp_persist (the ramp counter). None/0 = canon.
+    vibrato_phase_persist: Optional[int] = None
     # When non-zero, the engine writes this value to $D418 (master volume)
     # on EVERY note-load — once per voice that advances to a new pattern
     # entry. Devils Galop does this: its $13B7 vol write sits inline in the

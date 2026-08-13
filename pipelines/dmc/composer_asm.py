@@ -1734,8 +1734,8 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # half-cycle counter ($176B) clears are dead, so the vibrato PHASE
     # persists across note boundaries (the re-aligned rampctr clear at
     # $11C4 survives). Sibling of vib_ramp_persist (44th occ family).
-    vibphase_clear = ('' if str(usf.params.fields.get('vib_phase_persist',
-                                                      '0')) == '1'
+    vibphase_clear = ('' if int(_artic('vibrato_phase_persist',
+                                       'vib_phase_persist', 0) or 0)
                       else '        sta vibdir,x\n'
                            '        sta vibctr,x\n')
     # holding-instrument gate-off: 'adsr_clear' (canon) also zeroes AD+SR
@@ -3437,11 +3437,11 @@ fx_dual_up:
                 + ('' if vib_ramp == 'step_full' else
                    '        lsr                          ; = freq_hi(note) >> 1\n')
                 + '        sta vdep,x\n')
-        # vib_step_dead (C19 — Shade/For_Moonlight): the per-note
+        # vibrato_step_dead (C19 — Shade/For_Moonlight): the per-note
         # vib-increment store at f2 base+$2F5 `STA $178C,x` re-pointed to a
         # CMP — vdep is never written, stays init-cleared 0, so the swell
         # ramps by 0 (vstep frozen; vibrato contributes nothing).
-        if str(usf.params.fields.get('vib_step_dead', '0')) == '1':
+        if int(_artic('vibrato_step_dead', 'vib_step_dead', 0) or 0):
             ni_vib_depth = ''
         vib_swell = (
             '        lda vstep,x                  ; swell: step += increment\n'
