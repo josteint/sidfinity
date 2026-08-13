@@ -258,6 +258,18 @@ HVSC original at `hvsc85/MUSICIANS/H/Hubbard_Rob/<Engine>.{usf, sidfinity.sid}`.
 - **Commit early.** Each verified delta is one commit. No `Co-Authored-By`.
 - **Propose options before code** for non-trivial work. Honest scope. Pause at decision points.
 - **Schema additions are suspicious by default** — see [`feedback_schema_addition_discipline`](.claude/memory/feedback_schema_addition_discipline.md). Exhaust derivation / `engine_constants` / existing-params alternatives first. `bytes`-typed fields almost always mean you're papering over a representation gap.
+- **OWNER-APPROVAL GATE on representation changes (2026-08-13).** No
+  `grammar.lark` change, no `src/usf` typed-field addition, no new
+  representation kind, no enum growth on a typed field lands without the
+  OWNER approving it first — even when it passes every test and gate, and
+  even in autonomous/overnight sessions (park it as a written proposal
+  with options + a recommendation, keep working elsewhere). Passing the
+  Principle's tests is the argument to BRING the owner, not a permission
+  slip. Registered params-key wedge knobs under existing C19 licensing,
+  probes, extract fixes, and ledger-pre-decided carriage stay autonomous
+  — but if a typed sibling of the same musical family exists, say so
+  instead of quietly taking the params-bag shortcut. Full rule + the
+  incident behind it in the memory linked above.
 - **A new composer play-wrapper or params key is a REPRESENTATION decision,
   not an implementation detail.** BEFORE writing it, run the C19 33rd-occurrence
   test: does the mechanism change a MUSICAL VALUE? If yes, DECONSTRUCT to

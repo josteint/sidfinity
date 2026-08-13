@@ -1,10 +1,11 @@
 ---
 name: feedback_schema_addition_discipline
-description: "Don't add USF schema fields without re-reading the principle doc IN FULL and exhausting derivation/existing-params alternatives. `bytes`-typed schema fields are suspicious by default. Lesson from Companion's reverted `VoiceBlock.trailing`."
+description: "Don't add USF schema fields without re-reading the principle doc IN FULL and exhausting derivation/existing-params alternatives; and NEVER land a grammar/schema/typed-field change without OWNER approval first (2026-08-13 rule). `bytes`-typed schema fields are suspicious by default. Lessons: Companion's reverted `VoiceBlock.trailing`; the `direct` filter_mod marker landed solo (blessed after the fact, process fault)."
 metadata: 
   node_type: memory
   type: feedback
   originSessionId: 0dddd211-01d5-48ea-b899-54adc79e22ae
+  modified: 2026-08-13T19:35:02.335Z
 ---
 
 When a USF schema addition feels imminent, **stop and follow the
@@ -52,6 +53,39 @@ per-subtune `params { }` bag covered everything.
 6. **Only if all of (2)-(5) fail, propose the schema addition** —
    and then write the justification as if defending it to the
    principle doc before writing the code.
+
+## THE OWNER-APPROVAL GATE (2026-08-13 — supersedes any impression that a well-defended change may land solo)
+
+**No grammar change, no typed-field addition, no new representation
+KIND lands without the owner approving it first — full stop.** Passing
+the checklist above and the principle's four tests is the *argument to
+bring the owner*, never a permission slip. This includes autonomous /
+overnight sessions: park the change as a written proposal (options +
+recommendation) and continue other work.
+
+**Why:** On 2026-08-13 a session landed a `filter_mod` grammar marker
+(`direct`) for a SOLE carrier plus two params keys homed inconsistently
+with their typed sibling, all in one day, all gates green — and the
+owner's reaction was "you create new grammar almost willy-nilly, gives
+me a bad feeling." The audit found the representations defensible but
+the PROCESS wrong: this project's canon (the Principle itself, the
+4k_Byter reversal) was forged by the owner's adversarial pushback on
+exactly such drafts; landing same-day removes that pushback from the
+loop. The owner blessed `direct` after the fact and approved re-typing
+the two keys (C33) — but ratification is theirs, not the gates'.
+
+**How to apply — the green/red split:**
+- GREEN (proceed solo): probes, params-key wedge knobs under existing
+  C19 licensing (registered in tools/composer_params.json), extract
+  fixes, per-subtune carriage a ledger entry has pre-decided, batches,
+  gates.
+- RED (propose first, never land): grammar.lark changes, src/usf
+  typed-field additions, new blocks, new representation kinds, any
+  enum growth on a typed field. When in doubt, it's red.
+- HOMING RULE for green-path knobs: if a typed sibling of the same
+  musical family exists (e.g. the init_behavior articulation block),
+  say so in the proposal instead of quietly taking the params-bag
+  shortcut — inconsistent homing was the second fault that day.
 
 ## Tripwires
 

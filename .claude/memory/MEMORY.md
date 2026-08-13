@@ -73,7 +73,7 @@
 
 ### USF schema discipline
 - [Principle-first analysis](feedback_principle_first_analysis.md) — CHECKLIST. Run the 6 questions BEFORE proposing any effect/instrument design or "engine-specific codegen". Don't wait to be caught.
-- [Schema addition discipline](feedback_schema_addition_discipline.md) — CHECKLIST. Before adding any USF schema field: re-read the principle doc IN FULL, then exhaust derivation / engine_constants / existing-params. `bytes`-typed fields are suspicious by default.
+- [Schema addition discipline](feedback_schema_addition_discipline.md) — CHECKLIST + THE OWNER-APPROVAL GATE (2026-08-13): grammar/typed-field/new-representation changes NEVER land without owner approval — passing the tests is the argument to bring, not a permission slip; params-key wedge knobs under existing C19 licensing stay autonomous. Before proposing: re-read the principle IN FULL, exhaust derivation / engine_constants / existing-params; check for a typed sibling before taking the params-bag shortcut.
 
 ### Engineering reflexes
 - [Use 6502 mindset](feedback_6502_mindset.md) — all bugs are pointer errors; think in exact byte offsets
