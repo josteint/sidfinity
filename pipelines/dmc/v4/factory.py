@@ -5617,17 +5617,22 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
             break
     # $129F filter-mode extraction: Kajun masks `AND #$0F`; a re-assembly
     # variant uses `STA $9E` (a dead store — the following ASL x4 discards
-    # the hi nibble either way, so $D418 is identical). Both equivalent.
-    fmop = mem[at(0x129F)]
-    if not ((fmop == 0x29 and mem[at(0x129F) + 1] == 0x0F) or fmop == 0x85):
-        raise DMCV4Unsupported('filter_mode_variant', hex(fmop))
+    # the hi nibble either way, so $D418 is identical). Both equivalent, and
+    # an UNKNOWN opcode here no longer refuses: the f2 philosophy is
+    # verify-gated (C13 — a loosened dispatch can't false-FULL; of the 49
+    # historical code-mismatch refusals, 21 verified FULL), so a third form
+    # builds with the canon semantic and reads honestly partial if it
+    # actually differs. (Review 2026-08-13: aligned with the $12F4 probe's
+    # default-to-canon convention; previously raised filter_mode_variant.)
     gop = mem[at(0x133D)]
-    if gop == 0x9D:                       # STA $100f,x — mask only
-        hold_gateoff = 'mask_only'
-    elif gop == 0x20:                     # JSR helper — clears AD/SR=$00
+    if gop == 0x20:                       # JSR helper — clears AD/SR=$00
         hold_gateoff = 'adsr_clear'
-    else:
-        raise DMCV4Unsupported('hold_gateoff_unknown', hex(gop))
+    else:                                 # STA $100f,x ($9D) = the carved
+        hold_gateoff = 'mask_only'        # reference's behavior; unknown
+                                          # opcodes default to it (verify
+                                          # judges — see $129F note above;
+                                          # previously raised
+                                          # hold_gateoff_unknown)
     # packer-patched table addresses (canon-compatible sites; tunetab via
     # $1051 since family 2 leaves the $180E site empty; instr base $17B0).
     instr = _rd16(mem, at(0x1227))
