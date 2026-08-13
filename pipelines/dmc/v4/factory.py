@@ -5765,8 +5765,85 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
                          else {}),
                       'hold_gateoff': hold_gateoff, 'hard_restart': 'none',
                       'rest_effects': 'skip',
+                      # $12A8 filter note-init `STA $D418` KILLED (C19 —
+                      # Third_Zak's `85 xx` zp-redirect / Chance_for_Win's
+                      # `EA EA EA` NOP; the INIT master-vol store at base+$5C
+                      # survives, so $D418 = mvol from init on, never
+                      # mode|vol). Anchor on the preceding canon
+                      # `ORA $1717` (reloc-aware) so a re-assembled layout
+                      # fails open; the killed forms are the two observed.
+                      **({'d418_noteinit_dead': 1}
+                         if (mem[at(0x12A5)] == 0x0D
+                             and _rd16(mem, at(0x12A6)) == base + 0x717
+                             and mem[at(0x12A8)] in (0xEA, 0x85))
+                         else {}),
+                      # $10A3 play filter tail `STA $D416` NOPed (C19 —
+                      # SilverFox/No_End; the $D417 store at base+$AC
+                      # survives): cutoff set once at init, never during
+                      # play. Anchor on the canon cutoff LOAD before it.
+                      **({'filter_cut_static': 1}
+                         if (mem[at(0x10A0)] == 0xAD
+                             and _rd16(mem, at(0x10A1)) == base + 0x71C
+                             and mem[at(0x10A3)] == 0xEA
+                             and mem[at(0x10A4)] == 0xEA
+                             and mem[at(0x10A5)] == 0xEA)
+                         else {}),
+                      # $11D9 fetch-frame prep ctrl `LDA #imm / STA $D404,Y`
+                      # (canon imm $08 = TEST). Rowdy's $F000 sub-player
+                      # patches the immediate to $40 (C19 patched-immediate
+                      # wedge). Anchor on the LDA# + STA $D404,Y shape so a
+                      # re-assembled layout fails open; emit only non-canon.
+                      **({'prep_ctrl': mem[at(0x11DA)]}
+                         if (mem[at(0x11D9)] == 0xA9
+                             and mem[at(0x11DB)] == 0x99
+                             and _rd16(mem, at(0x11DC)) == 0xD404
+                             and mem[at(0x11DA)] != 0x08)
+                         else {}),
                       **(dict(zip(('filter_mod', 'init_plays'),
                                   _fdc))
                          if (_fdc := _fdinit_contour_probe(mem, s, base))
+                         else {}),
+                      **({'filter_mod': _cta}
+                         if (_cta := _cutoff_table_anim_probe(mem, s, base))
                          else {})},
     )
+
+
+def _cutoff_table_anim_probe(mem, s, base):
+    """SilverFox/No_End appended cutoff-table cycler, DECONSTRUCTED to
+    musical content (ledger C1 + C19 33rd-occurrence rule; the canon play
+    filter tail's `STA $D416` is NOPed — filter_cut_static — and this
+    wrapper is the only cutoff writer). Play vector:
+        LDX #x0 / LDA tab,X / STA $D416 / INC <the LDX operand> / JMP base+3
+    and the init vector JMPs a stub that re-seeds the SMC operand:
+        LDX #x0 / STX <play+1> / LDA #$00 / JMP base
+    = one authored 256-entry cutoff table cycled at 1 entry/play, forever.
+    Emitted as a `filter_mod` DIRECT entry ('target: cutoff'): start =
+    tab[x0], steps = the delta-run encoding of one full cycle (exact by
+    construction; sum of deltas wraps to 0 mod 256). Returns the encoded
+    string, else None (build unchanged)."""
+    P = s['play']
+    if not (mem[P] == 0xA2 and mem[P + 2] == 0xBD and mem[P + 5] == 0x8D
+            and _rd16(mem, P + 6) == 0xD416 and mem[P + 8] == 0xEE
+            and _rd16(mem, P + 9) == P + 1 and mem[P + 11] == 0x4C
+            and _rd16(mem, P + 12) == base + 3):
+        return None
+    I = s['init']
+    if mem[I] == 0x4C:
+        I = _rd16(mem, I + 1)
+    if not (mem[I] == 0xA2 and mem[I + 2] == 0x8E
+            and _rd16(mem, I + 3) == P + 1):
+        return None
+    x0 = mem[I + 1]
+    tab = _rd16(mem, P + 3)
+    vals = [mem[tab + ((x0 + i) & 0xFF)] for i in range(257)]
+    runs = []
+    for i in range(256):
+        d = (vals[i + 1] - vals[i]) & 0xFF
+        d = d - 256 if d >= 128 else d
+        if runs and runs[-1][0] == d:
+            runs[-1][1] += 1
+        else:
+            runs.append([d, 1])
+    steps = ','.join(f'{d}:{f}' for d, f in runs)
+    return f'0|{vals[0]}|0||{steps}|direct'

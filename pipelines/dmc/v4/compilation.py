@@ -1098,6 +1098,23 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
             merged.songs[si].params = {**(merged.songs[si].params or {}),
                                        'rest_effects': eff[pidx]}
         merged.extra_params.pop('rest_effects', None)
+    # Same route, knob by knob (C31 — Rowdy, a relocating f2 compilation):
+    # `vib_ramp` (the copied players are 'step_full' builds while the start
+    # player is 'step') and `prep_ctrl` (the $F000 copy's $40 fetch-frame
+    # prep-ctrl wedge). File-level stays the START player's value; only the
+    # songs whose player disagrees carry a sparse MusicSubtune.params
+    # override, so agreeing members emit byte-identically. `vib_ramp` is
+    # skipped when a player carries no value (a canon-family player in a
+    # mixed file — that disagreement is not runtime-gatable; today's
+    # collapse behavior is kept there).
+    for key, default in (('vib_ramp', None), ('prep_ctrl', 0x08)):
+        vals = [mm.extra_params.get(key, default) for mm in models]
+        for si, (pidx, _) in enumerate(subtune_map):
+            if (vals[pidx] is None or vals[0] is None
+                    or vals[pidx] == vals[0]):
+                continue
+            merged.songs[si].params = {**(merged.songs[si].params or {}),
+                                       key: vals[pidx]}
     return merged
 
 

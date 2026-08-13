@@ -1531,18 +1531,22 @@ class _T(Transformer):
         # (LALR without placeholders: classify by shape — a step is a
         # ('step', v) tuple, `once` arrives as its FM_ONCE token, a bare
         # remaining scalar is the stop_phase.)
-        sp, loop, steps = None, True, []
+        sp, loop, direct, steps = None, True, False, []
         for it in items[3:]:
             if isinstance(it, tuple) and it and it[0] == 'step':
                 steps.append(it[1])
             elif str(it) == 'once':
                 loop = False
+            elif str(it) == 'direct':
+                direct = True
             elif it is not None:
                 sp = int(it)
         e = {'start': start, 'init_phase': ip, 'stop_phase': sp,
              'steps': steps}
         if not loop:
             e['loop'] = False
+        if direct:
+            e['target'] = 'cutoff'
         return (n, e)
 
     def filter_mod_block(self, items):

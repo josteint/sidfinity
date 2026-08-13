@@ -1414,6 +1414,8 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
                            (t.split(':') for t in steps.split(','))]}
             if len(f5) > 5 and 'once' in f5[5]:
                 e['loop'] = False
+            if len(f5) > 5 and 'direct' in f5[5]:
+                e['target'] = 'cutoff'      # LFO writes $D416 itself per play
             filter_mod[int(prog)] = e
     return UsfFile(
         psid=PsidMeta(title=m.title, author=m.author, released=m.released,

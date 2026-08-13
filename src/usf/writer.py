@@ -455,6 +455,8 @@ def _write_filter_mod(mods: dict) -> list[str]:
             parts.append(f'stop_phase={m["stop_phase"]}')
         if not m.get('loop', True):
             parts.append('once')
+        if m.get('target') == 'cutoff':
+            parts.append('direct')
         for d, f in m['steps']:
             parts.append(f'step ({d}, {f})')
         lines.append(f'  prog {n}: ' + ' '.join(parts))

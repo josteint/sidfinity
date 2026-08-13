@@ -35,6 +35,18 @@
       "category": "mechanism-knob",
       "licensed_by": "C19 26th (cymbal ctrl immediate)"
     },
+    "prep_ctrl": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (f2 $11D9 fetch-frame prep-ctrl immediate, canon $08 TEST; Rowdy $F000 copy = $40; per-subtune override rides MusicSubtune.params, C31)"
+    },
+    "d418_noteinit_dead": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (f2 $12A8 filter note-init STA $D418 killed — Third_Zak zp-redirect, Chance_for_Win_part_2 NOP; init mvol store survives)"
+    },
+    "filter_cut_static": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (f2 $10A3 play filter-tail STA $D416 NOPed — SilverFox/No_End; $D417 store survives)"
+    },
     "d417_tail_anim": {
       "category": "mechanism-knob",
       "licensed_by": "C19 (playgfa animator)",

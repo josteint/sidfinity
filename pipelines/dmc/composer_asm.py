@@ -1635,6 +1635,25 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     sub_rest = [str(s['params'].get('rest_effects', _file_rest))
                 for s in m.subtunes] or [_file_rest]
     per_sub_rest = len(set(sub_rest)) > 1
+    # Same per-subtune route, knob by knob (ledger C31 — Rowdy, a relocating
+    # f2 compilation whose copied players disagree with the start player):
+    # vib_ramp ('step' vs 'step_full' — the note-init vibrato increment,
+    # freq_hi>>1 vs full freq_hi) and prep_ctrl (the fetch-frame prep ctrl
+    # immediate, canon $08 TEST; Rowdy's $F000 copy patches it to $40 —
+    # C19). Gated: agreeing members emit the static forms byte-identically
+    # (tune-record bytes +10/+11 stay $00, no vars, no runtime loads).
+    vib_ramp = str(_artic('vibrato_ramp', 'vib_ramp', 'width'))
+    sub_vib = [str(s['params'].get('vib_ramp', vib_ramp))
+               for s in m.subtunes] or [vib_ramp]
+    per_sub_vib = len(set(sub_vib)) > 1
+    if per_sub_vib and not all(v in ('step', 'step_full') for v in sub_vib):
+        # only the step-family disagreement is runtime-gatable (one LSR);
+        # a 'width'-vs-'step' mix would need a structurally different body
+        raise ValueError(f'per-subtune vib_ramp mix not gatable: {sub_vib}')
+    prep_ctrl = int(usf.params.fields.get('prep_ctrl', 0x08)) & 0xFF
+    sub_prep = [int(s['params'].get('prep_ctrl', prep_ctrl)) & 0xFF
+                for s in m.subtunes] or [prep_ctrl]
+    per_sub_prep = len(set(sub_prep)) > 1
 
     # ---- tune records + tracks + patterns ----
     tune_lines = []
@@ -1645,12 +1664,17 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
             lbl = f'trk_{si}_{vi}'
             track_blobs.append((lbl, sub['tracks'][vi]))
             refs.append(lbl)
-        # +9 = per-subtune rest-effects code (only when subtunes disagree)
+        # +9 = per-subtune rest-effects code, +10 = vib-swell form ($80 =
+        # step_full), +11 = prep ctrl (each only when subtunes disagree)
         rcode = _rest_code.get(sub_rest[si], 0) if per_sub_rest else 0
+        vcode = (0x80 if sub_vib[si] == 'step_full' else 0) \
+            if per_sub_vib else 0
+        pcode = sub_prep[si] if per_sub_prep else 0
         tune_lines.append(
             f'        .byt <{refs[0]}, >{refs[0]}, <{refs[1]}, >{refs[1]}, '
             f'<{refs[2]}, >{refs[2]}, ${sub["speed"]:02X}, ${sub["mvol"]:02X}, '
-            f'${sub["routing"]:02X}, ${rcode:02X}, $00, $00, $00, $00, $00, $00')
+            f'${sub["routing"]:02X}, ${rcode:02X}, ${vcode:02X}, '
+            f'${pcode:02X}, $00, $00, $00, $00')
     def _ptr_tab(pfx):
         lines = []
         for i in range(0, len(m.patterns), 12):
@@ -1694,7 +1718,8 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # swells in; 'step' (family 2) holds a fixed width and RAMPS the step
     # by freq_hi(note)>>1 each half-cycle (16-bit). The per-note increment
     # is derived from the freq table the composer already carries.
-    vib_ramp = str(_artic('vibrato_ramp', 'vib_ramp', 'width'))
+    # (`vib_ramp` + the per-subtune `sub_vib` override list are computed
+    # above the tune-record loop, beside `sub_rest`.)
     # vibrato_ramp_persist (C19 clear-repointed family, the $11C4 pair):
     # the note-init's rampctr clear is dead in the orig, so the vibrato
     # swell counter PERSISTS across note boundaries — a legato swell.
@@ -1774,6 +1799,14 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     rest_load = ('        lda tunetab+3,y              ; +9 = per-subtune '
                  'rest-effects code\n'
                  '        sta resteff\n' if per_sub_rest else '')
+    # per-subtune vib-swell form / prep ctrl (C31, the Rowdy knobs) — loaded
+    # beside resteff from tune-record bytes +10/+11; absent when all agree.
+    vib_load = ('        lda tunetab+4,y              ; +10 = per-subtune '
+                'vib-swell form\n'
+                '        sta vibfull\n' if per_sub_vib else '')
+    prep_load = ('        lda tunetab+5,y              ; +11 = per-subtune '
+                 'prep ctrl\n'
+                 '        sta prepctl\n' if per_sub_prep else '')
     # 'none' (C19 RTS wedge, Bassy_Introtune: canon $1180 JMP $1322 -> RTS):
     # the fetch frame runs NO effects at all for the voice — not even the
     # wave-step SID refresh ('skip' still refreshes). Label + the extended
@@ -1805,6 +1838,8 @@ rd_vf:
         jmp vib_half
 ''') if per_sub_rest else '')
     rest_var = 'resteff:  .dsb 1, 0\n' if per_sub_rest else ''
+    rest_var += 'vibfull:  .dsb 1, 0\n' if per_sub_vib else ''
+    rest_var += 'prepctl:  .dsb 1, 0\n' if per_sub_prep else ''
     # tempo event (fx `tempo=N`, ledger C14 — the Doxx v3_instr_tempo build):
     # a gated [$05, N] pattern prefix consumed at the row fetch, setting the
     # speed RELOAD (the running counter is untouched, so the change takes
@@ -2038,8 +2073,16 @@ fx_dual_up:
                              '        sta $d404,y                  ; TEST bit\n'
                              '        lda #$09\n'
                              '        sta $d404,y                  ; TEST|GATE\n')
+        elif per_sub_prep:
+            # C31 per-subtune prep-ctrl (Rowdy's $F000 copy: $40 wedge)
+            hr_test_write = ('        lda prepctl\n'
+                             '        sta $d404,y                  ; prep ctrl'
+                             ' (per-subtune)\n')
         else:
-            hr_test_write = ('        lda #$08\n'
+            # prep_ctrl: the fetch-frame prep ctrl immediate (canon $08 =
+            # TEST; a C19 patched-immediate wedge can change it — probed
+            # at the f2 $11D9 site). Default emits the canon byte.
+            hr_test_write = (f'        lda #${prep_ctrl:02X}\n'
                              '        sta $d404,y                  ; TEST bit\n')
         hr_arm = hr_disarm = hr_test_var = ''
         # pw_dir_persist: C19 wedge — the canon `STA $1765,x` (direction=up)
@@ -2426,8 +2469,14 @@ fx_dual_up:
     # multi-prog since Elechromania — one chunk per modulated prog, labels
     # suffixed by slot; a single-tap driver has init_phase == stop_phase).
     for _fm_prog, _fm in sorted(usf.filter_mod.items()):
-        _slot = m.filter_slots.get(_fm_prog)
-        if _slot is None:
+        # `target: cutoff` (`direct` in the USF text) — the LFO writes the
+        # cutoff register ITSELF every play (No_End's appended SMC table
+        # cycler: `LDA $1A00,X / STA $D416 / INC <operand>` ahead of the
+        # play body), instead of feeding a def's init/stop cells. Single
+        # tap, same walker; no filter-prog slot involved.
+        _direct = _fm.get('target') == 'cutoff'
+        _slot = None if _direct else m.filter_slots.get(_fm_prog)
+        if _slot is None and not _direct:
             continue
         _runs = [(d & 0xFF, f) for d, f in _fm['steps']]
 
@@ -2445,11 +2494,13 @@ fx_dual_up:
         # init cutoff alone — the 4k_Byter one-shot). `loop` False freezes a
         # walker at the end of its last run (terminal hold, C1's one-shot
         # form) via an index sentinel instead of wrapping to run 0.
-        _two = _fm.get('stop_phase') is not None
+        _two = (not _direct) and _fm.get('stop_phase') is not None
         _loop = _fm.get('loop', True)
         _sa = [_fm_seed(_fm['init_phase'])] + \
             ([_fm_seed(_fm['stop_phase'])] if _two else [])
-        _s = f'{_slot}'
+        _s = f'd{_fm_prog}' if _direct else f'{_slot}'
+        _tap_store = ('        sta $d416\n' if _direct else
+                      f'        sta fdinit+{_slot}\n')
         _stop_tap = (f'        lda fmv{_s}+1\n'
                      f'        sta fdstop+{_slot}\n'
                      '        ldx #$00\n'
@@ -2472,7 +2523,7 @@ fx_dual_up:
         play_wrapper = (
             f'playfmod{_s}:                            ; global cutoff contour\n'
             f'        lda fmv{_s}+0\n'
-            f'        sta fdinit+{_slot}\n'
+            + _tap_store
             + _stop_tap +
             f'        jsr fmadv{_s}\n'
             f'        jmp {play_entry}\n'
@@ -2767,6 +2818,14 @@ fx_dual_up:
     # the orig's 3 = init only). Reproduce: emit no play-time filter tail.
     if usf.params.fields.get('filter_static', None) is not None:
         filter_tail = ''
+    # filter_cut_static (C19 wedge, f2 form — SilverFox/No_End): the play
+    # filter tail's `STA $D416` at f2 base+$A3 is NOPed while the $D417 store
+    # survives — the cutoff is set once at init and never written during play,
+    # but res/routing still refresh every frame. Reproduce: drop only the
+    # cutoff store from the tail.
+    elif usf.params.fields.get('filter_cut_static', None) is not None:
+        filter_tail = ('        lda shadow17\n        ora fres\n'
+                       '        sta $d417\n') * play_unit_repeat[3]
     # $D418 re-assert-every-frame wedge (Groove class; factory
     # _d418_filter_tail_probe -> ledger C19 detection / C10
     # master-vol-every-frame form). The member re-writes $D418 = filter-mode |
@@ -2803,6 +2862,14 @@ fx_dual_up:
         filter_tail = filter_tail + ('        lda d418mode\n'
                                      '        ora mvol\n'
                                      '        sta $d418\n')
+    elif usf.params.fields.get('d418_noteinit_dead', None) is not None:
+        # C19 wedge, f2 form (Alias_Medron/Third_Zak zp-redirect $85 /
+        # DOS/Chance_for_Win_part_2 NOP): the filter note-init `STA $D418`
+        # at f2 base+$2A8 is killed while the INIT master-vol store survives
+        # — $D418 is the tune's mvol from init on, never mode|vol.
+        ni_d418 = ''
+        d418_prime = ''
+        d418_var = ''
     else:
         ni_d418 = ('        ora mvol\n'
                    '        sta $d418                    ; filter note-init- '
@@ -3337,12 +3404,25 @@ fx_dual_up:
         # increment = freq_hi(note) >> 1 (the original's $16A7>>1 -> $178C).
         # 'step_full' (the Brian sub-build, $12F4 LSR->TAY): the increment is
         # the UNSHIFTED freq_hi — a double-rate vibrato swell.
-        ni_vib_depth = (
-            '        ldy curnote,x\n'
-            '        lda freqhi,y                 ; family-2 vib increment\n'
-            + ('' if vib_ramp == 'step_full' else
-               '        lsr                          ; = freq_hi(note) >> 1\n')
-            + '        sta vdep,x\n')
+        if per_sub_vib:
+            # C31 per-subtune step-vs-step_full dispatch (Rowdy): vibfull
+            # bit 7 (tune-record +10) skips the LSR = full-rate swell.
+            ni_vib_depth = (
+                '        ldy curnote,x\n'
+                '        lda freqhi,y                 ; family-2 vib increment\n'
+                '        bit vibfull                  ; per-subtune: $80 = '
+                'step_full\n'
+                '        bmi ni_vfull\n'
+                '        lsr                          ; = freq_hi(note) >> 1\n'
+                'ni_vfull:\n'
+                '        sta vdep,x\n')
+        else:
+            ni_vib_depth = (
+                '        ldy curnote,x\n'
+                '        lda freqhi,y                 ; family-2 vib increment\n'
+                + ('' if vib_ramp == 'step_full' else
+                   '        lsr                          ; = freq_hi(note) >> 1\n')
+                + '        sta vdep,x\n')
         vib_swell = (
             '        lda vstep,x                  ; swell: step += increment\n'
             '        clc\n'
@@ -3820,7 +3900,7 @@ ini_ptr:
         {d418_init}
         lda tunetab+2,y              ; +8 = $D417 routing-shadow priming
         sta shadow17
-{rest_load}{d418_prime}{sphase_const}{prime_setup}        ldx #$00
+{rest_load}{vib_load}{prep_load}{d418_prime}{sphase_const}{prime_setup}        ldx #$00
 ini_v:
         lda #$01
         sta vactive,x
