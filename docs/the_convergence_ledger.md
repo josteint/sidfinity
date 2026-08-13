@@ -523,7 +523,7 @@ practice, not code to factor).
   KB/PVCF relocated members store to un-relocated $1726 but never reach the
   hook, and the recorded songlength can end at the fade SHORT of the halt) →
   extract walks $FF as STOP + composer halt-and-hold ($FE handler, the
-  track_fe_reset machinery minus its $D418 write). 48 occurrences (44th: the f2 $11C4
+  track_fe_reset machinery minus its $D418 write). 50 occurrences (44th: the f2 $11C4
   rampctr CLEAR re-pointed dead = the vibrato swell PERSISTS across notes
   (legato swell) -> typed `vibrato_ramp_persist`; 45th: the 4k_Byter
   instrument-byte animator NOT probed as a wedge — deconstructed per the
@@ -535,7 +535,11 @@ practice, not code to factor).
   (`d418_noteinit_dead` — distinct from the 36th's master_vol_static);
   48th: the f2 filter-tail `STA $D416` NOPed (`filter_cut_static`) beside
   an appended cutoff-table cycler deconstructed to the C1 `filter_mod`
-  DIRECT entry; 28th: the
+  DIRECT entry; 49th/50th: the f2 vib singles — the $12F5 vdep store
+  re-pointed to CMP (`vib_step_dead`, swell ramps by 0) and the $11BE
+  vibdir clear patched to a 2-byte EOR whose MISALIGNMENT kills the vibctr
+  clear too (`vib_phase_persist`, the persist family's phase flavor);
+  28th: the
   negative-transpose ADC immediate — canon
   `EOR #$1F/ADC #$01` biased to #$11, $81 → +$0F; extract-only
   `transpose_neg_bias`) — the full entry catalogues every known wedge.
@@ -732,7 +736,10 @@ practice, not code to factor).
 ### C24 — play-body UNIT repeat / whole-play N-repeat
 - PRESENTS (unit): one of the play body's 4 units (voice 0/1/2/filter-tail)
   runs N× per play() via a redirected JSR stub — a "double-speed voice", or
-  doubled $D416/$D417 writes (JMP-tail re-enters the filter tail).
+  doubled $D416/$D417 writes (JMP-tail re-enters the filter tail). f2
+  zero-count form (Koshimo '0,1,1,0'): a per-voice call re-pointed at the
+  tail's RTS (voice removed) and/or the LAST JSR patched to a tail-call JMP
+  (the fall-through filter tail removed — no $D416/$D417 all song).
 - PRESENTS (whole-play): a VBLANK member with a PERFECT play-stream prefix
   and a clean ~N× length tail — the whole play() runs N× per VBI. Count
   writes/frame, then disassemble the play VECTOR and FOLLOW its JMP

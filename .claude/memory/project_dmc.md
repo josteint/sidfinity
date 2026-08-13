@@ -5,10 +5,29 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-13T17:15:34.131Z
+  modified: 2026-08-13T17:45:23.779Z
 ---
 
-## ▶ WEDGE ROUNDS LANDED (2026-08-13 pm): Rowdy 10/10 + 6 more = **+7 FULL, f2 residue 38 → 31**
+## ▶ SINGLES ROUND 2 LANDED (2026-08-13 eve): Koshimo + For_Moonlight + Mea_Culpa_end = **+3 FULL, f2 residue 31 → 28**
+Commit 4d2e6867; regression 0 regressed, golden 21/21, smoke 6/6. C24 f2
+form (play_unit_repeat '0,1,1,0' via the play-body call-chain patches;
+filter clamp now honors explicit 0) + C19 49th (vib_step_dead) + 50th
+(vib_phase_persist — hypothesis verified by the 233,851-write stream).
+SPICE_UP RE (in flight, the reg0E cluster rep): C11 measurement PINNED the
+divergence — glsp event-streams IDENTICAL through 9,541 events, then at a
+fast ($0F) re-commanded glide the ORIG ARRIVES (glsp cleared at the canon
+$1481 arrival: curnote=target + fb-cache reload + glsp/acc clear) one step
+BEFORE ours (still gliding, D40E=$7C = our mid-glide sum). Same compare
+shape both sides ⇒ suspect the ACC/FB SPLIT (sum matches, carry into the
+hi-byte compare differs — C22 flavor) or a re-command acc nuance ($D0 soft
+form keeps running acc, $C0 form re-inits via $11A6). NEXT MEASUREMENT:
+memwatch $1735/$1738 (acc) + $172F/$1732 (fb cache) vs our
+accl/acch/fbl/fbh around event 9,542. Canon glide row forms RE'd: $C0 =
+explicit gla+glb bytes (retrigger via $11A6), $D0 = glb only, gla=curnote
+(soft, keeps acc). Good_Beat deferred (misaligned illegals + a live poke
+into instrument bytes at $17AB+x).
+
+## ▶ [SUPERSEDED by the entry above] WEDGE ROUNDS LANDED (2026-08-13 pm): Rowdy 10/10 + 6 more = **+7 FULL, f2 residue 38 → 31**
 Two rounds, all gates green (golden 24/24 byte-identical ×2 samples over
 every build path, corpus_check 12,515/12,515, spec_lint 0/0,
 composer_param_lint clean, smoke 6/6; regression #1 (Rowdy round) 0
