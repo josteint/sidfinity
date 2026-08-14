@@ -5,10 +5,19 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-14T05:33:22.728Z
+  modified: 2026-08-14T08:34:46.526Z
 ---
 
-## ▶ VDEP ROW LANDED (2026-08-14, owner-approved OFSIG growth): **Spice_Up pair FULL — f2 residue 29 → 27**
+## ✅ VDEP ROUND CLOSED OUT (2026-08-14): **f2 = 2,898/2,924 FULL (99.1%), 26 partials**, corpus synced
+Closeout chain green: batch_diff 0 regressions / 3 gains (the Spice_Up
+pair + BONUS Ass_It/4_Interrupts_3 — an undiagnosed singleton that was
+another slide-form carrier), mass-write 2,898 ok / 0 err / 0 orphans,
+corpus_check + spec_lint + param_lint clean. The 88 slide-form carriers
+re-verified FULL in the batch and re-synced. Baseline:
+tmp/dmc_f2_85_results.jsonl. Residue = 26 (Session's true cause TBD;
+C23 timing trio; Good_Beat; ~20 singletons).
+
+## ▶ [SUPERSEDED by the closeout above] VDEP ROW LANDED (2026-08-14, owner-approved OFSIG growth): **Spice_Up pair FULL — f2 residue 29 → 27**
 Full story + the two scoping rules + the two traps recorded in C11 (read
 it). Key numbers: pair FULL at 236,845/230,029 writes; exposure = 88
 slide-form carriers (12-sample all FULL incl. Roots/Trailways_A/So_easy;
