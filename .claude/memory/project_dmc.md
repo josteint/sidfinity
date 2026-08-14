@@ -5,8 +5,32 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-14T08:34:46.526Z
+  modified: 2026-08-14T14:44:51.904Z
 ---
+
+## ▶ C23 TRIO DIAGNOSED (2026-08-14): three per-member digs, one pacing fix landed
+- **Techno-Rap** = a PER-CALL DUAL-PLAYER ALTERNATOR (new C27/C31-adjacent
+  form): wrapper $1B50/$1B53 — init programs CIA $2663 (~100 Hz), inits
+  BOTH players ($1000 AND $1C00), play flips zp $02 and alternates
+  `JMP $1003` / `JMP $1C03` — two interleaved f2 players on ONE chip,
+  each at ~50 Hz (the "ghost" startup passes = player B's preps +
+  note-init). Our build extracts only player A. NEEDS: dual-player
+  extract (both bases) + a parity-dispatch composer feature (the C31
+  merge machinery + a two-body P/S-style schedule). Real work.
+- **Orchestral**: play wrapper `LDA #$03 / STA $1716 / JSR $1003 /
+  JMP $1003` = C24 whole-play ×2 PLUS a per-play tempo-reload clamp.
+  LANDED: `_detect_play_repeat` steps over the exact clamp prefix
+  (sole carrier censused; clamp inert when it equals the record speed —
+  verify judges, C13). Pacing fixed (lengths now match, state ok);
+  REMAINING: at ~write 270 the orig note-inits V1 (ctrl $10, gateless)
+  WITHOUT a prep frame where our walk decoded a plain hard note — a
+  SOFT-NOTE/no-prep stream form the f2 walk doesn't decode on this row.
+  Next: decode V1's first sector bytes properly (my naive secp math
+  gave $0000 — use the walk's own resolution), find the soft-note byte
+  form, teach walk + composer (ev_n_softq path exists).
+- **Crazy_Labyrinth**: play $1CCE = `JMP $1CC8`, init SMC-pokes the JMP
+  operand ($1CCF ← $C8) = a self-repointing play dispatch (C18-family).
+  Un-RE'd — disassemble $1CC8+ next.
 
 ## ✅ VDEP ROUND CLOSED OUT (2026-08-14): **f2 = 2,898/2,924 FULL (99.1%), 26 partials**, corpus synced
 Closeout chain green: batch_diff 0 regressions / 3 gains (the Spice_Up

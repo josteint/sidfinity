@@ -883,6 +883,15 @@ def _detect_play_repeat(mem, play: int, base: int, load: int) -> int:
     pc = play
     target = None
     n = 0
+    # Orchestral (C24 + sole carrier censused 2026-08-14): the double-play
+    # wrapper opens with a per-play TEMPO-RELOAD clamp `LDA #imm /
+    # STA base+$716` before the `JSR T / JMP T` pair. Step over exactly that
+    # prefix — the clamp re-asserts the reload the tune record already
+    # carries, so it is write-stream inert when they agree (and a member
+    # where they disagree reads honestly partial; verify judges, C13).
+    if (mem[pc] == 0xA9 and mem[pc + 2] == 0x8D
+            and (mem[pc + 3] | (mem[pc + 4] << 8)) == base + 0x716):
+        pc += 5
     for _ in range(20):
         if not (load <= pc < 0x10000 - 2):
             return 1
