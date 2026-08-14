@@ -92,6 +92,25 @@ position is observation, not signal. Don't try to make cycles match for
 tracker music; same writes in the same order at different cycles within
 a frame are equivalent.
 
+⚠ **Trap B's boundary — when intra-frame POSITION becomes signal**
+(measured 2026-08-14 on Moog/Techno-Rap; owner-caught before it shipped).
+Trap B holds because a normal player does all of its work in ONE burst
+per frame, so where inside that burst a write lands is inaudible. It
+STOPS holding when the original deliberately SPREADS work across the
+frame at a sub-frame IRQ rate. Techno-Rap runs TWO independent tunes on
+one chip: each burst is ~4% of a frame, and the bursts sit 50.2% of a
+frame apart. Emitting both bursts back-to-back in a single frame
+reproduces the flat write stream EXACTLY — while shifting one whole
+tune's gate edges, envelope starts and per-frame modulation steps half a
+frame (~10 ms) earlier against the other. The flat verdict is blind to
+it and would record a confident FULL on an audibly wrong rebuild. RULE:
+when the original's play() runs faster than the frame AND successive
+calls do DIFFERENT work, the per-call boundary is SIGNAL — reproduce the
+schedule (C18 phase schedules / C27 complementary per-call schedules),
+never collapse it into one frame. Corollary for verification: a flat
+prefix match is necessary, not sufficient, for this class; check the
+per-call structure too.
+
 **Trap C — siddump frame buckets ≠ PSID `play()` invocations.** siddump's
 loop calls `engine.play(cyclesPerFrame=19688)`, but `cyclesPerFrame` counts
 **event-scheduler ticks** (`c64::clock()`=`eventScheduler.clock()`, each <1

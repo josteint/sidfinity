@@ -835,7 +835,17 @@ practice, not code to factor).
   constant (the zp track pointer). PER-CHIP PARAMS ARE A CLASS (keep_regs +
   `play_phases`/`noteinit_deferred`): a wrapper can run ONE chip per call →
   COMPLEMENTARY schedules (`P_S`/`S_P`), each chip at half the timer rate;
-  accept an 'S' phase only on that structural evidence. RELOCATING WRAPPER
+  accept an 'S' phase only on that structural evidence. SAME FORM WITHOUT A
+  SECOND CHIP (Techno-Rap): a ~100 Hz CIA alternates TWO INDEPENDENT tunes,
+  both writing $D400-$D418, each at ~50 Hz. ⚠ do NOT collapse the two bursts
+  into one frame — the flat stream then matches byte-for-byte (verdict says
+  FULL) but the bursts sit 50.2% of a frame APART, so bunching shifts one
+  whole tune ~10 ms against the other: the worked example behind the
+  **Trap B BOUNDARY in the_core_tenet.md** (intra-frame position is SIGNAL
+  when the orig spreads work across sub-frame IRQs). Diagnose by splitting
+  the per-IRQ capture by PARITY; mind the capture STRADDLE (a truncated
+  chunk's tail opens the next chunk — it reads as a content divergence).
+  RELOCATING WRAPPER
   (C31 × multi-SID, Mothafucka_2SID): init copies players AND SONG DATA out of
   the file image (chip 1's player at $1000 but its sectors at $8000+, zero-fill
   in the image → garbage rows) — when ANY chip's player is out of the image,
