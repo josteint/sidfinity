@@ -5710,8 +5710,22 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
     secp_hi = _rd16(mem, at(0x1108))
     if not (base + 0x600 <= instr < base + 0x1000):
         raise DMCV4Unsupported('nonstandard_instr_base_f2', hex(instr))
-    if not (instr < wavectrl < wavefreq < filtdef < tunetab
-            < secp_lo < secp_hi):
+    # A PACKED SUB-PLAYER can carry an out-of-image filter-def operand: the
+    # packer relocated every REACHED path but left UNREACHED ones at their
+    # pre-relocation addresses (Moog/Techno-Rap's second player — its filter
+    # note-init never runs, so the table is never read; a --pc-trace of the
+    # original shows NO execution outside the file image, and the $5xxx
+    # state candidates stay $00 all song while the relocated $2xxx ones are
+    # live). Drop such a pointer from the ordering chain instead of refusing
+    # the whole player — the defs then read as zeros and build+verify judges
+    # (C13: a loosened dispatch cannot false-FULL). An IN-IMAGE filtdef keeps
+    # the strict chain, so no currently-detected member changes.
+    _img_lo, _img_hi = s['load'], s['load'] + len(s['payload'])
+    _chain = [instr, wavectrl, wavefreq]
+    if _img_lo <= filtdef < _img_hi:
+        _chain.append(filtdef)
+    _chain += [tunetab, secp_lo, secp_hi]
+    if not all(a < b for a, b in zip(_chain, _chain[1:])):
         raise DMCV4Unsupported(
             'layout_disorder_f2',
             f'instr=${instr:04X} wc=${wavectrl:04X} wf=${wavefreq:04X} '

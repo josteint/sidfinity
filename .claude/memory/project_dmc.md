@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-14T16:30:50.911Z
+  modified: 2026-08-14T18:19:30.046Z
 ---
 
 ## ▶ C23 TRIO DIAGNOSED (2026-08-14): three per-member digs, one pacing fix landed
@@ -32,11 +32,24 @@ metadata:
   wavectrl $2481 are +$C00, but wavefreq +$C02 / tunetab +$BFE / secp
   +$BB0 are INDEPENDENTLY packer-patched (the standing DMC rule — resolve
   by operand, never fixed offsets) and filtdef reads $592D = OUT OF IMAGE
-  (+$4004, a build-tool relocation MISS — C19 class). B's instruments
-  5-10 DO claim the filter yet B always writes $D416/17 = $00/$00, so the
-  stray operand is likely reading power-on zeros (C29 check needed).
-  `_family2_build` refuses B today purely on `layout_disorder_f2` (that
-  one stray filtdef operand breaks the ordering assert).
+  (+$4004). ✅ **RESOLVED + PLAYER B EXTRACTS AND BUILDS (2026-08-14):**
+  the $5xxx operands are DEAD PATHS, proved two ways — `--pc-trace` shows
+  NO execution outside the file image, and `--memwatch $5012` stays $00
+  all song while the relocated `$2212` is live. The packer relocated every
+  REACHED path and left unreached ones (incl. the filter-def pointer — B
+  never claims the filter) at pre-relocation addresses; 98 of 331 operand
+  sites are such leftovers, spread across state/freq/data classes, which
+  is why the naive two-delta test looked incoherent. FIX = the f2
+  layout-ordering chain SKIPS an out-of-image filtdef (in-image keeps the
+  strict chain ⇒ no detected member changes; census confirms zero f2
+  members carry one). Player B then extracts: 6 instruments, V3 carries
+  the melody (14 orderlist entries, 5 patterns), and its build reproduces
+  B's half chunk-for-chunk (the apparent frame-6 diff is the SAME straddle
+  — A's tail `0F=01 10=00 11=00 12=00 16=0A 17=F1` opens B's chunk, the
+  rest byte-identical). Interleaving the two standalone builds matches the
+  orig's flat stream for 556 writes then drifts — EXPECTED, each
+  standalone runs its own init/priming; the combined build is the real
+  test.
   FIX SHAPE (no grammar/schema addition foreseen): extract both bases as
   independent f2 models, express as SIX voices on ONE chip (the existing
   multi-SID voice numbering — musically honest: six parts multiplexed
