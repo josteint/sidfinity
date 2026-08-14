@@ -1171,6 +1171,89 @@ def _filter_static_probe(path: str, base: int,
     return None
 
 
+def _song_restart_gap_probe(path: str, base: int,
+                            post_init_sub: 'int | None' = None):
+    """Song-end REST before the repeat (ledger C38 sibling — SLC/Sidewinder's
+    Crazy_Labyrinth). An appended play wrapper SMC-patches its own play JMP
+    between two phases: phase 1 calls the real player and then, on one
+    subtune, watches the engine's per-voice current-note bytes for a sentinel
+    the composer planted in each voice's final pattern; when all three match
+    it re-inits (restarting the song) and flips to phase 2, which calls the
+    player NOT AT ALL for a fixed count — a silent gap — before flipping back.
+
+    We reproduce the AUDIBLE result, not the mechanism (core tenet): the
+    composer triggers off the ORDERLIST structure it already has (every voice
+    has entered its final entry) and needs only the REST LENGTH, which is
+    musical. So this probe returns just that length, MEASURED from
+    libsidplayfp — never derived from the counter seeds, which are one
+    decrement away from the truth and feed the write stream
+    (feedback_ground_truth).
+
+    STATIC GATE (cheap, runs on every member): the play vector is `JMP abs`
+    into a phase target, and the wrapper's phase-2 body is the rigid
+    `DEC c / BEQ / RTS ... LDA #imm / STA c / DEC c2` countdown that ends by
+    re-pointing the play JMP's operand. Only when that shape is present do we
+    pay for the measurement. Returns the rest length in play() calls, else
+    None (no field emitted -> byte-identical build)."""
+    mem, s = _load(path, post_init_sub)
+    pv = s['play']
+    if mem[pv] != 0x4C:
+        return None
+    ptr = pv + 1                       # the SMC'd JMP operand
+    # phase 2 = a countdown that stores back into the play JMP's operand byte
+    tgt = None
+    lo, hi = s['load'], s['load'] + len(s['payload'])
+    for a in range(lo, hi - 3):
+        if mem[a] == 0x8D and (mem[a + 1] | (mem[a + 2] << 8)) == ptr:
+            tgt = a
+            break
+    if tgt is None:
+        return None
+    try:
+        import subprocess
+        from src.songlengths import load_database, get_durations
+        sub = post_init_sub if post_init_sub is not None else 0
+        try:
+            db = load_database(os.path.join('hvsc85', 'DOCUMENTS',
+                                            'Songlengths.md5'))
+            dur = get_durations(path, db)[sub] * 1.15 + 10.0
+        except Exception:
+            dur = 400.0
+        from pipelines.hubbard.verify_cycle import writelog_per_irq_capture
+        chunks = writelog_per_irq_capture(path, subtune=sub, duration=dur,
+                                          keep_init=True)[1:]
+        # The rest = a run of play() calls that emit NOTHING (the wrapper
+        # skips the player entirely, so the chip is untouched) IMMEDIATELY
+        # PRECEDED BY THE RESTART — i.e. the previous call carries the init's
+        # ascending silence-clear sweep. Without that second condition an
+        # ordinary musical silence (a subtune that simply rests for a while,
+        # emitting nothing) reads as a song-end rest and the build inserts a
+        # gap that is not there (measured: it regressed this member's OTHER
+        # subtune from FULL). The sweep is unmistakable: >=20 writes of $00
+        # walking $D400 upward in one call.
+        def _is_restart(ch):
+            # the sweep is an ascending RUN inside the call, not the whole
+            # call: the restart play emits its normal tail first (which also
+            # contains zeros) and only then the init's clear.
+            zeros = [r for r, v in ((t[1], t[2]) for t in ch) if v == 0]
+            run = best_run = 1 if zeros else 0
+            for a, b in zip(zeros, zeros[1:]):
+                run = run + 1 if b > a else 1
+                best_run = max(best_run, run)
+            return best_run >= 20
+        best = 0
+        for i, ch in enumerate(chunks):
+            if ch or i == 0 or not _is_restart(chunks[i - 1]):
+                continue
+            n = 0
+            while i + n < len(chunks) and not chunks[i + n]:
+                n += 1
+            best = max(best, n)
+        return best if best >= 8 else None
+    except Exception:
+        return None
+
+
 def _master_vol_fade_probe(path: str, base: int,
                            post_init_sub: 'int | None' = None):
     """Song-end master-volume fade+restart wrapper (ledger C10/C19, Slayer). An
@@ -4517,6 +4600,22 @@ def _apply_wedge_probes(path: str, cfg) -> None:
         v = probe(path, cfg)
         if v is not None:
             cfg.extra_params[key] = v
+    # SONG-END REST before the repeat (ledger C38 sibling) — a CONFIG field
+    # rather than an extra_param, because it becomes typed USF content
+    # (MusicSubtune.song_restart_gap), not a composer knob. Cheap static gate
+    # inside the probe; only a real carrier pays for the measurement.
+    try:
+        import tools.seed_disassembly as _sd
+        _n = _sd.parse_psid(path).get('songs', 1)
+    except Exception:
+        _n = 1
+    _m = {}
+    for _sub in range(_n):
+        _g = _song_restart_gap_probe(path, cfg.base, post_init_sub=_sub)
+        if _g:
+            _m[_sub] = _g
+    if _m:
+        cfg.song_restart_gap = _m
 
 
 def _durrel_ramp_probe(path: str, base: int,

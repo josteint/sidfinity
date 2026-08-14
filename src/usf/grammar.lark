@@ -599,7 +599,12 @@ dmcsfx_body: "song" ":" INT
 // subtune names one and >=2 distinct values appear. Defined to disappear at
 // Move 1, when one engine-blind composer makes the condition false for every
 // file. Never valid inside an instrument or effect (principle §7).
-music_body: "tempo" ":" INT tempo_chip* origin_engine_field? is_sfx_field? params_block? init_block? sub_override* voice_block+ global_block*
+// `song_restart_gap`: this subtune ENDS rather than looping seamlessly —
+// when every voice runs out of orderlist the tune rests this many play()
+// calls and then starts again from the top, from silence, with instruments
+// and effects reset instead of carried over the wrap. Absent = the ordinary
+// seamless loop. Structural/musical, not a mechanism knob (see types.py).
+music_body: "tempo" ":" INT tempo_chip* origin_engine_field? is_sfx_field? restart_gap_field? params_block? init_block? sub_override* voice_block+ global_block*
 // Per-subtune overrides of normally file-level content (a compilation whose
 // packed players tune differently / carry their own idle filter sweep).
 // Grouped into one repeated rule, like `top_block`, to keep the LALR table
@@ -608,6 +613,7 @@ sub_override: freq_table_block | default_filter_block | wave_programs_block | of
 tempo_chip: "tempo" INT ":" INT
 origin_engine_field: "origin_engine" ":" CNAME
 is_sfx_field: "is_sfx" ":" bool
+restart_gap_field: "song_restart_gap" ":" INT
 
 // ----- global automation track (optional) -----
 // Chip-global musical state that varies over the song: DYNAMICS (master

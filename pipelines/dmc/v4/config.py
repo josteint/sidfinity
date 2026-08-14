@@ -163,6 +163,12 @@ class DMCV4Config:
     # position, per subtune. {subtune: N}; absent subtunes use
     # `loop_reset_pos` (canon imm 0 = loop-to-start). Extract-only.
     subtune_loop_reset: dict = None
+    # SONG-END REST BEFORE THE REPEAT (ledger C38 sibling, Crazy_Labyrinth):
+    # {subtune: rest_in_play_calls}. The subtune does not loop seamlessly —
+    # every voice runs out of orderlist, the tune rests, then starts again
+    # from the top with its state reset. Measured from libsidplayfp; rides
+    # MusicSubtune.song_restart_gap. Absent -> ordinary seamless loop.
+    song_restart_gap: dict = None
     # C37 subtune SAVE-STATE RESUME wrapper: {subtune: {addr: byte}} — the
     # per-subtune state-copy SURVIVORS (bytes the wrapper pastes BEFORE the
     # real init that the init wipe does NOT erase: sticky curnote/cache

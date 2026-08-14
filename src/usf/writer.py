@@ -784,6 +784,8 @@ def _write_subtune(s) -> list[str]:
             lines.append(f'  origin_engine: {s.origin_engine}')
         if s.is_sfx:
             lines.append('  is_sfx: true')
+        if getattr(s, 'song_restart_gap', None) is not None:
+            lines.append(f'  song_restart_gap: {s.song_restart_gap}')
         if s.params is not None and s.params.fields:
             # Indent the per-subtune params block under the subtune.
             for line in _write_params(s.params):

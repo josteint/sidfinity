@@ -384,6 +384,25 @@ class MusicSubtune:
     # collapse those on first-wins. Emitted only for notes where players
     # actually disagree. None = the file-level list serves.
     offtable_vibdepth: Optional[list] = None
+    # SONG-END REST BEFORE THE REPEAT (ledger C38 sibling, SLC/Sidewinder's
+    # Crazy_Labyrinth). Ordinary orderlists loop seamlessly: the last entry
+    # is followed straight away by the first. A few subtunes instead END —
+    # every voice runs out of orderlist, the tune rests for a while, and
+    # then starts again FROM SILENCE, with its instruments, effects and
+    # counters reset rather than carried over the wrap.
+    #
+    # The value is that rest, in play() calls. `None` = the ordinary
+    # seamless loop (every other subtune in the corpus).
+    #
+    # It is a MUSICAL/structural property, not a mechanism knob: it is the
+    # difference between a piece that circles continuously and one that
+    # finishes, pauses, and is played again from the top. Nothing about the
+    # engine appears here — the ORIGINAL detects "the song is over" by
+    # comparing an internal note register against a sentinel it planted in
+    # the last pattern, but that is one engine's way of noticing an event
+    # the ORDERLIST already states, so the composer derives the moment from
+    # the orderlist structure instead of storing the sentinel.
+    song_restart_gap: Optional[int] = None
     kind: str = 'music'
 
 

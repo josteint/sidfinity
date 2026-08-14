@@ -729,6 +729,9 @@ class _T(Transformer):
     def is_sfx_field(self, items):
         return ('is_sfx', bool(items[0]))
 
+    def restart_gap_field(self, items):
+        return ('_restart_gap', int(items[0]))
+
     # ----- global automation track -----
     def g_dyn(self, items):    return ('dyn', int(items[0]))
     def g_cutoff(self, items): return ('cutoff', int(items[0]))
@@ -778,6 +781,10 @@ class _T(Transformer):
         is_sfx = False
         if rest and isinstance(rest[0], tuple) and rest[0][0] == 'is_sfx':
             is_sfx = rest.pop(0)[1]
+        restart_gap = None
+        if rest and isinstance(rest[0], tuple) \
+                and rest[0][0] == '_restart_gap':
+            restart_gap = rest.pop(0)[1]
         params = None
         init = None
         if rest and isinstance(rest[0], Params):
@@ -836,6 +843,7 @@ class _T(Transformer):
                           'freq_table': sub_freq, 'default_filter': sub_dfilt,
                           'wave_programs': sub_wave,
                           'offtable_vibdepth': sub_vibovr,
+                          'song_restart_gap': restart_gap,
                           'global_track': globals_.get(1, []),
                           'tempo2': tempos.get(2), 'tempo3': tempos.get(3),
                           'global_track2': globals_.get(2, []),
@@ -937,6 +945,7 @@ class _T(Transformer):
                 default_filter=body_data.get('default_filter'),
                 wave_programs=body_data.get('wave_programs'),
                 offtable_vibdepth=body_data.get('offtable_vibdepth'),
+                song_restart_gap=body_data.get('song_restart_gap'),
                 global_track=body_data.get('global_track', []),
                 tempo2=body_data.get('tempo2'),
                 tempo3=body_data.get('tempo3'),

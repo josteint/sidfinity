@@ -1394,6 +1394,7 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
             id=song.id, tempo=song.speed, voices=voices, init=sub_init,
             wave_programs=sub_wprog, freq_table=sub_freq,
             offtable_vibdepth=sub_vibovr,
+            song_restart_gap=getattr(song, 'song_restart_gap', None),
             # per-subtune composer-param overrides (compilations whose packed
             # players disagree on a wedge knob — ledger C31); None otherwise
             params=(Params(fields=dict(song.params)) if song.params else None)))

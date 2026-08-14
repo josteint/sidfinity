@@ -1678,6 +1678,12 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     def _artic(field, key, default):   # first, params-fallback (old corpus)
         v = getattr(_ib, field, None) if _ib is not None else None
         return v if v is not None else usf.params.fields.get(key, default)
+    _sr_gaps = {i: int(s.song_restart_gap)
+                for i, s in enumerate(usf.subtunes)
+                if getattr(s, 'song_restart_gap', None)}
+    if _sr_gaps and len(set(_sr_gaps.values())) > 1:
+        raise ValueError(f'differing song_restart_gap per subtune: {_sr_gaps}')
+    _sr_gap = next(iter(_sr_gaps.values()), 0)
     _file_rest = str(_artic('rest_effects', 'rest_effects', 'run'))
     _rest_code = {'run': 0, 'skip': 1, 'vibflip': 2, 'none': 3}
     sub_rest = [str(s['params'].get('rest_effects', _file_rest))
@@ -3426,6 +3432,65 @@ fx_dual_up:
         play_entry = 'playfade'
         fade_var = ('fdphase:  .dsb 1, 0\nfdctr:    .dsb 2, 0\n'
                     'fdsub:    .dsb 1, 0\nfdsil:    .dsb 2, 0\n')
+    # SONG-END REST wrapper (song_restart_gap). Order matters and mirrors the
+    # audible result, not the original's code: while the rest is running we
+    # emit NOTHING (the chip holds its last state — the orig achieves this by
+    # not calling its player at all); otherwise we play, then ask whether every
+    # voice has entered its final orderlist entry, and if so restart.
+    sr_var = ''
+    if _sr_gap:
+        # the ten bytes our init clears but the original's leaves alone:
+        # gate mask, current note and current instrument per voice, plus the
+        # filter routing accumulator. Saved and restored around the restart
+        # rather than measured and stored (ledger C31's medley carry).
+        _sv = ''.join(
+            [f'        lda gatemask+{i}\n        sta srsav+{i}\n' for i in range(3)]
+            + [f'        lda curnote+{i}\n        sta srsav+{3+i}\n' for i in range(3)]
+            + [f'        lda curinst+{i}\n        sta srsav+{6+i}\n' for i in range(3)]
+            + ['        lda shadow17\n        sta srsav+9\n'])
+        _rs = ''.join(
+            [f'        lda srsav+{i}\n        sta gatemask+{i}\n' for i in range(3)]
+            + [f'        lda srsav+{3+i}\n        sta curnote+{i}\n' for i in range(3)]
+            + [f'        lda srsav+{6+i}\n        sta curinst+{i}\n' for i in range(3)]
+            + ['        lda srsav+9\n        sta shadow17\n'])
+        play_wrapper = (
+            'playsend:\n'
+            '        lda srrem                    ; resting between repeats?\n'
+            '        ora srrem+1\n'
+            '        beq sr_play\n'
+            '        lda srrem                    ; yes: emit NOTHING\n'
+            '        bne sr_dec\n'
+            '        dec srrem+1\n'
+            'sr_dec:\n'
+            '        dec srrem\n'
+            '        rts\n'
+            'sr_play:\n'
+            f'        jsr {play_entry}\n'
+            '        ldx cursong                  ; only the subtune that ENDS\n'
+            '        lda srarm,x                  ; (others loop seamlessly)\n'
+            '        bne sr_chk\n'
+            '        rts\n'
+            'sr_chk:\n'
+            '        lda seend                    ; every voice in its last\n'
+            '        and seend+1                  ; orderlist entry = the\n'
+            '        and seend+2                  ; song is over\n'
+            '        bne sr_go                    ; (inverted: the restart\n'
+            '        rts                          ;  body is past branch range)\n'
+            'sr_go:\n'
+            + _sv +
+            '        lda cursong\n'
+            '        jsr init                     ; start again from the top\n'
+            + _rs +
+            f'        lda #<{_sr_gap}\n        sta srrem\n'
+            f'        lda #>{_sr_gap}\n        sta srrem+1\n'
+            '        rts\n\n') + play_wrapper
+        play_entry = 'playsend'
+        sr_var = ('srrem:    .dsb 2, 0\nsrsav:    .dsb 10, 0\n'
+                  + 'srarm:    .byt ' + ','.join(
+                      str(1 if i in _sr_gaps else 0)
+                      for i in range(len(usf.subtunes))) + '\n')
+    # inside the cleared block: our own init resets the flags on the restart
+    sr_end_var = 'seend:    .dsb 3, 0\n' if _sr_gap else ''
     data_asm = '\n'.join(data)
 
     # note-init cymbal (canon onset 0) vs frame-2 cymbal (family-2 onset 1).
@@ -3788,6 +3853,38 @@ vpat_l:
                   '        jmp f_newpat\n')
         cursong_save = ''
         cursong_var = ''
+    # SONG-END REST BEFORE THE REPEAT (MusicSubtune.song_restart_gap, ledger
+    # C38 sibling — SLC/Crazy_Labyrinth). The subtune does not loop
+    # seamlessly: when EVERY voice has entered its final orderlist entry the
+    # tune rests `gap` play() calls and then starts again from the top, from
+    # silence, with instruments/effects reset. Detected at runtime by the
+    # engine itself — the track fetch peeks whether the next byte is the loop
+    # terminator, i.e. "this voice just entered its last entry" — so nothing
+    # about the ORIGINAL's sentinel-note mechanism reaches the composer or the
+    # USF. The restart SAVES the note-state the orig's init happens to leave
+    # alone, runs our init, and puts it back (the C31 medley carry pattern:
+    # self-consistent, no measured constants). Absent -> everything below is
+    # empty and the build is byte-identical.
+    if _sr_gap and not cursong_var:
+        cursong_save = ('        sta cursong                  ; subtune for '
+                        'the song-end restart\n'
+                        '        pha\n'
+                        '        lda #$00                     ; a fresh init is '
+                        'never mid-rest\n'
+                        '        sta srrem\n        sta srrem+1\n'
+                        '        pla\n')
+        cursong_var = 'cursong:  .dsb 1, 0\n'
+    # the peek: emitted into the track fetch only when armed
+    sr_endpeek = ('        ldy #$00                     ; song-end: is the '
+                  'NEXT entry the loop?\n'
+                  '        lda ($f8),y\n'
+                  '        cmp #$FF\n'
+                  '        bne sr_np\n'
+                  '        lda #$01\n'
+                  '        sta seend,x                  ; this voice entered '
+                  'its LAST entry\n'
+                  'sr_np:\n'
+                  '        ldy trkg\n') if _sr_gap else ''
     route_clear = ('' if str(usf.params.fields.get('route_clear_dead', '')
                              or '') else
                    '        lda shadow17\n'
@@ -4073,7 +4170,7 @@ trk2:                                ; pattern entry: byte0 = gid, byte1 = otrk
         adc #$00
         sta $f9
         sta trkph,x
-        ldy trkg
+{sr_endpeek}        ldy trkg
         lda patlo,y
         sta patl,x                   ; 16-bit running pattern pointer
         sta $f8                      ; (patterns may exceed 255 bytes)
@@ -4722,8 +4819,8 @@ otrk:     .dsb 3, 0                  ; orig track byte-offset shadow (= $1726)
 wnote:    .dsb 3, 0                  ; orig arp-note shadow (= $1783)
 durrel:   .dsb 3, 0                  ; orig duration-reload shadow (= $173E)
 ioff:     .dsb 3, 0                  ; orig instrument-offset shadow (= $174D)
-{rest_var}{d418_var}{sectpos_bss}state_end:
-{cursong_var}{medley_var}{hr_test_var}{dual_vars}{fade_var}{halted_var}        .byt $00
+{sr_end_var}{rest_var}{d418_var}{sectpos_bss}state_end:
+{cursong_var}{medley_var}{hr_test_var}{dual_vars}{fade_var}{sr_var}{halted_var}        .byt $00
 """
     return _reloc_sid_regs(asm, reg_delta, keep_regs)
 

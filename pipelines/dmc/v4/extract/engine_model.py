@@ -157,6 +157,11 @@ class DmcSong:
     idle_notes: tuple | None = None
     idle_masks: tuple | None = None
     durrel_init: tuple | None = None
+    # Song-end rest before the repeat (ledger C38 sibling): this subtune ENDS
+    # — every voice runs out of orderlist, the tune rests this many play()
+    # calls, then starts again from the top with its state reset. None = the
+    # ordinary seamless orderlist loop. Rides MusicSubtune.song_restart_gap.
+    song_restart_gap: int | None = None
     # Per-subtune $D417 routing shadow (trichotomy §4.2 SID-chip priming —
     # `init.sid.filter.res_routing`, already per-subtune in the schema). Same
     # rule as the voice_state priming above: None = the model-level value
@@ -2114,6 +2119,11 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc85') -> DmcModel:
             voices.append(v)
         song = DmcSong(id=sub + 1, speed=mem[rec + 6],
                        master_vol=mem[rec + 7], voices=voices)
+        # Song-end rest before the repeat (ledger C38 sibling): this subtune
+        # ends, rests, and starts again from the top instead of looping
+        # seamlessly. Measured per subtune by the factory probe.
+        song.song_restart_gap = (getattr(cfg, 'song_restart_gap', None)
+                                 or {}).get(sub)
         # C37: a state-copy byte landing on the d417 routing shadow is this
         # subtune's resumed res_routing priming — ride the existing per-song
         # override (None for every non-carrier: gated on the poke itself).
