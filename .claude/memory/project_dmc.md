@@ -5,8 +5,34 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-14T19:03:20.492Z
+  modified: 2026-08-14T20:18:59.949Z
 ---
+
+## ✅ CRAZY_LABYRINTH FULL 4/4 (2026-08-14) — typed `song_restart_gap` (C38 sibling)
+The song ENDS, rests 256 play() calls, and repeats from the top with state
+reset (no fade; the orig's silence is "don't call the player at all").
+OWNER-APPROVED typed field `MusicSubtune.song_restart_gap` — one number,
+reads as a musical sentence. Full detail + the three traps in the C38
+entry; the short version:
+- TRIGGER is STRUCTURAL, not the orig's sentinel note: every voice has
+  entered its FINAL orderlist entry (each is a dedicated terminator
+  pattern `C-4`+3 rests). Detected at runtime by peeking whether the next
+  track byte is the loop marker — no offsets/tables/stored pitch. The
+  sentinel is INAUDIBLE (measured, gates off) and not even in the pattern
+  data for 2 voices (it is the post-transpose note) ⇒ storing it would be
+  §7. The owner caught this; my first two proposals both stored it.
+- SURVIVORS are SAVE/RESTOREd around the restart (C31 medley carry), NOT
+  measured+stored like C38's fade form. That form's 4 Slayer carriers are
+  a standing conversion candidate (own round — they are FULL).
+- REST LENGTH measured from libsidplayfp (seeds say 255, truth 256).
+- TWO BUGS the sibling subtunes caught: the probe fired on subtune 0's
+  ordinary musical silence (cure: require the init clear-sweep immediately
+  before the rest), and the composer armed the wrapper GLOBALLY (cure: a
+  per-subtune arm table). A single-subtune member would have hidden both.
+⚠ NOTE the corpus is STALE for some members since the vdep sync: the
+play_repeat clamp / multiplex / layout rounds changed a few builds (e.g.
+Surgeon/Ona_tanczy_dla_mnie — byte-different, re-verified FULL). The
+pending batch covers all of it.
 
 ## ✅ TECHNO-RAP FULL (2026-08-14) — the TIME-MULTIPLEXED dual-player build path
 Two independent tunes on ONE chip, the play vector alternating them at 2×
