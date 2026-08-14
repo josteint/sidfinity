@@ -5,8 +5,36 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-14T18:19:30.046Z
+  modified: 2026-08-14T18:51:07.607Z
 ---
+
+## ✅ TECHNO-RAP FULL (2026-08-14) — the TIME-MULTIPLEXED dual-player build path
+Two independent tunes on ONE chip, the play vector alternating them at 2×
+the frame rate. Built as SIX voices with NO second chip declared (six
+musical parts multiplexed onto three hardware voices) → the composer
+derives "same chip, one player per call" from `>3 voices and psid.sid2 is
+None`: `multiplex` flag in `build_dmc_2sid_sid` (reg_delta 0, 1-chip
+header, `cplay` = parity toggle running ONE player per call, init still in
+player order because Check A is last-write-per-register). NO schema or
+grammar addition — reuses the multi-SID merge + 6-voice splitter wholesale.
+**FULL at 133,653 writes; Check A matches.** New build path `multiplex`
+wired in all THREE dispatch sites (dmc_build_one / dmc_family_batch /
+dmc_mass_write replay — C20 fourth layer). `detect_multiplex` (strict
+static wrapper shape + both targets validated as DMC jump-table heads)
+fires on **1 of 8,369 members scanned** across both families, and that one
+was a partial ⇒ no other member's build can change.
+⚠ THE DESIGN CONSTRAINT, owner-caught: do NOT collapse the two bursts into
+one 50 Hz frame. That matches the flat write stream EXACTLY (the verdict
+would say FULL) but shifts one tune ~10 ms against the other — measured:
+bursts are ~4% of a frame, 50.2% of a frame apart. Recorded as the Trap B
+BOUNDARY in `docs/the_core_tenet.md` + the C27 card/entry.
+TWO COPIES OF THE PLAYER BODY is deliberate: the alternative (one body,
+per-player-indexed state) touches 91 access sites across 15 scalars in the
+body EVERY DMC member compiles from (the 47 per-voice arrays widen for
+free), for ~3.9 KB no gate measures. One-copy-plus-runtime-relocation was
+also weighed (~570 operand sites → ~1.1 KB reloc table + patch loop) —
+rejected: new 6502 machinery to save bytes we aren't short of, and it is
+exactly what the ORIGINAL did and got wrong.
 
 ## ▶ C23 TRIO DIAGNOSED (2026-08-14): three per-member digs, one pacing fix landed
 - **Techno-Rap = TWO INDEPENDENT TUNES TIME-MULTIPLEXED ON ONE CHIP**

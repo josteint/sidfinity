@@ -835,9 +835,17 @@ practice, not code to factor).
   constant (the zp track pointer). PER-CHIP PARAMS ARE A CLASS (keep_regs +
   `play_phases`/`noteinit_deferred`): a wrapper can run ONE chip per call →
   COMPLEMENTARY schedules (`P_S`/`S_P`), each chip at half the timer rate;
-  accept an 'S' phase only on that structural evidence. SAME FORM WITHOUT A
-  SECOND CHIP (Techno-Rap): a ~100 Hz CIA alternates TWO INDEPENDENT tunes,
-  both writing $D400-$D418, each at ~50 Hz. ⚠ do NOT collapse the two bursts
+  accept an 'S' phase only on that structural evidence. TIME-MULTIPLEXED —
+  SAME FORM WITHOUT A SECOND CHIP (Techno-Rap, BUILT + FULL): a ~100 Hz CIA
+  alternates TWO INDEPENDENT tunes, both writing $D400-$D418, each at
+  ~50 Hz. Built as SIX voices with NO sid2 declared (no schema addition —
+  the composer derives same-chip + one-player-per-call from `>3 voices and
+  psid.sid2 is None`); `detect_multiplex` = strict static wrapper shape,
+  1 carrier in 8,369; init runs the players IN ORDER while play starts with
+  the SECOND (Check A is last-write-per-register, so init order decides
+  whose priming wins); two player-body copies are emitted deliberately
+  (the one-body alternative touches 91 sites in the body every DMC member
+  compiles from, to save bytes no gate measures). ⚠ do NOT collapse the two bursts
   into one frame — the flat stream then matches byte-for-byte (verdict says
   FULL) but the bursts sit 50.2% of a frame APART, so bunching shifts one
   whole tune ~10 ms against the other: the worked example behind the
