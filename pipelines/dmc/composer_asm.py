@@ -259,6 +259,16 @@ DMC_SECTPOS_ROW = (0x1729, 'sectpos', 3)
 # caution was exactly the un-gated form of this row).
 DMC_WAVEPOS_ROW = (0x177A, 'wavepos', 3)
 
+# live vibrato-increment row ($178C,x — fhi window idx 229-231). FAMILY-2
+# ONLY: in the f2 build $178C,x is the per-note vibrato swell increment
+# (vdep, written at note-init = freq_hi(note)>>1 / full), which a glide
+# whose 8-bit-wrapped TARGET lands off-table sonifies through the arrival
+# compare + base reload (Spice_Up pair: glb=$E6 -> freqhi[230] = $178D).
+# In canon f1 the same address is NOT vdep, so the row is gated on the
+# step-family vib build (the extract's live-idx stamping takes the same
+# flag — f1 extracts stay byte-identical by construction).
+DMC_VDEP_ROW = (0x178C, 'vdep', 3)
+
 
 # Live-signal NAMES (live_signal_modulation_draft §3, phase 3): the USF
 # vocabulary name for each live-served engine variable. One entry per
@@ -279,6 +289,7 @@ DMC_SIGNAL_NAMES = {
     'rampctr': 'vibrato_ramp_counter', 'vibdel': 'vibrato_onset',
     'vibwid': 'vibrato_width', 'cvram': 'vibrato_ramp_cache',
     'vstep': 'vibrato_step_lo', 'vsteph': 'vibrato_step_hi',
+    'vdep': 'vibrato_increment',
     'slal': 'slide_accum_lo', 'slah': 'slide_accum_hi',
     'fxf': 'instrument_flags', 'wctrl': 'wave_ctrl_cache',
     'wnote': 'note_offset', 'wjmp': 'wave_speed_cache',
@@ -303,7 +314,8 @@ def signal_for_addr(addr: int):
     if addr == 0x1717:
         return ('master_volume', None)
     for base, label, nb in DMC_OFFTABLE_STATE + [DMC_SECTPOS_ROW,
-                                                 DMC_WAVEPOS_ROW]:
+                                                 DMC_WAVEPOS_ROW,
+                                                 DMC_VDEP_ROW]:
         if base <= addr < base + nb:
             return (DMC_SIGNAL_NAMES[label],
                     (addr - base + 1) if nb > 1 else None)
@@ -374,7 +386,7 @@ def _deredirect_expand(rows, dead_by_label):
 _OFFTABLE_LIVE_IDX = None
 
 
-def offtable_live_idx() -> set:
+def offtable_live_idx(vib_step: bool = False) -> set:
     """The window indices a canon-geometry off-table read is served LIVE from:
     the redirect map (DMC_OFFTABLE_STATE + sectpos + wavepos rows) PLUS the
     co-located live speed/master-vol slots (window offset 15/16 => hi idx
@@ -397,6 +409,14 @@ def offtable_live_idx() -> set:
                     s.add(lo)
         s |= {96 + 15, 96 + 16, 192 + 15, 192 + 16}  # co-located spd/mvol
         _OFFTABLE_LIVE_IDX = s
+    if vib_step:
+        # family-2 step-vib builds only: $178C,x = the live vibrato
+        # increment (DMC_VDEP_ROW) — hi window idx 229-231. Not part of
+        # the base set: in canon f1 the address is not vdep, and adding
+        # it there would falsely re-stamp 10 synced f1 members.
+        addr, _lbl, nb = DMC_VDEP_ROW
+        return _OFFTABLE_LIVE_IDX | {(addr + k) - ORIG_FHI
+                                     for k in range(nb)}
     return _OFFTABLE_LIVE_IDX
 
 
@@ -766,6 +786,22 @@ class _Model:
                                 if any(((_t + _tr) & 0xFF) > 95
                                        for _tr in _trs):
                                     self.glide_offtable = True
+                        # the SLIDE form (noretrig + glide=, no glide_to):
+                        # the row PITCH is the glide TARGET (the f2 $D0
+                        # soft-glide: current -> target). An 8-bit-wrapped
+                        # target (a low note + negative transpose, stored
+                        # absolute — Spice_Up's D-21 = note 254) sends the
+                        # arrival compare + reload off-table exactly like
+                        # a wrapped glide_to.
+                        if ('noretrig' in _r.fx_flags and _r.pitch is not None
+                                and not any(f.startswith('glide_to=')
+                                            for f in _r.fx_flags)
+                                and any(f.startswith('glide=')
+                                        for f in _r.fx_flags)):
+                            _t = _note_num(_r.pitch)
+                            if any(((_t + _tr) & 0xFF) > 95
+                                   for _tr in _trs):
+                                self.glide_offtable = True
         # A $FF-reinit GHOST member (C19 shape B / resume): the ghost frame's
         # out-of-bounds units alias INC/STA onto the glide state (glsp via
         # `INC $1729,x` at X=$18 -> $1741; glb via `STA $172f,x` -> $1747), so
@@ -798,7 +834,19 @@ class _Model:
         # read hits the sector-position window.
         _all = [r for i in self.instruments
                 for r in (getattr(i, 'offtable_freq', None) or [])]
-        _live = offtable_live_idx()
+        # step-family (f2) builds get the vdep row's idx (229-231) — the
+        # same flag the extract's stamping used, so the two sides agree.
+        _ib = usf.init_behavior
+        self.vib_step_family = str(
+            (getattr(_ib, 'vibrato_ramp', None) if _ib is not None else None)
+            or usf.params.fields.get('vib_ramp', '')).startswith('step')
+        _live = offtable_live_idx(self.vib_step_family)
+        # does anything actually READ the vdep idx? (an observed record at
+        # 229-231, or an off-table glide/slide target reaching the arrival
+        # compare — set below). Gates the otmap row so the thousands of
+        # step-family members with no such read stay byte-identical.
+        self.vdep_read = any(((r[0] + r[1]) & 0xFF) in (229, 230, 231)
+                             for r in _all)
 
         def _rec_live(r):
             # live = the legacy 5-tuple flag OR any named-signal slot
@@ -3490,7 +3538,12 @@ fx_dual_up:
     otmap = (_state_rows if m.offtable_redirect else []) \
         + ([DMC_SECTPOS_ROW] if sectpos_on else []) \
         + ([DMC_WAVEPOS_ROW] if (m.wavepos_layout or
-                                 m.wavepos_positional) else [])
+                                 m.wavepos_positional) else []) \
+        + ([DMC_VDEP_ROW] if (m.offtable_redirect
+                              and getattr(m, 'vib_step_family', False)
+                              and (m.glide_offtable
+                                   or getattr(m, 'vdep_read', False)))
+           else [])
     ws_lo_redirect = _gen_offtable_redirect(
         otmap, ORIG_FLO, 192, 'lda freqlo,y', 'ws_rd_los')
     ws_hi_redirect = _gen_offtable_redirect(

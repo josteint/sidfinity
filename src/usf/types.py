@@ -66,7 +66,7 @@ LIVE_SIGNAL_NAMES = (
     'pulse_min', 'pulse_max', 'pulse_base',
     'vibrato_dir', 'vibrato_counter', 'vibrato_ramp_counter',
     'vibrato_onset', 'vibrato_width', 'vibrato_ramp_cache',
-    'vibrato_step_lo', 'vibrato_step_hi',
+    'vibrato_step_lo', 'vibrato_step_hi', 'vibrato_increment',
     'slide_accum_lo', 'slide_accum_hi', 'slide_freq_lo', 'slide_freq_hi',
     'instrument_flags', 'wave_ctrl_cache', 'note_offset',
     'wave_speed_cache', 'gate_guard', 'track_position',

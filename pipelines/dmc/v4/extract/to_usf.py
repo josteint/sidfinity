@@ -82,13 +82,13 @@ _SECTPOS_IDX = {(0x1729 + k) - 0x16A7 for k in range(3)} \
     | {(0x1729 + k) - 0x1647 for k in range(3)}
 
 
-def _offtable_live_idx() -> set:
+def _offtable_live_idx(vib_step: bool = False) -> set:
     """The window indices a canon-geometry off-table read is served LIVE from —
     the single source of truth lives in the composer (offtable_live_idx), shared
     so extract's per-read `live` stamp and the composer's redirect derivation
     can't disagree on geometry."""
     from pipelines.dmc.composer_asm import offtable_live_idx
-    return offtable_live_idx()
+    return offtable_live_idx(vib_step)
 
 
 _VIBDEL_ADDR = 0x1771          # per-voice vibrato-DELAY counter ($1771,x)
@@ -333,7 +333,8 @@ def _deredirect_const_voices(m) -> dict:
             **_cache_const_voices(m)}
 
 
-def _stamp_live(recs, canon: bool, const_map: dict | None = None) -> list:
+def _stamp_live(recs, canon: bool, const_map: dict | None = None,
+                vib_step: bool = False) -> list:
     """Tag each off-table read `(off, note, lo, hi)` whose canon-geometry
     window landing sonifies a live-varying value.
 
@@ -352,7 +353,7 @@ def _stamp_live(recs, canon: bool, const_map: dict | None = None) -> list:
     byte-identical."""
     from src.usf.types import LiveSignal
     from pipelines.dmc.composer_asm import signal_for_addr
-    live_idx = _offtable_live_idx()
+    live_idx = _offtable_live_idx(vib_step)
     out = []
     for rec in recs:
         off, note, lo, hi = rec[:4]
@@ -589,7 +590,8 @@ def _stated_voice_form(v, ents, intros, loop_slot, soft_flags):
 def _instrument_to_usf(inst, wavepos_layout: bool = False,
                        canon: bool = True,
                        wave_norm: bool = False,
-                       const_map: dict | None = None) -> Instrument:
+                       const_map: dict | None = None,
+                       vib_step: bool = False) -> Instrument:
     effects = set()
     if inst.drum:
         effects.add('drum')
@@ -615,7 +617,8 @@ def _instrument_to_usf(inst, wavepos_layout: bool = False,
         wave_freq=[] if wave_norm else wave_freq,
         wave_start=inst.wave_start if wave_norm else None,
         adsr=(inst.ad, inst.sr),
-        offtable_freq=_stamp_live(inst.offtable_freq, canon, const_map),
+        offtable_freq=_stamp_live(inst.offtable_freq, canon, const_map,
+                                  vib_step=vib_step),
         # editor wave-table position (arrangement) — only for members whose
         # off-table reads sonify a live wave position (see DmcModel)
         wave_table_pos=inst.wave_pool_pos if wavepos_layout else None,
@@ -1465,7 +1468,11 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
         instruments=[_instrument_to_usf(m.instruments[k], m.wavepos_layout,
                                         m.offtable_canon,
                                         wave_norm=_norm is not None,
-                                        const_map=_deredirect_const_voices(m))
+                                        const_map=_deredirect_const_voices(m),
+                                        # f2 step-vib: $178C,x = live vdep
+                                        # (DMC_VDEP_ROW idx 229-231)
+                                        vib_step=str(m.extra_params.get(
+                                            'vib_ramp', '')).startswith('step'))
                      for k in sorted(m.instruments)],
         subtunes=subtunes,
         filter_programs={d + 1: dict(v) for d, v in m.filter_defs.items()},
