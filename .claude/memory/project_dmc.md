@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-14T18:51:07.607Z
+  modified: 2026-08-14T19:03:20.492Z
 ---
 
 ## ✅ TECHNO-RAP FULL (2026-08-14) — the TIME-MULTIPLEXED dual-player build path
@@ -17,7 +17,12 @@ None`: `multiplex` flag in `build_dmc_2sid_sid` (reg_delta 0, 1-chip
 header, `cplay` = parity toggle running ONE player per call, init still in
 player order because Check A is last-write-per-register). NO schema or
 grammar addition — reuses the multi-SID merge + 6-voice splitter wholesale.
-**FULL at 133,653 writes; Check A matches.** New build path `multiplex`
+**FULL at 133,653 writes; Check A matches — and EAR-TESTED by the owner
+2026-08-14: "both sound identical".** That confirmation is load-bearing
+for this class, not a formality: the whole risk was a timing property the
+flat write-stream verdict structurally cannot see (see the ⚠ below), so
+the ear is the only check that could close it ([[feedback_ground_truth]]).
+New build path `multiplex`
 wired in all THREE dispatch sites (dmc_build_one / dmc_family_batch /
 dmc_mass_write replay — C20 fourth layer). `detect_multiplex` (strict
 static wrapper shape + both targets validated as DMC jump-table heads)
