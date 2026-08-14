@@ -5,10 +5,22 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-13T22:06:53.892Z
+  modified: 2026-08-14T05:33:22.728Z
 ---
 
-## ⏸ PROPOSAL AWAITING OWNER (2026-08-14 am): the vdep redirect row — COMPLETE FIX PARKED at tmp/vdep_row_fix.patch (one OFSIG grammar word short)
+## ▶ VDEP ROW LANDED (2026-08-14, owner-approved OFSIG growth): **Spice_Up pair FULL — f2 residue 29 → 27**
+Full story + the two scoping rules + the two traps recorded in C11 (read
+it). Key numbers: pair FULL at 236,845/230,029 writes; exposure = 88
+slide-form carriers (12-sample all FULL incl. Roots/Trailways_A/So_easy;
+rest ride the closeout re-batch), Trekky+Castle (229-231 record holders)
+FULL, 5 previously-diffed non-carriers byte-IDENTICAL under the
+reader-gated otmap. Session was NOT this cluster (multi-sub, diverges play
+~28-31, state False — different cause, back in the queue). Corpus gates
+green (12,524 parse, spec_lint, param lint, smoke). NB the synced corpus
+predates this round for the 88 carriers + Trekky/Castle/Spice (byte-
+different rebuilds) — the closeout re-batch + mass-write refreshes them.
+
+## [RESOLVED — landed above] PROPOSAL (2026-08-14 am): the vdep redirect row — was parked at tmp/vdep_row_fix.patch (one OFSIG grammar word short)
 The Spice_Up cluster fix is fully implemented + designed (C11 canonical
 redirect row, f2-scoped): `DMC_VDEP_ROW (0x178C,'vdep',3)`, parametric
 `offtable_live_idx(vib_step)` so f1 extracts stay byte-identical, otmap

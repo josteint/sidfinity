@@ -336,7 +336,16 @@ practice, not code to factor).
   but still check idx 211-213 against instrument offsets FIRST.
 - PRESENTS (live-redirect): an off-table read sonifies ENGINE STATE — the
   first-divergence value equals a live counter / position / scratch var, not
-  a static byte. TELLs: a cluster whose (orig,mine) values are EOR-$0F
+  a static byte. f2 vdep row (2026-08-14, Spice_Up): a SLIDE-form glide
+  (`noretrig`+`glide=`, target = the ROW PITCH, 8-bit-wrapped) sends the
+  arrival compare into $178C-8E = the live vib increment — the row is
+  FAMILY-SCOPED (parametric offtable_live_idx: canon f1's $178C is not
+  vdep) and READER-GATED (glide_offtable OR a 229-231 record; the broad
+  gate rebuilt thousands of non-readers byte-different). ⚠ the
+  glide_offtable derivation must scan BOTH target forms (glide_to= AND the
+  slide row-pitch form); ⚠ verify play_match vs find_first_divergence flat
+  position are DIFFERENT COUNTERS — never read a small delta BETWEEN tools
+  as progress. TELLs: a cluster whose (orig,mine) values are EOR-$0F
   complements = redirect row naming the complement var; "voice drops one
   update at a pattern boundary" = init-cleared seed; per-(inst,off,note)-
   stable dynamic byte = event-driven capture. Diagnostic (a/b/c): wnote
