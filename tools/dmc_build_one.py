@@ -59,7 +59,8 @@ def build(rel: str, out_sid: str, out_usf: str | None):
                                                  write_dmc_2sid_usf,
                                                  write_dmc_compilation_usf,
                                                  write_dmc_medley_usf)
-    from pipelines.dmc.v4.compilation import detect_compilation, detect_medley
+    from pipelines.dmc.v4.compilation import (detect_compilation, detect_medley,
+                                              detect_multiplex)
     from pipelines.dmc.composer_asm import build_dmc_sid
     from src.usf.parser import parse_file
     hv = os.path.join(ROOT, 'hvsc85')
@@ -71,6 +72,10 @@ def build(rel: str, out_sid: str, out_usf: str | None):
     med = detect_medley(rel, hvsc_root=hv) if cfgs2 is None else None
     comp = (None if (cfgs2 is not None or med is not None)
             else detect_compilation(rel, hvsc_root=hv))
+    # TIME-MULTIPLEXED dual player (ledger C27): only when nothing else
+    # claimed the file. Strict static shape + build+verify gate (C13).
+    mux = (detect_multiplex(rel, hvsc_root=hv)
+           if (cfgs2 is None and med is None and comp is None) else None)
     builder = build_dmc_sid
     _kinds = (comp.get('kinds') or []) if comp else []
     if comp is not None and any(k != 'dmc' for k in _kinds):
@@ -110,6 +115,14 @@ def build(rel: str, out_sid: str, out_usf: str | None):
                     f"{len(comp['bases'])} players: {exc})")
             comp = None
         nch = 1
+    elif mux is not None:
+        from pipelines.dmc.v4.extract.to_usf import write_dmc_multiplex_usf
+        from pipelines.dmc.composer_asm import build_dmc_2sid_sid
+        mcfgs = [dmc_v4_config(rel, hvsc_root=hv, base_override=b)
+                 for b in mux['bases']]
+        usf_src = write_dmc_multiplex_usf(mcfgs, td, hvsc_root=hv)
+        builder, nch = build_dmc_2sid_sid, 1
+        path = _path_note('multiplex', mux['bases'], None)
     else:
         cfg = dmc_v4_config(rel, hvsc_root=hv)
         usf_src = write_dmc_usf(cfg, td, hvsc_root=hv)

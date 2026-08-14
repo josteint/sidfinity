@@ -90,6 +90,16 @@ def write_member(item) -> tuple:
             usf_path = write_dmc_compilation_usf(
                 rel, detect_compilation(rel, hvsc_root=hvsc), out_dir,
                 hvsc_root=hvsc)
+        elif build_path == 'multiplex':
+            # TIME-MULTIPLEXED dual player (ledger C27): two independent
+            # tunes on one chip, one per play() call. Replayed like every
+            # other path (C20 fourth layer — never re-derive the dispatch).
+            from pipelines.dmc.v4.compilation import detect_multiplex
+            from pipelines.dmc.v4.extract.to_usf import write_dmc_multiplex_usf
+            _mux = detect_multiplex(rel, hvsc_root=hvsc)
+            usf_path = write_dmc_multiplex_usf(
+                [_prime(dmc_v4_config(rel, hvsc_root=hvsc, base_override=b))
+                 for b in _mux['bases']], out_dir, hvsc_root=hvsc)
         elif build_path in ('hetero_masm', 'hetero_v5'):
             # Heterogeneous (ledger C31/C35): one UsfFile carrying
             # every packed player — merged instrument pool, per-subtune

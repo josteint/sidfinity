@@ -4845,6 +4845,20 @@ def build_dmc_2sid_sid(usf: UsfFile) -> bytes:
     core tenet we emit clean gated calls that produce the same writes."""
     n_chips = max((max(v.id for v in s.voices) + 2) // 3
                   for s in usf.subtunes if s.voices)
+    # TIME-MULTIPLEXED players (ledger C27, Moog/Techno-Rap): >3 voices but
+    # NO second chip declared = N INDEPENDENT tunes sharing ONE chip, the
+    # original's wrapper running exactly one of them per play() call at N×
+    # the frame rate. Same N-player emission as multi-SID — each player
+    # keeps its own state — but every player writes chip 1 (reg_delta 0),
+    # the header declares one chip, and `cplay` runs ONE player per call
+    # instead of all of them. ⚠ the per-call boundary is SIGNAL here, not
+    # observation: the original's bursts sit half a frame apart, so
+    # collapsing them into one frame would match the flat write stream and
+    # still be audibly wrong (the Trap B BOUNDARY in the_core_tenet.md).
+    multiplex = n_chips > 1 and usf.psid.sid2 is None
+    if multiplex and n_chips > 2:
+        raise ValueError(f'time-multiplexed build supports 2 players, '
+                         f'got {n_chips}')
     # chip ci sounds in subtune s iff s carries a voice in ci's id block
     act = [{(v.id - 1) // 3 for v in s.voices} for s in usf.subtunes]
     # per-chip un-relocated stores (C19, ';'-separated chip order) — empty
@@ -4865,7 +4879,8 @@ def build_dmc_2sid_sid(usf: UsfFile) -> bytes:
     for ci in range(n_chips):
         sub_usf = _split_chip_usf(usf, ci)
         asm = _sanitize_asm(
-            compose_dmc_asm(sub_usf, origin=origin, reg_delta=ci * 0x20,
+            compose_dmc_asm(sub_usf, origin=origin,
+                            reg_delta=0 if multiplex else ci * 0x20,
                             keep_regs=keep[ci]))
         blob = assemble(asm)
         blobs.append((origin, blob))
@@ -4877,9 +4892,27 @@ def build_dmc_2sid_sid(usf: UsfFile) -> bytes:
     # their writes land chip1-then-chip2 within the frame (matches the
     # original wrapper). `actN` is latched at init from a per-subtune table
     # so the play path costs one load+branch per chip.
-    gated = any(len(a) != n_chips for a in act)
+    gated = any(len(a) != n_chips for a in act) and not multiplex
     init_calls, play_calls, tables = [], [], []
+    if multiplex:
+        # ONE player per call, alternating. The original runs the SECOND
+        # player on its FIRST call, so `mpx` starts 0 and the toggle lands
+        # player 1 first. Init still runs the players IN ORDER: end-of-init
+        # chip state is last-write-per-register, and the original inits
+        # player 0 first, so its priming must not win.
+        init_calls = [f'        jsr ${e[0]:04X}\n        lda subsav'
+                      for e in entries]
+        play_calls = ['        lda mpx',
+                      '        eor #$01',
+                      '        sta mpx',
+                      '        beq cp_p0',
+                      f'        jmp ${entries[1][1]:04X}',
+                      'cp_p0:',
+                      f'        jmp ${entries[0][1]:04X}']
+        tables = ['mpx: .byt $00']
     for ci, e in enumerate(entries):
+        if multiplex:
+            break
         if not gated:
             init_calls.append(f'        jsr ${e[0]:04X}\n        lda subsav')
             play_calls.append(f'        jsr ${e[1]:04X}')
@@ -4942,8 +4975,8 @@ subsav: .byt $00
         speed=speed, title=usf.psid.title, author=usf.psid.author,
         released=usf.psid.released,
         flags=(clock << 2) | (sidm << 4) | (m2 << 6) | (m3 << 8),
-        sid2_addr=0xD420 if n_chips >= 2 else 0,
-        sid3_addr=0xD440 if n_chips >= 3 else 0)
+        sid2_addr=0 if multiplex else (0xD420 if n_chips >= 2 else 0),
+        sid3_addr=0 if multiplex else (0xD440 if n_chips >= 3 else 0))
     return header + bytes([LOAD & 0xFF, LOAD >> 8]) + bytes(image)
 
 

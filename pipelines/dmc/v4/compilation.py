@@ -92,6 +92,60 @@ def _is_canon_base_unaligned(mem, load: int, b: int) -> bool:
             and (mem[b + 4] | (mem[b + 5] << 8)) == b + 0x85)
 
 
+def _is_dmc_base(mem, load: int, b: int) -> bool:
+    """A DMC jump-table head at `b` — canon f1 (`JMP b+$1D` init) or the
+    family-2 layout (`JMP b+$37`), both with `JMP b+$85` play."""
+    return (load <= b and b + 6 < 0x10000
+            and mem[b] == 0x4C and mem[b + 3] == 0x4C
+            and (mem[b + 1] | (mem[b + 2] << 8)) in (b + 0x1D, b + 0x37)
+            and (mem[b + 4] | (mem[b + 5] << 8)) == b + 0x85)
+
+
+def detect_multiplex(sid_path: str, hvsc_root: str = 'hvsc85'):
+    """Return a TIME-MULTIPLEXED dual-player spec, or None.
+
+    Spec: {'bases': [b0, b1]}   # b0 = init-first, b1 = plays on call 1
+
+    TWO INDEPENDENT tunes share ONE chip: the file drives play() at 2x the
+    frame rate off a CIA timer and the play vector alternates between two
+    complete players via a zero-page parity, so each runs at ~50 Hz and
+    BOTH write $D400-$D418 (Moog/Techno-Rap). Distinct from 2SID (parallel
+    chips, C27), from a compilation (init-vector per-subtune dispatch, C31)
+    and from a medley (play-vector switch over a frame countdown).
+
+    ⚠ THE PER-CALL BOUNDARY IS SIGNAL, NOT OBSERVATION. The two bursts sit
+    ~half a frame apart, so a build that collapses them into one frame
+    reproduces the flat write stream EXACTLY and is still audibly wrong —
+    see the Trap B BOUNDARY in docs/the_core_tenet.md. The composer runs
+    one player per call for this reason.
+
+    STATIC on the rigid wrapper shape (one leading JMP followed):
+        LDA zp / EOR #$01 / STA zp / BNE +3 / JMP p0+3 / JMP p1+3
+    with the parity toggled from 0, so the BRANCH target plays on the FIRST
+    call while init runs the fall-through player first. Any other polarity,
+    shape or player count is refused — that variant needs the observe route
+    (C18/C31), and build+verify gates this one (C13: a false detection
+    cannot false-FULL)."""
+    mem, s = em._load_image(os.path.join(hvsc_root, sid_path))
+    load, pv = s['load'], s['play']
+    if mem[pv] == 0x4C:                       # follow one indirection
+        pv = mem[pv + 1] | (mem[pv + 2] << 8)
+    if not (load <= pv < 0xFFF0):
+        return None
+    if not (mem[pv] == 0xA5 and mem[pv + 2] == 0x49 and mem[pv + 3] == 0x01
+            and mem[pv + 4] == 0x85 and mem[pv + 1] == mem[pv + 5]
+            and mem[pv + 6] == 0xD0 and mem[pv + 7] == 0x03
+            and mem[pv + 8] == 0x4C and mem[pv + 11] == 0x4C):
+        return None
+    t0 = mem[pv + 9] | (mem[pv + 10] << 8)     # fall-through (init-first)
+    t1 = mem[pv + 12] | (mem[pv + 13] << 8)    # branch (plays on call 1)
+    b0, b1 = t0 - 3, t1 - 3
+    if b0 == b1 or not (_is_dmc_base(mem, load, b0)
+                        and _is_dmc_base(mem, load, b1)):
+        return None
+    return {'bases': [b0, b1]}
+
+
 def detect_compilation(sid_path: str, hvsc_root: str = 'hvsc85'):
     """Return a compilation spec or None.
 

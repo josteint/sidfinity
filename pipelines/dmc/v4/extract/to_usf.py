@@ -1744,6 +1744,25 @@ def merge_2sid_usf(models, sid2_model=None, sid3_model=None,
         subtunes=merged_subtunes)
 
 
+def write_dmc_multiplex_usf(cfgs, out_dir: str,
+                            hvsc_root: str = 'hvsc85') -> str:
+    """TIME-MULTIPLEXED dual player (ledger C27, Moog/Techno-Rap): two
+    INDEPENDENT tunes sharing one chip, the original running one per play()
+    call at 2x the frame rate. Represented as SIX voices with NO second chip
+    declared — six musical parts multiplexed onto three hardware voices,
+    which is what a listener hears; the composer derives "same chip, one
+    player per call" from `>3 voices and psid.sid2 is None`. Reuses the
+    multi-SID merge wholesale (voices number through the players, disjoint
+    instrument/filter id ranges, shared freq table) — the players ARE two
+    copies of one engine, so the merge's agreement asserts hold."""
+    models = [extract(c, hvsc_root=hvsc_root) for c in cfgs]
+    usf = merge_2sid_usf(models, sid2_model=None, sid3_model=None, active=None)
+    base = os.path.splitext(os.path.basename(cfgs[0].sid_path))[0]
+    out = os.path.join(out_dir, base + '.usf')
+    write_file(usf, out)
+    return out
+
+
 def write_dmc_2sid_usf(cfgs, out_dir: str, hvsc_root: str = 'hvsc85') -> str:
     from pipelines.dmc.v4.factory import (_sid_header_multi,
                                           multisid_active_chips)

@@ -77,7 +77,8 @@ def run_member(rel: str) -> dict:
                                                      write_dmc_compilation_usf,
                                                      write_dmc_medley_usf)
         from pipelines.dmc.v4.compilation import (detect_compilation,
-                                                  detect_medley)
+                                                  detect_medley,
+                                                  detect_multiplex)
         from pipelines.dmc.composer_asm import build_dmc_sid
         from pipelines.hubbard.verify_cycle import (
             writelog_capture, writelog_per_irq_capture,
@@ -108,8 +109,13 @@ def run_member(rel: str) -> dict:
         # it cannot be merged into one DMC model (ledger C31/C35).
         _kinds = (comp.get('kinds') or []) if comp else []
         hetero = bool(comp and any(k != 'dmc' for k in _kinds))
+        # TIME-MULTIPLEXED dual player (ledger C27): two independent tunes on
+        # ONE chip, the play vector running one per call at 2x the frame rate.
+        # Only when nothing else claimed the file; strict shape + verify gate.
+        mux = (detect_multiplex(rel, hvsc_root=hvsc)
+               if (cfgs2 is None and comp is None and med is None) else None)
         cfg = None
-        if cfgs2 is None and comp is None and med is None:
+        if cfgs2 is None and comp is None and med is None and mux is None:
             try:
                 cfg = dmc_v4_config(rel, hvsc_root=hvsc)
             except DMCV4Unsupported as e:
@@ -161,6 +167,14 @@ def run_member(rel: str) -> dict:
                 elif comp is not None:
                     usf = parse_file(
                         write_dmc_compilation_usf(rel, comp, td, hvsc_root=hvsc))
+                elif mux is not None:
+                    from pipelines.dmc.v4.extract.to_usf import (
+                        write_dmc_multiplex_usf)
+                    mcfgs = [dmc_v4_config(rel, hvsc_root=hvsc,
+                                           base_override=b)
+                             for b in mux['bases']]
+                    usf = parse_file(
+                        write_dmc_multiplex_usf(mcfgs, td, hvsc_root=hvsc))
                 else:
                     usf = parse_file(write_dmc_usf(cfg, td, hvsc_root=hvsc))
                 if hold_gateoff and usf is not None:
@@ -287,7 +301,8 @@ def run_member(rel: str) -> dict:
                           else ('hetero_masm' if 'masm' in _kinds
                                 else 'hetero_v5') if hetero
                           else 'medley' if med is not None
-                          else 'compilation' if comp is not None else 'single')
+                          else 'compilation' if comp is not None
+                          else 'multiplex' if mux is not None else 'single')
             return {'path': rel, 'status': 'full' if ok else 'partial',
                     'subs': subs, 'first_diff': first_diff,
                     'flat_div': flat_div, 'hold_gateoff': hold_gateoff,
