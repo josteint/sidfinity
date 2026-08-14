@@ -5,18 +5,47 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-14T14:44:51.904Z
+  modified: 2026-08-14T16:30:50.911Z
 ---
 
 ## ▶ C23 TRIO DIAGNOSED (2026-08-14): three per-member digs, one pacing fix landed
-- **Techno-Rap** = a PER-CALL DUAL-PLAYER ALTERNATOR (new C27/C31-adjacent
-  form): wrapper $1B50/$1B53 — init programs CIA $2663 (~100 Hz), inits
-  BOTH players ($1000 AND $1C00), play flips zp $02 and alternates
-  `JMP $1003` / `JMP $1C03` — two interleaved f2 players on ONE chip,
-  each at ~50 Hz (the "ghost" startup passes = player B's preps +
-  note-init). Our build extracts only player A. NEEDS: dual-player
-  extract (both bases) + a parity-dispatch composer feature (the C31
-  merge machinery + a two-body P/S-style schedule). Real work.
+- **Techno-Rap = TWO INDEPENDENT TUNES TIME-MULTIPLEXED ON ONE CHIP**
+  (measured 2026-08-14, a new C27-adjacent class). Wrapper $1B50/$1B53:
+  init programs CIA $2663 (~100 Hz), inits BOTH players, play flips zp
+  $02 and alternates `JMP $1C03` (player B, odd IRQs) / `JMP $1003`
+  (player A, even IRQs) — each player therefore runs at ~50 Hz, both
+  writing $D400-$D418. PROOF (per-IRQ parity split, 20 s): the two halves
+  are musically DIFFERENT and each internally coherent — A holds a note
+  with a PWM sweep + active filter ($D416/17 = $10/$F1, $D418=$1F), B
+  plays different notes/noise and never sets a filter ($00/$00). ⚠ our
+  player-A-only build REPRODUCES A's HALF EXACTLY — every apparent
+  mismatch was the per-IRQ capture STRADDLE (A's frame overruns the next
+  IRQ; chunk 11 truncates at `0E=2D` and chunk 12 opens with exactly the
+  missing `0F=01 10=00 11=00 12=00 16=0A 17=F1`). So the WHOLE gap is
+  "player B is missing", not an A-extraction defect. ⇒ **the owner's
+  "one engine at double tempo" idea is refuted BY MEASUREMENT**: voice 1
+  is driven by two independent musical lines (own notes, instruments,
+  PWM sweeps, durations, filter use) alternating every ~10 ms; one engine
+  holds ONE state per voice, so only a literal per-frame replay could
+  emit it (forbidden, [[feedback_no_writelog_replay]]).
+  PLAYER B's tables (canon-offset reads at base $1C00): instr $23B0 +
+  wavectrl $2481 are +$C00, but wavefreq +$C02 / tunetab +$BFE / secp
+  +$BB0 are INDEPENDENTLY packer-patched (the standing DMC rule — resolve
+  by operand, never fixed offsets) and filtdef reads $592D = OUT OF IMAGE
+  (+$4004, a build-tool relocation MISS — C19 class). B's instruments
+  5-10 DO claim the filter yet B always writes $D416/17 = $00/$00, so the
+  stray operand is likely reading power-on zeros (C29 check needed).
+  `_family2_build` refuses B today purely on `layout_disorder_f2` (that
+  one stray filtdef operand breaks the ordering assert).
+  FIX SHAPE (no grammar/schema addition foreseen): extract both bases as
+  independent f2 models, express as SIX voices on ONE chip (the existing
+  multi-SID voice numbering — musically honest: six parts multiplexed
+  onto three hardware voices), alternation via the existing C18
+  `play_phases` complementary-schedule form (C27 already documents "a
+  wrapper can run ONE chip per call → COMPLEMENTARY schedules, each chip
+  at half the timer rate" — same shape, both players on chip 1), verdict
+  n_chips=1 so the merged stream is compared strictly. Composer needs two
+  engine state blocks + a parity dispatcher.
 - **Orchestral**: play wrapper `LDA #$03 / STA $1716 / JSR $1003 /
   JMP $1003` = C24 whole-play ×2 PLUS a per-play tempo-reload clamp.
   LANDED: `_detect_play_repeat` steps over the exact clamp prefix
