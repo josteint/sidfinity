@@ -8,6 +8,23 @@ metadata:
   modified: 2026-08-15T00:24:45.169Z
 ---
 
+## ✅ BOTH FAMILIES CONSISTENT (2026-08-15): f1 5,445/5,445 + f2 2,900/2,924
+f1 closeout ran after the Slayer C38 conversion (tmp/f1_closeout.sh, same
+shape as the f2 chain): 5,445/5,445 FULL maintained, 0 regressions, 0
+gains, 5,445 written / 0 err / 0 orphans, corpus_check 12,529/12,529,
+spec_lint + param lint clean. f1 had been stale since the vdep round (64
+of the 88 slide-form carriers are f1) — that staleness was what surfaced
+as the "stored .usf does not rebuild stored .sid" alarm in backlog.md
+item 8, which turned out NOT to be a C20 fifth-layer bug. ⚠ THE LESSON:
+check the member's BATCH ROW FIRST — it was absent from the f2 results,
+which said "wrong family, different sync cadence" in one command. Code,
+batch verdicts and stored corpus now agree across both families.
+SLAYER C38 CONVERSION (same day, owner-directed): the 4 fade+restart
+carriers now SAVE/RESTORE their survivor block instead of carrying 10
+measured engine bytes; params is the schedule only ("13006:32:256"), the
+probe stopped measuring the note-state, a 4th field stays accepted-and-
+ignored for older stored files. All 4 FULL, regenerated + synced.
+
 ## ✅ F2 CLOSEOUT (2026-08-15): **2,900/2,924 FULL (99.2%), 24 partials**, corpus synced
 One batch reconciled all four late rounds (play_repeat clamp / multiplex /
 layout relaxation / song_restart_gap): batch_diff 0 REGRESSIONS, +2 gains
