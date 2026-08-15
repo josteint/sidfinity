@@ -3357,25 +3357,37 @@ fx_dual_up:
     if _mvf is not None:
         _parts = str(_mvf).split(':')
         _fn, _fstep, _fsil = int(_parts[0]), int(_parts[1]), int(_parts[2])
-        # 10 measured (libsidplayfp) restart note-state bytes: gatemask x3,
-        # curnote x3, instr x3, shadow17 — the canon init ($1050) LEAVES the
-        # $100F-$1018 block uncleared, so the replay resumes them from the
-        # last-song values. That block is exactly gatemask ($100F), curnote
-        # ($1012) and curinst ($1015 — the STICKY instrument number, orig
-        # $1015,x) plus shadow17 ($1018). It is NOT `cinst`: cinst mirrors the
-        # orig's ACTIVE pulse-record offset ($174D), which lives in the
-        # $1718-$179D block that $1050 DOES clear to 0. Priming cinst too
-        # over-restores it: a voice whose first replayed note is SOFT (a glide,
-        # no note-init to copy curinst->cinst) then runs fx_pulse against the
-        # survivor instrument instead of instrument 0, sweeping PW where the
-        # orig (cinst-offset 0) holds it flat (Slayer/Trip V3, r157). So prime
-        # curinst only; `jsr init` already cleared cinst to 0.
-        _ns = [int(x) & 0xFF for x in _parts[3].split(',')]
+        # THE RESTART'S SURVIVOR STATE IS SAVED AND RESTORED, NOT STORED.
+        # The original's init leaves the note-state block ($100F-$1018 =
+        # gatemask, curnote, the STICKY instrument number, and the $D417
+        # routing shadow) untouched, so its replay resumes from the
+        # end-of-song values; ours clears the whole block. This used to be
+        # cured by MEASURING those ten bytes and baking them into the params
+        # string — but they are engine state, not music, and nothing in the
+        # USF should carry them (principle §7). We are write-exact up to the
+        # restart, so our own values ARE the original's: save them, run init,
+        # put them back. Self-consistent, no measured constants — the same
+        # carry the C31 medley uses for its routing accumulator.
+        #
+        # NOT `cinst`: it mirrors the ACTIVE pulse-record offset, which lives
+        # in the block init DOES clear. Restoring it too makes a voice whose
+        # first replayed note is soft (a glide — no note-init to copy
+        # curinst->cinst) run fx_pulse against the survivor instrument
+        # instead of instrument 0, sweeping PW where the orig holds it flat
+        # (Slayer/Trip V3). Save exactly what init wipes and the orig keeps.
+        #
+        # A 4th ':' field is the OLD measured form; accepted and ignored so
+        # stored files that predate this still build.
+        _sv = ''.join(
+            [f'        lda gatemask+{i}\n        sta fdsav+{i}\n' for i in range(3)]
+            + [f'        lda curnote+{i}\n        sta fdsav+{3+i}\n' for i in range(3)]
+            + [f'        lda curinst+{i}\n        sta fdsav+{6+i}\n' for i in range(3)]
+            + ['        lda shadow17\n        sta fdsav+9\n'])
         _prime = ''.join(
-            [f'        lda #${_ns[i]:02X}\n        sta gatemask+{i}\n' for i in range(3)]
-            + [f'        lda #${_ns[3 + i]:02X}\n        sta curnote+{i}\n' for i in range(3)]
-            + [f'        lda #${_ns[6 + i]:02X}\n        sta curinst+{i}\n' for i in range(3)]
-            + [f'        lda #${_ns[9]:02X}\n        sta shadow17\n'])
+            [f'        lda fdsav+{i}\n        sta gatemask+{i}\n' for i in range(3)]
+            + [f'        lda fdsav+{3+i}\n        sta curnote+{i}\n' for i in range(3)]
+            + [f'        lda fdsav+{6+i}\n        sta curinst+{i}\n' for i in range(3)]
+            + ['        lda fdsav+9\n        sta shadow17\n'])
         # Four composable phases, laid out for 6502 short-branch range (fdrun /
         # fdrts near their branches; the restart is a separate `songrestart`
         # module reached by JMP). Phase 0 counts plays to N (trigger); phase 1
@@ -3425,13 +3437,15 @@ fx_dual_up:
             # diverge from the orig even when the write streams match). Everything
             # else re-primes cold via `init`.
             'songrestart:\n'
+            + _sv +
             '        lda #$00\n        sta fdphase\n        sta fdctr\n        sta fdctr+1\n'
             '        lda #$00\n        jsr init\n'
             + _prime
             + '        rts\n\n') + play_wrapper
         play_entry = 'playfade'
         fade_var = ('fdphase:  .dsb 1, 0\nfdctr:    .dsb 2, 0\n'
-                    'fdsub:    .dsb 1, 0\nfdsil:    .dsb 2, 0\n')
+                    'fdsub:    .dsb 1, 0\nfdsil:    .dsb 2, 0\n'
+                    'fdsav:    .dsb 10, 0\n')
     # SONG-END REST wrapper (song_restart_gap). Order matters and mirrors the
     # audible result, not the original's code: while the rest is running we
     # emit NOTHING (the chip holds its last state — the orig achieves this by

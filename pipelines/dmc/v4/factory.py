@@ -1322,32 +1322,12 @@ def _master_vol_fade_probe(path: str, base: int,
                     best = max(best, cur)
         if best < 1 or n_fade < 1 or step < 1:
             return None
-        # Restart note-state: the canon init leaves $100F-$1018 (gatemask,
-        # curnote, instr, shadow17) UNCLEARED, so the replay resumes them from
-        # the last-song values. Measure them from libsidplayfp during the
-        # silence (frozen there, no play body): memwatch $100F-$1018 on every
-        # $D418 write, take the mode over the $D418=$00 (silence) snapshots.
-        addrs = [b + off for off in range(0x0F, 0x19)]
-        mw = subprocess.run(
-            ['siddump', path, '--subtune', str(sub + 1), '--duration', f'{dur:.0f}',
-             '--memwatch-on-write', 'd418',
-             ','.join(f'{a:04X}' for a in addrs)],
-            capture_output=True, text=True).stdout
-        from collections import Counter
-        tag = f'{b + 0x18:04X}'
-        counts: 'Counter[str]' = Counter()
-        for line in mw.splitlines():
-            for ev in line.split('|')[1:]:
-                kv = dict(p.split('=') for p in ev.split(':') if '=' in p)
-                if kv.get('d418'.upper()) == '00' or kv.get('D418') == '00':
-                    ns = ','.join(str(int(kv[f'{a:04X}'], 16)) for a in addrs
-                                  if f'{a:04X}' in kv)
-                    if ns.count(',') == 9:
-                        counts[ns] += 1
-        if not counts:
-            return None
-        note_state = counts.most_common(1)[0][0]
-        return f"{n_fade}:{step}:{best}:{note_state}"
+        # The restart's survivor note-state is NOT measured or stored any
+        # more: the composer SAVES it before the restart's init and RESTORES
+        # it after (they are engine bytes, not music — principle §7, and we
+        # are write-exact up to the restart so our own values are the
+        # original's). This probe therefore returns only the SCHEDULE.
+        return f"{n_fade}:{step}:{best}"
     except Exception:
         return None
 
