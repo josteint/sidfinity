@@ -5,8 +5,19 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-14T20:18:59.949Z
+  modified: 2026-08-15T00:24:45.169Z
 ---
+
+## ✅ F2 CLOSEOUT (2026-08-15): **2,900/2,924 FULL (99.2%), 24 partials**, corpus synced
+One batch reconciled all four late rounds (play_repeat clamp / multiplex /
+layout relaxation / song_restart_gap): batch_diff 0 REGRESSIONS, +2 gains
+(Techno-Rap + Crazy_Labyrinth), mass-write 2,900 ok / 0 err / 0 orphans,
+corpus_check 12,529/12,529, spec_lint 0/0, param lint clean. Baseline:
+tmp/dmc_f2_85_results.jsonl. Day's arc: 38 → 24 partials.
+RESIDUE (24) is censused in backlog.md item 6 — now: Orchestral (C24
+clamp landed, remaining = a soft-note decode gap), Good_Beat (two C19
+wedges, both mechanisms precedented), Session (undiagnosed, NOT the glide
+cluster), + 21 per-member singletons grouped by first diverging register.
 
 ## ✅ CRAZY_LABYRINTH FULL 4/4 (2026-08-14) — typed `song_restart_gap` (C38 sibling)
 The song ENDS, rests 256 play() calls, and repeats from the top with state
