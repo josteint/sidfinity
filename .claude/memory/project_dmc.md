@@ -5,8 +5,24 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-15T00:24:45.169Z
+  modified: 2026-08-16T09:30:55.123Z
 ---
+
+## ✅ `init_plays` TYPED (2026-08-16): the last temporal-dispatch params key
+C33 carrier refactor closing backlog.md item 4. `init_plays` (the raw
+play-body calls the orig's init makes before returning — 4k_Byter's
+appended init wrapper) moved from `params.fields` to the typed
+`Environment.init_plays`, beside the sibling it was always named against,
+`play_repeat` (trichotomy §4.3, ledger C24's temporal family). Route: the
+same `extra_params.pop(...)` → typed-block hop in `v4/extract/to_usf.py`
+that `filter_mod` — the OTHER output of the same 4k_Byter probe — took on
+2026-08-12. Grammar uses the generic CNAME-key form (the word was live in
+stored `params{}`; a keyword terminal would shadow CNAME there, C33's 2nd-occ
+trap). Composer reads typed-first, params key kept as a read-only fallback
+and re-annotated in the registry. Carriers: SilverFox/4k_Byter +
+4k_Byter_2K1, both re-synced. GATE: 75/75 golden MD5-identical, corpus
+check 12,529/12,529, spec + param lint clean, both stored `.usf` rebuild
+their stored `.sid`, full regression green.
 
 ## ✅ BOTH FAMILIES CONSISTENT (2026-08-15): f1 5,445/5,445 + f2 2,900/2,924
 f1 closeout ran after the Slayer C38 conversion (tmp/f1_closeout.sh, same
@@ -14,8 +30,10 @@ shape as the f2 chain): 5,445/5,445 FULL maintained, 0 regressions, 0
 gains, 5,445 written / 0 err / 0 orphans, corpus_check 12,529/12,529,
 spec_lint + param lint clean. f1 had been stale since the vdep round (64
 of the 88 slide-form carriers are f1) — that staleness was what surfaced
-as the "stored .usf does not rebuild stored .sid" alarm in backlog.md
-item 8, which turned out NOT to be a C20 fifth-layer bug. ⚠ THE LESSON:
+as the "stored .usf does not rebuild stored .sid" alarm (raised in
+backlog.md item 8, since resolved and pruned from that file — this
+entry is the record), which turned out NOT to be a C20 fifth-layer bug.
+⚠ THE LESSON:
 check the member's BATCH ROW FIRST — it was absent from the f2 results,
 which said "wrong family, different sync cadence" in one command. Code,
 batch verdicts and stored corpus now agree across both families.

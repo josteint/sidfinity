@@ -3331,11 +3331,14 @@ fx_dual_up:
         play_entry = 'playclk'
         cia_init = cia_init + ''.join(
             f'        lda #$FF\n        sta {l}\n' for l in clk_labels)
-    # init_plays (C24 temporal family, sibling of play_repeat): the orig's
-    # init wrapper runs the RAW play body N times before returning (before
-    # any per-play wrapper logic), so the song's first N frames happen at
-    # INIT time. A dispatch/environment fact, not composer content.
-    _inp = usf.params.fields.get('init_plays', None)
+    # init_plays (trichotomy §4.3 environment; ledger C24's temporal family,
+    # sibling of play_repeat): the orig's init wrapper runs the RAW play body
+    # N times before returning (before any per-play wrapper logic), so the
+    # song's first N frames happen at INIT time. A dispatch/environment fact,
+    # not composer content — TYPED as environment.init_plays 2026-08-16 (C33);
+    # the params key survives as a read-only fallback for old-form files.
+    _inp = (getattr(usf.environment, 'init_plays', 0) if usf.environment
+            else 0) or usf.params.fields.get('init_plays', None)
     if _inp:
         cia_init = cia_init + (
             '        jsr playframe\n' * int(_inp))

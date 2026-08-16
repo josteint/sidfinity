@@ -280,6 +280,17 @@ class _T(Transformer):
     def env_play_repeat(self, items):
         return ('play_repeat', int(items[0]))
 
+    # Environment fields that ride the GENERIC CNAME-key rule (see grammar
+    # note — a keyword terminal would shadow CNAME in old-corpus params{}).
+    _ENV_NAMED = {'init_plays': int}
+
+    def env_named(self, items):
+        key, val = str(items[0]), items[1]
+        typ = self._ENV_NAMED.get(key)
+        if typ is None:
+            raise UsfParseError(f'environment: unknown field {key!r}')
+        return (key, typ(val))
+
     def environment_block(self, items):
         e = Environment()
         for k, v in items:

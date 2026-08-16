@@ -221,6 +221,15 @@ isid_voice_field: "envelope_prime" ":" "(" number "," number ")"  -> isidv_env
 environment_block: "environment" "{" environment_field* "}"
 environment_field: "cia_period" ":" number    -> env_cia_period
                  | "play_repeat" ":" INT      -> env_play_repeat
+                   // init_plays = play-body calls the engine's init makes
+                   // before returning (C33 typing of the last temporal-
+                   // dispatch params key, 2026-08-16). GENERIC CNAME-key
+                   // form (the init_field / init_behavior precedent), NOT a
+                   // keyword terminal: the word also occurs as a params{}
+                   // key in the old-form corpus, and a keyword terminal
+                   // would shadow CNAME there and break every stored file.
+                   // The transformer validates the name.
+                 | CNAME ":" INT              -> env_named
 
 // ----- freq table (optional) -----
 // Per-tune freq table bytes. The codegen places them at the canonical

@@ -116,8 +116,8 @@
     },
     "init_plays": {
       "category": "temporal-dispatch",
-      "licensed_by": "C24 family (init wrapper runs the raw play body N times; 4k_Byter)",
-      "note": "the contour itself moved to the TYPED filter_mod block (one-shot single-tap form) 2026-08-12; only this temporal knob remains a param"
+      "licensed_by": "C24 family (init wrapper runs the raw play body N times; 4k_Byter); typed as environment.init_plays, key = fallback",
+      "note": "the contour moved to the TYPED filter_mod block (one-shot single-tap form) 2026-08-12; this temporal knob followed it into the typed environment block (trichotomy 4.3, sibling of play_repeat) 2026-08-16 — C33"
     },
     "master_vol_every_play": {
       "category": "mechanism-knob",

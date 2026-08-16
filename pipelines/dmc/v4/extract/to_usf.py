@@ -1426,6 +1426,12 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
             if len(f5) > 5 and 'direct' in f5[5]:
                 e['target'] = 'cutoff'      # LFO writes $D416 itself per play
             filter_mod[int(prog)] = e
+    # init_plays: how many raw play-body calls the orig's init makes before
+    # returning (the same 4k_Byter probe that yields filter_mod above). A
+    # TEMPORAL/dispatch fact — trichotomy §4.3, ledger C24's family and the
+    # sibling of play_repeat — so it rides the typed `environment` block,
+    # not the params bag (C33, 2026-08-16).
+    init_plays = int(m.extra_params.pop('init_plays', 0) or 0)
     return UsfFile(
         psid=PsidMeta(title=m.title, author=m.author, released=m.released,
                       clock=m.clock, sid=m.sid_model,
@@ -1461,11 +1467,14 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
             if m.idle_notes[v] or m.idle_masks[v] or durrel[v]
             or _gseed[0][v] or _gseed[1][v]],
             slide_phase=(m.dual_phase or 0) or None),
-        # environment (trichotomy §4.3): CIA multispeed latch /
-        # whole-play() per-VBI repeats. None = single-speed vblank.
+        # environment (trichotomy §4.3): CIA multispeed latch / whole-play()
+        # per-VBI repeats / play-body calls made during init. None =
+        # single-speed vblank with an init that doesn't play.
         environment=(Environment(cia_period=m.cia_period or 0,
-                                 play_repeat=m.play_repeat or 1)
-                     if (m.cia_period or m.play_repeat > 1) else None),
+                                 play_repeat=m.play_repeat or 1,
+                                 init_plays=init_plays)
+                     if (m.cia_period or m.play_repeat > 1 or init_plays)
+                     else None),
         instruments=[_instrument_to_usf(m.instruments[k], m.wavepos_layout,
                                         m.offtable_canon,
                                         wave_norm=_norm is not None,

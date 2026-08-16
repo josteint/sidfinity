@@ -1058,9 +1058,14 @@ class Environment:
         play() rate); 0 = single-speed vblank.
       `play_repeat`: whole-play() repeats per invocation (>1 = the play
         vector runs the body N× per VBI — ledger C24's whole-play form).
+      `init_plays`: play-body calls the engine's INIT makes before it
+        returns, so the song's first N frames happen at init time
+        (ledger C24's temporal family, sibling of `play_repeat`).
+        0 = init returns without playing.
     """
     cia_period: int = 0
     play_repeat: int = 1
+    init_plays: int = 0
 
 
 @dataclass

@@ -213,11 +213,14 @@ def _write_init_sid(sid: InitSid, chip: int = 1) -> list[str]:
 
 
 def _write_environment(env) -> list[str]:
-    lines = ['environment {  ; how the host drives play(): CIA rate / per-VBI repeats']
+    lines = ['environment {  ; how the host drives play(): CIA rate / '
+             'per-VBI repeats / plays during init']
     if env.cia_period:
         lines.append(f'  cia_period: {_hex(env.cia_period, 4)}')
     if env.play_repeat != 1:
         lines.append(f'  play_repeat: {env.play_repeat}')
+    if getattr(env, 'init_plays', 0):
+        lines.append(f'  init_plays: {env.init_plays}')
     lines.append('}')
     return lines
 
