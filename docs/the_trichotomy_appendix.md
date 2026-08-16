@@ -922,6 +922,21 @@ F. **Open growth axes for USF init:**
    parameter the first time it is musically distinct between two
    engines or two subtunes within an engine.
 
+   **GROWN (2026-08-16) — the play-rate axis is wider than "rate."**
+   It became the `environment` block, and it now carries two facts
+   that are not host/timer facts at all: `play_repeat` (the
+   original's wrapper runs the play body N× per host call) and
+   `init_plays` (init runs the body N× before returning — exactly
+   the demo-track init §3.5 predicted, "prefetch a row of music,
+   play a sting"; sole carriers: SilverFox's two 4k_Byter tunes).
+   Both are temporal — they say WHEN play-frames happen, never what
+   they contain — so they share the category with the rate, but the
+   HOST-imposed / TUNE-imposed distinction is real and the
+   trichotomy's §4.3 now states it. Note §6.2's test classifies the
+   writes those init frames emit as *music* (later play frames
+   overwrite them), which is why only the count is carried here and
+   the content stays in the subtune blocks, per §7.4 and G below.
+
 G. **What USF should NOT do:**
    - Carry init's raw 6502 bytes as a `bytes`-typed field. This is
      the forbidden shape from the principle doc.

@@ -517,28 +517,47 @@ trivially empty (or omitted entirely). Bowden tunes set V1+V2's
 `envelope_prime`. Music_Assembler tunes set master vol $1F + filter
 res_routing. DMC tunes set filter resonance.
 
-### 4.3 Environment — the per-tune playback rate
+### 4.3 Environment — the per-tune play-dispatch contract
 
-**What it is:** how the host invokes play(). CIA timer period sets
-the play() rate (50Hz VBI, 100Hz CIA, custom multispeed). For
-Hülsbeck's Shades, CIA programming determines that play() runs at
-the rate the tune was authored for.
+**What it is:** WHEN play-frames happen. Two sub-kinds share this
+category, and they have different authors — keep them distinguished:
 
-**Who handles it:** the composer's host-side setup, parameterised
-by USF.
+- **Host-imposed — the play() RATE.** The CIA timer period sets how
+  often the host calls play() (50Hz VBI, 100Hz CIA, custom
+  multispeed). For Hülsbeck's Shades, CIA programming determines
+  that play() runs at the rate the tune was authored for. This is
+  the category's original sense (appendix §3.3, "Category C").
+- **Tune-imposed — the original's own call multiplication.** The
+  original's wrapper may run the play body several times per call
+  (`play_repeat`, ledger C24) or run it N times inside init before
+  returning (`init_plays`), so the song's first N frames land at
+  init time. The appendix anticipated this in §3.5: a demo-track
+  init "can prefetch a row of music, play a sting."
 
-**USF representation:** a single top-level field, orthogonal to the
-init block:
+**Who handles it:** the composer's host-side setup and play-vector
+wrapper, both parameterised by USF.
+
+**USF representation:** a top-level `environment` block, orthogonal
+to the init block (`src/usf/types.py: Environment`):
 
 ```
-playback_rate_hz: 50              ; default VBI
-;; OR
-cia1_period: $4CC8                ; if exactness needed
+environment {
+  cia_period:  $4CC8      ; absent/0 = single-speed vblank
+  play_repeat: 2          ; play body runs N× per host call
+  init_plays:  3          ; play body runs N× during init
+}
 ```
 
 Environment is neither reset nor priming — it's *temporal*, not
 SID-state. Keeping it separate avoids conflating "what the chip
-looks like" with "how often play() runs."
+looks like" with "when play() runs."
+
+**The boundary that keeps this honest:** only the COUNT lives here.
+The frames' musical CONTENT stays in the subtune blocks, so the
+init/play split the appendix defends (§7.4, §8 G — do not merge
+init and play into one per-frame stream) is preserved. A field here
+that started describing what a frame CONTAINS would belong in §4.2
+priming or in the subtune, not in this block.
 
 ### 4.4 Engine bookkeeping — out of USF entirely
 

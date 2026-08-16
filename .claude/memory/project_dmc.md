@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-16T09:30:55.123Z
+  modified: 2026-08-16T12:04:23.538Z
 ---
 
 ## ✅ `init_plays` TYPED (2026-08-16): the last temporal-dispatch params key
@@ -18,11 +18,23 @@ same `extra_params.pop(...)` → typed-block hop in `v4/extract/to_usf.py`
 that `filter_mod` — the OTHER output of the same 4k_Byter probe — took on
 2026-08-12. Grammar uses the generic CNAME-key form (the word was live in
 stored `params{}`; a keyword terminal would shadow CNAME there, C33's 2nd-occ
-trap). Composer reads typed-first, params key kept as a read-only fallback
-and re-annotated in the registry. Carriers: SilverFox/4k_Byter +
-4k_Byter_2K1, both re-synced. GATE: 75/75 golden MD5-identical, corpus
-check 12,529/12,529, spec + param lint clean, both stored `.usf` rebuild
-their stored `.sid`, full regression green.
+trap). The composer reads the TYPED FIELD ONLY — the params fallback reader
+and its registry row are DELETED: both carriers were regenerated, so no
+old-form file exists (verified), and a kept fallback would leave the key
+counted as an open escape hatch. Carriers: SilverFox/4k_Byter +
+4k_Byter_2K1, both re-synced. GATE: 75/75 golden MD5-identical (re-run
+after the deletion against the SAME pre-refactor baseline), corpus check
+12,529/12,529, spec + param lint clean (52 keys, down from 53), both
+stored `.usf` rebuild their stored `.sid`, full regression green.
+SAME PASS — trichotomy §4.3 reconciled (owner-approved): the `environment`
+category had quietly acquired a second tenant when `play_repeat` landed
+there, so §4.3 now names both — HOST-imposed rate (`cia_period`, the
+appendix's Category C) vs TUNE-imposed call multiplication (`play_repeat`,
+`init_plays`) — and states the boundary that keeps it honest (only the
+COUNT lives there; frame CONTENT stays in the subtunes, preserving the
+init/play split the appendix §7.4/§8 G defends). The appendix's growth-axis
+list records the growth. Its illustrative field names (`playback_rate_hz`,
+`cia1_period`) were stale and now show the real block.
 
 ## ✅ BOTH FAMILIES CONSISTENT (2026-08-15): f1 5,445/5,445 + f2 2,900/2,924
 f1 closeout ran after the Slayer C38 conversion (tmp/f1_closeout.sh, same
