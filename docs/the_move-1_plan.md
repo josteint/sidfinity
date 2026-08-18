@@ -307,6 +307,54 @@ divergence list Move 1 must reconcile (extends the DMC-only decisions 1-4 above)
   pattern: CONSULT both before writing a third stated-notation interpreter;
   factor if a second family ever needs the dispatch replay.
 
+### D1/D2 candidate unified form — the TWO-FACED envelope (noted 2026-08-16)
+
+A worked proposal for the D1/D2 (+D4, + backlog item 13's vibrato idea)
+reconciliation target, recorded while the evidence is fresh — the Ed
+filter-def driver deconstruction (ledger C1, 2026-08-16) measured the
+problem and built two-thirds of the machinery. NOT scheduled; it arrives
+with the other parked decisions when the owner opens Move 1.
+
+**The observation.** Every "value swept over time" form in the corpus is
+one of two musical kinds, and synth panels have always separated them:
+
+- **LFO-like** — the contour IS a named shape. The industry factoring is
+  Strudel/TidalCycles' signal combinators read as DATA:
+  `shape (tri|saw|sine|square) × range × period × quantize × phase`.
+  Strudel's `segment(n)` is EXACTLY the staircase quantization that made
+  Only_Ones' filter_mod entries 400 runs long — under this factoring each
+  is ONE line. (The §4 vibrato example in the_principle.md is this same
+  factoring, arrived at independently — evidence it is the right basis.
+  Borrow the FACTORING only, never the expression language: a combinator
+  chain in USF is §3 Pole B verbatim.)
+- **Envelope-like** — an authored curve or one-shot ramp with no
+  generating shape. The industry form is the XM/FT2 instrument envelope /
+  DAW automation lane: `(time, value)` BREAKPOINTS + a loop marker
+  (Famitracker's `|`), interpolated LINEAR IN INTEGER MATH (= Bresenham —
+  which reproduces hold-and-step staircases EXACTLY, turning the floor
+  jitter from irreducible noise into the interpolation rule).
+
+**Why now-measured evidence supports it:** Only_Ones' two exact run-lists
+are ~822 SID bytes / ~5 KB text each carrying ~30 bytes of true entropy
+(gzip + conditional-entropy agree); the generator face expresses each in
+one line, the breakpoint face in ~6 anchors. No_End's authored curve
+(136 irregular runs) is the breakpoint face's native case. The corpus
+survey (20 filter_mod entries, 7 files) plus D1/D2's seven PW/filter
+forms all sort cleanly into the two faces.
+
+**Exactness discipline (already built, `filterdef_anim_lift.py`):** the
+extract TRIES the generator face, REPLAY-VERIFIES byte-exact against the
+simulation through a Python mirror of the composer walker, falls back to
+breakpoints, falls back to explicit delta-runs. A face is never fitted —
+only verified (C32). The `(delta, frames)` run form stays as the exact
+last resort; today's entries convert losslessly whenever unification
+lands.
+
+**Scope when opened:** D1 (4 PW forms) + D2 (3 filter forms incl. the
+v4/v5 intra-family fork) + D4 (vibrato depth axis) + filter_mod + the
+basic_program sectioned sweeps. One envelope type, two faces, per-entry
+face chosen by verified exactness.
+
 **Vindicated this review:** `freq_overrun` flipped single-consumer → REUSED (FC
 standard + DMC v5) — a dimension that looked FC-specific is now shared; recorded
 canonical in the [convergence ledger](the_convergence_ledger.md) C6. The reused
