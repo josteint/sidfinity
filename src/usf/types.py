@@ -1387,18 +1387,29 @@ class UsfFile:
     filter_programs: dict[int, dict] = field(default_factory=dict)
     # Song-global filter-cutoff modulation (a free-running contour with up
     # to two phase-offset taps). Maps filter-program index N to
-    # {'start': int, 'init_phase': int, 'stop_phase': int|None,
-    #  'loop': bool (default True), 'steps': [(delta, frames)*]}: the
-    # contour advances one position per play() call; each frame prog N's
-    # `init` cutoff takes the contour value at (init_phase + t) and — when
-    # `stop_phase` is not None — its `stop` cutoff the value at
-    # (stop_phase + t). `loop` True wraps mod the contour period (the FC/Ed
-    # LFO drivers); False holds the final value forever (a one-shot sweep —
-    # the SilverFox 4k_Byter staircase+ramp morph, ledger C1's piecewise
-    # form). The engine samples the tap(s) at filter note-init, so each
-    # filter note starts/freezes wherever the contour currently sits.
-    # Empty dict when no modulation is active.
-    filter_mod: dict[int, dict] = field(default_factory=dict)
+    # List of contour entries, each {'prog': int, 'start': int,
+    # 'init_phase': int, 'stop_phase': int|None, 'loop': bool (default
+    # True), 'steps': [(delta, frames)*], 'target': None|'cutoff'|'res',
+    # 'period': int (default 1), 'loop_to': int|None}: the contour
+    # advances one step-position per TICK, a tick being `period` play()
+    # calls (period 1 = every play, the original form); `init_phase`
+    # counts PLAYS into the contour at song start (with period 1 this is
+    # the historical phase-offset semantics unchanged). Each play, prog
+    # N's `init` cutoff takes the contour value at the current position
+    # and — when `stop_phase` is not None — its `stop` cutoff the value
+    # at the stop tap. `target` routes the (single) tap elsewhere:
+    # 'cutoff' writes the $D416 register itself (free-running automation,
+    # No_End), 'res' feeds the prog's RESONANCE cell (the Ed driver
+    # sweeps, 2026-08-16). `loop` True wraps — to run `loop_to` when set
+    # (a lead-in that never repeats, then the cycle: the Ed
+    # ramp-then-LFO shapes), else to run 0 (the FC/Ed plain LFOs);
+    # False holds the final value forever (one-shot — the 4k_Byter
+    # staircase+ramp morph, ledger C1's piecewise form). The engine
+    # samples the tap(s) at filter note-init, so each filter note
+    # starts/freezes wherever the contour currently sits. A prog may
+    # carry several entries (e.g. a res sweep AND a cutoff LFO).
+    # Empty list when no modulation is active.
+    filter_mod: list = field(default_factory=list)
     # FC drum (percussion) program library (v0). Maps drum index N (an
     # instrument's fx1 & $0F when its drum flag is set) to two parallel
     # per-step lists: {'wave': [...], 'tone': [...]}. Each frame the drum

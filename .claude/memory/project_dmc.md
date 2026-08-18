@@ -5,8 +5,29 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-16T12:04:23.538Z
+  modified: 2026-08-18T18:41:05.864Z
 ---
+
+## ✅ Ed FILTER-DEF DRIVERS DECONSTRUCTED (2026-08-16): filterdef_anim + anim3 → filter_mod contours
+The last two Ed mechanism params are gone (backlog item 5's second half;
+C19 33rd-occ rule; owner approved `res` + `period` + `loop_to` growth on
+`filter_mod`, whose container became a LIST — a prog can carry a res sweep
+AND a cutoff LFO). Route: probes unchanged (constants stay extract-
+internal); `v4/extract/filterdef_anim_lift.py` simulates the driver
+play-by-play against the decoded def seeds, RLEs each animated cell at
+tick granularity, and REPLAY-VERIFIES every entry through a Python mirror
+of the composer's new stream-pointer walker (one spec, two
+implementations). Composer: `playfmn` new-form walker (16-bit SMC pair
+pointer → >255-run lists work); playfda/playooa emitters DELETED (~150
+lines); registry rows dropped (50 keys). Carriers: exactly 2 (census =
+signature scan over 10,787 + strict probes on 8 candidates) — Cliche_Beat
++ Only_Ones, both FULL at full songlength, synced, fifth-layer OK.
+⚠ Off-by-one trap recorded in C1: the driver runs BEFORE the play body →
+sim series must be "state visible to play p" (counters decrement AT play
+0); a one-play-late sim verified FULL on Cliche (note-init-sampled cells)
+and only diverged on Only_Ones' continuously-clamped sweep ($3F vs $40 at
+write 4690). GATES: golden 73 identical + 2 inert (write-stream-identical
+by classification), spec/param/corpus lint clean, full regression green.
 
 ## ✅ `init_plays` TYPED (2026-08-16): the last temporal-dispatch params key
 C33 carrier refactor closing backlog.md item 4. `init_plays` (the raw

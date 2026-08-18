@@ -446,23 +446,31 @@ def _write_filter_programs(progs: dict) -> list[str]:
     return lines
 
 
-def _write_filter_mod(mods: dict) -> list[str]:
+def _write_filter_mod(mods: list) -> list[str]:
     """Emit `filter_mod { prog N: start= init_phase= stop_phase=
-    step (d, f) ... }` — the song-global looped cutoff LFO."""
+    step (d, f) ... }` — the song-global cutoff/res contour entries.
+    Emitted in list order (producers sort); new fields (loop_to, period,
+    res) elide at their defaults so pre-2026-08-16 entries keep their
+    exact historical text."""
     lines = ['filter_mod {  ; song-global cutoff contour '
              '(looped LFO, or one-shot `once`)']
-    for n in sorted(mods):
-        m = mods[n]
+    for m in mods:
         parts = [f'start={m["start"]}', f'init_phase={m["init_phase"]}']
         if m.get('stop_phase') is not None:
             parts.append(f'stop_phase={m["stop_phase"]}')
+        if m.get('loop_to') is not None:
+            parts.append(f'loop_to={m["loop_to"]}')
+        if m.get('period', 1) != 1:
+            parts.append(f'period={m["period"]}')
         if not m.get('loop', True):
             parts.append('once')
         if m.get('target') == 'cutoff':
             parts.append('direct')
+        elif m.get('target') == 'res':
+            parts.append('res')
         for d, f in m['steps']:
             parts.append(f'step ({d}, {f})')
-        lines.append(f'  prog {n}: ' + ' '.join(parts))
+        lines.append(f'  prog {m["prog"]}: ' + ' '.join(parts))
     lines.append('}')
     return lines
 

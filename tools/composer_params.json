@@ -84,16 +84,6 @@
       "category": "mechanism-knob",
       "licensed_by": "C19 42nd (filter-tail load repoint)"
     },
-    "filterdef_anim": {
-      "category": "mechanism-knob",
-      "licensed_by": "C19 (Ed filter-def driver)",
-      "note": "deconstruction candidate -> C1 contour"
-    },
-    "filterdef_anim3": {
-      "category": "mechanism-knob",
-      "licensed_by": "C19 20th (Only_Ones driver)",
-      "note": "deconstruction candidate -> C1 contour"
-    },
     "filter_static": {
       "category": "mechanism-knob",
       "licensed_by": "C19 37th (filter stores NOPed)"

@@ -139,11 +139,13 @@ practice, not code to factor).
   with `_capture_env`, rebuild with `add_env`. A bounded bidirectional
   oscillator is the special case `start + [(+s,n),(−s,n)], loop=0`. Divergent
   per-family forms exist (Hubbard pwm / FC programs / DMC v4 pwm vs v5 env) —
-  Move-1 decisions D1/D2. Song-global cutoff contours: the TYPED `filter_mod`
-  block (loop/once, 1-2 taps, and a `direct` routing marker — the LFO writes
-  the cutoff REGISTER itself each play instead of feeding def cells, No_End's
-  appended table cycler) + ONE generalized interpreter (DMC `playfmod`)
-  now serve FC/Ed LFOs AND the 4k_Byter one-shot morph — see entry.
+  Move-1 decisions D1/D2. Song-global cutoff/RES contours: the TYPED
+  `filter_mod` block (loop/once, 1-2 taps, routing markers `direct` = the
+  cutoff REGISTER itself / `res` = the prog's RESONANCE cell, a `period`
+  contour clock, and `loop_to` = one-time lead-in + cycle) + ONE
+  generalized interpreter now serve FC/Ed LFOs, the 4k_Byter one-shot
+  morph AND the two Ed filter-def drivers (deconstructed 2026-08-16;
+  sim + replay-verify in `filterdef_anim_lift.py`) — see entry.
 - FULL ENTRY: [`ledger/C1.md`](ledger/C1.md) — read it before applying.
 
 ### C2 — byte-indexed program table; the program RUNS OFF the table

@@ -1545,33 +1545,41 @@ class _T(Transformer):
     def filter_programs_block(self, items):
         return ('filter_programs', {n: prog for n, prog in items})
 
+    def fm_stop_phase(self, items):
+        return ('stop_phase', int(items[0]))
+
+    def fm_loop_to(self, items):
+        return ('loop_to', int(items[0]))
+
+    def fm_period(self, items):
+        return ('period', int(items[0]))
+
+    def fm_res(self, items):
+        return ('target', 'res')
+
+    def fm_opt(self, items):
+        # tagged alternatives pass through; bare FM_ONCE / FM_DIRECT
+        # tokens are normalized to tags here.
+        it = items[0]
+        if isinstance(it, tuple):
+            return it
+        return {'once': ('loop', False),
+                'direct': ('target', 'cutoff')}[str(it)]
+
     def filter_mod_entry(self, items):
         n = int(items[0])
         start, ip = int(items[1]), int(items[2])
-        # tail: optional stop_phase INT, optional `once` marker, then steps.
-        # (LALR without placeholders: classify by shape — a step is a
-        # ('step', v) tuple, `once` arrives as its FM_ONCE token, a bare
-        # remaining scalar is the stop_phase.)
-        sp, loop, direct, steps = None, True, False, []
+        e = {'prog': n, 'start': start, 'init_phase': ip,
+             'stop_phase': None, 'steps': []}
         for it in items[3:]:
             if isinstance(it, tuple) and it and it[0] == 'step':
-                steps.append(it[1])
-            elif str(it) == 'once':
-                loop = False
-            elif str(it) == 'direct':
-                direct = True
-            elif it is not None:
-                sp = int(it)
-        e = {'start': start, 'init_phase': ip, 'stop_phase': sp,
-             'steps': steps}
-        if not loop:
-            e['loop'] = False
-        if direct:
-            e['target'] = 'cutoff'
-        return (n, e)
+                e['steps'].append(it[1])
+            elif isinstance(it, tuple):
+                e[it[0]] = it[1]
+        return e
 
     def filter_mod_block(self, items):
-        return ('filter_mod', {n: e for n, e in items})
+        return ('filter_mod', list(items))
 
     def dnum_list(self, items):
         return [int(x) for x in items]
@@ -1653,7 +1661,7 @@ class _T(Transformer):
         arp_programs = {}
         pulse_programs = {}
         filter_programs = {}
-        filter_mod = {}
+        filter_mod = []
         drum_programs = {}
         attack_len = []
         attack_wave = []

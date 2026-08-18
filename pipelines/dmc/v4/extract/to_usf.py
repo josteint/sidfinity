@@ -1407,7 +1407,7 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
     # filter_mod: the factory probe encodes the song-global cutoff LFO as
     # 'prog|start|init_phase|stop_phase|d:f,...' — decode into the typed
     # block (musical content, not a params knob).
-    filter_mod = {}
+    filter_mod = []
     fm = m.extra_params.pop('filter_mod', None)
     if fm:
         for seg in fm.split(';'):        # multi-tap probe joins progs by ';'
@@ -1417,7 +1417,8 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
             # 4k_Byter staircase+ramp morph, C1 piecewise form).
             f5 = seg.split('|')
             prog, start, ip, sp, steps = f5[:5]
-            e = {'start': int(start), 'init_phase': int(ip),
+            e = {'prog': int(prog), 'start': int(start),
+                 'init_phase': int(ip),
                  'stop_phase': int(sp) if sp != '' else None,
                  'steps': [(int(d), int(f)) for d, f in
                            (t.split(':') for t in steps.split(','))]}
@@ -1425,7 +1426,20 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
                 e['loop'] = False
             if len(f5) > 5 and 'direct' in f5[5]:
                 e['target'] = 'cutoff'      # LFO writes $D416 itself per play
-            filter_mod[int(prog)] = e
+            filter_mod.append(e)
+        filter_mod.sort(key=lambda e: e['prog'])
+    # The two remaining Ed filter-def DRIVERS deconstruct here (C19 33rd-occ
+    # rule; owner-approved res/period/loop_to growth 2026-08-16): the probes'
+    # raw constants stay extract-internal — simulate the driver play-by-play
+    # against the decoded def-cell seeds and RLE each animated cell into
+    # filter_mod contour entries (res sweeps + lead-in-then-loop cutoff
+    # LFOs), verified by replaying the encoding against the simulation.
+    for _fda_key in ('filterdef_anim', 'filterdef_anim3'):
+        _fda_c = m.extra_params.pop(_fda_key, None)
+        if _fda_c is not None:
+            from .filterdef_anim_lift import lift_filterdef_anim
+            filter_mod.extend(lift_filterdef_anim(
+                _fda_key, str(_fda_c), m.filter_defs))
     # init_plays: how many raw play-body calls the orig's init makes before
     # returning (the same 4k_Byter probe that yields filter_mod above). A
     # TEMPORAL/dispatch fact — trichotomy §4.3, ledger C24's family and the

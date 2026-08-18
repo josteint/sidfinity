@@ -2533,7 +2533,96 @@ fx_dual_up:
     # for the original's SMC roving-pointer table stream (Ed/Core_of_Acid;
     # multi-prog since Elechromania — one chunk per modulated prog, labels
     # suffixed by slot; a single-tap driver has init_phase == stop_phase).
-    for _fm_prog, _fm in sorted(usf.filter_mod.items()):
+    for _fmi, _fm in enumerate(usf.filter_mod):
+        _fm_prog = _fm['prog']
+        if (_fm.get('target') == 'res' or _fm.get('period', 1) != 1
+                or _fm.get('loop_to') is not None
+                or len(_fm['steps']) > 250):
+            # NEW-FORM contour walker (res target / period clock /
+            # loop_to lead-in / >255 runs — the Ed driver deconstruction,
+            # owner-approved 2026-08-16). Stream-of-(delta,frames)-pairs
+            # with a 16-bit SMC pair pointer (run count unbounded), a
+            # period countdown seeded P-(init_phase mod P), tick BEFORE
+            # store. MUST stay in lockstep with the extract's
+            # `filterdef_anim_lift.replay_walker` — the two are one spec.
+            _p = int(_fm.get('period', 1))
+            _lt = _fm.get('loop_to')
+            _loop = _fm.get('loop', True)
+            _runs = [(d & 0xFF, f) for d, f in _fm['steps']]
+            _slot = (None if _fm.get('target') == 'cutoff'
+                     else m.filter_slots.get(_fm_prog))
+            if _slot is None and _fm.get('target') != 'cutoff':
+                continue
+            if _fm.get('target') == 'res':
+                _st = f'        sta fdres+{_slot}\n'
+            elif _fm.get('target') == 'cutoff':
+                _st = '        sta $d416\n'
+            else:
+                _st = f'        sta fdinit+{_slot}\n'
+                if _fm.get('stop_phase') is not None:
+                    # equal-phase dual tap: one walker, both cells (the
+                    # anim3 init/stop pairs — series proven identical)
+                    _st += f'        sta fdstop+{_slot}\n'
+            _n = f'n{_fmi}'
+            _seed_c = _p - (int(_fm['init_phase']) % _p)
+            if _loop:
+                _re = f'fmnpr{_n}+{2 * (_lt or 0)}'
+                _end = (f'        lda #<({_re})\n'
+                        f'        sta fmnrd{_n}+1\n'
+                        f'        lda #>({_re})\n'
+                        f'        sta fmnrd{_n}+2\n')
+            else:
+                _end = f'        jmp fmnst{_n}\n'   # F stays 0 = held
+            play_wrapper = (
+                f'playfmn{_n}:                          ; contour walker (new form)\n'
+                f'        dec fmnp{_n}\n'
+                f'        bne fmnst{_n}\n'
+                f'        lda #${_p:02X}\n'
+                f'        sta fmnp{_n}\n'
+                f'        lda fmnf{_n}\n'
+                f'        beq fmnst{_n}                 ; held (one-shot ended)\n'
+                '        ldy #$00\n'
+                f'fmnrd{_n}: lda fmnpr{_n},y            ; SMC pair ptr -> delta\n'
+                '        clc\n'
+                f'        adc fmnv{_n}\n'
+                f'        sta fmnv{_n}\n'
+                f'        dec fmnf{_n}\n'
+                f'        bne fmnst{_n}\n'
+                f'        lda fmnrd{_n}+1               ; advance to next pair\n'
+                '        clc\n'
+                '        adc #$02\n'
+                f'        sta fmnrd{_n}+1\n'
+                f'        lda fmnrd{_n}+2\n'
+                '        adc #$00\n'
+                f'        sta fmnrd{_n}+2\n'
+                f'        lda fmnrd{_n}+1\n'
+                f'        cmp #<fmnpe{_n}\n'
+                f'        bne fmnld{_n}\n'
+                f'        lda fmnrd{_n}+2\n'
+                f'        cmp #>fmnpe{_n}\n'
+                f'        bne fmnld{_n}\n'
+                + _end +
+                f'fmnld{_n}:\n'
+                f'        lda fmnrd{_n}+1\n'
+                f'        sta fmnrd2{_n}+1\n'
+                f'        lda fmnrd{_n}+2\n'
+                f'        sta fmnrd2{_n}+2\n'
+                '        ldy #$01\n'
+                f'fmnrd2{_n}: lda fmnpr{_n},y           ; pair ptr -> frames\n'
+                f'        sta fmnf{_n}\n'
+                f'fmnst{_n}:\n'
+                f'        lda fmnv{_n}\n'
+                + _st +
+                f'        jmp {play_entry}\n'
+                f'fmnp{_n}:  .byt {_seed_c}\n'
+                f'fmnv{_n}:  .byt {_fm["start"] & 0xFF}\n'
+                f'fmnf{_n}:  .byt {_runs[0][1]}\n'
+                f'fmnpr{_n}: ' + _byt([b for d, f in _runs for b in (d, f)])
+                + '\n'
+                f'fmnpe{_n}:\n\n'
+                ) + play_wrapper
+            play_entry = f'playfmn{_n}'
+            continue
         # `target: cutoff` (`direct` in the USF text) — the LFO writes the
         # cutoff register ITSELF every play (No_End's appended SMC table
         # cycler: `LDA $1A00,X / STA $D416 / INC <operand>` ahead of the
@@ -2616,72 +2705,6 @@ fx_dual_up:
             f'fmlen{_s}:  ' + _byt([f & 0xFF for _, f in _runs]) + '\n\n'
             ) + play_wrapper
         play_entry = f'playfmod{_s}'
-    # Appended filter-def ANIMATOR (Ed/Wrath_Designs Cliche_Beat driver,
-    # factory-probed C19): the original's play vector JSRs a self-retargeting
-    # routine before the play body — phase 1 ramps defs 0-2's resonance cell
-    # (+step every p1 plays until def0 hits the cap), then phase 2 walks a
-    # generated 256-byte triangle into def0/def1's init-cutoff cells every p2
-    # plays (def0 index decrements, def1's advances by 2; def2 is never
-    # animated — the original stores def1 twice, an author bug whose first
-    # store is dead). fres/fcut pick the animated cells up at filter
-    # note-inits. The triangle is generated from its two ramp seeds, and the
-    # phase flag replaces the original's SMC JSR operand.
-    fda = usf.params.fields.get('filterdef_anim', None)
-    if fda is not None:
-        _step, _capf0, _c1, _p1, _c2, _p2, _ts, _td = (
-            int(x, 16) for x in str(fda).split(','))
-        _tri = [(_ts + i) & 0xFF for i in range(0x80)] \
-            + [(_td - i) & 0xFF for i in range(0x80)]
-        play_wrapper = (
-            'playfda:                             ; filter-def animator\n'
-            '        lda fdaph\n'
-            '        bne fda_p2\n'
-            '        dec fdac1\n'
-            '        bne fda_done\n'
-            f'        lda #${_p1:02X}\n'
-            '        sta fdac1\n'
-            '        lda fdres+0\n'
-            f'        cmp #${_capf0:02X}\n'
-            '        bne fda_add\n'
-            '        inc fdaph                    ; ramp capped -> phase 2\n'
-            '        jmp fda_done\n'
-            'fda_add:\n'
-            '        clc\n'
-            f'        adc #${_step:02X}\n'
-            '        sta fdres+0\n'
-            '        lda fdres+1\n'
-            '        clc\n'
-            f'        adc #${_step:02X}\n'
-            '        sta fdres+1\n'
-            '        lda fdres+2\n'
-            '        clc\n'
-            f'        adc #${_step:02X}\n'
-            '        sta fdres+2\n'
-            '        jmp fda_done\n'
-            'fda_p2:\n'
-            '        dec fdac2\n'
-            '        bne fda_done\n'
-            f'        lda #${_p2:02X}\n'
-            '        sta fdac2\n'
-            '        ldx fdax0\n'
-            '        lda fdatri,x\n'
-            '        sta fdinit+0\n'
-            '        dec fdax0\n'
-            '        ldx fdax1\n'
-            '        lda fdatri,x\n'
-            '        sta fdinit+1\n'
-            '        inc fdax1\n'
-            '        inc fdax1\n'
-            'fda_done:\n'
-            f'        jmp {play_entry}\n'
-            'fdaph:  .byt 0\n'
-            f'fdac1:  .byt {_c1}\n'
-            f'fdac2:  .byt {_c2}\n'
-            'fdax0:  .byt 0\n'
-            'fdax1:  .byt 0\n'
-            'fdatri: ' + _byt(_tri) + '\n\n'
-            ) + play_wrapper
-        play_entry = 'playfda'
     # Filter-tail POWER-ON-PATTERN cutoff animator (Ed/Go_Funk, factory-
     # probed C19): the original re-points the filter tail's STA $D417 at a
     # stub that (after the store) every `reset` plays pokes one filter
@@ -2745,89 +2768,6 @@ fx_dual_up:
             'gfatab2:' + _byt(_poweron_page(_tabhi2)) + '\n\n'
             ) + play_wrapper
         play_entry = 'playgfa'
-    # Third Ed filter-def driver (Only_Ones, factory-probed C19): phase A
-    # (every p1 plays) ramps def s2's init/stop toward cap2 while its res
-    # nibble follows a 1..rescap counter, then walks def s1's init/stop
-    # down to dncap, then flips to phase B (every play): def s2 init/stop =
-    # tri[X1]/2 + add2, def s1 = tri[X2]/2 + add1; X1 += 1 per p8 plays,
-    # X2 += 1 per p8*p2. The triangle is generated from its two seeds; a
-    # phase flag replaces the original's SMC JSR retarget.
-    ooa = usf.params.fields.get('filterdef_anim3', None)
-    if ooa is not None:
-        (_p1, _cap2, _rescap, _dncap, _x1, _x2, _p8, _p2,
-         _add2, _add1, _step, _d0, _s2, _s1) = (
-            int(x, 16) for x in str(ooa).split(','))
-        _tri = [(_i + _step) & 0xFF for _i in range(0x80)] \
-            + [(_d0 - _i) & 0xFF for _i in range(0x80)]
-        play_wrapper = (
-            'playooa:                             ; filter-def driver (2-phase)\n'
-            '        lda ooaph\n'
-            '        bne ooa_pb\n'
-            '        dec ooac1\n'
-            '        bne ooa_done\n'
-            f'        lda #${_p1:02X}\n'
-            '        sta ooac1\n'
-            f'        lda fdinit+{_s2}\n'
-            f'        cmp #${_cap2:02X}\n'
-            '        beq ooa_res\n'
-            f'        inc fdinit+{_s2}\n'
-            f'        inc fdstop+{_s2}\n'
-            'ooa_res:\n'
-            '        lda ooacnt\n'
-            '        asl\n        asl\n        asl\n        asl\n'
-            f'        sta fdres+{_s2}\n'
-            '        lda ooacnt\n'
-            f'        cmp #${_rescap:02X}\n'
-            '        beq ooa_dn\n'
-            '        inc ooacnt\n'
-            '        jmp ooa_done\n'
-            'ooa_dn:\n'
-            f'        lda fdinit+{_s1}\n'
-            f'        cmp #${_dncap:02X}\n'
-            '        beq ooa_sw\n'
-            f'        dec fdinit+{_s1}\n'
-            f'        dec fdstop+{_s1}\n'
-            '        jmp ooa_done\n'
-            'ooa_sw:\n'
-            '        inc ooaph                    ; -> phase B\n'
-            '        jmp ooa_done\n'
-            'ooa_pb:\n'
-            '        ldx ooax1\n'
-            '        lda ooatab,x\n'
-            '        lsr\n'
-            '        clc\n'
-            f'        adc #${_add2:02X}\n'
-            f'        sta fdinit+{_s2}\n'
-            f'        sta fdstop+{_s2}\n'
-            '        ldx ooax2\n'
-            '        lda ooatab,x\n'
-            '        lsr\n'
-            '        clc\n'
-            f'        adc #${_add1:02X}\n'
-            f'        sta fdinit+{_s1}\n'
-            f'        sta fdstop+{_s1}\n'
-            '        dec ooac8\n'
-            '        bne ooa_done\n'
-            f'        lda #${_p8:02X}\n'
-            '        sta ooac8\n'
-            '        inc ooax1\n'
-            '        dec ooac2\n'
-            '        bne ooa_done\n'
-            f'        lda #${_p2:02X}\n'
-            '        sta ooac2\n'
-            '        inc ooax2\n'
-            'ooa_done:\n'
-            f'        jmp {play_entry}\n'
-            'ooaph:  .byt 0\n'
-            f'ooac1:  .byt {_p1}\n'
-            f'ooacnt: .byt {(_x2 + 1) & 0xFF}\n'
-            f'ooax1:  .byt {_x1}\n'
-            f'ooax2:  .byt {_x2}\n'
-            f'ooac8:  .byt {_p8}\n'
-            f'ooac2:  .byt {_p2}\n'
-            'ooatab: ' + _byt(_tri) + '\n\n'
-            ) + play_wrapper
-        play_entry = 'playooa'
     # Play-body unit repeat (default '1,1,1,1'): the play body executes four
     # units per frame — voice 0, voice 1, voice 2, then the global filter tail
     # ($D416/$D417) — and this 4-int list gives how many times each unit runs.
