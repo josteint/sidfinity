@@ -3536,6 +3536,17 @@ fx_dual_up:
             '        asl\n'
             '        sta vibwid,x')
 
+    # vib_dir_dead (C19 — Good_Beat): the half-cycle DIRECTION FLIP's
+    # writeback `EOR #$01 / STA $1768,x` is re-pointed to a void below the
+    # instrument table (no readers), so vibdir NEVER toggles and the
+    # vibrato is an accelerating one-way pitch drift. The running-flip
+    # sibling of vib_ramp_persist / vib_phase_persist. Default emits the
+    # canon flip byte-identically.
+    vib_flip = ('' if int(_artic('vibrato_dir_dead', 'vib_dir_dead', 0) or 0)
+                else '        lda vibdir,x\n'
+                     '        eor #$01\n'
+                     '        sta vibdir,x\n')
+
     # wjmp chase shadow (wave_start_on_marker): re-assert the shared $171F
     # scratch = the chase distance n at note-init, the one hop the settled-pool
     # packing skips (subsequent frames hop naturally). Empty (byte-identical)
@@ -4598,10 +4609,7 @@ fx_vib_c:
 vib_half:                            ; rest_effects='vibflip' entry (canon $1567)
         lda #$00                     ; half-cycle boundary
         sta vibctr,x
-        lda vibdir,x
-        eor #$01
-        sta vibdir,x
-        lda rampctr,x
+{vib_flip}        lda rampctr,x
         cmp cvram,x
         beq wavestep
         inc rampctr,x

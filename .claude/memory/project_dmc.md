@@ -8,6 +8,23 @@ metadata:
   modified: 2026-08-19T05:05:22.791Z
 ---
 
+## ✅ GOOD_BEAT FULL (2026-08-19): vib_dir_dead — f2 now 2,902/2,924, 22 partials
+Second diagnosed item-6 member, same day as Orchestral. The 08-14
+canon-diff diagnosis was wrong on BOTH counts: the active wedge is the
+$1571 half-cycle DIRECTION-FLIP writeback (`EOR #$01 / STA $1768,x`)
+re-pointed to $17AB — a void below the $17B0 instrument table with NO
+readers (pokes inert, not a data-poke), so vibdir never toggles and the
+vibrato is an accelerating one-way pitch drift. The $1512 slide-down
+misalignment is DEAD CODE (pc-watch: zero executions; full-songlength
+FULL proves unreached). Fix: composer knob `vib_dir_dead` (flip pair
+elided; running-flip sibling of vib_ramp_persist/vib_phase_persist),
+probe anchored on the intact EOR#$01 + STA operand != base+$768.
+Sole carrier in 10,787. Method note: the divergence arithmetic
+(o=$3C+$19 vs r=$3C-$19) said "direction" immediately once memwatch
+showed vibdir stuck at 0 — the state dump (vstep swelling 0/$19/$32,
+rampctr alive) separated flip-dead from step-dead/ramp-persist in one
+capture. Smoke 6/6, fifth-layer OK, census 1/10,787.
+
 ## ✅ ORCHESTRAL FULL (2026-08-19): the C24 clamp was a TEMPO WEDGE — f2 now 2,901/2,924, 23 partials
 Kubiszyn_Paul/Orchestral (backlog item 6's first diagnosed member)
 landed FULL at full songlength via an EXTRACT-ONLY fix:

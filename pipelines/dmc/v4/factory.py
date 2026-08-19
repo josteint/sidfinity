@@ -5879,6 +5879,21 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
                          if (mem[at(0x11C4)] == 0x9D
                              and _rd16(mem, at(0x11C5)) != base + 0x76E)
                          else {}),
+                      # $1571: the vib half-cycle DIRECTION FLIP's writeback
+                      # `EOR #$01 / STA $1768,x` re-pointed off its state var
+                      # (Good_Beat -> $17AB, a void below the instrument
+                      # table, no readers) = the flip is DEAD: vibdir stays
+                      # 0 and the vibrato becomes an accelerating one-way
+                      # pitch drift (C19 clear-repointed family, the running-
+                      # flip sibling of vib_ramp_persist/vib_phase_persist).
+                      # Anchor on the intact EOR #$01 + the STA opcode so a
+                      # re-assembled layout fails open.
+                      **({'vib_dir_dead': 1}
+                         if (mem[at(0x156F)] == 0x49
+                             and mem[at(0x1570)] == 0x01
+                             and mem[at(0x1571)] == 0x9D
+                             and _rd16(mem, at(0x1572)) != base + 0x768)
+                         else {}),
                       'hold_gateoff': hold_gateoff, 'hard_restart': 'none',
                       'rest_effects': 'skip',
                       # $11BE note-init `STA $1768,x` (vib direction clear)
