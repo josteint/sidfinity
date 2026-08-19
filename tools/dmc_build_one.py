@@ -176,16 +176,27 @@ def verify(orig: str, reb: str, nch: int, localize: bool = False,
     # empty — a partial with nothing to localize. The rebuild is always PSID.
     rsid = open(orig, 'rb').read(4) == b'RSID'
     allok, fails = True, []
-    for sub in range(n):
+
+    # Captures are independent per (file, subtune) siddump runs — a
+    # 25-subtune GAMES member sequential-captured 50 full-songlength dumps
+    # (~30-60 min on the X230, reading as a hang). Pre-capture all pairs
+    # through a thread pool (subprocess-bound, threads suffice); compare
+    # in order below. jobs auto-sizes via src.jobs.default_jobs.
+    def _pair(sub):
         cia = bool((speed >> min(sub, 31)) & 1)
-        # keep_init: retain the |N init prefix so trichotomy Check A compares
-        # REAL end-of-init chip states (a deferred per-chip init burst in the
-        # orig is otherwise judged against invisible defaults — Kordiaukis).
         cap = (functools.partial(writelog_per_irq_capture, keep_init=True)
                if cia else writelog_capture)
         dur = max(5.0, min((durs[sub] if durs and sub < len(durs) else 110) * 1.1, 1500.0))
-        a = cap(orig, subtune=sub, duration=dur, force_rsid=rsid)
-        b = cap(reb, subtune=sub, duration=dur)
+        return (cap(orig, subtune=sub, duration=dur, force_rsid=rsid),
+                cap(reb, subtune=sub, duration=dur), cia, dur)
+
+    from concurrent.futures import ThreadPoolExecutor
+    from src.jobs import default_jobs
+    with ThreadPoolExecutor(max_workers=max(1, default_jobs(cap=n))) as ex:
+        pairs = list(ex.map(_pair, range(n)))
+
+    for sub in range(n):
+        a, b, cia, dur = pairs[sub]
         ctol = 176
         if cia:
             ctol = max(176, 256 * max(1, round(len(a) / (dur * 50.0))))
