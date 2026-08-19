@@ -3536,13 +3536,25 @@ fx_dual_up:
             '        asl\n'
             '        sta vibwid,x')
 
-    # vib_dir_dead (C19 — Good_Beat): the half-cycle DIRECTION FLIP's
-    # writeback `EOR #$01 / STA $1768,x` is re-pointed to a void below the
-    # instrument table (no readers), so vibdir NEVER toggles and the
-    # vibrato is an accelerating one-way pitch drift. The running-flip
-    # sibling of vib_ramp_persist / vib_phase_persist. Default emits the
-    # canon flip byte-identically.
-    vib_flip = ('' if int(_artic('vibrato_dir_dead', 'vib_dir_dead', 0) or 0)
+    # vibrato shape 'drift' (typed; owner-approved enum growth 2026-08-19):
+    # the modulation never turns around — same width/swell as 'triangle',
+    # integrated one-way, so the pitch drifts off in accelerating steps
+    # (Good_Beat: the player's half-cycle flip writeback re-pointed to a
+    # void; deconstructed per the C19 33rd-occ rule — the wedge changes
+    # the pitch trajectory, a musical value). The player has ONE flip
+    # routine, so the shapes must be UNIFORM across the instruments whose
+    # vibrato runs: all 'drift' -> the flip pair is elided (vibdir stays
+    # 0 = one-way); any 'triangle' -> canon flip, byte-identical. A
+    # mixed-shape member has no corpus carrier; refuse loudly rather
+    # than emit a wrong uniform choice.
+    _vshapes = {getattr(i.vibrato, 'shape', 'triangle')
+                for i in usf.instruments
+                if getattr(i.vibrato, 'amplitude', 0)}
+    if len(_vshapes) > 1:
+        raise ValueError(f'mixed vibrato shapes {_vshapes}: the player has '
+                         f'one flip routine — per-voice shape dispatch is '
+                         f'not built (no corpus carrier)')
+    vib_flip = ('' if _vshapes == {'drift'}
                 else '        lda vibdir,x\n'
                      '        eor #$01\n'
                      '        sta vibdir,x\n')

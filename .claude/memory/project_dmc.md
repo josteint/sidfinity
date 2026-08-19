@@ -8,6 +8,26 @@ metadata:
   modified: 2026-08-19T05:05:22.791Z
 ---
 
+## ✅ GOOD_BEAT's KNOB DECONSTRUCTED (2026-08-19, same day): vib_dir_dead → `vibrato { shape: drift }`
+Owner-driven correction hours after the knob landed: `vib_dir_dead` named
+the broken MECHANISM (a reader must know the flip internals to infer
+"pitch drifts up forever"); the pitch trajectory is a MUSICAL value, so
+the C19 33rd-occ rule applies — deconstruct, don't knob. The typed home
+already existed: VibratoConfig.shape grew 'drift' (owner-approved enum
+growth; grammar unchanged — shape=CNAME already accepts it; writer/parser
+untouched). Extract stamps shape='drift' on the instruments whose vibrato
+RUNS (amplitude>0) when the $1571 probe fires; the composer derives the
+flip elision from shape UNIFORMITY across running-vibrato instruments
+(mixed shapes RAISE — one flip routine, no corpus carrier; empty/triangle
+= canon byte-identical). The params key + registry row are DELETED (50
+keys). The USF now reads `vibrato: onset=0 shape=drift amplitude=3
+ramp=4` — the drift's acceleration is fully specified by the SAME
+width/swell fields triangle uses (speed += swell-increment every `width`
+frames until the ramp cap, then linear; D = freq_hi(note)>>1 via
+vibrato_ramp='step', so higher notes drift faster). Gates: FULL
+67,077/67,077; corpus 12,573/12,573; spec+param lint clean; fifth-layer
+OK; full regression green.
+
 ## ✅ GOOD_BEAT FULL (2026-08-19): vib_dir_dead — f2 now 2,902/2,924, 22 partials
 Second diagnosed item-6 member, same day as Orchestral. The 08-14
 canon-diff diagnosis was wrong on BOTH counts: the active wedge is the

@@ -192,10 +192,6 @@
       "category": "mechanism-knob",
       "licensed_by": "C19 43rd (dead loop store: halt-and-hold)"
     },
-    "vib_dir_dead": {
-      "category": "mechanism-knob",
-      "licensed_by": "C19 (f2 $1571 half-cycle direction-flip writeback re-pointed to a void; vibrato drifts one-way — Good_Beat)"
-    },
     "vib_ramp_persist": {
       "category": "mechanism-knob",
       "licensed_by": "C19 clear-repointed family ($11C4 note-init rampctr clear dead -> legato vibrato swell); typed as init_behavior.vibrato_ramp_persist, this key is the old-corpus params fallback"

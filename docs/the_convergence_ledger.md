@@ -535,7 +535,12 @@ practice, not code to factor).
   KB/PVCF relocated members store to un-relocated $1726 but never reach the
   hook, and the recorded songlength can end at the fade SHORT of the halt) →
   extract walks $FF as STOP + composer halt-and-hold ($FE handler, the
-  track_fe_reset machinery minus its $D418 write). 50 occurrences (44th: the f2 $11C4
+  track_fe_reset machinery minus its $D418 write). 51 occurrences (51st: the
+  f2 $1571 vib direction-flip writeback re-pointed to a void = accelerating
+  one-way pitch drift — DECONSTRUCTED per the 33rd-occ rule to the typed
+  `vibrato { shape: drift }` (owner-approved enum growth), NOT a knob;
+  lesson: the mechanism-knob reflex fires fastest when a sibling knob
+  family exists — re-run the 33rd-occ test per occurrence; 44th: the f2 $11C4
   rampctr CLEAR re-pointed dead = the vibrato swell PERSISTS across notes
   (legato swell) -> typed `vibrato_ramp_persist`; 45th: the 4k_Byter
   instrument-byte animator NOT probed as a wedge — deconstructed per the

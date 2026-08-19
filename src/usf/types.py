@@ -590,7 +590,16 @@ class VibratoConfig:
     """
     scale: int = 0
     onset: int = 6
-    shape: str = 'triangle'      # 'triangle' | 'sine' | 'square' | 'table' | ...
+    # 'triangle' | 'sine' | 'square' | 'table' | 'drift' | ...
+    # 'drift' (DMC, owner-approved 2026-08-19): the modulation never turns
+    # around — same width/swell fields as 'triangle', integrated one-way
+    # (`direction`), so the pitch drifts off in accelerating steps (speed
+    # += swell-increment every `width` frames until the ramp cap, then
+    # linear). Good_Beat's hand-patched player (the half-cycle flip
+    # writeback re-pointed to a void; ledger C19, deconstructed to this
+    # shape per the 33rd-occ rule — the wedge changes the pitch
+    # trajectory, a musical value).
+    shape: str = 'triangle'
     period_frames: int = 8
     polarity: str = 'unipolar'    # 'unipolar' | 'bipolar'
     # Max modulation amplitude in semitones (descriptive metadata

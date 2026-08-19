@@ -591,7 +591,8 @@ def _instrument_to_usf(inst, wavepos_layout: bool = False,
                        canon: bool = True,
                        wave_norm: bool = False,
                        const_map: dict | None = None,
-                       vib_step: bool = False) -> Instrument:
+                       vib_step: bool = False,
+                       vib_drift: bool = False) -> Instrument:
     effects = set()
     if inst.drum:
         effects.add('drum')
@@ -603,7 +604,15 @@ def _instrument_to_usf(inst, wavepos_layout: bool = False,
         wave_freq = [b - 256 if b >= 128 else b for b in wave_freq]
     slide = FreqSlideConfig()
     vib = VibratoConfig(onset=inst.vib_delay, amplitude=inst.vib_width,
-                        ramp=0 if inst.dual else inst.vib_ramp)
+                        ramp=0 if inst.dual else inst.vib_ramp,
+                        # 'drift' (owner-approved 2026-08-19): the member's
+                        # player never flips the vibrato direction (the
+                        # $1571 writeback re-pointed to a void, Good_Beat)
+                        # — same width/swell, integrated one-way: the pitch
+                        # drifts off in accelerating steps. Stamped on the
+                        # instruments whose vibrato actually runs.
+                        shape=('drift' if vib_drift and inst.vib_width
+                               else 'triangle'))
     if inst.dual:
         slide = FreqSlideConfig(mode='run', step=inst.slide_step,
                                 initial_dir=inst.slide_dir, half_rate=True)
@@ -1446,6 +1455,12 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
     # sibling of play_repeat — so it rides the typed `environment` block,
     # not the params bag (C33, 2026-08-16).
     init_plays = int(m.extra_params.pop('init_plays', 0) or 0)
+    # vib_dir_dead (factory probe): the player's vibrato half-cycle
+    # direction flip is dead -> deconstructed to the MUSICAL form,
+    # `vibrato { shape: drift }` on the instruments whose vibrato runs
+    # (C19 33rd-occ rule; owner-approved enum growth 2026-08-19). The
+    # probe constant never reaches the USF.
+    _vib_drift = bool(m.extra_params.pop('vib_dir_dead', 0))
     return UsfFile(
         psid=PsidMeta(title=m.title, author=m.author, released=m.released,
                       clock=m.clock, sid=m.sid_model,
@@ -1496,7 +1511,8 @@ def model_to_usf(m: DmcModel, wave_norm: bool = False) -> UsfFile:
                                         # f2 step-vib: $178C,x = live vdep
                                         # (DMC_VDEP_ROW idx 229-231)
                                         vib_step=str(m.extra_params.get(
-                                            'vib_ramp', '')).startswith('step'))
+                                            'vib_ramp', '')).startswith('step'),
+                                        vib_drift=_vib_drift)
                      for k in sorted(m.instruments)],
         subtunes=subtunes,
         filter_programs={d + 1: dict(v) for d, v in m.filter_defs.items()},
