@@ -5,8 +5,30 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-19T21:58:30.573Z
+  modified: 2026-08-19T22:42:16.290Z
 ---
+
+## ✅ SESSION MEMBER FULL 25/25 (2026-08-20): class (b) was the SAME C8 disease — the ovr patch-stream guard
+Same day, second fix: sub 6's mid-song V3 freq divergence was NOT an
+effect bug — the per-subtune off-table window patch (`ovrbase`/`ovrpat`)
+was silently DROPPED by its 8-bit guard (6 conflicting positions × 25
+subtunes = 325 > 256), so subtune 6's glide-arrival compare byte
+(window pos 1 = idx 97, per-context $1708) came from the static
+last-wins window and V3's `C#8 noretrig glide=15` (slide-form target =
+note 97, off-table) NEVER ARRIVED — orig snaps curnote=97 and plays the
+off-table-served base $0E01 while we extrapolated the slide past it.
+Fix (commit ee8cad14): ovr WIDE form — 16-bit per-subtune row bases as
+label arithmetic, init SMC-patches both `ovrpat` reads, Y walks the row
+from 0; row>255 still drops. Golden 9/9 MD5-identical incl.
+Para_Lander_DX (the documented ovr_conflict carrier), smoke 6/6, full
+regression green. Method note: the diagnosis chain was offtable_probe
+(clean bow-out) → effect_chain_profiler (writer = canon sidwrite) →
+memwatch at each D40E write (curnote $3C→$61 with no track movement =
+glide arrival) → USF inspection (row + at(0,97,1,$6F) record BOTH
+correct) → composer derivation replay (glide_offtable=True, sub-7
+d[1]=111 correct) → the guard. f2 count: 2,903/2,924, 21 partials.
+LESSON recorded in C8: one member overflowing one 8-bit index → audit
+its other per-subtune streams the same day.
 
 ## ✅ SESSION class (a) — 9 subtunes FULL (2026-08-19): the C8 4th widening (subtune*16 wrap)
 GAMES/S-Z/Session (5-player C31 compilation, 25 subtunes): subs 16-24's
