@@ -5,8 +5,24 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-19T05:05:22.791Z
+  modified: 2026-08-19T21:58:30.573Z
 ---
+
+## ✅ SESSION class (a) — 9 subtunes FULL (2026-08-19): the C8 4th widening (subtune*16 wrap)
+GAMES/S-Z/Session (5-player C31 compilation, 25 subtunes): subs 16-24's
+"per-player merge collapse" diagnosis was WRONG — the per-player extract
+and merge were both correct (merged sub 17's first row matched orig's
+exact AD/SR). The cause was the composer's init indexing its stride-16
+tune records with `subtune*16` in 8-bit Y: subs ≥16 wrapped and played
+subs 0-8's records (proved by diffing the rebuild's own subtunes: our
+sub 16 stream == our sub 0's). Fix (commit 6b561fc0): init SMC-patches
+each tunetab read's operand hi byte with `subtune>>4` (sites ttp0-ttp7),
+gated on >16 subtunes — golden 8/8 MD5-identical, smoke 6/6, full
+regression green. Sole built carrier corpus-wide (Arc_Doors 20 subs is
+unmigrated). Session now 24/25 FULL incl. sub 4's old 7-write tail; the
+remainder is sub 6 (class b): V3 freq lo o$01 r$CC at write 12626, 81.9%
+in, player 0 song 2 — separate cause, under investigation. Ledger C8
+entry has the transferable form + TELL.
 
 ## ✅ GOOD_BEAT's KNOB DECONSTRUCTED (2026-08-19, same day): vib_dir_dead → `vibrato { shape: drift }`
 Owner-driven correction hours after the knob landed: `vib_dir_dead` named

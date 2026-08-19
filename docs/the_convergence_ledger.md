@@ -259,7 +259,11 @@ practice, not code to factor).
   3rd widening (r180): above 42, POOL deduped step blocks — istepbase = a
   per-instrument POINTER, capacity = distinct blocks ≤ 42, instruments ≤ 255.
   FIRST apply behavioral-identity dedup (C31) — the pressure is usually
-  over-splitting, not content.
+  over-splitting, not content. 4th widening (Session): the SUBTUNE record
+  index `subtune*16` wraps at 17+ subtunes → every sub ≥16 plays sub (k-16)'s
+  record (state mismatch + wrong first note at play 0 across a subtune BLOCK);
+  cure = init SMC-patches the reads' operand HI byte with `subtune>>4`, gated
+  on >16 subs. TELL: diff the rebuild's own subtunes against each other first.
 - FULL ENTRY: [`ledger/C8.md`](ledger/C8.md) — read it before applying.
 
 ### C9 — a runtime parameter py65 can't read → measure it from the writelog
