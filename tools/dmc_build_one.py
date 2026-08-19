@@ -192,8 +192,11 @@ def verify(orig: str, reb: str, nch: int, localize: bool = False,
 
     from concurrent.futures import ThreadPoolExecutor
     from src.jobs import default_jobs
-    with ThreadPoolExecutor(max_workers=max(1, default_jobs(cap=n))) as ex:
-        pairs = list(ex.map(_pair, range(n)))
+    from src.tslog import phase
+    _w = max(1, default_jobs(cap=n))
+    with phase(f'capture {n} subtune pair(s), {_w} workers'):
+        with ThreadPoolExecutor(max_workers=_w) as ex:
+            pairs = list(ex.map(_pair, range(n)))
 
     for sub in range(n):
         a, b, cia, dur = pairs[sub]
@@ -245,7 +248,13 @@ def main():
     os.makedirs(os.path.dirname(out_sid), exist_ok=True)
 
     from src.code_fingerprint import code_fingerprint
-    nch, _, path = build(rel, out_sid, args.usf)
+    from src.tslog import phase
+    # Timestamped phases (src.tslog convention, 2026-08-19): the build of a
+    # multi-player compilation runs SERIAL factory observation probes for
+    # minutes — without a phase banner that reads as a hang (Session: 7.5
+    # silent minutes, killed as hung).
+    with phase(f'build {rel} (config probes + extract + compose, serial)'):
+        nch, _, path = build(rel, out_sid, args.usf)
     print(f"built {out_sid}"
           + (f"  usf {args.usf}" if args.usf else "")
           + f"  chips={nch}  code_hash={code_fingerprint('dmc_v4')}")
