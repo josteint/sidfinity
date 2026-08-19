@@ -1861,15 +1861,15 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     else:
         rest_jmp = {'skip': 'wavestep', 'vibflip': 'vib_half',
                     'none': 'rest_none'}.get(sub_rest[0], 'run_effects')
-    rest_load = ('        lda tunetab+3,y              ; +9 = per-subtune '
+    rest_load = ('ttp5:   lda tunetab+3,y              ; +9 = per-subtune '
                  'rest-effects code\n'
                  '        sta resteff\n' if per_sub_rest else '')
     # per-subtune vib-swell form / prep ctrl (C31, the Rowdy knobs) — loaded
     # beside resteff from tune-record bytes +10/+11; absent when all agree.
-    vib_load = ('        lda tunetab+4,y              ; +10 = per-subtune '
+    vib_load = ('ttp6:   lda tunetab+4,y              ; +10 = per-subtune '
                 'vib-swell form\n'
                 '        sta vibfull\n' if per_sub_vib else '')
-    prep_load = ('        lda tunetab+5,y              ; +11 = per-subtune '
+    prep_load = ('ttp7:   lda tunetab+5,y              ; +11 = per-subtune '
                  'prep ctrl\n'
                  '        sta prepctl\n' if per_sub_prep else '')
     # 'none' (C19 RTS wedge, Bassy_Introtune: canon $1180 JMP $1322 -> RTS):
@@ -4009,6 +4009,40 @@ vpat_l:
             '        lda mswht,x\n'
             '        sta mswhi\n')
 
+    # >16 subtunes: the tune-record index `subtune * 16` overflows the 8-bit
+    # Y (16*16 = 256 wraps to 0 — Session's subs 16-24 played subs 0-8), the
+    # C8 composer-side index overflow in its merge-created form: the orig
+    # packs five 5-record stride-8 tables (no wrap anywhere), ONE unified
+    # stride-16 table is ours alone. Cure per C8: widen the index — init
+    # patches each tunetab read's operand HI byte with the record page
+    # (subtune >> 4); Y keeps the low byte. Gated on the count, so every
+    # <=16-subtune member emits byte-identical code (sole >16 carrier built
+    # today: GAMES/S-Z/Session).
+    _tt_sites = [('ttp0', 0), ('ttp1', 1), ('ttp2', 0), ('ttp3', 1),
+                 ('ttp4', 2)]
+    if per_sub_rest:
+        _tt_sites.append(('ttp5', 3))
+    if per_sub_vib:
+        _tt_sites.append(('ttp6', 4))
+    if per_sub_prep:
+        _tt_sites.append(('ttp7', 5))
+    if len(usf.subtunes) > 16:
+        tt_page_patch = (
+            '        pha                          ; record page = subtune>>4\n'
+            '        lsr\n'
+            '        lsr\n'
+            '        lsr\n'
+            '        lsr                          ; (>16 subtunes: sub*16\n'
+            '        sta tmp                      ; overflows 8 bits — patch\n'
+            + ''.join(
+                '        clc\n'
+                f'        lda #>(tunetab+{ofs})\n'
+                '        adc tmp\n'
+                f'        sta {lbl}+2\n' for lbl, ofs in _tt_sites)
+            + '        pla\n')
+    else:
+        tt_page_patch = ''
+
     asm = f"""
 SLIDE_PHASE = ${slide_phase:02X}
 CIA_PERIOD = ${cia_period:04X}
@@ -4027,28 +4061,28 @@ ini_st:
         cpx #(state_end - state0)
         bne ini_st
         pla
-{prime_save}{sphase_load}        asl
+{prime_save}{sphase_load}{tt_page_patch}        asl
         asl
         asl
         asl                          ; subtune * 16
         tay
         ldx #$00
 ini_ptr:
-        lda tunetab,y
+ttp0:   lda tunetab,y
         sta trkpl,x
-        lda tunetab+1,y
+ttp1:   lda tunetab+1,y
         sta trkph,x
         iny
         iny
         inx
         cpx #$03
         bne ini_ptr
-        lda tunetab,y                ; +6 = speed
+ttp2:   lda tunetab,y                ; +6 = speed
         sta spd
-        lda tunetab+1,y              ; +7 = master vol
+ttp3:   lda tunetab+1,y              ; +7 = master vol
         sta mvol
         {d418_init}
-        lda tunetab+2,y              ; +8 = $D417 routing-shadow priming
+ttp4:   lda tunetab+2,y              ; +8 = $D417 routing-shadow priming
         sta shadow17
 {rest_load}{vib_load}{prep_load}{d418_prime}{sphase_const}{prime_setup}        ldx #$00
 ini_v:
