@@ -3030,10 +3030,16 @@ fx_dual_up:
         ovr_sub.append(d)
     ovr_conflict = sorted({p for d in ovr_sub for p in d
                            if any(p in e and e[p] != d[p] for e in ovr_sub)})
-    # Y walks the patch stream, so it must stay 8-bit; an over-long stream
-    # keeps the static window (the pre-change behaviour) rather than truncating.
-    if ovr_conflict and len(usf.subtunes) * (2 * len(ovr_conflict) + 1) > 256:
+    # Y walks ONE subtune's patch row, so the ROW must stay 8-bit; a stream
+    # whose TOTAL exceeds 256 switches to the wide form below (16-bit row
+    # bases, init SMC-patches the stream reads — ledger C8, the Session
+    # 25-subtune member: 6 conflicts x 25 rows = 325 bytes, where the old
+    # guard silently dropped the whole patch and subtune 6's glide-arrival
+    # byte was served the wrong player's value).
+    if ovr_conflict and 2 * len(ovr_conflict) + 1 > 255:
         ovr_conflict = []
+    ovr_wide = bool(ovr_conflict) and (
+        len(usf.subtunes) * (2 * len(ovr_conflict) + 1) > 256)
     ovr_stream, ovr_rowbase = [], []
     for d in ovr_sub:
         ovr_rowbase.append(len(ovr_stream))
@@ -3144,8 +3150,16 @@ fx_dual_up:
                     'fmask:    .byt $FE, $FD, $FB\n'
                     'spd:      .dsb 1, 0\n'
                     'mvol:     .dsb 1, 0')
-    if ovr_conflict:
+    if ovr_conflict and not ovr_wide:
         data.append('ovrbase:\n' + _byt(ovr_rowbase))
+        data.append('ovrpat:\n' + _byt(ovr_stream))
+    elif ovr_conflict:
+        # wide form: 16-bit row bases as label arithmetic (C8 — the 8-bit
+        # ovrbase byte can't hold offsets past 255)
+        _obl = ', '.join(f'<(ovrpat+{b})' for b in ovr_rowbase)
+        _obh = ', '.join(f'>(ovrpat+{b})' for b in ovr_rowbase)
+        data.append(f'ovrbl:  .byt {_obl}')
+        data.append(f'ovrbh:  .byt {_obh}')
         data.append('ovrpat:\n' + _byt(ovr_stream))
     if fpat_notes:
         data.append('fpatbase:\n' + _byt(fpat_rowbase))
@@ -3676,7 +3690,35 @@ fx_dual_up:
             'StickyState seed\n')
     # per-subtune off-table window patch (see `ovr_conflict` above). Runs on
     # entry, before the state clear, so `tmp` is free to hold the subtune.
-    ovr_patch = ('''        sta tmp                      ; per-subtune off-table window
+    # Wide form (stream > 256 bytes, C8): 16-bit row base from ovrbl/ovrbh,
+    # SMC-patched into both stream reads; Y walks the row from 0 (row <= 255
+    # by the guard above).
+    if ovr_conflict and ovr_wide:
+        ovr_patch = '''        sta tmp                      ; per-subtune off-table window
+        tax
+        lda ovrbl,x                  ; 16-bit row base (stream > 256, C8)
+        sta ovrp_rx+1
+        sta ovrp_ra+1
+        lda ovrbh,x
+        sta ovrp_rx+2
+        sta ovrp_ra+2
+        ldy #$00
+ovrp_l:
+ovrp_rx:
+        ldx ovrpat,y                 ; window position ($FF = row end)
+        cpx #$FF
+        beq ovrp_d
+        iny
+ovrp_ra:
+        lda ovrpat,y
+        sta ovrwin,x
+        iny
+        bne ovrp_l
+ovrp_d:
+        lda tmp
+'''
+    else:
+        ovr_patch = ('''        sta tmp                      ; per-subtune off-table window
         tax
         ldy ovrbase,x
 ovrp_l:
