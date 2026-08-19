@@ -5,8 +5,25 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-18T18:41:05.864Z
+  modified: 2026-08-19T05:05:22.791Z
 ---
+
+## ✅ ORCHESTRAL FULL (2026-08-19): the C24 clamp was a TEMPO WEDGE — f2 now 2,901/2,924, 23 partials
+Kubiszyn_Paul/Orchestral (backlog item 6's first diagnosed member)
+landed FULL at full songlength via an EXTRACT-ONLY fix:
+`DMCV4Config.tempo_override` = the play-vector clamp's immediate (`LDA
+#$03 / STA base+$716 / JSR T / JMP T` — forces the speed reload every
+host call), used by the walk's subtune speed instead of the record's
+DEAD byte (1). The 08-14 "clamp inert when it equals the record" claim
+was wrong for the sole carrier: they disagree (1 vs 3) = our rows ran 2×
+fast. Two wrong hypotheses preceded the fix ("soft-note decode gap",
+then "one-play fetch off-by-one") — the tell that killed both: memwatch
+$1716/$1718 at the divergence showed period 4 (orig) vs 2 (ours) in one
+command; the per-play-identical gateless octave-arp sustain had hidden
+the 2× error until the first row boundary. Full transferable story in
+ledger C24's clamp section. Census 1/10,787 at the loosest shape;
+smoke 6/6; regression green; stored + fifth-layer OK; no seed field
+needed (both inits leave the counter at 0 → first tick play 1).
 
 ## ✅ Ed FILTER-DEF DRIVERS DECONSTRUCTED (2026-08-16): filterdef_anim + anim3 → filter_mod contours
 The last two Ed mechanism params are gone (backlog item 5's second half;

@@ -5729,6 +5729,19 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
     write-stream params (cymbal_onset / vib_ramp / hold_gateoff /
     hard_restart / rest_effects) are emitted by the extract whenever
     sector_format=='family2' — see pipelines/dmc/v4/extract/to_usf.py."""
+    # The C24 double-play wrapper's tempo-reload CLAMP (Orchestral, sole
+    # carrier — the same shape _detect_play_repeat steps over): `LDA #imm /
+    # STA base+$716 / JSR T / JMP T` at the PSID play vector forces the
+    # speed reload to `imm` EVERY host call, overriding the record's speed
+    # byte (they need NOT agree: Orchestral record 1, clamp 3 — the 08-14
+    # "inert when they agree" assumption was wrong for the sole carrier).
+    # Captured as cfg.tempo_override; the extract's subtune speed uses it.
+    _pv = s['play']
+    tempo_override = None
+    if (mem[_pv] == 0xA9 and mem[_pv + 2] == 0x8D
+            and (mem[_pv + 3] | (mem[_pv + 4] << 8)) == base + 0x716
+            and mem[_pv + 5] == 0x20 and mem[_pv + 8] == 0x4C):
+        tempo_override = mem[_pv + 1]
     ref, masked, reloc = _family2_ref()
     canon = bytearray(ref)
     if delta:
@@ -5847,6 +5860,7 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
         dual_parity_addr=at(0x1035),
         track_loop_target=False, cia_period=cia_period,
         play_repeat=play_repeat,
+        tempo_override=tempo_override,
         sector_format='family2',
         # $12F4 vib-swell increment: canon f2 `LSR` = freq_hi(note)>>1; the
         # Brian build variant replaces it with `TAY` (A untouched) = the FULL

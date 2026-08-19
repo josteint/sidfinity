@@ -2117,7 +2117,15 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc85') -> DmcModel:
                                     cfg, 'transpose_neg_bias', 1),
                                 fetch_events=_FETCH_EVENTS.get(vi))
             voices.append(v)
-        song = DmcSong(id=sub + 1, speed=mem[rec + 6],
+        # The subtune speed: the record byte — unless a C24 play-wrapper
+        # tempo clamp re-asserts a DIFFERENT reload every host call
+        # (cfg.tempo_override, Orchestral): the record byte is then dead
+        # (loaded at init, overwritten before the first tick) and the
+        # clamp immediate is the tune's real tempo.
+        song = DmcSong(id=sub + 1,
+                       speed=(cfg.tempo_override
+                              if getattr(cfg, 'tempo_override', None)
+                              is not None else mem[rec + 6]),
                        master_vol=mem[rec + 7], voices=voices)
         # Song-end rest before the repeat (ledger C38 sibling): this subtune
         # ends, rests, and starts again from the top instead of looping

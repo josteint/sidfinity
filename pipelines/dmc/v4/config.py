@@ -109,6 +109,14 @@ class DMCV4Config:
     # points to a wrapper that does N x `JSR <play>` then RTS, so one VBI runs
     # the engine N times. The composer emits the same N-fold play. 1 = once.
     play_repeat: int = 1
+    # The C24 double-play wrapper's per-play TEMPO-RELOAD CLAMP immediate
+    # (Orchestral, sole carrier): `LDA #imm / STA base+$716` before the JSR/JMP
+    # pair forces the speed reload EVERY host call, overriding the tune
+    # record's dead speed byte (record 1 vs clamp 3 there — they need NOT
+    # agree). Extract-only per the C19 rule (the wedge changes a DERIVED
+    # MUSICAL VALUE, the tempo): the walk's subtune speed uses this instead of
+    # the record byte. None = no clamp, record speed as always.
+    tempo_override: 'int | None' = None
     # Factory-probed engine write-stream params merged into USF params
     # (the family-2 build knobs: cymbal_onset / vib_ramp / hold_gateoff /
     # hard_restart / rest_effects). Family-2 sub-builds differ in some of
