@@ -8,6 +8,11 @@ metadata:
   modified: 2026-07-22T15:05:21.789Z
 ---
 
+## ✅ #85 SWEEP (2026-08-19, overnight): V1 168/1387 FULL, 0 regressions
+Full family re-verify under current code. +28 members vs the baseline
+(tmp/gt_v1_results.pre85sweep.jsonl); the +4 FULL are all new members.
+detect_fail 135 / build_fail 3 unchanged in kind.
+
 ## STATUS (head — newest wins; update THIS section, prepend new rounds here)
 
 **2026-07-22 — V1's USF ROUND TRIP WAS BROKEN AND IS NOW FIXED.** The V1

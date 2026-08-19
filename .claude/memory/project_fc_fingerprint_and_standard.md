@@ -7,6 +7,15 @@ metadata:
   originSessionId: fea5d0c1-61d2-49f9-8e14-4e5916b95622
 ---
 
+## ✅ #85 SWEEP (2026-08-19, overnight): 2,604/2,748 FULL (94.8%), 0 regressions
+Full family re-verify under current code (the 08-16/18 src/usf schema
+commits had invalidated every cached row). +114 members vs the Jul-22
+baseline (tmp/fc_std_wide_results.pre85sweep.jsonl): 72 new FULL, 37
+flagged (out of scope), 4 partial, 1 gain, 0 gone. NEW ERROR (residue
+lead): DEMOS/UNKNOWN/New_Sound.sid — fc_standard_config's
+_run_init_in_py65 never returns (10M cycles) = the C9 class (IRQ-waiting
+init); needs the measure-from-writelog route, never py65.
+
 ## STATUS (head — newest wins; update THIS section, prepend new rounds here)
 
 **2026-07-20 (later): mid-list `*r` repeat inherited-head omission

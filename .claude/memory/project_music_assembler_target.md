@@ -18,6 +18,12 @@ by the DMC batch, and STORABLE as one `.usf` (ledger C35 `origin_engine`).
 NOT yet done: the MA family's own corpus mass-write/sync (deliberate — 33%
 residue is too high to store).
 
+## ✅ #85 SWEEP (2026-08-19, overnight): 4,021/6,489 FULL (62.0%), 0 regressions
+Full family re-verify under current code. +138 members vs the Jul-22
+baseline (tmp/masm_wide_results.pre85sweep.jsonl): 104 new FULL, 19
+partial, 15 unsupported, 2 gains, 0 gone. Corpus mass-write still
+deliberately NOT done (standing decision).
+
 ## Round 2 (2026-07-22) — USF round trip + ledger C6
 
 Three landed changes, each with its own commit:
