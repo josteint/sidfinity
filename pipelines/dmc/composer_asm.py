@@ -1758,6 +1758,15 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # (canon — frame 1); 1 = one frame later (family 2 — frame 2, gated
     # by the post-note guard). A musical timing parameter of the effect.
     cymbal_onset = int(_artic('cymbal_onset', 'cymbal_onset', 0)) & 1
+    # C19 (Delta_Zak, f2 $10C3 BEQ->BMI): the row fetch fires when the
+    # duration counter goes NEGATIVE instead of reaching zero — every row
+    # lasts one extra tick and the init seed (dur=1) lasts two plays. A
+    # member-global fencepost of the tick machinery (temporal family of
+    # tempo_override), reproduced by the same one-opcode swap; USF
+    # durations stay the stored bytes. init_behavior typing candidate
+    # (C33) — flagged in composer_params.json.
+    dur_fetch_br = ('bmi' if int(usf.params.fields.get(
+        'dur_fetch_underflow', 0)) else 'beq')
     # cymbal noise-burst freq value: the immediate written to $D400/$D401 for
     # the gated-noise attack. Canon is $FFFF (LDA #$FF), but the value is an
     # extracted per-member operand — a few demos patch it (e.g. Presentation's
@@ -4175,7 +4184,7 @@ voice:
         bne vo_frame
         dec dur,x
         lda dur,x
-        beq fetch
+        {dur_fetch_br} fetch
 vo_frame:
         jmp frame_entry
 

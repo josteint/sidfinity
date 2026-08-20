@@ -68,6 +68,11 @@
       "category": "mechanism-knob",
       "licensed_by": "C19 (dual freq generator wedge)"
     },
+    "dur_fetch_underflow": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C19 (f2 $10C3 duration-fetch branch BEQ->BMI, Delta_Zak: every row lasts one extra tick, init seed lasts two plays — a member-global tick-machinery fencepost, tempo_override's family)",
+      "note": "init_behavior typing candidate (C33). 33rd-occ test run: value-level deconstruction (durations+1 in USF) rejected — the +1 is uniform machinery, not authored per-row, and the extra init-seed play has no typed home without a schema addition (owner gate)."
+    },
     "dual_generator_steps": {
       "category": "mechanism-knob",
       "licensed_by": "C19 (dual freq generator wedge)"

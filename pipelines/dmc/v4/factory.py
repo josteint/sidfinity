@@ -5894,6 +5894,18 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
                              and mem[at(0x1571)] == 0x9D
                              and _rd16(mem, at(0x1572)) != base + 0x768)
                          else {}),
+                      # $10C3 duration-fetch branch BEQ->BMI (C19, Delta_Zak):
+                      # the row fetch fires when `DEC $173B,x` goes NEGATIVE,
+                      # so every row lasts one extra tick and the init seed
+                      # lasts two plays. Anchor on the intact DEC/LDA $173B,x
+                      # pair so a re-assembled layout fails open (canon $F0).
+                      **({'dur_fetch_underflow': 1}
+                         if (mem[at(0x10BD)] == 0xDE
+                             and _rd16(mem, at(0x10BE)) == base + 0x73B
+                             and mem[at(0x10C0)] == 0xBD
+                             and _rd16(mem, at(0x10C1)) == base + 0x73B
+                             and mem[at(0x10C3)] == 0x30)
+                         else {}),
                       'hold_gateoff': hold_gateoff, 'hard_restart': 'none',
                       'rest_effects': 'skip',
                       # $11BE note-init `STA $1768,x` (vib direction clear)
