@@ -945,7 +945,15 @@ practice, not code to factor).
   init-GENERATED data (zero bytes a skip-zero unpacker never writes are
   "undefined" to the mem≠ref gate wherever the power-on pattern is also $00
   → per-byte ROM-text contamination of instrument records; TELL = decoded
-  fields that are a BYTE-MIX of real data and ASCII). Static probe: an
+  fields that are a BYTE-MIX of real data and ASCII). WAVE-WINDOW surface
+  (7th occ, Kaj2): the wave step's 8-bit Y makes the idle marker-chase
+  mod-256 — a window past EOF sends the chase through environment bytes
+  (pos 0 → $FF past EOF, power-on ≥ $90 chains on; idle voices cycle
+  garbage ctrl cells the image-zero view never reaches). Same overlay,
+  GATED to "the idle walk's sim visits a past-EOF position" — the broad
+  window-off-image gate is REFUTED (an unplayed instrument chain that
+  settles on zeros CYCLES on the true bytes → hard reject, LSD_4K; and it
+  changes verdict-proven bytes, Andjana). Static probe: an
   `A9 imm / 85 01` pair in the play-vector head overrides `_psid_play_iomap`;
   the overlay's ROM ranges are gated per-ROM on the EFFECTIVE port
   (BASIC in iff port&3==3, KERNAL iff port&2). 10 static carriers in

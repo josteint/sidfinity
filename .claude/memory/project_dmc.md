@@ -5,8 +5,22 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-20T05:12:52.710Z
+  modified: 2026-08-20T05:39:08.800Z
 ---
+
+## ✅ KAJ2 FULL (2026-08-20): C29 7th — the WAVE WINDOW reads past EOF; f2 2,905/2,924, 19 partials
+Second singleton, same day. The idle marker-chase is mod-256 (8-bit Y);
+Kaj2's wave window runs 108 bytes past EOF, so the chase (pos 0 → $FF
+past EOF, power-on ≥ $90) chains into co-located garbage cells — idle
+V2/V3 cycle ctrl $4E/$52/$4A for 208 plays where the extract's
+image-zero view settled silent. Fix (commit 9ecec6e2): the shared C29
+CPU-eye overlay over the off-image wave windows, gated to "the idle
+walk's sim visits a past-EOF position" — the broad geometry gate was
+MEASURED AND REFUTED (broke LSD_4K's unplayed cycling chain, changed
+Andjana; 119 corpus carriers, narrow gate = Kaj2 alone changes,
+118-FULL golden sweep 118/118 identical). Synced + audited. C29 entry
+has the general lesson (gate a new overlay surface on the WALK, not the
+window geometry).
 
 ## ✅ DELTA_ZAK FULL (2026-08-20): dur_fetch_underflow (C19 52nd) — f2 2,904/2,924, 20 partials
 First of the 21 refreshed singletons (backlog item 6). The f2 $10C3
