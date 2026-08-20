@@ -539,7 +539,12 @@ practice, not code to factor).
   KB/PVCF relocated members store to un-relocated $1726 but never reach the
   hook, and the recorded songlength can end at the fade SHORT of the halt) →
   extract walks $FF as STOP + composer halt-and-hold ($FE handler, the
-  track_fe_reset machinery minus its $D418 write). 51 occurrences (51st: the
+  track_fe_reset machinery minus its $D418 write). 52 occurrences (52nd: the
+  f2 $10C3 duration-fetch branch BEQ→BMI = fetch on UNDERFLOW — every row
+  lasts one extra tick, the init seed lasts two plays; presents as
+  "diverges at play position 0" though every row is stretched; knob
+  `dur_fetch_underflow`, temporal family of tempo_override — Delta_Zak;
+  51st: the
   f2 $1571 vib direction-flip writeback re-pointed to a void = accelerating
   one-way pitch drift — DECONSTRUCTED per the 33rd-occ rule to the typed
   `vibrato { shape: drift }` (owner-approved enum growth), NOT a knob;

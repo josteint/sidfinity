@@ -5,8 +5,30 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-19T22:42:16.290Z
+  modified: 2026-08-20T05:12:52.710Z
 ---
+
+## ✅ DELTA_ZAK FULL (2026-08-20): dur_fetch_underflow (C19 52nd) — f2 2,904/2,924, 20 partials
+First of the 21 refreshed singletons (backlog item 6). The f2 $10C3
+duration-fetch BEQ→BMI wedge: every row +1 tick, init seed = 2 plays;
+presented as "diverges at play 0" (the whole stream shifts). Knob
+`dur_fetch_underflow` (one-opcode swap at the composer's fetch gate,
+temporal-dispatch, registered; init_behavior C33 typing candidate —
+33rd-occ test run + recorded). Sole carrier. Synced + audited.
+SINGLETON RECON (same session, per-IRQ first-plays probe over the pos-0
+cluster): Kaj2 = idle V2/V3 walk leftover wave programs with cycling
+ctrl $4E/$52/$4A where ours are silent (idle-priming class); Sub_Burner
+= orig play-0 EMPTY (delayed start) + different idle values; Ofyron_Gadaf
+= filter-tail/V3 write ORDER + a $D417 routing value ($F5 vs $F1);
+Knowledge_Posse_tune_3 = init split across two plays + a reverse-voice-
+order ctrl=$45 idle pass (C18-ish); Artris = BUILD FAIL 'wave pool
+overflow' under dmc_build_one though the fresh batch row built 'single'
+(divergence pos 27 — investigate the build-path discrepancy first).
+Witchs_Birthday: orig preps only V1 at 94.9% while ours preps all 3 —
+V2/V3 last-pattern durations end early near the wrap; final sectors
+unterminated within their 256-byte windows (C32 endless-tail shape) yet
+the walk emitted loop@0 — UNRESOLVED, needs the endless/fold dig.
+Zwei_Bereten: mid-song V2 freq-hi value divergences (subs 0+1).
 
 ## ✅ SESSION MEMBER FULL 25/25 (2026-08-20): class (b) was the SAME C8 disease — the ovr patch-stream guard
 Same day, second fix: sub 6's mid-song V3 freq divergence was NOT an
