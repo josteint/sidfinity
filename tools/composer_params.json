@@ -18,8 +18,8 @@
   "pipelines/composer.py": {
     "digi_player": {
       "category": "mechanism-knob",
-      "licensed_by": "digi pipeline (C7 category C: PCM is natural musical form)",
-      "note": "REVIEW: a NAME indexing an engine-side digi-player registry is borderline section-7 (an engine library the USF indexes into); flagged by the first lint run 2026-08-12"
+      "licensed_by": "NONE — meets principle section-8's test exactly (the composer's choice of which 6502 to emit depends on USF content -> _digi_player_registry). The old C7-category-C citation was WRONG: C7-C covers the PCM sample data (FLAC sidecars, fine), not the player choice. Re-assessed 2026-08-16, note corrected 2026-08-20 (backlog.md item 5).",
+      "note": "LATENT, not active: a library of one (1 corpus carrier, 4k-era Chimera; 1 registry entry). Owner-reviewed TRIPWIRE: the SECOND digi engine migrated (e.g. Galway $D418 4-bit) must PARAMETRIZE (a real technique enum like digi { technique: wavetoggle_1bit | volume_4bit, rate: N }; the composer synthesizes the player) — NEVER add registry row two. DigiCode's addresses are composer layout and must not be reachable from USF even by name."
     }
   },
   "pipelines/dmc/composer_asm.py": {
