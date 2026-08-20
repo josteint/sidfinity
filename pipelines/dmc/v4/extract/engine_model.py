@@ -1909,6 +1909,49 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc85') -> DmcModel:
         f'non-standard instrument base ${instr_base:04X}'
 
     n_wave = wavefreq - wavectrl
+    # C29 — the WAVE WINDOW leaves the image: the wave step indexes both
+    # tables with an 8-bit Y, so the mod-256 marker chase / wave walk can
+    # read environment bytes past EOF (Kaj2: the idle chase's first hop is
+    # pos 0 -> $FF = $18C5, 108 bytes past the image — the power-on byte
+    # there is >= $90, so the ORIG's chase chains on into co-located
+    # garbage cells that the image-zero view never reaches; the extract
+    # settled at $FF with ctrl $00 while the engine cycles $4E/$52/$4A).
+    # Overlay the CPU-eye bytes over each off-image 256-byte window —
+    # UNDEFINED bytes only (shared C29 helper), so a fully-in-image member
+    # is untouched and a walk that never reads past EOF sees unchanged
+    # bytes (byte-identical USF by construction).
+    # GATED to the demonstrated class: the IDLE walk (pos 0, the engine's
+    # marker-chase + step-INC cycle) visits a past-EOF position. A broader
+    # "window leaves the image" gate broke LSD_4K — an UNPLAYED
+    # instrument's marker chain settles on image zeros but CYCLES on the
+    # true environment bytes (hard reject), and its old zero-settled slice
+    # was already verdict-proven. 118-member sweep: only the idle-walk
+    # carriers change bytes under this gate.
+    _wimg_end = s['load'] + len(s['payload'])
+    _wv_oob = sorted(wb for wb in {wavectrl, wavefreq}
+                     if wb + 0x100 > _wimg_end)
+
+    def _idle_walk_leaves_image() -> bool:
+        pos, seen = 0, set()
+        for _ in range(1024):
+            if pos in seen:
+                return False
+            seen.add(pos)
+            if (wavectrl + pos >= _wimg_end
+                    or wavefreq + pos >= _wimg_end):
+                return True
+            b = mem[(wavectrl + pos) & 0xFFFF]
+            if b >= 0x90:
+                if b == 0x90:
+                    return False          # zero-hop: the slicer refuses too
+                pos = (pos - (b - 0x90)) & 0xFF
+            else:
+                pos = (pos + 1) & 0xFF    # step, INC next play
+        return False
+
+    if _wv_oob and _idle_walk_leaves_image():
+        _overlay_offimage_windows(mem, path, _wv_oob, post_sub, s,
+                                  getattr(cfg, 'data_post_init', False))
     # Extend the read window past the wave table so an instrument whose
     # wave_start sits past it (an off-table WAVE read — the wave analogue of
     # off-table freq) is sliced from the bytes the original actually reads
