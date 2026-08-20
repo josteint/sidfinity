@@ -1767,6 +1767,16 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     # (C33) — flagged in composer_params.json.
     dur_fetch_br = ('bmi' if int(usf.params.fields.get(
         'dur_fetch_underflow', 0)) else 'beq')
+    # filter_def_orig (ledger C31, Sub_Burner): the fbase off-table read
+    # (idx 116/212) sonifies the ORIG def#<<4, but a compilation merge's
+    # compact remap renumbered a reading player's defs. Serve the redirect
+    # from an orig-number SHADOW `fbsh` (written from the fborigt table
+    # beside fbase at filter note-init) — the window layout stays untouched
+    # (re-anchoring it broke the verdict-proven Lane_Crazy). Key absent ->
+    # nothing emits, byte-identical.
+    _fdo_raw = str(usf.params.fields.get('filter_def_orig', '') or '')
+    fd_orig = {int(s.split(':')[0]): int(s.split(':')[1])
+               for s in _fdo_raw.split(',') if s}
     # cymbal noise-burst freq value: the immediate written to $D400/$D401 for
     # the gated-noise attack. Canon is $FFFF (LDA #$FF), but the value is an
     # extracted per-member operand — a few demos patch it (e.g. Presentation's
@@ -2939,6 +2949,21 @@ fx_dual_up:
         sub_prime.append(row)
     per_sub_prime = any(r != [idle, imask, iguard, idurl, icinst]
                         for r in sub_prime)
+    # per-subtune IDLE PULSE record (ledger C31, Sub_Burner): an idling
+    # voice runs its own player's record-0 pulse program (cinst is
+    # init-cleared to 0 = that player's slot 0); the merge carries a
+    # differing record as `idle_pulse_instr` (a USF instrument number) on
+    # MusicSubtune.params and init primes cinst,x with its pool slot.
+    # Absent everywhere -> nothing below emits (byte-identical).
+    icin0 = [0, 0, 0]
+    sub_icin0 = []
+    for _sub in m.subtunes:
+        _v = _sub['params'].get('idle_pulse_instr')
+        _slot = m.inst_slot[int(_v)] if _v is not None else 0
+        sub_icin0.append([_slot] * 3)
+    per_sub_icin0 = any(any(r) for r in sub_icin0)
+    if per_sub_icin0:
+        per_sub_prime = True
     # PER-SUBTUNE idle wave start (m.sub_iwpos, ledger C31): a compilation whose
     # packed players' wave tables differ at position 0 needs each subtune's idle
     # voices primed to walk ITS player's lead-in wave (appended to the pool).
@@ -2956,6 +2981,7 @@ fx_dual_up:
         iguard = [b for r in sub_prime for b in r[2]]
         idurl = [b for r in sub_prime for b in r[3]]
         icinst = [b for r in sub_prime for b in r[4]]
+        icin0 = [b for r in sub_icin0 for b in r]
         # per-(subtune, voice) idle wave pool position — all 3 voices of a
         # subtune share it (the idle wave is per-subtune, not per-voice); 0 for
         # a subtune that inherits the file-level idle wave at pool position 0.
@@ -3121,6 +3147,16 @@ fx_dual_up:
         # per-(subtune, voice) idle wave pool position (ledger C31); emitted
         # only for a compilation whose packed players disagree on the idle wave
         data.append('iwpos:\n' + _byt(iwpos))
+    if per_sub_icin0:
+        # per-(subtune, voice) idle-pulse record slot (ledger C31); emitted
+        # only when some subtune's player record 0 landed in its own slot
+        data.append('icin0:\n' + _byt(icin0))
+    if fd_orig:
+        # orig def#<<4 per merged slot (ledger C31 filter_def_orig): the
+        # fbase-read shadow source; identity slots keep slot<<4
+        _nfd = max(len(m.filter_defs), max(fd_orig) + 1)
+        data.append('fborigt:\n' + _byt(
+            [((fd_orig.get(s, s)) << 4) & 0xFF for s in range(_nfd)]))
     if medley_segs:
         # time-medley segment schedule (ledger C31): per segment the song to
         # play + its 2-byte counter init (mirrors the orig wrapper's $03/$04)
@@ -3603,6 +3639,11 @@ fx_dual_up:
     # expansion. Rows with no proven-dead voice pass through untouched.
     _state_rows = _deredirect_expand(DMC_OFFTABLE_STATE,
                                      getattr(m, 'deredirect_dead', {}))
+    if fd_orig:
+        # filter_def_orig (see the parse above): serve the fbase read from
+        # the orig-number SHADOW instead of the live slot<<4.
+        _state_rows = [(a, ('fbsh' if lbl == 'fbase' else lbl), nb)
+                       for a, lbl, nb in _state_rows]
     otmap = (_state_rows if m.offtable_redirect else []) \
         + ([DMC_SECTPOS_ROW] if sectpos_on else []) \
         + ([DMC_WAVEPOS_ROW] if (m.wavepos_layout or
@@ -3675,6 +3716,18 @@ fx_dual_up:
     iwpos_prime = (f'        lda iwpos,{ps}                  ; per-subtune idle '
                    'wave pool position\n'
                    '        sta wavepos,x\n' if per_sub_iwave else '')
+    # per-subtune idle-pulse record prime (see `icin0` above, ledger C31):
+    # points an idling voice's active pulse record (cinst — init-cleared to
+    # slot 0 otherwise) at its own player's record-0 slot in the merged pool.
+    icin0_prime = (f'        lda icin0,{ps}                  ; per-subtune idle-'
+                   'pulse record (C31)\n'
+                   '        sta cinst,x\n' if per_sub_icin0 else '')
+    # fbase orig-number shadow (see fd_orig above) — written beside fbase at
+    # filter note-init; the idx-116/212 redirect serves it instead of fbase.
+    fbsh_store = ('        lda fborigt,y                ; orig def# shadow '
+                  '(C31 filter_def_orig)\n'
+                  '        sta fbsh\n' if fd_orig else '')
+    fbsh_var = 'fbsh:     .dsb 1, 0\n' if fd_orig else ''
     # sticky-instrument seed init (see `icinst` above): all-zero slots keep
     # the historical constant form byte-for-byte; a nonzero seed switches to
     # the icinst table (emitted below only in that case).
@@ -4152,7 +4205,7 @@ ini_v:
         sta gla,x                    ; read tracks orig from init; glsp=0 so
         lda iglb,x                   ; fx_glide stays gated off until an arm)
         sta glb,x
-{iwpos_prime}{cinst_seed}{prime_step}        inx
+{iwpos_prime}{icin0_prime}{cinst_seed}{prime_step}        inx
         cpx #$03
         bne ini_v
         ; ---- universal reset: silence-clear (ascending, as the family) ----
@@ -4497,7 +4550,7 @@ ni_f_on:
         asl
         asl                          ; 16*def# (orig def-record stride)
         sta fbase
-        lda fdres,y
+{fbsh_store}        lda fdres,y
         sta fres
         lda fdmode,y
 {ni_d418}        lda fdinit,y
@@ -4865,7 +4918,7 @@ fframe:   .dsb 1, 0
 fsz:      .dsb 1, 0                  ; filter step size cache (= orig $1721)
 fdu:      .dsb 1, 0                  ; filter step duration cache (= orig $1722)
 fbase:    .dsb 1, 0
-fcut:     .dsb 1, 0
+{fbsh_var}fcut:     .dsb 1, 0
 frep:     .dsb 1, 0
 fstop:    .dsb 1, 0
 fres:     .dsb 1, 0

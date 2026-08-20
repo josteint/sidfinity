@@ -5116,10 +5116,25 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc85',
     # base+3; the PSID play vector is the wrapper, not this player).
     if base_override is not None:
         layout = _jt_layout(base_override)
+        base = base_override
+        if layout is None and (mem[base_override] == 0x4C
+                               and mem[base_override + 3] == 0x4C):
+            # Re-assembled packed player whose TWO-JMP head sits BELOW the
+            # body (ledger C13: dispatch on the PLAY-body signature, never
+            # the head offset). The head names init/play; an f2 body implies
+            # base = play - $85, cross-checked against init = base + $37 —
+            # Sub_Burner's wrapper copies the f2 player to $1025 with its
+            # head at $1000 (every state/table operand a uniform +$25).
+            # The masked identity compare downstream is the real judge.
+            _e0 = _rd16(mem, base_override + 1)
+            _e1 = _rd16(mem, base_override + 4)
+            _ib = (_e1 - 0x85) & 0xFFFF
+            if _e0 == (_ib + 0x37) & 0xFFFF and _ib > base_override:
+                layout = 'family2'
+                base = _ib
         if layout is None:
             raise DMCV4Unsupported(
                 'base_override_not_player', f'${base_override:04X}')
-        base = base_override
     for b in ([] if base_override is not None else (s['play'] - 3, s['load'])):
         layout = _jt_layout(b)
         if layout:

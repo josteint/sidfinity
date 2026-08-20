@@ -966,6 +966,40 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
                 raise ValueError(
                     f'merged filter window {len(merged.filter_defs)} > 16 slots')
 
+    # An off-table read can sonify fbase = the LIVE def INDEX << 4 (canon
+    # $171B; window idx 116 hi read / 212 lo read). The remap renumbers
+    # defs, so a reading player's fbase would sonify the MERGED slot
+    # instead of the orig def# (Sub_Burner sub 1: player 2's only def is
+    # orig 0, remapped to slot 1 — the read served $10 where the orig
+    # plays $00). Do NOT re-anchor the window (an anchored layout broke
+    # the verdict-proven Lane_Crazy, whose readers' remaps are
+    # unobservable): carry `filter_def_orig` — the reading players'
+    # slot->orig map where it is non-identity — and the composer serves
+    # the redirect from an orig-number SHADOW (fbsh) written beside fbase
+    # at filter note-init. Conflicting orig numbers for one slot (two
+    # readers sharing a deduped slot) drop the key = the old behavior.
+    _FBASE_IDX = {116, 212}
+    _fbase_readers = {pidx for pidx in used
+                      if any(((off + note) & 0xFF) in _FBASE_IDX
+                             for ins in models[pidx].instruments.values()
+                             for off, note, *_r in
+                             (getattr(ins, 'offtable_freq', []) or []))}
+    _fdo = {}
+    for pidx in sorted(_fbase_readers):
+        for d in sorted(_played_fdefs(pidx)):
+            slot = fd_remap.get((pidx, d), d)
+            if slot == d:
+                continue
+            if slot in _fdo and _fdo[slot] != d:
+                _fdo = None
+                break
+            _fdo[slot] = d
+        if _fdo is None:
+            break
+    if _fdo:
+        merged.extra_params['filter_def_orig'] = ','.join(
+            f'{s}:{o}' for s, o in sorted(_fdo.items()))
+
     # ---- instruments: remap to one compact pool. Dedup identical instruments
     # (same drum kit shared across players) so many-player members stay under
     # the `_MAX_INSTR` cap. The dedup key EXCLUDES offtable_freq (a reachability
@@ -984,8 +1018,29 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
     # the pool with the start player's record 0 restores the invariant; the
     # dedup collapses it into an identical row-referenced instrument, so a
     # member whose record 0 is already played keeps its exact pool size.
-    placements = [(base_pidx, 0)] + [(pidx, old) for pidx in sorted(used)
-                                     for old in sorted(used[pidx])]
+    # ...and every NON-start player whose record 0's PULSE content differs
+    # from the start player's: its subtunes' idling voices run THEIR OWN
+    # record 0's pulse mechanism (cinst is init-cleared to 0 = that player's
+    # slot 0), which one merged slot 0 cannot serve (Sub_Burner sub 1: the
+    # $8000 player's record 0 has pw byte $00 where the start player's is
+    # $66 — idle V2/V3 wrote PW $0060 for the orig's $0000). The differing
+    # record 0 joins the pool and the subtune carries `idle_pulse_instr`
+    # (params, ledger C31 — the pulse sibling of idle_wave/sub_iwpos); the
+    # composer primes cinst,x from it at init. Agreeing players dedup into
+    # the same slot (no pool growth, no params key — byte-identical).
+    def _rec0_pulse_key(pidx):
+        i0 = models[pidx].instruments.get(0)
+        if i0 is None:
+            return None
+        return (i0.pw_init_hi, i0.pw_bound_a, i0.pw_bound_b,
+                tuple(i0.pw_steps), i0.pw_keep_running)
+    _base_rec0 = _rec0_pulse_key(base_pidx)
+    _rec0_extra = [pidx for pidx in sorted(used)
+                   if pidx != base_pidx and _rec0_pulse_key(pidx) is not None
+                   and _rec0_pulse_key(pidx) != _base_rec0]
+    placements = ([(base_pidx, 0)] + [(pidx, 0) for pidx in _rec0_extra]
+                  + [(pidx, old) for pidx in sorted(used)
+                     for old in sorted(used[pidx])])
 
     def _place(relax: set) -> 'tuple[dict, dict] | None':
         """One placement pass. `relax` = player indices whose instruments'
@@ -1138,6 +1193,16 @@ def merge_models(models: list, subtune_map: list, hdr: dict) -> 'em.DmcModel':
             for rows in v.patterns:
                 for r in rows:
                     r.instr = rm.get(r.instr, r.instr)
+        # idle-pulse record (see the placements note above): when this
+        # subtune's player's record 0 landed in a DIFFERENT merged slot than
+        # the start player's, carry it — the composer primes cinst,x so the
+        # subtune's idling voices run their own player's record-0 pulse
+        # program. Value = the USF instrument number (model iid + 1).
+        _s0 = remap[pidx].get(0)
+        _b0 = remap[base_pidx].get(0)
+        if _s0 is not None and _b0 is not None and _s0 != _b0:
+            song.params = {**(getattr(song, 'params', None) or {}),
+                           'idle_pulse_instr': _s0 + 1}
         merged.songs.append(song)
 
     # Per-subtune composer-param overrides (ledger C31 — per-player facts the

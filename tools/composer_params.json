@@ -68,6 +68,16 @@
       "category": "mechanism-knob",
       "licensed_by": "C19 (dual freq generator wedge)"
     },
+    "filter_def_orig": {
+      "category": "mechanism-knob",
+      "licensed_by": "C31 (the fbase off-table read sonifies the ORIG def#<<4; the merge's compact remap renumbers a reading player's defs — this slot:orig map feeds the composer's fbsh shadow serving the idx-116/212 redirect; Sub_Burner)",
+      "note": "window layout deliberately untouched — re-anchoring broke the verdict-proven Lane_Crazy."
+    },
+    "idle_pulse_instr": {
+      "category": "mechanism-knob",
+      "licensed_by": "C31 (per-subtune idle-pulse record — the pulse sibling of idle_wave/sub_iwpos: an idling voice runs its own packed player's record-0 pulse program; value = the USF instrument number whose pulse config that record carries; Sub_Burner)",
+      "note": "typed sibling family exists (init.voice_state) — C33 typing candidate (a per-subtune idle-instrument reference)."
+    },
     "dur_fetch_underflow": {
       "category": "temporal-dispatch",
       "licensed_by": "C19 (f2 $10C3 duration-fetch branch BEQ->BMI, Delta_Zak: every row lasts one extra tick, init seed lasts two plays — a member-global tick-machinery fencepost, tempo_override's family)",

@@ -36,6 +36,12 @@ _KEY_RE = re.compile(
 # pattern above (found 2026-08-13 when vib_ramp_persist's fallback slipped
 # past the first regex).
 _ARTIC_RE = re.compile(r"_artic\(\s*'[a-z0-9_]+',\s*'([a-z0-9_]+)'")
+# per-SUBTUNE params reads (the _Model.subtunes dicts carry
+# MusicSubtune.params as sub['params']): `sub['params'].get('k')` /
+# `sub['params']['k']` — a C31 per-subtune override key is as much a
+# consumed composer param as a file-level one (found 2026-08-20 when
+# idle_pulse_instr's only read took this form).
+_SUBP_RE = re.compile(r"\['params'\](?:\.get\(|\[)\s*'([a-z0-9_]+)'")
 
 
 def main() -> int:
@@ -51,7 +57,7 @@ def main() -> int:
             continue
         _src = open(path).read()
         consumed[relf] = set(_KEY_RE.findall(_src)) | \
-            set(_ARTIC_RE.findall(_src))
+            set(_ARTIC_RE.findall(_src)) | set(_SUBP_RE.findall(_src))
     # composer files with a params surface that are NOT registered at all
     for relf in ('pipelines/dmc/composer_asm.py',
                  'pipelines/dmc/v5/composer_v5.py',
