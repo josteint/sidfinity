@@ -1094,6 +1094,14 @@ practice, not code to factor).
   slots are per-subtune init state) — instrument-usage attribution can't
   disagree, so the extract SPLITS the instrument per sampled VALUE-CLASS
   (clone + remap the disagreeing subtune's rows; `ovr_sub` then serves each).
+- SUB_BURNER's THREE (2026-08-20): a copied player's TWO-JMP head parked
+  BELOW its body → implied base = play-$85 (C13; guard: init==base+$37,
+  base > head) · per-subtune IDLE-PULSE record (`idle_pulse_instr` — an
+  idling voice runs ITS player's record-0 pulse program; the pulse sibling
+  of idle_wave) · `filter_def_orig` (the fbase read idx 116/212 sonifies
+  the ORIG def#<<4 — serve a SHADOW, ⚠ never re-anchor the def window:
+  that broke the verdict-proven Lane_Crazy whose readers' remaps are
+  unobservable).
 - THE MERGE CAN FAIL BY REFUSING, NOT ONLY BY COLLAPSING (r182, Bayliss/
   Heavy_Metal_Solid_preview +1 FULL): `merge_models` ASSERTED the packed
   players share a freq table and RAISED, dropping the member to the

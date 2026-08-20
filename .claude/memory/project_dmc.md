@@ -5,8 +5,26 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-20T05:39:08.800Z
+  modified: 2026-08-20T08:36:18.117Z
 ---
+
+## ✅ SUB_BURNER FULL (2026-08-20): 3 C31 levers — f2 2,906/2,924, 18 partials
+Third singleton, same day (commit 2d05d961). A 2-player compilation
+whose first player is COPIED to $1025 with a two-JMP head at $1000:
+(1) implied-base f2 dispatch (C13 — base = play-$85, guarded); (2)
+per-subtune idle-pulse record `idle_pulse_instr` (the pulse sibling of
+idle_wave; composer icin0 → cinst,x prime); (3) `filter_def_orig` fbase
+orig-number shadow (fbsh) for the idx-116/212 read. ⚠ AMEND lesson: the
+first fbase fix RE-ANCHORED the def window and REGRESSED Lane_Crazy
+(caught by the golden-verify pass; bisected via env toggles; readers'
+remaps are usually unobservable — C7 one-way) → reverted to the
+zero-layout shadow. Proof method: standalone player-2 build matched
+orig sub 1 wall-to-wall (457,746 writes) = merge collapse was the whole
+defect. NOTE — BYTE CHURN: the committed Kaj2 wave-window overlay + the
+rec0/fd_orig carriers change stored-artifact bytes for a set of
+compilation members (all re-verify FULL; golden 9/9); their stored
+artifacts are STALE until the next f2/f1 batch + mass-write resync —
+run that closeout before trusting fifth-layer audits on compilations.
 
 ## ✅ KAJ2 FULL (2026-08-20): C29 7th — the WAVE WINDOW reads past EOF; f2 2,905/2,924, 19 partials
 Second singleton, same day. The idle marker-chase is mod-256 (8-bit Y);
