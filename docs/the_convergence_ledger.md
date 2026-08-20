@@ -539,7 +539,12 @@ practice, not code to factor).
   KB/PVCF relocated members store to un-relocated $1726 but never reach the
   hook, and the recorded songlength can end at the fade SHORT of the halt) →
   extract walks $FF as STOP + composer halt-and-hold ($FE handler, the
-  track_fe_reset machinery minus its $D418 write). 52 occurrences (52nd: the
+  track_fe_reset machinery minus its $D418 write). 55 occurrences (53rd-55th:
+  the f2 singleton trio — vib-swell ADC->ROR with a NEIGHBOR-POKE writeback
+  (reproduce the orig ADDRESS MAP neighbor, not label+1 — Petshopmix); the
+  def-index ADC->EOR abs,x whose meaning depends on RUNTIME X = the claiming
+  voice, MEASURE it (Inside); the dead fdu store = filter advances every
+  frame (Childs_Play); 52nd: the
   f2 $10C3 duration-fetch branch BEQ→BMI = fetch on UNDERFLOW — every row
   lasts one extra tick, the init seed lasts two plays; presents as
   "diverges at play position 0" though every row is stretched; knob

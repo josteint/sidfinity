@@ -5,8 +5,22 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-20T08:36:18.117Z
+  modified: 2026-08-20T22:12:33.142Z
 ---
+
+## ✅ WEDGE TRIO FULL (2026-08-21): Petshopmix + Inside + Childs_Play — f2 2,909/2,924, 15 partials
+C19 53rd-55th (staged in tmp/singleton_patches_0820.md during the
+closeout, landed after): `vib_swell_ror` (swell ADC->ROR + neighbor-poke
+writeback — the x=2 poke redirects to slal[0], the orig's ADDRESS-MAP
+neighbor, not our label+1), `filter_idx_eor` (def-index EOR abs,x with
+X = the claiming voice, pc-watch-measured; v2-claim pins the walk to
+step 0), `filter_dur_store_dead` (fdu never written). All sole carriers
+(census-before-landing); all FULL at full songlength; golden 5/5, smoke
+6/6, regression green; synced + audited. ALSO 2026-08-20/21: the f2+f1
+CLOSEOUT completed clean — f2 2,906 + f1 5,445/5,445 re-verified under
+current code, 0 regressions, all synced (0 err/0 orphans), corpus
+12,577/12,577, spec+param lint clean. The byte-churn debt (Kaj2
+overlay + Sub_Burner carriers) is settled.
 
 ## ✅ SUB_BURNER FULL (2026-08-20): 3 C31 levers — f2 2,906/2,924, 18 partials
 Third singleton, same day (commit 2d05d961). A 2-player compilation
