@@ -68,6 +68,19 @@
       "category": "mechanism-knob",
       "licensed_by": "C19 (dual freq generator wedge)"
     },
+    "vib_swell_ror": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (f2 $1583 half-cycle swell ADC vdep,x -> ROR vdep,x + $158E hi-writeback repointed +1 — vdep halves each half-cycle, carry-out pokes the next voice's swell-hi / slal[0]; Petshopmix, sole carrier)",
+      "note": "deconstruction candidate (33rd-occ): a halving depth is a musical trajectory (decaying vibrato — the shape:drift precedent), but the cross-voice poke is pure mechanism; flagged for the owner."
+    },
+    "filter_idx_eor": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (re-assembled def-index dispatch ADC fstep -> EOR abs,x with X = the claiming voice: v0 reads fstep (EOR-for-ADD), v2 reads fbase = index pinned to 0; Inside, sole carrier; X measured via pc-watch 2026-08-20)"
+    },
+    "filter_dur_store_dead": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (re-assembled STA fdu -> EOR abs,x: the step-duration cache is never written, the filter advances every frame; Childs_Play, sole carrier)"
+    },
     "filter_def_orig": {
       "category": "mechanism-knob",
       "licensed_by": "C31 (the fbase off-table read sonifies the ORIG def#<<4; the merge's compact remap renumbers a reading player's defs — this slot:orig map feeds the composer's fbsh shadow serving the idx-116/212 redirect; Sub_Burner)",

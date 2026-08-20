@@ -1777,6 +1777,46 @@ def compose_dmc_asm(usf: UsfFile, *, origin: int = 0x1000,
     _fdo_raw = str(usf.params.fields.get('filter_def_orig', '') or '')
     fd_orig = {int(s.split(':')[0]): int(s.split(':')[1])
                for s in _fdo_raw.split(',') if s}
+    # filter_idx_eor (C19, Inside): the def-index dispatch `ADC fstep`
+    # (abs) patched to `EOR $4719,x` (abs,x) — with X = the CLAIMING
+    # voice (measured: the walk runs in that voice's per-voice context).
+    # Claim v0 reads fstep (EOR-for-ADD, inert until the walk overruns
+    # past step 15); claim v2 reads fbase itself (index pinned to 0 for
+    # the section); claim v1 would read fframe (unobserved, faithful).
+    # Our walk runs with the same X; scalars force the 3-way dispatch.
+    if int(usf.params.fields.get('filter_idx_eor', 0)):
+        fwalk_idx = ('        lda fbase                    ; filter_idx_eor '
+                     '(C19, Inside)\n'
+                     '        cpx #$02\n'
+                     '        beq fie_fb\n'
+                     '        cpx #$01\n'
+                     '        beq fie_ff\n'
+                     '        eor fstep\n'
+                     '        jmp fie_ty\n'
+                     'fie_ff:\n'
+                     '        eor fframe\n'
+                     '        jmp fie_ty\n'
+                     'fie_fb:\n'
+                     '        eor fbase\n'
+                     'fie_ty:\n'
+                     '        tay\n')
+    else:
+        fwalk_idx = ('        lda fbase\n'
+                     '        clc\n'
+                     '        adc fstep\n'
+                     '        tay\n')
+    # filter_dur_store_dead (C19, Childs_Play): the `STA fdu` after the
+    # dur-table load patched to an `EOR abs,x` — the step-duration cache
+    # is NEVER written (stays init-0), so the filter advances a step
+    # every frame. The load's A value is garbled-then-reloaded in the
+    # orig; keeping the bare load reproduces the stream exactly.
+    if int(usf.params.fields.get('filter_dur_store_dead', 0)):
+        fdu_store = ('        lda fddur,y                  ; fdu store DEAD '
+                     '(C19, Childs_Play)\n')
+    else:
+        fdu_store = ('        lda fddur,y\n'
+                     '        sta fdu                      ; shadow orig $1722 '
+                     'STA (step dur cache)\n')
     # cymbal noise-burst freq value: the immediate written to $D400/$D401 for
     # the gated-noise attack. Canon is $FFFF (LDA #$FF), but the value is an
     # extracted per-member operand — a few demos patch it (e.g. Presentation's
@@ -3580,6 +3620,29 @@ fx_dual_up:
             '        lda vsteph,x\n'
             '        adc #$00\n'
             '        sta vsteph,x')
+        # vib_swell_ror (C19, Petshopmix): the half-cycle swell's
+        # `ADC vdep,x` patched to `ROR vdep,x` (a read-modify-write: vdep
+        # HALVES in place each boundary, C in = 0 from CLC; A = vstep
+        # passes through unchanged) and the hi writeback repointed +1 —
+        # vdep's shifted-out bit carries into orig $1796+x = vsteph[1],
+        # vsteph[2], and for x=2 the NEXT state var $1798 = slal[0]
+        # (our layout puts vdep after vsteph, so x=2 needs the explicit
+        # slal redirect to poke the SAME variable the orig pokes).
+        if int(usf.params.fields.get('vib_swell_ror', 0)):
+            vib_swell = (
+                '        lda vstep,x                  ; swell (vib_swell_ror\n'
+                '        clc                          ; C19, Petshopmix)\n'
+                '        ror vdep,x\n'
+                '        sta vstep,x\n'
+                '        lda vsteph,x\n'
+                '        adc #$00\n'
+                '        cpx #$02\n'
+                '        beq vsr_sl\n'
+                '        sta vsteph+1,x\n'
+                '        jmp vsr_d\n'
+                'vsr_sl:\n'
+                '        sta slal                     ; orig $1798 = slal[0]\n'
+                'vsr_d:')
     else:
         ni_vib_depth = (
             '        ldy curnote,x\n'
@@ -4646,15 +4709,9 @@ fx_filter:
         lda fcut
         cmp fstop
         beq fx_glide
-        lda fbase
-        clc
-        adc fstep
-        tay
-        lda fdstep,y
+{fwalk_idx}        lda fdstep,y
         sta fsz                      ; shadow orig $1721 STA (step size cache)
-        lda fddur,y
-        sta fdu                      ; shadow orig $1722 STA (step dur cache)
-        lda fcut
+{fdu_store}        lda fcut
         clc
         adc fsz
         sta fcut

@@ -4524,7 +4524,34 @@ def _filter_cut_from_fbase_probe(path: str, base: int,
     return None
 
 
+def _filter_idx_eor_probe(path: str, post_init_sub=None):
+    """C19 (Inside): the filter def-index dispatch `LDA fbase / CLC /
+    ADC fstep(abs)` re-assembled with the ADC replaced by `EOR abs,x` —
+    with X = the claiming voice, the index becomes fbase EOR
+    fstep/fframe/fbase. Skeleton probe (the member is re-assembled, no
+    canon offsets): `AD .. .. 18 5D .. .. A8 B9` — sole carrier in the
+    8,369-member census (tmp/wedge_census.log, 2026-08-20)."""
+    import re
+    mem, _s = _load(path, post_init_sub)
+    return 1 if re.search(rb'\xad..\x18\x5d..\xa8\xb9',
+                          bytes(mem), re.S) else None
+
+
+def _filter_dur_dead_probe(path: str, post_init_sub=None):
+    """C19 (Childs_Play): the step-duration cache store `STA fdu` after
+    the dur-table load replaced by `EOR abs,x` — fdu is never written
+    (stays init-0), the filter advances every frame. Skeleton:
+    `B9 .. .. 8D .. .. B9 .. .. 5D` then the cutoff add `AD .. .. 18 6D`
+    — sole carrier in the census."""
+    import re
+    mem, _s = _load(path, post_init_sub)
+    return 1 if re.search(rb'\xb9..\x8d..\xb9..\x5d..\xad..\x18\x6d',
+                          bytes(mem), re.S) else None
+
+
 _WEDGE_PROBES = [
+    ('filter_idx_eor',                  lambda p, c: _filter_idx_eor_probe(p, c.post_init_sub)),
+    ('filter_dur_store_dead',           lambda p, c: _filter_dur_dead_probe(p, c.post_init_sub)),
     ('play_phases',                     lambda p, c: (_play_repeat_parity_probe(p, c.base, c.post_init_sub)
                                                       or _play_repeat_counter_probe(p, c.base, c.post_init_sub))),
     ('cia_rearm_per_play',              lambda p, c: _cia_rearm_probe(p, c.base, c.post_init_sub)),
@@ -5908,6 +5935,20 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
                              and mem[at(0x1570)] == 0x01
                              and mem[at(0x1571)] == 0x9D
                              and _rd16(mem, at(0x1572)) != base + 0x768)
+                         else {}),
+                      # $1583 half-cycle swell ADC->ROR + $158E hi-writeback
+                      # repointed +1 (C19, Petshopmix): vdep halves in place
+                      # each half-cycle, vstep-lo passes through unchanged,
+                      # and the carry-out lands in the NEXT voice's swell-hi
+                      # slot. Anchor on the intact LDA/STA $1792,x frame.
+                      **({'vib_swell_ror': 1}
+                         if (mem[at(0x157F)] == 0xBD
+                             and _rd16(mem, at(0x1580)) == base + 0x792
+                             and mem[at(0x1583)] == 0x7E
+                             and mem[at(0x1586)] == 0x9D
+                             and _rd16(mem, at(0x1587)) == base + 0x792
+                             and mem[at(0x158E)] == 0x9D
+                             and _rd16(mem, at(0x158F)) == base + 0x796)
                          else {}),
                       # $10C3 duration-fetch branch BEQ->BMI (C19, Delta_Zak):
                       # the row fetch fires when `DEC $173B,x` goes NEGATIVE,
