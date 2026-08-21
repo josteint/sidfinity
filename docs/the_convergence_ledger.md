@@ -1099,6 +1099,14 @@ practice, not code to factor).
   slots are per-subtune init state) — instrument-usage attribution can't
   disagree, so the extract SPLITS the instrument per sampled VALUE-CLASS
   (clone + remap the disagreeing subtune's rows; `ovr_sub` then serves each).
+  DEAD-CARGO REFINEMENT (2026-08-21, Blast_n_Scream + Zwei_Bereten FULL):
+  `ovr_sub` is last-wins over ALL records of USED instruments, so a record a
+  subtune never READS can overwrite the byte it does read at a shared window
+  position — (a) split clones now filter records by song attribution; (b) the
+  cross-instrument form (no per-record value disagreement, split never fires)
+  is cured by `_declutter_offtable_by_reach`: clone-and-remap gated on an
+  actual read-value collision (unattributed/idle records stay everywhere;
+  same-song two-value positions = C11 dynamic residue, skipped).
 - SUB_BURNER's THREE (2026-08-20): a copied player's TWO-JMP head parked
   BELOW its body → implied base = play-$85 (C13; guard: init==base+$37,
   base > head) · per-subtune IDLE-PULSE record (`idle_pulse_instr` — an

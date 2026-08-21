@@ -5,8 +5,28 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-20T22:12:33.142Z
+  modified: 2026-08-21T05:12:33.919Z
 ---
+
+## ✅ TRACK-PTR PAIR FULL (2026-08-21): Blast_n_Scream + Zwei_Bereten_Preview — f2 2,911/2,924, 13 partials
+The backlog item-6 "one lever, two members" idx-96 pair (off-table fhi
+reads on the $1707-$170C per-subtune track-ptr slots). Root cause was NOT
+a missing capture — the values were captured and split correctly; the leak
+was the composer's `ovr_sub` per-subtune window build being LAST-WINS over
+ALL records of USED instruments, so a record the subtune never READS
+overwrote the byte it does read at a shared window position (ledger C31
+single-player form, DEAD-CARGO refinement — full detail in the entry).
+Two extract-side fixes, zero composer/schema change: (a) the value-class
+split now filters each output instrument's records by song attribution
+(Blast_n_Scream sub 1: clone kept `(72,24)→$D0` att {3}, killing its own
+`(32,64)→$97`); (b) new `_declutter_offtable_by_reach` pass for the
+cross-instrument form where the split never fires (Zwei both subs) —
+clone-and-remap gated on an actual read-value collision. Gates: smoke 6/6;
+25-carrier stored-USF conflict census rebuilt — 21 byte-identical, 4
+changed (Astrostorm_II_preview 7/7, Lane_Crazy 6/6, Mythig_2SID 3/3,
+Koshimo_preview_1 2/2) all re-verified FULL; full regression green.
+NOTE byte-churn: the 4 changed carriers' stored artifacts are stale until
+the next f2 batch + mass-write resync.
 
 ## ✅ WEDGE TRIO FULL (2026-08-21): Petshopmix + Inside + Childs_Play — f2 2,909/2,924, 15 partials
 C19 53rd-55th (staged in tmp/singleton_patches_0820.md during the

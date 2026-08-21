@@ -2538,6 +2538,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc85') -> DmcModel:
                     and ctrl_tab[ws] == 0x90 + n):
                 ins.wave_start_on_marker = True
     _split_offtable_by_subtune(m)
+    _declutter_offtable_by_reach(m)
     # v3_instr_tempo (custom Doxx build, factory-probed): the play tail reads
     # the THIRD voice's current-instrument slot as a TEMPO MAILBOX — an
     # instrument command with number >= $10 doubles as "speed reload = n &
@@ -2626,18 +2627,38 @@ def _split_offtable_by_subtune(m: DmcModel) -> None:
         # (whose records already carry the start-song fallback values)
         keep = next((k for k, ss in cls.items() if start_si in ss),
                     next(iter(cls)))
+        # DEAD-CARGO FILTER (Blast_n_Scream, 2026-08-21): a clone inherits
+        # ALL of the instrument's records, including ones whose reaching
+        # subtunes are DISJOINT from its class — dead cargo there (the
+        # clone's subtunes never make that read), and POISONOUS when a dead
+        # record shares a window position with a live one: the composer's
+        # per-subtune window build (`ovr_sub`, last-wins per position)
+        # can let the dead record's other-subtune byte overwrite the live
+        # one (idx 96 via (32,64) served the (72,24) value). Keep a record
+        # on an output instrument only if its song attribution intersects
+        # the songs that USE that instrument after the remap (the keep
+        # instrument serves every song not remapped to a clone, sampled or
+        # not); unattributed records (idle-path) stay everywhere.
+        songmap_all = getattr(m, 'offtable_songs', {})
+        clone_songs = {si for k, ss in cls.items() if k != keep
+                       for si in ss}
+        all_songs = set(range(len(m.songs)))
         for key, ss in sorted(cls.items()):
             if key == keep:
                 tgt, t = iid, ins
+                reach = all_songs - clone_songs
             else:
                 t = copy.deepcopy(ins)
                 tgt = t.id = next_id
                 next_id += 1
                 m.instruments[tgt] = t
+                reach = set(ss)
             vals = dict(key)
             t.offtable_freq = sorted(
                 (off, note) + vals.get((off, note), (lo, hi))
-                for off, note, lo, hi in t.offtable_freq)
+                for off, note, lo, hi in t.offtable_freq
+                if not songmap_all.get((iid, off & 0xFF, note & 0xFF))
+                or set(songmap_all[(iid, off & 0xFF, note & 0xFF)]) & reach)
             if tgt == iid:
                 continue
             for si in ss:
@@ -2645,6 +2666,106 @@ def _split_offtable_by_subtune(m: DmcModel) -> None:
                     v.patterns = [
                         [replace(r, instr=tgt) if r.instr == iid else r
                          for r in pat] for pat in v.patterns]
+
+
+def _declutter_offtable_by_reach(m: DmcModel) -> None:
+    """CROSS-INSTRUMENT dead-cargo collisions at a shared window position
+    (ledger C31 single-player form, general case — Zwei_Bereten_Preview,
+    2026-08-21). The composer's per-subtune window build (`ovr_sub`) collects
+    every off-table record of every instrument a subtune USES, last-wins per
+    window position. A record reached only by OTHER subtunes (dead cargo for
+    this one) can then overwrite the byte this subtune actually reads —
+    without any per-record value disagreement, so `_split_offtable_by_subtune`
+    never fires (Zwei sub 0 reads idx 96 = $80 via (12,84) att {0}, but inst
+    13's (13,83)->$C3 att {1} record wins the last-wins; sub 1 reads idx 97 =
+    $E5 via (16,81) att {1}, but inst 6's (13,84)->$96 att {0} wins).
+
+    Cure with ZERO composer/schema change, same shape as the split: for each
+    song, when a used instrument carries an unreached record whose window
+    position COLLIDES with a value the song actually reads, remap the song's
+    rows to a CLONE of that instrument carrying only the records the song
+    reaches (unattributed records — idle-path — stay everywhere). GATED on an
+    actual collision: no collision -> no clone -> byte-identical. Positions
+    the composer serves live (redirect map) or co-locates (idx 102-112) are
+    excluded from collision gating (not window-served). A song reaching TWO
+    different values at one position via its own records is genuinely dynamic
+    (C11 live territory) — that position is skipped, honest residue."""
+    from dataclasses import replace
+    import copy
+    songmap = getattr(m, 'offtable_songs', {}) or {}
+    if not songmap:
+        return
+    mapped = _redirect_mapped_idx()
+
+    def rec_positions(off, note):
+        idx = (off + note) & 0xFF
+        ps = []
+        if idx >= 96 and idx not in mapped and not (102 <= idx <= 112):
+            ps.append(('hi', idx - 96))
+            if idx >= 192:
+                ps.append(('lo', idx - 192))
+        return ps
+
+    used_by = []
+    for song in m.songs:
+        used = set()
+        for v in song.voices:
+            for pat in v.patterns:
+                for r in pat:
+                    if r.instr is not None:
+                        used.add(r.instr)
+        used_by.append(used)
+
+    next_id = max(m.instruments) + 1
+    cache = {}                       # (iid, kept record tuple) -> clone id
+    for si, used in enumerate(used_by):
+        read, ambiguous = {}, set()
+        for iid in sorted(used):
+            ins = m.instruments.get(iid)
+            for off, note, lo, hi in (ins.offtable_freq if ins else ()) or ():
+                att = songmap.get((iid, off & 0xFF, note & 0xFF))
+                if not att or si not in att:
+                    continue
+                for kind, p in rec_positions(off, note):
+                    val = hi if kind == 'hi' else lo
+                    if (kind, p) in read and read[(kind, p)] != val:
+                        ambiguous.add((kind, p))
+                    read[(kind, p)] = val
+        for a in ambiguous:
+            read.pop(a, None)
+        if not read:
+            continue
+        for iid in sorted(used):
+            ins = m.instruments.get(iid)
+            if ins is None or not ins.offtable_freq:
+                continue
+            poison = False
+            for off, note, lo, hi in ins.offtable_freq:
+                att = songmap.get((iid, off & 0xFF, note & 0xFF))
+                if not att or si in att:
+                    continue
+                for kind, p in rec_positions(off, note):
+                    val = hi if kind == 'hi' else lo
+                    if (kind, p) in read and read[(kind, p)] != val:
+                        poison = True
+            if not poison:
+                continue
+            kept = tuple(sorted(
+                r for r in ins.offtable_freq
+                if not songmap.get((iid, r[0] & 0xFF, r[1] & 0xFF))
+                or si in songmap[(iid, r[0] & 0xFF, r[1] & 0xFF)]))
+            key = (iid, kept)
+            tgt = cache.get(key)
+            if tgt is None:
+                t = copy.deepcopy(ins)
+                t.id = tgt = next_id
+                next_id += 1
+                t.offtable_freq = sorted(kept)
+                m.instruments[tgt] = t
+                cache[key] = tgt
+            for v in m.songs[si].voices:
+                v.patterns = [[replace(r, instr=tgt) if r.instr == iid else r
+                               for r in pat] for pat in v.patterns]
 
 
 def _wave_table_normal_form(m: DmcModel, ctrl_tab, freq_tab, n_wave):
