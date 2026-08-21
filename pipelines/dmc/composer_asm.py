@@ -2368,24 +2368,33 @@ fx_dual_up:
     # full-play / `$162F: JSR $135D x3`, where $135D is the pulse routine PAST
     # its `LDA $18f3,y / STA $171F` speed-nibble reload, so the tail computes
     # its step from the STALE $171F (wjmp) left by the prior full-play frame.
-    rphase_pulse_tail = str(
-        usf.params.fields.get('rphase_variant', '')) == 'pulse_tail'
+    _rpv = str(usf.params.fields.get('rphase_variant', ''))
+    rphase_pulse_tail = _rpv in ('pulse_tail', 'pulse_tail_hi')
     r_call = 'jsr pulse_tail' if rphase_pulse_tail else 'jsr fx_glide'
-    pulse_tail_asm = ('pulse_tail:                          ; R-phase $135D: 2nd\n'
-                      '        lda pwphase,x                ; pulse advance/tick,\n'
-                      '        and #$01                     ; step nibble from the\n'
-                      '        beq pt_even                  ; STALE wjmp ($171F) —\n'
-                      '        lda wjmp                     ; $135D skips the fresh\n'
-                      '        and #$0f                     ; speed-byte reload\n'
-                      '        asl\n'
-                      '        asl\n'
-                      '        asl\n'
-                      '        asl\n'
-                      '        jmp pt_base\n'
-                      'pt_even:\n'
-                      '        lda wjmp\n'
-                      '        and #$f0\n'
-                      'pt_base:\n'
+    # 'pulse_tail_hi' (the family-2 form — Knowledge_Posse_tune_3): the f2
+    # pulse entry $1370 sits past BOTH the speed-byte reload AND the phase-
+    # parity nibble select, so the R-pass step is ALWAYS the stale wjmp's
+    # HIGH nibble (no parity swap). 'pulse_tail' = the f1 $135D form (parity
+    # nibble select preserved).
+    _pt_step = (('        lda wjmp                     ; f2 $1370: hi nibble\n'
+                 '        and #$f0                     ; of the STALE wjmp,\n')
+                if _rpv == 'pulse_tail_hi' else
+                ('        lda pwphase,x                ; pulse advance/tick,\n'
+                 '        and #$01                     ; step nibble from the\n'
+                 '        beq pt_even                  ; STALE wjmp ($171F) —\n'
+                 '        lda wjmp                     ; $135D skips the fresh\n'
+                 '        and #$0f                     ; speed-byte reload\n'
+                 '        asl\n'
+                 '        asl\n'
+                 '        asl\n'
+                 '        asl\n'
+                 '        jmp pt_base\n'
+                 'pt_even:\n'
+                 '        lda wjmp\n'
+                 '        and #$f0\n'
+                 'pt_base:\n'))
+    pulse_tail_asm = ('pulse_tail:                          ; R-phase pulse: 2nd\n'
+                      + _pt_step +
                       '        clc\n'
                       f'        {pw_base_adc.strip()}\n'
                       '        sta tmp\n'

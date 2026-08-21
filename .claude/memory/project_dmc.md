@@ -5,8 +5,19 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-21T06:37:59.591Z
+  modified: 2026-08-21T07:01:47.983Z
 ---
+
+## ✅ KNOWLEDGE_POSSE_TUNE_3 FULL (2026-08-21, same session) — f2 2,916/2,924, 8 partials
+C18 f2 parity wrapper: P alternating with a reverse-voice pulse-tail
+pass (`P_R321`) under CIA latch $2663; the f2 pulse entry $1370 skips
+the parity nibble select → new `rphase_variant='pulse_tail_hi'` (R step
+= stale wjmp HIGH nibble always) + static `_parity_fx_wrapper_probe`.
+Sole carrier in 10,774; Toccata_v2 (f1 pulse_tail) byte-identical;
+smoke 6/6; regression green. Method note: the flat localizer read this
+as "diverges at play 0" — the per-IRQ chunks matched (init straddle
+under the tight latch); the A/B param-injection loop (config →
+write_usf → build → dbo.verify) collapsed the diagnosis to minutes.
 
 ## ✅ SAMS016 FULL 7/7 (2026-08-21, same session) — f2 2,915/2,924, 9 partials
 subtune_songs 2nd carrier (C19 38th-occ family), the ARITHMETIC-REMAP /

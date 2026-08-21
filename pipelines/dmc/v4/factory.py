@@ -4348,6 +4348,67 @@ def _play_repeat_parity_probe(path: str, base: int,
     return hi_tok + '_P' if even_med > odd_med else 'P_' + hi_tok
 
 
+def _parity_fx_wrapper_probe(path: str, base: int,
+                             post_init_sub: 'int | None' = None,
+                             want: str = 'phases'):
+    """PARITY play-vector wrapper alternating FULL PLAY and a per-voice
+    PULSE-TAIL pass (C18 — Alien_WOW/Knowledge_Posse_tune_3, family-2).
+    Shape at the play vector:
+        LDA cnt / INC cnt / AND #$01 / BEQ base+3 / BNE T
+    with T a reverse-voice loop:
+        LDX #n / LDA #mask / LSR / BCC +5 / PHA / JSR tgt / PLA / DEX /
+        BPL loop / RTS
+    and tgt = the f2 pulse entry PAST both the speed-byte reload and the
+    phase-parity nibble select:
+        LDA base+$71F (wjmp) / AND #$F0 / CLC / ADC base+$75F,X (cpwbase)
+    so odd calls run each masked voice's pulse tail with the STALE wjmp's
+    HIGH nibble as the step. Returns the play_phases schedule
+    ('P_R<voices>' — token order from the counter's post-load parity) or,
+    with want='variant', 'pulse_tail_hi'. None = not this wrapper."""
+    mem, s = _load(path, post_init_sub)
+    p = s['play']
+    if not (0 < p < 0xFFE0):
+        return None
+    if not (mem[p] == 0xAD and mem[p + 3] == 0xEE
+            and _rd16(mem, p + 1) == _rd16(mem, p + 4)
+            and mem[p + 6] == 0x29 and mem[p + 7] == 0x01
+            and mem[p + 8] == 0xF0 and mem[p + 10] == 0xD0):
+        return None
+    cnt = _rd16(mem, p + 1)
+    beq = p + 10 + mem[p + 9]
+    t = p + 12 + mem[p + 11]
+    # the even path must reach the play body (base+3 directly, or a JMP there)
+    if beq != base + 3 and not (mem[beq] == 0x4C
+                                and _rd16(mem, beq + 1) == base + 3):
+        return None
+    # the odd path: LDX #n / LDA #mask / LSR / BCC+5 / PHA / JSR tgt / PLA /
+    # DEX / BPL -11 / RTS
+    if not (mem[t] == 0xA2 and mem[t + 2] == 0xA9 and mem[t + 4] == 0x4A
+            and mem[t + 5] == 0x90 and mem[t + 6] == 0x05
+            and mem[t + 7] == 0x48 and mem[t + 8] == 0x20
+            and mem[t + 11] == 0x68 and mem[t + 12] == 0xCA
+            and mem[t + 13] == 0x10 and mem[t + 15] == 0x60):
+        return None
+    n, mask, tgt = mem[t + 1], mem[t + 3], _rd16(mem, t + 9)
+    # tgt = the f2 pulse entry: LDA wjmp / AND #$F0 / CLC / ADC cpwbase,X
+    if not (mem[tgt] == 0xAD and _rd16(mem, tgt + 1) == (base + 0x71F) & 0xFFFF
+            and mem[tgt + 3] == 0x29 and mem[tgt + 4] == 0xF0
+            and mem[tgt + 5] == 0x18 and mem[tgt + 6] == 0x7D
+            and _rd16(mem, tgt + 7) == (base + 0x75F) & 0xFFFF):
+        return None
+    if want == 'variant':
+        return 'pulse_tail_hi'
+    voices = ''.join(str(x + 1) for k, x in enumerate(range(n, -1, -1))
+                     if mask & (1 << k))
+    if not voices:
+        return None
+    r_tok = 'R' + voices
+    # token order: the counter is loaded BEFORE the INC, so call #1's class
+    # comes from the counter's initial parity (init writes it; file image
+    # otherwise). Even -> P first.
+    return f'P_{r_tok}' if (mem[cnt] & 1) == 0 else f'{r_tok}_P'
+
+
 def _play_repeat_counter_probe(path: str, base: int,
                                post_init_sub: 'int | None' = None):
     """Whole-play N-repeat via a periodic-COUNTER wrapper (C24 sibling of the
@@ -4581,7 +4642,9 @@ _WEDGE_PROBES = [
     ('filter_idx_eor',                  lambda p, c: _filter_idx_eor_probe(p, c.post_init_sub)),
     ('filter_dur_store_dead',           lambda p, c: _filter_dur_dead_probe(p, c.post_init_sub)),
     ('play_phases',                     lambda p, c: (_play_repeat_parity_probe(p, c.base, c.post_init_sub)
-                                                      or _play_repeat_counter_probe(p, c.base, c.post_init_sub))),
+                                                      or _play_repeat_counter_probe(p, c.base, c.post_init_sub)
+                                                      or _parity_fx_wrapper_probe(p, c.base, c.post_init_sub))),
+    ('rphase_variant',                  lambda p, c: _parity_fx_wrapper_probe(p, c.base, c.post_init_sub, want='variant')),
     ('cia_rearm_per_play',              lambda p, c: _cia_rearm_probe(p, c.base, c.post_init_sub)),
     ('pw_base_sid_read',                lambda p, c: _pw_base_read_probe(p, c.base, c.post_init_sub)),
     ('master_vol_every_play',           lambda p, c: _d418_play_wrapper(p, c.base, c.post_init_sub)),
