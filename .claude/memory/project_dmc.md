@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-21T07:47:51.564Z
+  modified: 2026-08-21T08:03:18.875Z
 ---
 
 ## ✅ PAST-EOF SECTOR TRIO FULL (2026-08-21, same session): Final_Game 6/6 + James_Bond + Fantasia — f2 2,919/2,924, 5 partials
@@ -24,7 +24,15 @@ while our USF said loop@5 → sector addr $521B vs image end.
 NOT this class: Witchs_Birthday (divergence is mid-song at otrk 8/9,
 NOT the wrap — orig V2 mid-drum-tail ctrl=$80 when ours ends the row;
 sectors/terminators all in-image and clean; needs the per-voice
-row-end stagger dig), Conversion + Just_11 (unchanged, undug).
+row-end stagger dig), Conversion (orig V3 FREEZES at a `$FD $FF`
+sector tail — endless note-hold, sectpos pinned, note-init rewrites
+each dur expiry; needs the f2 switch/ghost-glide handler semantics),
+Just_11 (ours plays a filter-flagged SR-$5F instrument where orig
+plays inst 4 SR $5A at otrk 6 late-song; earlier passes of the same
+rows matched — sticky-instr/lap-2 or a $D418-automation data-poke
+driver). All three measured 2026-08-21; state captures + detail in
+backlog.md item 6 (tmp/conv_state.txt, tmp/j11_state.txt,
+tmp/wb_state.txt).
 
 ## ✅ KNOWLEDGE_POSSE_TUNE_3 FULL (2026-08-21, same session) — f2 2,916/2,924, 8 partials
 C18 f2 parity wrapper: P alternating with a reverse-voice pulse-tail
