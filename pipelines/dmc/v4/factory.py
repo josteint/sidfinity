@@ -1559,7 +1559,25 @@ def _subtune_song_map_probe(path: str, base: int,
                         break
             if anchor:
                 break
+    if not anchor:
+        # ARITHMETIC-REMAP form (Sams016: init $0FFD = `CLC / ADC #$01 /
+        # JMP base+$37` — every PSID subtune plays record sub+1). No LDA
+        # anywhere; the wrapper JMPs the tune-select DISPATCH directly,
+        # bypassing base. Anchor = a `JMP base+$1D/base+$37` inside the
+        # small wrapper window; the per-subtune observation (which watches
+        # the dispatch entry too) decides what the wrapper actually does.
+        _disp = ((base + 0x1D) & 0xFFFF, (base + 0x37) & 0xFFFF)
+        end = min(init + 0x30, base if base > init else init + 0x30, 0xFFFC)
+        for a in range(init, end):
+            if mem[a] == 0x4C and (mem[a + 1] | (mem[a + 2] << 8)) in _disp:
+                anchor = True
                 break
+    if not anchor and init < base <= init + 0x30:
+        # FALL-THROUGH form (Sams016: init $0FFD = `CLC / ADC #$01` falling
+        # straight into base $1000 — every PSID subtune plays record sub+1).
+        # A tiny wrapper immediately before base needs no jump at all; the
+        # observation decides what it actually does to A.
+        anchor = True
     if not anchor:
         return None
     seen = _init_song_observe(path, base, songs)
@@ -1776,9 +1794,13 @@ def _playclk_probe(path: str, base: int,
 
 def _init_song_observe(path: str, base: int, songs: int):
     """Run the FILE's init(A=sub) under py65 for each header subtune and
-    return the list of A values at the FIRST entry into `base` (the song
-    the real init actually receives), or None if any run fails to reach
-    base / return. py65 is trustworthy here — pure init, no playback."""
+    return the list of A values at the FIRST entry into `base` OR the
+    tune-select dispatch body (base+$1D canon / base+$37 family-2 — a
+    wrapper can JMP the dispatch directly, bypassing base: Sams016's
+    `CLC / ADC #$01 / JMP base+$37`), or None if any run fails to reach
+    one / return. A canonical member enters base first (identical A), so
+    the widened watch set changes nothing there. py65 is trustworthy
+    here — pure init, no playback."""
     import sys as _sys
     _sys.path.insert(0, os.path.join(os.path.dirname(__file__),
                                      '..', '..', '..', 'tools', 'py65_lib'))
@@ -1798,9 +1820,10 @@ def _init_song_observe(path: str, base: int, songs: int):
         mpu.pc = spec['init']
         mpu.a = sub
         mpu.x = mpu.y = 0
+        watch = {base, (base + 0x1D) & 0xFFFF, (base + 0x37) & 0xFFFF}
         a_at_base = None
         for _ in range(3_000_000):
-            if mpu.pc == base and a_at_base is None:
+            if mpu.pc in watch and a_at_base is None:
                 a_at_base = mpu.a
             if mpu.pc == 0x0001:
                 break

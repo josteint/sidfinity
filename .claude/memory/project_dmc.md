@@ -5,8 +5,18 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-21T06:23:34.270Z
+  modified: 2026-08-21T06:37:59.591Z
 ---
+
+## ✅ SAMS016 FULL 7/7 (2026-08-21, same session) — f2 2,915/2,924, 9 partials
+subtune_songs 2nd carrier (C19 38th-occ family), the ARITHMETIC-REMAP /
+FALL-THROUGH form: init $0FFD `CLC / ADC #$01` falls into base $1000 —
+every subtune plays record sub+1. Probe widenings: `_init_song_observe`
+watches dispatch entries (base+$1D/$37) + the map probe's anchor admits
+a fall-through wrapper. Census 475 candidates → exactly 1 fires
+(Sams016). Smoke 6/6, regression green. The "early-state/prime family"
+recon guess was wrong — it was the record shift all along (sub 0's
+mid-song SR diff = records 0 vs 1 first differing at one instrument).
 
 ## ✅ OVER_AND_OUT FULL (2026-08-21, same session) — f2 2,914/2,924, 10 partials
 The recon's "garbage $D418=$A8" was misread: the orig CHAINS songs — an
