@@ -6001,6 +6001,21 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
     # ships with imm=0), the poke IS a per-subtune loop target: record
     # {subtune: table[subtune]} for the non-zero entries (zero = the canon
     # default, identity — such subtunes build byte-identically).
+    # family-2 SHIPPED $FF loop-to-N immediate (Conversion, 2026-08-21): the
+    # handler `C9 FF / D0 08 / A9 imm / 9D <otrk> / 4C <re-dispatch>` at canon
+    # $10D9 loops EVERY voice to track position `imm`. The family ships imm=0
+    # (loop-to-start = the walk's default) and the X-mas wrapper POKES the
+    # operand per subtune — but a member can SHIP a non-zero target (Conversion
+    # imm=4), which this path never read: the walk's loop@0 played the wrong
+    # wrap rows on every voice. Static, canon-anchored; imm=0 -> None
+    # (byte-identical).
+    loop_reset = None
+    if (mem[at(0x10D9)] == 0xC9 and mem[at(0x10DA)] == 0xFF
+            and mem[at(0x10DB)] == 0xD0 and mem[at(0x10DD)] == 0xA9
+            and mem[at(0x10DF)] == 0x9D
+            and _rd16(mem, at(0x10E0)) == at(0x1726)
+            and mem[at(0x10DE)]):
+        loop_reset = mem[at(0x10DE)]
     subtune_loop_reset = None
     for _iv in {_rd16(mem, base + 1), s['init']}:
         if not (s['load'] <= _iv < 0xFFF0):
@@ -6019,6 +6034,7 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
         name=os.path.splitext(os.path.basename(sid_path))[0],
         base=base,
         subtune_loop_reset=subtune_loop_reset,
+        loop_reset_pos=loop_reset,
         op_instr=at(0x1227), op_wavectrl=at(0x159C), op_wavefreq=at(0x15B9),
         op_filtdef=at(0x1296), op_tunetab=at(0x1051),
         op_secp_lo=at(0x1103), op_secp_hi=at(0x1108),

@@ -5,10 +5,26 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-21T09:18:09.445Z
+  modified: 2026-08-21T09:34:42.282Z
 ---
 
-## RESIDUE (2026-08-21 end of session): 3 partials — Witchs_Birthday, Conversion, Just_11
+## ✅✅ FAMILY-2 CLOSED: 2,924/2,924 (100%) — Conversion + Witchs_Birthday + Just_11 FULL (2026-08-21)
+ONE lever closed all three (C9 10th occ): the f2 $FF track-loop handler's
+SHIPPED `LDA #imm` (canon $10DE) — loop EVERY voice to track position
+imm. The X-mas C37 probe handled the wrapper POKING that operand but
+nothing read its shipped value; 10 carriers (imm 1-6) walked loop@0.
+Factory now reads it (canon-anchored static, imm=0 → None, byte-
+identical). All 10 carriers FULL (3 partials landed + 7 stored-FULLs
+re-verified). The three had presented as three unrelated deep classes
+(drum-tail stagger / sticky-instr / switch-row anomaly) — all downstream
+of wrong wrap rows; the decisive measurement was the orig's otrk AT the
+wrap ($0C → $04). Smoke 6/6, regression green. BYTE CHURN: the 7
+re-verified FULL carriers' stored artifacts are stale — fold into the
+next f2 batch + mass-write resync (with the earlier vib_inc/dead-cargo
+churn). NOTE the earlier Conversion recon rabbit holes ($FD switch
+handler decode, "freeze", zeros rows) are all explained by the wrap.
+
+## RESIDUE (superseded by the head entry above — f2 is closed): 3 partials — Witchs_Birthday, Conversion, Just_11
 All three measured; diagnoses + state captures in backlog.md item 6.
 Conversion: the f2 $FD switch handler is now DECODED ($1183: dur=durrel /
 EOR #$01 gatemask / INC sectpos / term-peek — a timed gate-toggle row our

@@ -312,7 +312,12 @@ practice, not code to factor).
   ADDRESS inherited from canon in a variant family (f2 parity beside its
   RELOCATED shadow) — audit the canon PAIR when one var moves; and census
   the VARIABLE'S READERS, not the flag naming it (13 predicted, +254
-  recovered).
+  recovered). 10th occ (f2 $FF loop imm, 2026-08-21 — Conversion + Witchs +
+  Just_11, f2 CLOSED 100%): a probe handling a WRAPPER that POKES an operand
+  (X-mas per-subtune loop target) proved the operand is a live knob — but
+  nothing read its SHIPPED value; 10 carriers walked loop@0 instead of
+  loop@N. Three "unrelated deep classes" were all downstream of the wrong
+  wrap rows; the decisive measurement = the orig's otrk AT the wrap.
 - FULL ENTRY: [`ledger/C9.md`](ledger/C9.md) — read it before applying.
 
 ### C10 — chip-global ($D415-$D418) automation that varies during the song
