@@ -5,8 +5,19 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-21T08:03:18.875Z
+  modified: 2026-08-21T08:44:43.982Z
 ---
+
+## ✅ ARTRIS FULL 6/6 (2026-08-21, same session) — f2 2,920/2,924, 4 partials
+The batch's `build_path: single` was a stale-detection palimpsest (C20):
+current detect_compilation finds the 2 packed players ($9F00/$8D00);
+the compilation path then hit `wave pool overflow` (332 deduped bytes >
+255 — the C8 signature, our merge creates the overflow while each
+player's own pool fits). Fix = C8 FIFTH widening: `_split_wave_pools`
+(per-subtune-component pools, component idle at pos 0, init SMC-patches
+the 4 wave-step read operands wsp0-3 via wpooltab[cursong]). Fires only
+where the single pool overflowed = previously a hard error → regression-
+safe by construction. Smoke 6/6, regression green.
 
 ## ✅ PAST-EOF SECTOR TRIO FULL (2026-08-21, same session): Final_Game 6/6 + James_Bond + Fantasia — f2 2,919/2,924, 5 partials
 The wrap/fold cluster's shared lever was C29, not C32: a played sector

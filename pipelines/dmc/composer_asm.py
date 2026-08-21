@@ -1337,7 +1337,127 @@ class _Model:
             self.wctrl = bytearray(_ctrl_at.get(k, 0) for k in range(size))
             self.wfreq = bytearray(_freq_at.get(k, 0) for k in range(size))
         else:
+            self.wave_pool_split = None
+            if len(self.wctrl) > 255:
+                self._split_wave_pools(usf, ip)
             assert len(self.wctrl) <= 255, 'wave pool overflow'
+
+    def _split_wave_pools(self, usf, file_idle) -> None:
+        """PER-SUBTUNE WAVE-POOL SPLIT (ledger C8/C31 — Artris, 2026-08-21).
+        A compilation merge can pool two packed players' wave programs past
+        the 8-bit wavepos capacity (Artris: 332 deduped bytes over 42
+        instruments) although each PLAYER's own pool fits — the overflow is
+        created by our merge, exactly the C8 instrument-record case one
+        table over. Each subtune runs exactly ONE player (C31), so the
+        subtunes partition into components that share no instruments; pool
+        each component separately (its idle program at position 0, so the
+        cleared wavepos walks the right lead-in) and let init SMC-patch the
+        four wave-step read operands (wsp0-3) to the current subtune's pool
+        (the Session tunetab-widening precedent). Fires ONLY where the
+        single pool overflows — previously a hard build error, so no
+        existing member can regress. Refuses (leaving the overflow assert
+        to fire) when the subtunes don't separate, a component's own pool
+        still exceeds 255, or a component's subtunes carry disagreeing
+        idle overrides."""
+        from collections import defaultdict
+        use = defaultdict(set)
+        for si, sub in enumerate(usf.subtunes):
+            for v in sub.voices:
+                pat = {p.id: p for p in v.patterns}
+                for pid in (list(getattr(v.orderlist, 'intro_entries', None)
+                                 or []) + list(v.orderlist.entries or [])):
+                    for r in (pat[pid].rows if pid in pat else ()):
+                        if r.instr is not None:
+                            use[getattr(r.instr, 'id', r.instr)].add(si)
+        n_sub = len(usf.subtunes)
+        if n_sub < 2:
+            return
+        comp = list(range(n_sub))
+
+        def find(a):
+            while comp[a] != a:
+                a = comp[a]
+            return a
+        for ss in use.values():
+            ss = sorted(ss)
+            for b in ss[1:]:
+                ra, rb = find(ss[0]), find(b)
+                if ra != rb:
+                    comp[rb] = ra
+        roots, sub_pool = [], []
+        for s in range(n_sub):
+            r = find(s)
+            if r not in roots:
+                roots.append(r)
+            sub_pool.append(roots.index(r))
+        if len(roots) < 2:
+            return
+        # per-component idle program (pool position 0): a subtune override
+        # where present (must agree within the component), else the file idle
+        idles = []
+        for k in range(len(roots)):
+            ov = None
+            for s in range(n_sub):
+                if sub_pool[s] != k:
+                    continue
+                p = (getattr(usf.subtunes[s], 'wave_programs', None)
+                     or {}).get(0)
+                if p and p.get('ctrl'):
+                    t = (tuple(p['ctrl']), tuple(p['freq']),
+                         p.get('loop', 0))
+                    if ov is not None and ov != t:
+                        return
+                    ov = t
+            if ov is None:
+                if file_idle and file_idle.get('ctrl'):
+                    ov = (tuple(file_idle['ctrl']), tuple(file_idle['freq']),
+                          file_idle.get('loop', 0))
+                else:
+                    i0 = self.instruments[0]
+                    ov = (tuple(i0.waveform),
+                          tuple(i0.wave_freq or [0] * len(i0.waveform)),
+                          i0.loop)
+            idles.append(ov)
+        pools = [{'ctrl': bytearray(), 'freq': bytearray(), 'seen': {}}
+                 for _ in roots]
+
+        def padd(k, ctrl, freq, loop):
+            n = len(ctrl)
+            if n == 0:
+                raise RuntimeError('unsupported:zero_wave_table')
+            assert 0 <= loop < n and n - loop <= 0x6F, \
+                f'wave program shape n={n} loop={loop}'
+            p = pools[k]
+            cb = bytes(b & 0xFF for b in ctrl)
+            fb = bytes(b & 0xFF for b in freq)
+            key = (cb, fb, loop)
+            if key in p['seen']:
+                return p['seen'][key]
+            s = len(p['ctrl'])
+            p['ctrl'] += cb
+            p['ctrl'].append(0x90 + n - loop)
+            p['freq'] += fb + b'\x00'
+            p['seen'][key] = s
+            return s
+        for k, (c, f, lp) in enumerate(idles):
+            padd(k, list(c), list(f), lp)
+        iwst = []
+        for inst in self.instruments:
+            ks = {sub_pool[s] for s in use.get(inst.id, set())} or {0}
+            if len(ks) > 1:
+                return
+            iwst.append(padd(ks.pop(), inst.waveform,
+                             inst.wave_freq or [0] * len(inst.waveform),
+                             inst.loop))
+        if any(len(p['ctrl']) > 255 for p in pools):
+            return
+        self.wctrl = pools[0]['ctrl']
+        self.wfreq = pools[0]['freq']
+        self.iwst = iwst
+        self.sub_iwpos = None            # component idles sit at position 0
+        self.wave_pool_split = {
+            'pools': [(p['ctrl'], p['freq']) for p in pools[1:]],
+            'sub_pool': sub_pool}
 
     def iflags(self, inst) -> int:
         f = 0
@@ -3341,6 +3461,21 @@ fx_dual_up:
     if per_sub_sphase:
         data.append('sphase:\n' + _byt(sphase_vals))
     data.append('wftab:\n' + _byt(m.wfreq))
+    if getattr(m, 'wave_pool_split', None):
+        # per-subtune wave pools (C8/C31 split — see _split_wave_pools):
+        # extra pools + the subtune->pool map + pool base-address tables
+        # for the init-time operand patch.
+        for _k, (_pc, _pf) in enumerate(m.wave_pool_split['pools'], start=1):
+            data.append(f'wctab{_k}:\n' + _byt(list(_pc)))
+            data.append(f'wftab{_k}:\n' + _byt(list(_pf)))
+        data.append('wpooltab:\n' + _byt(m.wave_pool_split['sub_pool']))
+        _n = len(m.wave_pool_split['pools'])
+        _cts = ['wctab'] + [f'wctab{k}' for k in range(1, _n + 1)]
+        _fts = ['wftab'] + [f'wftab{k}' for k in range(1, _n + 1)]
+        data.append('wplotab:  .byt ' + ','.join(f'<{t}' for t in _cts))
+        data.append('wphitab:  .byt ' + ','.join(f'>{t}' for t in _cts))
+        data.append('wfplotab: .byt ' + ','.join(f'<{t}' for t in _fts))
+        data.append('wfphitab: .byt ' + ','.join(f'>{t}' for t in _fts))
     data.append('tunetab:\n' + '\n'.join(tune_lines))
     data.append('patlo:\n' + pat_lo)
     data.append('pathi:\n' + pat_hi)
@@ -4224,6 +4359,31 @@ vpat_l:
             '        lda mswht,x\n'
             '        sta mswhi\n')
 
+    # PER-SUBTUNE WAVE-POOL patch (C8/C31 split — see _split_wave_pools):
+    # init repoints the four wave-step read operands (wsp0-3) to the
+    # current subtune's pool. Written on EVERY init (both directions) so a
+    # subtune change cannot inherit the previous pool.
+    if getattr(m, 'wave_pool_split', None):
+        if not cursong_save:
+            cursong_save = ('        sta cursong                  ; subtune '
+                            'for the wave-pool patch\n')
+            cursong_var = 'cursong:  .dsb 1, 0\n'
+        cia_init = cia_init + (
+            '        ldx cursong                  ; per-subtune WAVE POOL\n'
+            '        ldy wpooltab,x               ; (C8/C31 split): patch the\n'
+            '        lda wplotab,y                ; wave-step read operands\n'
+            '        sta wsp0+1\n'
+            '        sta wsp2+1\n'
+            '        lda wphitab,y\n'
+            '        sta wsp0+2\n'
+            '        sta wsp2+2\n'
+            '        lda wfplotab,y\n'
+            '        sta wsp1+1\n'
+            '        sta wsp3+1\n'
+            '        lda wfphitab,y\n'
+            '        sta wsp1+2\n'
+            '        sta wsp3+2\n')
+
     # >16 subtunes: the tune-record index `subtune * 16` overflows the 8-bit
     # Y (16*16 = 256 wraps to 0 — Session's subs 16-24 played subs 0-8), the
     # C8 composer-side index overflow in its merge-created form: the orig
@@ -4880,6 +5040,7 @@ wavestep:
 ws_notdrum:
 ws_rd0:
         ldy wavepos,x
+wsp0:
         lda wctab,y
         cmp #$90
         bcc ws_rd
@@ -4893,6 +5054,7 @@ ws_rd0:
         jmp ws_rd0
 ws_rd:
         sta wctrl,x
+wsp1:
         lda wftab,y
         clc
         adc curnote,x                ; semitone offset -> table rebase
@@ -4913,6 +5075,7 @@ ws_rd_his:
         jmp sidwrite
 ws_drum:
         ldy wavepos,x
+wsp2:
         lda wctab,y
         cmp #$90
         bcc ws_drd
@@ -4928,6 +5091,7 @@ ws_drd:
         sta wctrl,x
         lda #$00
         sta fbl,x
+wsp3:
         lda wftab,y                  ; absolute freq hi
 {ws_drum_fhi}
         inc wavepos,x

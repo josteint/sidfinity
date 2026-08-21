@@ -264,6 +264,11 @@ practice, not code to factor).
   record (state mismatch + wrong first note at play 0 across a subtune BLOCK);
   cure = init SMC-patches the reads' operand HI byte with `subtune>>4`, gated
   on >16 subs. TELL: diff the rebuild's own subtunes against each other first.
+  5th widening (Artris 6/6, 2026-08-21): the merged WAVE POOL — 2 players'
+  programs pool past the 8-bit wavepos though each player's own pool fits;
+  SPLIT per subtune-component (`_split_wave_pools`: component idle at pos 0,
+  init SMC-patches the 4 wave-step read operands via wpooltab[cursong]);
+  fires only where the single pool overflowed = previously a hard error.
 - FULL ENTRY: [`ledger/C8.md`](ledger/C8.md) — read it before applying.
 
 ### C9 — a runtime parameter py65 can't read → measure it from the writelog
