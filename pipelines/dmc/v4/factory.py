@@ -1883,8 +1883,13 @@ def _medley_switch_probe(path: str, base: int,
     if not (mem[p] == 0xAD and mem[p + 3] == 0x0D and mem[p + 6] == 0xF0
             and mem[p + 8] == 0xCE and mem[p + 11] == 0xD0
             and mem[p + 13] == 0xCE and mem[p + 16] == 0xD0
-            and mem[p + 18] == 0xA9 and mem[p + 20] == 0x4C
-            and _rd16(mem, p + 21) == base):
+            and mem[p + 18] == 0xA9 and mem[p + 20] == 0x4C):
+        return None
+    # chain target: `JMP base` directly, or ONE JMP indirection into base
+    # (Over_and_Out: `JMP $1D86` = the init wrapper's own `JMP $1000` tail —
+    # the C19 32nd-occ "follow one JMP from the vector" rule).
+    _t = _rd16(mem, p + 21)
+    if _t != base and not (mem[_t] == 0x4C and _rd16(mem, _t + 1) == base):
         return None
     v0 = _rd16(mem, p + 1)
     v1 = _rd16(mem, p + 4)

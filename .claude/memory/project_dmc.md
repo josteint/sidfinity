@@ -5,8 +5,20 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-21T06:13:47.484Z
+  modified: 2026-08-21T06:23:34.270Z
 ---
+
+## ✅ OVER_AND_OUT FULL (2026-08-21, same session) — f2 2,914/2,924, 10 partials
+The recon's "garbage $D418=$A8" was misread: the orig CHAINS songs — an
+appended per-subtune countdown wrapper (the `_medley_switch_probe` C31
+form, 3rd carrier) re-inits into song 1 at counter expiry; our $A8 was
+just the next note's SR while the orig restarted. Two refinements
+(ledger C31 entry): the chain jump is ONE JMP INDIRECT (follow it), and
+the target row can be ARMED (the counter bytes are the author's `**`
+credit text!) so `msw_x` now zeroes the counter after the chain (orig's
+spent counter stays 0). NemTP + Fuckin_Birds re-verified FULL; smoke
+6/6; regression green. Just_11 (same composer) is NOT this class —
+stays partial (C10 $D418 automation per the backlog recon).
 
 ## ✅ VIB-INCREMENT READ SITE (2026-08-21, same session): For_Nitro + Hot_Mallorca FULL — f2 2,913/2,924, 11 partials
 C11 4th read site: the f2 note-init vib setup `ldy curnote,x / lda

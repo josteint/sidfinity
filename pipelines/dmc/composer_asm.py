@@ -4197,7 +4197,11 @@ vpat_l:
                           for i in range(3))) +
             '        lda mswsav+9                 ; shadow17 — C38/C31 carry)\n'
             '        sta shadow17\n'
-            '        rts                          ; init ran in place of play\n'
+            '        lda #$00                     ; the orig chain bypasses the\n'
+            '        sta mswlo                    ; arming init wrapper: its\n'
+            '        sta mswhi                    ; spent counter stays 0 even\n'
+            '        rts                          ; when the TARGET song row is\n'
+            '                                     ; armed (Over_and_Out song 1)\n'
             'mswsav: .dsb 10, 0\n'
             'mswlo:  .byt 0\n'
             'mswhi:  .byt 0\n'
