@@ -1227,7 +1227,8 @@ def _rec_of(sub: int, forced) -> int:
 
 def _offimage_sectors(mem, secp_lo: int, secp_hi: int, tunetab: int,
                       n_sub: int, load: int, loop_target: bool,
-                      forced: int | None = None) -> list:
+                      forced: int | None = None,
+                      img_end: int | None = None) -> list:
     """Base addresses of PLAYED sectors whose 256-byte read window leaves the
     RAM the image/init defines — the engine then sonifies ENVIRONMENT bytes:
 
@@ -1243,7 +1244,26 @@ def _offimage_sectors(mem, secp_lo: int, secp_hi: int, tunetab: int,
     The file image / py65 view is wrong there, so the extract overlays what
     the engine reads (runtime zp capture + ROM bytes). Walks every track
     (mirrors _walk_track, $FF followed once); an all-in-image member returns
-    [] (byte-identical build)."""
+    [] (byte-identical build).
+
+    `img_end` (2026-08-21, Final_Game — the wrap/fold cluster's shared
+    lever): a played sector PAST THE IMAGE END in plain RAM is the same
+    class — the engine reads the power-on pattern there ($FF stripe), and
+    family-2's in-sector terminator IS $FF, so the environment bytes END
+    the pattern and let the song wrap while the image-zero view decodes an
+    endless note-0 self-loop (V2 loop@5 instead of the orig's loop@0).
+    None = surface disabled (post-init/unpacker members: their data
+    legitimately lives past the image and mem is a runtime snapshot).
+    Surface = the sector BASE past the end (wholly undefined), NOT the
+    window tail crossing it — the tail-crossing form flags 4,725 members
+    (44% of the family, nearly every sector ends near EOF) where the walk
+    never reads past the terminator; the Kaj2 rule (gate on the WALK, not
+    window geometry) in its cheap-static form."""
+    def _oob(sec_addr):
+        return (sec_addr < load or sec_addr + 0xFF > 0xFFFF
+                or (0xA000 <= sec_addr + 0xFF and sec_addr <= 0xBFFF)
+                or sec_addr + 0xFF >= 0xE000
+                or (img_end is not None and sec_addr >= img_end))
     out = set()
     for sub in range(n_sub):
         rec = tunetab + _rec_of(sub, forced) * 8
@@ -1282,18 +1302,13 @@ def _offimage_sectors(mem, secp_lo: int, secp_hi: int, tunetab: int,
                     nb = mem[(tp + ((pos + 1) & 0xFF)) & 0xFFFF]
                     sec_addr = mem[(secp_lo + nb) & 0xFFFF] | \
                         (mem[(secp_hi + nb) & 0xFFFF] << 8)
-                    if (sec_addr < load or sec_addr + 0xFF > 0xFFFF
-                            or (0xA000 <= sec_addr + 0xFF
-                                and sec_addr <= 0xBFFF)
-                            or sec_addr + 0xFF >= 0xE000):
+                    if _oob(sec_addr):
                         out.add(sec_addr)
                     pos += 1
                     continue
                 sec_addr = mem[(secp_lo + b) & 0xFFFF] | \
                     (mem[(secp_hi + b) & 0xFFFF] << 8)
-                if (sec_addr < load or sec_addr + 0xFF > 0xFFFF
-                        or (0xA000 <= sec_addr + 0xFF and sec_addr <= 0xBFFF)
-                        or sec_addr + 0xFF >= 0xE000):
+                if _oob(sec_addr):
                     out.add(sec_addr)
                 pos += 1
     return sorted(out)
@@ -2055,8 +2070,12 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc85') -> DmcModel:
         for _a, _v in _cpu_peek(path, [(a, a) for a in _updef],
                                 subtune=post_sub).items():
             mem[_a] = _v
-    oob = _offimage_sectors(mem, secp_lo, secp_hi, tunetab, s.get('songs', 1),
-                            s['load'], cfg.track_loop_target, forced=forced)
+    oob = _offimage_sectors(
+        mem, secp_lo, secp_hi, tunetab, s.get('songs', 1),
+        s['load'], cfg.track_loop_target, forced=forced,
+        img_end=(None if (getattr(cfg, 'data_post_init', False)
+                          or post_sub is not None)
+                 else s['load'] + len(s['payload'])))
     # CPU-EYE overlay of every off-image sector window (the shared helper —
     # see its docstring for the undefined-only + static/dynamic rules and the
     # Pour_le_merite / Abyssal_Karma / Remix_1995 incidents behind them). The

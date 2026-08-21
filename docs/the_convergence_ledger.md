@@ -914,7 +914,12 @@ practice, not code to factor).
   operand IS the audible note 32). TELL: every voice's note = ours + K with
   otrk/sectpos/transp in lockstep — the walk agrees, the CONTENT differs.
 - CANONICAL: `_offimage_sectors` gate (ANY played sector leaving defined
-  RAM) + `siddump --peek-post-init` CPU-EYE window capture (banked ROM incl.
+  RAM — incl. a sector BASE past the IMAGE END in plain RAM, 2026-08-21
+  Final_Game+James_Bond+Fantasia: the power-on $FF stripe IS f2's in-sector
+  terminator, so the environment ENDS the pattern where image-zeros decode
+  an endless self-loop and the walk folds loop@N; base-past-end ONLY — the
+  window-tail form flags 44% of the family, the Kaj2 gate-on-the-walk rule)
+  + `siddump --peek-post-init` CPU-EYE window capture (banked ROM incl.
   patched vectors + port + RAM pattern in one mechanism) + `_poweron_fill`
   pattern-seeded py65 + `_undefined_secp_reads` pre-pass (serve off-image
   POINTER bytes the CPU-eye value BEFORE resolving sector windows).

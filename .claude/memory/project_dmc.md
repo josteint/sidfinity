@@ -5,8 +5,26 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-21T07:01:47.983Z
+  modified: 2026-08-21T07:47:51.564Z
 ---
+
+## ✅ PAST-EOF SECTOR TRIO FULL (2026-08-21, same session): Final_Game 6/6 + James_Bond + Fantasia — f2 2,919/2,924, 5 partials
+The wrap/fold cluster's shared lever was C29, not C32: a played sector
+whose BASE sits past the image end in plain RAM (Final_Game sector $33 @
+$521B, image ends $27A9). The orig reads the power-on $FF stripe there,
+and f2's in-sector terminator IS $FF → the environment ENDS the pattern
+→ track $FF → loop to 0; our image-zero view decoded an endless note-0
+self-loop (V2 loop@5). Fix: `_offimage_sectors` past-EOF surface
+(base-past-end ONLY — the window-tail form flagged 4,725 members, the
+Kaj2 gate-on-the-walk lesson; disabled for post-init members). Gates:
+66-candidate census rebuilt, 2 changed (Session 25/25 + Note_4_Remix)
+both re-verified FULL; smoke 6/6; regression green. Diagnosis chain:
+memwatch V2 otrk/sectpos at the divergence → the wrap lands at otrk 1
+while our USF said loop@5 → sector addr $521B vs image end.
+NOT this class: Witchs_Birthday (divergence is mid-song at otrk 8/9,
+NOT the wrap — orig V2 mid-drum-tail ctrl=$80 when ours ends the row;
+sectors/terminators all in-image and clean; needs the per-voice
+row-end stagger dig), Conversion + Just_11 (unchanged, undug).
 
 ## ✅ KNOWLEDGE_POSSE_TUNE_3 FULL (2026-08-21, same session) — f2 2,916/2,924, 8 partials
 C18 f2 parity wrapper: P alternating with a reverse-voice pulse-tail
