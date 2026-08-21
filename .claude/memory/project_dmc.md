@@ -5,8 +5,19 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-21T09:04:12.680Z
+  modified: 2026-08-21T09:18:09.445Z
 ---
+
+## RESIDUE (2026-08-21 end of session): 3 partials — Witchs_Birthday, Conversion, Just_11
+All three measured; diagnoses + state captures in backlog.md item 6.
+Conversion: the f2 $FD switch handler is now DECODED ($1183: dur=durrel /
+EOR #$01 gatemask / INC sectpos / term-peek — a timed gate-toggle row our
+walk already models); the residual is a one-frame V3 footprint (orig
+freewheels a zeroed state, ours preps) near the sector-5 `$FD $FF` tail —
+suspect switch-row × note-end-prep interaction. Witchs: per-voice
+row-end stagger mid-song (orig V2 mid-drum-tail when ours ends the row).
+Just_11: ours plays a filter-flagged SR-$5F instrument where orig plays
+inst 4 (sticky-instr/lap-2 or a $D418-automation data-poke driver).
 
 ## ✅ OFYRON_GADAF FULL (2026-08-21, same session) — f2 2,921/2,924, 3 partials
 ONE knob: `filter_before_voice=2` (C16 unit-ORDER form). The orig
