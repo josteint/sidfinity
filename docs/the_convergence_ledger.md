@@ -461,7 +461,14 @@ practice, not code to factor).
 - CANONICAL: PARAMETRIZE the composer's EMISSION order (precedent:
   `nextvoice_write_order`) — never rewrite the player, never pre-scope "a big
   restructuring": trace the literal register-write sequence for 2-3 frames
-  first; it is almost always a bounded emission-order knob.
+  first; it is almost always a bounded emission-order knob. UNIT-ORDER form
+  (Ofyron_Gadaf 2026-08-21): the filter tail runs BEFORE a voice (neutered
+  in-body JSR + a 9-byte play wrapper) — audible purely through WHEN the
+  tail samples the routing shadow (pre- vs post-clear); composer
+  `filter_before_voice=N` splices the tail into the voice-call sequence.
+  TRAP: the member's shadow was RELOCATED into "header text" ($1034) — a
+  canon-address memwatch reads static and the byte dump reads as a static
+  wedge; watch the RELOCATED var at the writes before concluding either.
 - FULL ENTRY: [`ledger/C16.md`](ledger/C16.md) — read it before applying.
 
 ### C17 — heterogeneous per-step write shapes in a trace-lift

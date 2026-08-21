@@ -5,8 +5,21 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-21T08:44:43.982Z
+  modified: 2026-08-21T09:04:12.680Z
 ---
+
+## ✅ OFYRON_GADAF FULL (2026-08-21, same session) — f2 2,921/2,924, 3 partials
+ONE knob: `filter_before_voice=2` (C16 unit-ORDER form). The orig
+neuters the body's V3 JSR to `LDA abs` and its play vector wrapper
+(`JSR base+3 / LDX #2 / JSR voice / RTS`) runs V3 AFTER the filter
+tail — the tail's $D417 samples the routing shadow BEFORE V3's
+note-init clears/claims its bit (play-1 $F5 vs our tail-last $F1).
+No value semantics differ; pure within-frame order. TRAP survived:
+the member's routing shadow is RELOCATED to $1034 (reads as header
+text; canon $1018 = constant garbage) — watching $1034 AT the $D417
+writes showed the ordinary moving shadow, killing both the "static
+wedge" and "canon shadow" readings. Static probe, sole carrier in
+10,774; smoke 6/6; regression green.
 
 ## ✅ ARTRIS FULL 6/6 (2026-08-21, same session) — f2 2,920/2,924, 4 partials
 The batch's `build_path: single` was a stale-detection palimpsest (C20):

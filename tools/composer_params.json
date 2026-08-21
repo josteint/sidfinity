@@ -18,8 +18,8 @@
   "pipelines/composer.py": {
     "digi_player": {
       "category": "mechanism-knob",
-      "licensed_by": "NONE — meets principle section-8's test exactly (the composer's choice of which 6502 to emit depends on USF content -> _digi_player_registry). The old C7-category-C citation was WRONG: C7-C covers the PCM sample data (FLAC sidecars, fine), not the player choice. Re-assessed 2026-08-16, note corrected 2026-08-20 (backlog.md item 5).",
-      "note": "LATENT, not active: a library of one (1 corpus carrier, 4k-era Chimera; 1 registry entry). Owner-reviewed TRIPWIRE: the SECOND digi engine migrated (e.g. Galway $D418 4-bit) must PARAMETRIZE (a real technique enum like digi { technique: wavetoggle_1bit | volume_4bit, rate: N }; the composer synthesizes the player) — NEVER add registry row two. DigiCode's addresses are composer layout and must not be reachable from USF even by name."
+      "licensed_by": "NONE \u2014 meets principle section-8's test exactly (the composer's choice of which 6502 to emit depends on USF content -> _digi_player_registry). The old C7-category-C citation was WRONG: C7-C covers the PCM sample data (FLAC sidecars, fine), not the player choice. Re-assessed 2026-08-16, note corrected 2026-08-20 (backlog.md item 5).",
+      "note": "LATENT, not active: a library of one (1 corpus carrier, 4k-era Chimera; 1 registry entry). Owner-reviewed TRIPWIRE: the SECOND digi engine migrated (e.g. Galway $D418 4-bit) must PARAMETRIZE (a real technique enum like digi { technique: wavetoggle_1bit | volume_4bit, rate: N }; the composer synthesizes the player) \u2014 NEVER add registry row two. DigiCode's addresses are composer layout and must not be reachable from USF even by name."
     }
   },
   "pipelines/dmc/composer_asm.py": {
@@ -41,19 +41,19 @@
     },
     "d418_noteinit_dead": {
       "category": "mechanism-knob",
-      "licensed_by": "C19 (f2 $12A8 filter note-init STA $D418 killed — Third_Zak zp-redirect, Chance_for_Win_part_2 NOP; init mvol store survives)"
+      "licensed_by": "C19 (f2 $12A8 filter note-init STA $D418 killed \u2014 Third_Zak zp-redirect, Chance_for_Win_part_2 NOP; init mvol store survives)"
     },
     "filter_cut_static": {
       "category": "mechanism-knob",
-      "licensed_by": "C19 (f2 $10A3 play filter-tail STA $D416 NOPed — SilverFox/No_End; $D417 store survives)"
+      "licensed_by": "C19 (f2 $10A3 play filter-tail STA $D416 NOPed \u2014 SilverFox/No_End; $D417 store survives)"
     },
     "vib_phase_persist": {
       "category": "musical-content",
-      "licensed_by": "C19 (f2 $11BE vibdir clear patched to EOR zp,x, misalignment kills the vibctr clear too — Shock/Mea_Culpa_end; vibrato phase persists across notes, 44th-occ persist family); typed as init_behavior.vibrato_phase_persist (C33, 2026-08-13), key = fallback"
+      "licensed_by": "C19 (f2 $11BE vibdir clear patched to EOR zp,x, misalignment kills the vibctr clear too \u2014 Shock/Mea_Culpa_end; vibrato phase persists across notes, 44th-occ persist family); typed as init_behavior.vibrato_phase_persist (C33, 2026-08-13), key = fallback"
     },
     "vib_step_dead": {
       "category": "musical-content",
-      "licensed_by": "C19 (f2 $12F5 vib-increment store re-pointed to CMP — Shade/For_Moonlight; vdep never written, swell ramps by 0); typed as init_behavior.vibrato_step_dead (C33, 2026-08-13), key = fallback"
+      "licensed_by": "C19 (f2 $12F5 vib-increment store re-pointed to CMP \u2014 Shade/For_Moonlight; vdep never written, swell ramps by 0); typed as init_behavior.vibrato_step_dead (C33, 2026-08-13), key = fallback"
     },
     "d417_tail_anim": {
       "category": "mechanism-knob",
@@ -70,8 +70,8 @@
     },
     "vib_swell_ror": {
       "category": "mechanism-knob",
-      "licensed_by": "C19 (f2 $1583 half-cycle swell ADC vdep,x -> ROR vdep,x + $158E hi-writeback repointed +1 — vdep halves each half-cycle, carry-out pokes the next voice's swell-hi / slal[0]; Petshopmix, sole carrier)",
-      "note": "deconstruction candidate (33rd-occ): a halving depth is a musical trajectory (decaying vibrato — the shape:drift precedent), but the cross-voice poke is pure mechanism; flagged for the owner."
+      "licensed_by": "C19 (f2 $1583 half-cycle swell ADC vdep,x -> ROR vdep,x + $158E hi-writeback repointed +1 \u2014 vdep halves each half-cycle, carry-out pokes the next voice's swell-hi / slal[0]; Petshopmix, sole carrier)",
+      "note": "deconstruction candidate (33rd-occ): a halving depth is a musical trajectory (decaying vibrato \u2014 the shape:drift precedent), but the cross-voice poke is pure mechanism; flagged for the owner."
     },
     "filter_idx_eor": {
       "category": "mechanism-knob",
@@ -83,18 +83,18 @@
     },
     "filter_def_orig": {
       "category": "mechanism-knob",
-      "licensed_by": "C31 (the fbase off-table read sonifies the ORIG def#<<4; the merge's compact remap renumbers a reading player's defs — this slot:orig map feeds the composer's fbsh shadow serving the idx-116/212 redirect; Sub_Burner)",
-      "note": "window layout deliberately untouched — re-anchoring broke the verdict-proven Lane_Crazy."
+      "licensed_by": "C31 (the fbase off-table read sonifies the ORIG def#<<4; the merge's compact remap renumbers a reading player's defs \u2014 this slot:orig map feeds the composer's fbsh shadow serving the idx-116/212 redirect; Sub_Burner)",
+      "note": "window layout deliberately untouched \u2014 re-anchoring broke the verdict-proven Lane_Crazy."
     },
     "idle_pulse_instr": {
       "category": "mechanism-knob",
-      "licensed_by": "C31 (per-subtune idle-pulse record — the pulse sibling of idle_wave/sub_iwpos: an idling voice runs its own packed player's record-0 pulse program; value = the USF instrument number whose pulse config that record carries; Sub_Burner)",
-      "note": "typed sibling family exists (init.voice_state) — C33 typing candidate (a per-subtune idle-instrument reference)."
+      "licensed_by": "C31 (per-subtune idle-pulse record \u2014 the pulse sibling of idle_wave/sub_iwpos: an idling voice runs its own packed player's record-0 pulse program; value = the USF instrument number whose pulse config that record carries; Sub_Burner)",
+      "note": "typed sibling family exists (init.voice_state) \u2014 C33 typing candidate (a per-subtune idle-instrument reference)."
     },
     "dur_fetch_underflow": {
       "category": "temporal-dispatch",
-      "licensed_by": "C19 (f2 $10C3 duration-fetch branch BEQ->BMI, Delta_Zak: every row lasts one extra tick, init seed lasts two plays — a member-global tick-machinery fencepost, tempo_override's family)",
-      "note": "init_behavior typing candidate (C33). 33rd-occ test run: value-level deconstruction (durations+1 in USF) rejected — the +1 is uniform machinery, not authored per-row, and the extra init-seed play has no typed home without a schema addition (owner gate)."
+      "licensed_by": "C19 (f2 $10C3 duration-fetch branch BEQ->BMI, Delta_Zak: every row lasts one extra tick, init seed lasts two plays \u2014 a member-global tick-machinery fencepost, tempo_override's family)",
+      "note": "init_behavior typing candidate (C33). 33rd-occ test run: value-level deconstruction (durations+1 in USF) rejected \u2014 the +1 is uniform machinery, not authored per-row, and the extra init-seed play has no typed home without a schema addition (owner gate)."
     },
     "dual_generator_steps": {
       "category": "mechanism-knob",
@@ -248,6 +248,10 @@
     "medley_switch": {
       "category": "temporal-dispatch",
       "licensed_by": "C31 medley variant, per-subtune form (Arthur/Fuckin_Birds + NemTP): an armed subtune plays its own song for a hi:lo play countdown then re-inits into a target song"
+    },
+    "filter_before_voice": {
+      "category": "mechanism-knob",
+      "licensed_by": "C16/C24 play-body unit ORDER (Ofyron_Gadaf: filter tail before voice N \u2014 in-body voice JSR neutered + a 9-byte play wrapper runs it after; the tail's $D417 reads the routing shadow pre-clear)"
     }
   }
 }

@@ -2987,10 +2987,21 @@ fx_dual_up:
     # moves only on $F1 filterset commands). Reproduce by dropping OUR
     # per-play clear; fclaim starts 0 (fresh var) exactly like the orig's
     # init-cleared state.
+    # filter_before_voice (C16/C24 unit ORDER — Spang_Jesper/Ofyron_Gadaf):
+    # the orig's play body runs the FILTER TAIL before voice N (the in-body
+    # voice-N JSR is neutered to `LDA abs`; a 9-byte play-vector wrapper
+    # `JSR base+3 / LDX #N / JSR voice / RTS` runs it after the body).
+    # Audible: the tail's $D417 reads the routing shadow BEFORE voice N's
+    # note-init clears/claims its bit (orig play-1 $F5 vs tail-last $F1).
+    # The marker below is spliced with the filter tail at template time.
+    _fbv_s = usf.params.fields.get('filter_before_voice')
+    _fbv = int(str(_fbv_s)) if _fbv_s not in (None, '') else None
     _vc = ['        ldx #$00'] + (
         [] if usf.params.fields.get('fclaim_clear_dead')
         else ['        stx fclaim'])
     for _vi in range(3):
+        if _fbv == _vi:
+            _vc.append('<<FILTERTAIL>>')
         if _vi:
             _vc.append('        inx')
         _vc += ['        jsr voice'] * play_unit_repeat[_vi]
@@ -4216,6 +4227,15 @@ vpat_l:
                    '        lda shadow17\n'
                    '        and fmask,x\n'
                    '        sta shadow17\n')
+    # filter_before_voice splice: move the filter tail into the marked slot
+    # inside the voice-call sequence (the tail touches no register the calls
+    # depend on — X survives). Incompatible with the ghost ptail entry (a
+    # `jmp ptail` must run tail-then-rts); no co-carrier exists.
+    if '<<FILTERTAIL>>' in voice_calls:
+        assert not need_ptail, 'filter_before_voice + ghost ptail'
+        voice_calls = voice_calls.replace('<<FILTERTAIL>>',
+                                          filter_tail.rstrip('\n'))
+        filter_tail = ''
     # ptail: label marks the filter tail so the shape-B ghost handler can skip
     # our own (wrong) ghost voice calls and complete the frame. Label-only —
     # byte-neutral — and emitted ONLY for the ghost member so no other build

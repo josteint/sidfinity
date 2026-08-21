@@ -4348,6 +4348,43 @@ def _play_repeat_parity_probe(path: str, base: int,
     return hi_tok + '_P' if even_med > odd_med else 'P_' + hi_tok
 
 
+def _filter_before_voice_probe(path: str, base: int,
+                               post_init_sub: 'int | None' = None):
+    """PLAY-BODY UNIT ORDER: filter tail BEFORE voice N (C16/C24 —
+    Spang_Jesper/Ofyron_Gadaf). The play vector is a 9-byte wrapper
+    `JSR base+3 / LDX #N / JSR <voice> / RTS` and the canon body's own
+    voice-N call is NEUTERED (`JSR` opcode replaced, operand preserved —
+    Ofyron: `AD` = LDA abs), so the body runs the other voices + the
+    filter tail, then the wrapper runs voice N. Audible: the tail's $D417
+    reads the routing shadow BEFORE voice N's note-init clears/claims its
+    bit. Returns N (as str) or None."""
+    mem, s = _load(path, post_init_sub)
+    p = s['play']
+    if p == base + 3 or not (0 < p < 0xFFE0):
+        return None
+    if not (mem[p] == 0x20 and mem[p + 3] == 0xA2 and mem[p + 5] == 0x20
+            and mem[p + 8] == 0x60):
+        return None
+    if _rd16(mem, p + 1) != base + 3:
+        return None
+    v = mem[p + 4]
+    if v > 2:
+        return None
+    voice = _rd16(mem, p + 6)
+    if mem[base + 3] != 0x4C:
+        return None
+    body = _rd16(mem, base + 4)
+    # canon f2 body: voice JSRs at body+$10/+$14/+$18; all operands must be
+    # the wrapper's voice target, and exactly the voice-v call is neutered
+    for k in range(3):
+        site = body + 0x10 + 4 * k
+        if _rd16(mem, site + 1) != voice:
+            return None
+        if (mem[site] == 0x20) != (k != v):
+            return None
+    return str(v)
+
+
 def _parity_fx_wrapper_probe(path: str, base: int,
                              post_init_sub: 'int | None' = None,
                              want: str = 'phases'):
@@ -4645,6 +4682,7 @@ _WEDGE_PROBES = [
                                                       or _play_repeat_counter_probe(p, c.base, c.post_init_sub)
                                                       or _parity_fx_wrapper_probe(p, c.base, c.post_init_sub))),
     ('rphase_variant',                  lambda p, c: _parity_fx_wrapper_probe(p, c.base, c.post_init_sub, want='variant')),
+    ('filter_before_voice',             lambda p, c: _filter_before_voice_probe(p, c.base, c.post_init_sub)),
     ('cia_rearm_per_play',              lambda p, c: _cia_rearm_probe(p, c.base, c.post_init_sub)),
     ('pw_base_sid_read',                lambda p, c: _pw_base_read_probe(p, c.base, c.post_init_sub)),
     ('master_vol_every_play',           lambda p, c: _d418_play_wrapper(p, c.base, c.post_init_sub)),
