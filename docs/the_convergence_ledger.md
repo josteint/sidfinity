@@ -359,7 +359,11 @@ practice, not code to factor).
   matches + var matches ⇒ add a redirect row; wnote differs ⇒ wavepos layout;
   var differs ⇒ non-tracking accumulator (hard). ALL read sites must honor a
   redirect (incl. the glide-ARRIVAL compare — served via the same map, gated,
-  r97), sparse vars need seeding, shared scratch is shadowable by mirroring
+  r97; 4th site 2026-08-21: the f2 vib-INCREMENT `lda freqhi,y` at note-init —
+  an off-table note reads its own live fbh, vdep = fbh>>1; the static byte
+  starves the swell, presenting as a missing vibrato excursion or a phantom
+  down-slide — `nv_rd_sub`, gated `vib_inc_redirect`; For_Nitro +
+  Hot_Mallorca FULL), sparse vars need seeding, shared scratch is shadowable by mirroring
   all writers. ⚠ a sparse-var SEED holds only if the leftover SURVIVES the
   member's init: the canon clear loop wipes $1718-$179D (gla/glb included),
   so canon-init members' frame-0 glide state is $00 — gate the igla/iglb

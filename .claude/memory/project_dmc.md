@@ -5,8 +5,24 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-21T05:12:33.919Z
+  modified: 2026-08-21T06:02:59.920Z
 ---
+
+## ✅ VIB-INCREMENT READ SITE (2026-08-21, same session): For_Nitro + Hot_Mallorca FULL — f2 2,913/2,924, 11 partials
+C11 4th read site: the f2 note-init vib setup `ldy curnote,x / lda
+freqhi,y / lsr / sta vdep,x` bypassed the off-table redirect map — an
+off-table note (For_Nitro curnote 140 → $1733 = own live fbh; vdep =
+fbh>>1 = $21) got a starved swell from the static window byte.
+Hot_Mallorca's "down-slide ours never arms" was the SAME lever (the
+growing swell reads as a slide). Fix: composer `nv_rd_sub` (the shared
+`_gen_offtable_redirect` chunk, jsr-ed from ni_vib_depth), gated
+`vib_inc_redirect` = member carries an off==0 off-table record at a
+mapped fhi idx. Gates: 30 stored-FULL carriers of the gate re-verified
+30/30 FULL (incl. Session, Trekky, Rowdy, Sub_Burner); smoke 6/6;
+regression green. Diagnosis: `--memwatch-on-write D407` at the orig's
+divergence showed vstep=vdep=$21 with wnote=curnote=$8C. Remaining 10
+partials re-verified still partial (their causes are distinct — see
+backlog item 6).
 
 ## ✅ TRACK-PTR PAIR FULL (2026-08-21): Blast_n_Scream + Zwei_Bereten_Preview — f2 2,911/2,924, 13 partials
 The backlog item-6 "one lever, two members" idx-96 pair (off-table fhi

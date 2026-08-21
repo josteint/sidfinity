@@ -3581,6 +3581,29 @@ fx_dual_up:
                   '        rts\n'
                   'rf_nocym:\n')
 
+    # f2 vib-increment OFF-TABLE read (C11 read-site completeness —
+    # Tichelmann_Kay/For_Nitro, 2026-08-21): the note-init vib setup below
+    # does `ldy curnote,x / lda freqhi,y` — a FOURTH freqhi read site beside
+    # the wave step / base reload / glide arrival, and it bypassed the
+    # redirect map. An off-table note (curnote 140) makes the orig read its
+    # own live state block ($1733 = this voice's fbh; vdep = fbh>>1 = a real
+    # swell increment) while the static window byte starves the swell to 0.
+    # Route the read through the SAME redirect map via `nv_rd_sub`, GATED on
+    # the member carrying an off-table BASE-note record (off==0) at a mapped
+    # fhi index — everyone else keeps the plain `lda freqhi,y`,
+    # byte-identical.
+    _fhi_mapped = {(a - ORIG_FHI) + k
+                   for a, _l, nb in DMC_OFFTABLE_STATE for k in range(nb)
+                   if 96 <= (a - ORIG_FHI) + k <= 255}
+    vib_inc_redirect = (
+        vib_ramp in ('step', 'step_full') and m.offtable_redirect
+        and any((r[0] & 0xFF) == 0 and (r[1] & 0xFF) in _fhi_mapped
+                for inst in insts
+                for r in (getattr(inst, 'offtable_freq', None) or [])))
+    _nv_load = ('        jsr nv_rd_sub                ; family-2 vib '
+                'increment (live-served)\n' if vib_inc_redirect else
+                '        lda freqhi,y                 ; family-2 vib '
+                'increment\n')
     # vibrato note-init step setup + half-cycle swell (canon vs family 2)
     if vib_ramp in ('step', 'step_full'):
         # family 2: vstep/vsteph already 0 (note-init clear); the per-note
@@ -3592,7 +3615,7 @@ fx_dual_up:
             # bit 7 (tune-record +10) skips the LSR = full-rate swell.
             ni_vib_depth = (
                 '        ldy curnote,x\n'
-                '        lda freqhi,y                 ; family-2 vib increment\n'
+                + _nv_load +
                 '        bit vibfull                  ; per-subtune: $80 = '
                 'step_full\n'
                 '        bmi ni_vfull\n'
@@ -3602,7 +3625,7 @@ fx_dual_up:
         else:
             ni_vib_depth = (
                 '        ldy curnote,x\n'
-                '        lda freqhi,y                 ; family-2 vib increment\n'
+                + _nv_load
                 + ('' if vib_ramp == 'step_full' else
                    '        lsr                          ; = freq_hi(note) >> 1\n')
                 + '        sta vdep,x\n')
@@ -3756,6 +3779,18 @@ fx_dual_up:
         ga_cmp = ('        cmp freqhi,y                 ; arrived when freq '
                   'HI matches target\n')
         ga_cmp_sub = ''
+
+    # f2 vib-increment redirect subroutine (see vib_inc_redirect above):
+    # serves the note-init `lda freqhi,y` through the SAME redirect map as
+    # the wave step / reload / arrival read sites.
+    if vib_inc_redirect:
+        nv_chunk = _gen_offtable_redirect(
+            otmap, ORIG_FHI, 96, 'lda freqhi,y', 'nv_rd_his')
+        nv_rd_sub = ('nv_rd_sub:\n' + nv_chunk + '\n'
+                     'nv_rd_his:\n'
+                     '        rts\n')
+    else:
+        nv_rd_sub = ''
 
     # per-subtune idle-priming addressing (see `per_sub_prime` above). When the
     # tables are 3 bytes wide the voice index IS the table index and all three
@@ -4916,6 +4951,7 @@ nf_rd_his:
         rts
 
 {ga_cmp_sub}
+{nv_rd_sub}
 ;; ===================== data (from USF) =====================
 {data_asm}
 
