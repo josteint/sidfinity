@@ -5,8 +5,50 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-21T09:34:42.282Z
+  modified: 2026-08-22T07:20:52.463Z
 ---
+
+## ⚠ HARNESS BUG the portfolios exposed (2026-08-22): regression built EVERY DMC member as a single player
+The re-derived portfolios pulled in two COMPILATIONS (Defuzion_3,
+Nyaaaah_9) and both read as REGRESSED — sub 0 FULL, rest garbage (the
+C31 signature). Not a composer regression: `tools/regression.py`'s
+`_w_dmc` called `dmc_v4_config(sid)` for every member, i.e. ASSUMED the
+single-player dispatch — ledger C20's 4th layer in a consumer nobody had
+audited (the rule was written for mass-writers, where `corpus_sync`
+closed it). CURE: `pipelines.dmc.verify.verify_member(rel)` runs the
+canonical dispatch and RAISES on an unimplemented path (2SID / medley /
+multiplex) instead of silently falling back; `verify_dmc` is unchanged so
+the 101 single-path members take exactly the same code as before. Both
+compilations then verify 4/4 and 2/2. ⚠ the dispatch now lives in FOUR
+places (batch worker, dmc_build_one.build, corpus_sync replay,
+verify_member) — factoring is a Move-1 candidate and until then each copy
+is a place this recurs.
+
+## ✅ F2 CLOSEOUT RUN (2026-08-21/22): batch + sync + portfolios — resync debt CLEARED
+Full f2 family batch: **2,924/2,924 FULL, 0 partial**;
+`batch_diff` vs the pre-closeout snapshot (`tmp/dmc_f2_85_results.pre_close.jsonl`)
+= **0 regressions, +15 gains**. Mass-write synced all 2,924 (0 err, 0
+orphans) with the from-disk audit 11/11 across compilation / multiplex /
+single. f1 INCREMENTAL: the 3 dead-cargo carriers outside f2
+(Astrostorm_II_preview, Lane_Crazy, Mythig_2SID) re-batched FULL +
+written, audit 4/4 — no full f1 re-batch was needed because the two
+corpus-wide byte-identity censuses (25 window-conflict carriers + 66
+past-EOF candidates) had already proven every other f1 member
+byte-identical.
+⚠ TRAP FOR THE NEXT SESSION — TWO f1 RESULTS FILES, the obvious name is
+the WRONG one: `tmp/dmc_wide_results.jsonl` (5,401 rows) is the
+**pre-#85** working file and is what `select_regression_portfolio.py`'s
+`dmc_v4` registry entry still points at; the authoritative #85 set is
+`tmp/dmc_f1_prev_batch.jsonl` (5,445 rows = exactly
+`tmp/dmc_f1_members_85.json`, all FULL, all stale-hash). The overnight f1
+re-batch writes a fresh `tmp/dmc_f1_85_results.jsonl` and the registry
+should then point THERE.
+PORTFOLIOS (the closeout's other half): `dmc_v4` re-derived (64 members,
+93 feature dimensions) and a NEW `dmc_f2` registry entry + portfolio —
+until it, ALL of f2 was guarded by four hand-picked canaries covering
+none of the f2 grind's levers. A closed family gets its OWN entry; the
+extractor is family-blind (generic over `extra_params`) so it was a
+one-entry change, as the registry's own comment promises.
 
 ## ✅✅ FAMILY-2 CLOSED: 2,924/2,924 (100%) — Conversion + Witchs_Birthday + Just_11 FULL (2026-08-21)
 ONE lever closed all three (C9 10th occ): the f2 $FF track-loop handler's

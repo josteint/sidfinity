@@ -382,14 +382,18 @@ def _w_gtv1(sid: str, group: str | None) -> dict:
 
 def _w_dmc(label: str, kind: str, ref: str, group: str | None) -> dict:
     """DMC — kind 'zaks' (module attr ref) or 'cfg' (sid for dmc_v4_config)."""
-    from pipelines.dmc.verify import verify_dmc
     if kind == 'zaks':
+        from pipelines.dmc.verify import verify_dmc
         from pipelines.dmc.v4.config import ZAKS
-        cfg = ZAKS
+        r = verify_dmc(ZAKS)
     else:
-        from pipelines.dmc.v4.factory import dmc_v4_config
-        cfg = dmc_v4_config(ref)
-    r = verify_dmc(cfg)
+        # CANONICAL DISPATCH, not `dmc_v4_config` — a portfolio member whose
+        # real build path is a compilation must be built the way the family
+        # batch builds it, else it reads as REGRESSED with sub 0 FULL and the
+        # rest garbage (ledger C20 4th layer; found 2026-08-22 when the
+        # re-derived portfolios pulled in Defuzion_3 + Nyaaaah_9).
+        from pipelines.dmc.verify import verify_member
+        r = verify_member(ref)
     n_ok = sum(1 for s in r['subtunes'].values() if s['is_full'])
     n = len(r['subtunes'])
     status = f'{n_ok}/{n}'
@@ -471,12 +475,26 @@ def _build_tasks() -> list:
         grp = 'DMC v4 portfolio (feature-cover of the verified family):'
         for sid in json.load(open(dpf))['portfolio']:
             add('dmc', sid.split('/')[-1][:24], 'cfg', sid, grp)
+    # FAMILY 2 (closed 2026-08-21 at 2,924/2,924): its own derived
+    # portfolio, tier-1 beside family 1's. Until this landed, all of f2 was
+    # guarded by the four hand-picked canaries below — which covered none of
+    # the f2 grind's levers (the vib-swell wedges, pulse_tail_hi, the $FF
+    # loop immediate, filter_before_voice, the C31 dispatch wrappers).
+    f2seen = set()
+    f2pf = os.path.join(os.path.dirname(__file__),
+                        'dmc_f2_regression_portfolio.json')
+    if os.path.exists(f2pf):
+        grp = 'DMC family-2 portfolio (feature-cover of the closed family):'
+        for sid in json.load(open(f2pf))['portfolio']:
+            f2seen.add(sid)
+            add('dmc', sid.split('/')[-1][:24], 'cfg', sid, grp)
     grp2 = 'DMC family-2 canaries (variant cover):'
     for sid in ('DEMOS/G-L/Kajun_Klog.sid',
                 'MUSICIANS/A/Albartus_Jan/Lameness.sid',
                 'MUSICIANS/B/Bakewell_Dwayne/Fury.sid',
                 'MUSICIANS/M/MAC2/Bells_Are_Sounding.sid'):
-        add('dmc', sid.split('/')[-1][:24], 'cfg', sid, grp2)
+        if sid not in f2seen:            # portfolio already covers it
+            add('dmc', sid.split('/')[-1][:24], 'cfg', sid, grp2)
     # ledger C29: a track $FF loop into an out-of-image ($0000) sector that
     # sonifies live zeropage — guards the libsidplayfp low-RAM overlay path.
     add('dmc', 'Centric_tune_4_v8', 'cfg',

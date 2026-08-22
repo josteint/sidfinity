@@ -59,6 +59,28 @@ FC_WITNESSES = {
     'MUSICIANS/S/Stember_Rudolf/Chaos_game.sid',
 }
 
+# Family-2 tie-break witnesses: the members whose LEVER would break
+# silently if it lost portfolio cover — every mechanism landed during the
+# f2 grind, each the sole (or first) carrier of its class.
+DMC_F2_WITNESSES = {
+    'MUSICIANS/A/Ass_It/Blast_n_Scream.sid',          # C31 dead-cargo split
+    'MUSICIANS/C/Comer/Zwei_Bereten_Preview.sid',     # cross-inst declutter
+    'MUSICIANS/T/Tichelmann_Kay/For_Nitro.sid',       # C11 vib-inc read site
+    'MUSICIANS/A/Arthur/Over_and_Out.sid',            # C31 medley_switch
+    'MUSICIANS/S/Spang_Jesper/Sams016.sid',           # subtune_songs fallthru
+    'MUSICIANS/A/Alien_WOW/Knowledge_Posse_tune_3.sid',   # C18 pulse_tail_hi
+    'MUSICIANS/M/Moon/Final_Game.sid',                # C29 past-EOF sector
+    'MUSICIANS/C/Comer/Artris.sid',                   # C8 wave-pool split
+    'MUSICIANS/S/Spang_Jesper/Ofyron_Gadaf.sid',      # C16 filter_before_voice
+    'MUSICIANS/J/Jadawin/Conversion.sid',             # C9 $FF loop immediate
+    'MUSICIANS/F/Freeze/Petshopmix.sid',              # C19 vib_swell_ror
+    'MUSICIANS/O/Orcan/Inside.sid',                   # C19 filter_idx_eor
+    'MUSICIANS/P/PFK/Childs_Play.sid',                # C19 filter_dur_dead
+    'MUSICIANS/B/Brian/Delta_Zak.sid',                # C19 dur_fetch_underflow
+    'MUSICIANS/R/Riot/Sub_Burner.sid',                # C31 three levers
+    'GAMES/S-Z/Session.sid',                          # C8 4th widening
+}
+
 # Members that caught a real DMC-family bug during the v4 rollout.
 DMC_WITNESSES = {
     'MUSICIANS/A/Amadeus_Slash_Design/Geometrical_Zaks.sid',  # idle/pulse
@@ -476,6 +498,22 @@ ENGINES = {
         'out': os.path.join(ROOT, 'tools', 'dmc_regression_portfolio.json'),
         'features': dmc_features,
         'witnesses': DMC_WITNESSES,
+        'sid_key': 'path',
+    },
+    # FAMILY 2 (closed 2026-08-21 at 2,924/2,924). Its own entry, not a
+    # merge into dmc_v4: the two families are separate wide batches with
+    # separate results files, and f2 carries a mechanism set f1 never
+    # exercises (the vib-swell/step wedges, pulse_tail_hi, the $FF loop
+    # immediate, filter_before_voice, the C31 dispatch wrappers). Until
+    # this landed, regression guarded all of f2 with FOUR hand-picked
+    # canaries while every f2 lever of the Aug-21 grind was uncovered.
+    # Same extractor (it is family-blind — generic over extra_params).
+    'dmc_f2': {
+        'results': os.path.join(ROOT, 'tmp', 'dmc_f2_85_results.jsonl'),
+        'out': os.path.join(ROOT, 'tools',
+                            'dmc_f2_regression_portfolio.json'),
+        'features': dmc_features,
+        'witnesses': DMC_F2_WITNESSES,
         'sid_key': 'path',
     },
     'music_assembler': {

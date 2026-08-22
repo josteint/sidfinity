@@ -613,7 +613,12 @@ practice, not code to factor).
 - RELATIVE (C33): the EXTRACT-layer version — a member FULL in regression can
   hide a silently-broken REGENERATION path (regression builds from a STORED
   .usf, not from regeneration); a byte-gate that REGENERATES surfaces it.
-- FOURTH LAYER — the WRITER takes a DIFFERENT BUILD PATH than the VERIFIER.
+- FOURTH LAYER — a CONSUMER takes a DIFFERENT BUILD PATH than the VERIFIER
+  (writer, localizer, or the REGRESSION HARNESS — 2026-08-22: regression built
+  every DMC portfolio member as a single player, so two COMPILATIONS pulled in
+  by a portfolio re-derivation read as REGRESSED with the C31 signature, sub 0
+  FULL and the rest garbage; cure = `verify_member` runs the canonical
+  dispatch and RAISES on an unimplemented path).
   `code_hash` proves the verdict came from current code, NOT that the stored
   artifact is what earned it. DMC's mass-writer built every member through
   the single-player constructor while the batch dispatches multi-SID ->

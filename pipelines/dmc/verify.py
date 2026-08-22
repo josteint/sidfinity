@@ -36,13 +36,21 @@ def verify_dmc(cfg: DMCV4Config, hvsc_root: str | None = None) -> dict:
     root = hvsc_root or os.path.join(_ROOT, 'hvsc85')
     orig = os.path.join(root, cfg.sid_path)
     rebuilt = build_from_cfg(cfg, hvsc_root=root)
+    return _verify_rebuilt(orig, rebuilt, bool(cfg.cia_period), root)
+
+
+def _verify_rebuilt(orig: str, rebuilt: bytes, cia: bool, root: str) -> dict:
+    """Capture + compare ONE (original, rebuilt-bytes) pair, per subtune.
+
+    Factored out of `verify_dmc` unchanged so `verify_member` below can
+    reuse the identical verdict for members whose real build path is not
+    the single-player config one."""
     db = load_database(os.path.join(root, 'DOCUMENTS', 'Songlengths.md5'))
     durs = get_durations(orig, db)
     with tempfile.NamedTemporaryFile(suffix='.sid', delete=False) as f:
         f.write(rebuilt)
         tmp = f.name
     out = {'subtunes': {}, 'ok': True}
-    cia = bool(cfg.cia_period)
     try:
         from seed_disassembly import parse_psid
         from pipelines.hubbard.verify_cycle import writelog_per_irq_capture
@@ -144,3 +152,53 @@ def verify_dmc(cfg: DMCV4Config, hvsc_root: str | None = None) -> dict:
     finally:
         os.unlink(tmp)
     return out
+
+
+def verify_member(rel: str, hvsc_root: str | None = None) -> dict:
+    """Verify one member through the CANONICAL DISPATCH — the build path the
+    family batch takes — instead of assuming the single-player config path.
+
+    Why this exists (found 2026-08-22 by the portfolio re-derivation): the
+    regression harness built every DMC portfolio member with
+    `dmc_v4_config(sid)`, so a member whose real path is a COMPILATION
+    (ledger C31: N packed players + a per-subtune dispatch wrapper) was
+    built as a single player and read as REGRESSED — sub 0 FULL, the rest
+    garbage, the textbook C31 signature. Both members the new portfolios
+    pulled in (Defuzion_3, Nyaaaah_9) are exactly that. This is ledger
+    C20's fourth layer one tool over: a consumer re-deriving the dispatch
+    instead of taking the one the verdict was earned on.
+
+    An unsupported path RAISES rather than silently falling back to the
+    single-player build — a wrong-path FULL is the failure mode C20 is
+    about; a loud failure in regression is the correct outcome.
+    """
+    root = hvsc_root or os.path.join(_ROOT, 'hvsc85')
+    orig = os.path.join(root, rel)
+    from pipelines.dmc.v4.factory import dmc_v4_config, dmc_v4_config_2sid
+    from pipelines.dmc.v4.compilation import (detect_compilation,
+                                              detect_medley, detect_multiplex)
+    cfgs2 = dmc_v4_config_2sid(rel, hvsc_root=root)
+    med = detect_medley(rel, hvsc_root=root) if cfgs2 is None else None
+    comp = (None if (cfgs2 is not None or med is not None)
+            else detect_compilation(rel, hvsc_root=root))
+    mux = (detect_multiplex(rel, hvsc_root=root)
+           if (cfgs2 is None and med is None and comp is None) else None)
+    if cfgs2 is None and med is None and comp is None and mux is None:
+        # single player: unchanged path, so every member that passed before
+        # takes exactly the same code as before.
+        return verify_dmc(dmc_v4_config(rel, hvsc_root=root), hvsc_root=root)
+    if comp is not None and all(k == 'dmc' for k in (comp.get('kinds') or [])):
+        from pipelines.dmc.v4.extract.to_usf import write_dmc_compilation_usf
+        with tempfile.TemporaryDirectory() as td:
+            usf = write_dmc_compilation_usf(rel, comp, td, hvsc_root=root)
+            rebuilt = build_dmc_sid(parse_file(usf))
+        with open(orig, 'rb') as f:
+            hdr = f.read(0x16)
+        cia = len(hdr) >= 0x16 and int.from_bytes(hdr[0x12:0x16], 'big') != 0
+        return _verify_rebuilt(orig, rebuilt, cia, root)
+    kind = ('multisid' if cfgs2 is not None else 'medley' if med is not None
+            else 'multiplex' if mux is not None else 'heterogeneous')
+    raise RuntimeError(
+        f'verify_member: {rel} builds through the {kind} path, which this '
+        f'entry does not implement — add it here rather than letting the '
+        f'caller fall back to a single-player build (ledger C20).')
