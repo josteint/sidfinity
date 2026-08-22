@@ -301,7 +301,10 @@ def check_derived_closure(engine: str, consumer: str) -> list[str]:
     if consumer not in d:
         return []
     stored = set(d[consumer])
-    covered = set()
+    covered = set(_KEY_MANAGEMENT)      # imported to COMPUTE the key, and
+                                        # deliberately unhashed — it would
+                                        # otherwise be reported as an escapee
+                                        # by every single batch.
     for rel in stored | set(_ALWAYS):
         p = ROOT / rel
         for f in _iter_files(p):
