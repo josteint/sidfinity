@@ -500,6 +500,24 @@ def _build_tasks() -> list:
     add('dmc', 'Centric_tune_4_v8', 'cfg',
         'MUSICIANS/P/PVCF/Worktunes/Centric_tune_4_version_8.sid',
         'DMC family-1 out-of-image loop sector (ledger C29):')
+    # THE FBDL SET (2026-08-22, tools/fbdl_measure.py). These are every
+    # full->non-full REGRESSION recoverable from family 1's stored batch
+    # generations, and the 97-member tier-1 portfolio contained NONE of them:
+    # 0/5 caught, 100% fault-detection loss on this family's real history.
+    # Historical detection is the only predictor of a reduced suite's value
+    # that survived Shi et al.'s 1,478 real failed builds (size reduction
+    # R^2=0.00), so they are wired here EXPLICITLY rather than waiting for the
+    # next portfolio derivation to maybe pick them up as a tie-break. The first
+    # four are the ledger C20 sixth-layer incident — a net "+57 full" closeout
+    # masked them and they sat broken for a week.
+    for sid in ('MUSICIANS/F/Flash/Itinerant.sid',
+                'MUSICIANS/F/Flash/Kan-Kan.sid',
+                'MUSICIANS/F/Flash/Wind_of_Dead.sid',
+                'MUSICIANS/T/Tomace/Other_Side.sid',
+                'MUSICIANS/B/Bakewell_Dwayne/Finale.sid'):
+        if sid not in f2seen:
+            add('dmc', sid.split('/')[-1][:24], 'cfg', sid,
+                'DMC bug witnesses (every measured f1 regression, FBDL 0/5):')
     bpf = os.path.join(os.path.dirname(__file__), 'basic_program_regression_portfolio.json')
     if os.path.exists(bpf):
         grp = 'Basic_Program portfolio (round-trip feature-cover):'

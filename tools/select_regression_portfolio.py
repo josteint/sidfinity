@@ -88,6 +88,21 @@ DMC_WITNESSES = {
     'MUSICIANS/C/Compod/Door_Was_Ajar.sid',      # 16-bit pattern ptr
     'DEMOS/A-F/Face2face.sid',                   # relocation ($9000)
     'MUSICIANS/A/Alien_WOW/Exclusive_4_Fungus.sid',   # dual-clock phase
+    # --- THE FBDL SET (added 2026-08-22, `tools/fbdl_measure.py`) ---
+    # Every full->non-full REGRESSION recoverable from f1's stored batch
+    # generations. Measured: the 97-member tier-1 portfolio contained NONE of
+    # them, i.e. 0/5 caught, 100% fault-detection loss on this family's real
+    # history. Shi et al. (ISSTA'18, 1,478 real failed builds) found historical
+    # detection is the ONLY predictor of a reduced suite's value — size
+    # reduction scored R^2=0.00 and coverage loss was non-predictive — so these
+    # five are worth more as portfolio members than any coverage dimension.
+    # The first four are the ledger C20 sixth-layer incident: a net "+57 full"
+    # closeout masked them, and they sat broken for a week.
+    'MUSICIANS/F/Flash/Itinerant.sid',           # C29 play-time re-bank
+    'MUSICIANS/F/Flash/Kan-Kan.sid',             # C29 play-time re-bank
+    'MUSICIANS/F/Flash/Wind_of_Dead.sid',        # C29 play-time re-bank
+    'MUSICIANS/T/Tomace/Other_Side.sid',         # C11 glide-leftover seed
+    'MUSICIANS/B/Bakewell_Dwayne/Finale.sid',
 }
 
 
@@ -355,6 +370,137 @@ def dmc_features(sid: str) -> tuple[str, set] | None:
     return (sid, f)
 
 
+# ⚠ WITNESSES ARE MEMBER PATHS, not dimension names — `exact_multicover` and
+# `budget_cover` test `member in prefer/pinned`. (MASM_WITNESSES below holds
+# dimension names, so MASM's tie-break is inert; left alone rather than
+# silently re-deriving that family's portfolio here.)
+DMC_V5_WITNESSES = {
+    # Bug witnesses accumulate as the grind lands fixes: a member that WAS
+    # broken and is now FULL gets pinned so it can never silently regress.
+    # Pinned as HARD constraints per item 17(e) — historical detection was the
+    # ONLY suite-reduction predictor that survived Shi et al.'s 1,478 real
+    # failed builds (size reduction R^2=0.00), and we had been using it as a
+    # tie-break only.
+    'DEMOS/G-L/Katusha.sid',              # the family reference player
+}
+
+# Dimensions the portfolio must cover at DOUBLE the usual multiplicity: the
+# v5 grind's measured lever classes (2026-08-22). Coverage here is what makes
+# a regression in these classes visible to tier 1 at all.
+DMC_V5_PIN_DIMS = {
+    # The startup-leftover class — RE_NOTES FILTER ROUND 1 cause A. The v5
+    # init's clear loop covers $17D5-$1845, so the $1006-$103F work-RAM gap
+    # keeps file-image leftovers the first play frames sonify.
+    'leftover:spdctr', 'leftover:notes', 'leftover:mvolfrac', 'leftover:filt',
+    # The play-skip count ($1842): the canon init writes 2, but 77% of the
+    # corpus writes 0. INVISIBLE to the flat write-stream verdict — which is
+    # exactly why each value needs a carrier under some other gate.
+    'knob:playskip_0', 'knob:playskip_1', 'knob:playskip_2',
+    # The family-4 (Jupiter41) branch — a different play body entirely.
+    'knob:family4',
+    # C6 off-table freq reads: the ledger marks the class recurring for v5.
+    'fx:offtable_freq',
+}
+
+
+def dmc_v5_features(sid: str) -> tuple[str, set] | None:
+    """DMC V5 feature set for one FULL member (factory + extract).
+
+    Mirrors `dmc_features`: factory knobs, structural shape, the uncleared
+    startup leftovers, per-instrument effects and the sector/orderlist command
+    vocabulary. Same alarm discipline — the v5 factory measures the CIA latch
+    from a siddump run, so the budget is generous.
+    """
+    import signal
+
+    def _bail(_sig, _frm):
+        raise TimeoutError
+
+    signal.signal(signal.SIGALRM, _bail)
+    signal.alarm(120)
+    from pipelines.dmc.v5.factory import dmc_v5_config, DMCV5Unsupported
+    from pipelines.dmc.v5.extract.engine_model import extract
+    try:
+        cfg = dmc_v5_config(sid)
+        m = extract(cfg)
+    except (DMCV5Unsupported, Exception):
+        return None
+    finally:
+        signal.alarm(0)
+    f: set[str] = set()
+    # --- factory / player-variant knobs ---
+    if cfg.base != 0x1000:
+        f.add('knob:relocated')
+    if cfg.base >= 0xA000:
+        f.add('knob:high_load')
+    if cfg.cia_period:
+        f.add('knob:cia_multispeed')
+    if getattr(cfg, 'family4', False):
+        f.add('knob:family4')
+    if getattr(cfg, 'n_songs', None) is not None:
+        f.add('knob:subplayer')            # C31 packed sub-player
+    if getattr(cfg, 'post_init_sub', None) is not None:
+        f.add('knob:post_init')            # C26/C31 relocating wrapper
+    for k in (getattr(cfg, 'extra_params', None) or {}):
+        f.add(f'wedge:{k}')                # generic: every future probe knob
+    ps = getattr(m, 'play_skip', None)
+    if ps is not None:
+        f.add(f'knob:playskip_{min(int(ps), 3)}')
+    # --- the uncleared $1006-$103F startup leftovers ---
+    if m.lo_spdctr:
+        f.add('leftover:spdctr')
+    if any(m.lo_notes):
+        f.add('leftover:notes')
+    if m.lo_mvolfrac:
+        f.add('leftover:mvolfrac')
+    if m.lo_filtmode or m.lo_fchi or m.lo_fclo:
+        f.add('leftover:filt')
+    if getattr(m, 'family4', False):
+        if any(getattr(m, 'f4_idle_notes', ()) or ()):
+            f.add('leftover:f4_idle')
+        if getattr(m, 'f4_filtmode', 0) or getattr(m, 'f4_fcinit', 0):
+            f.add('leftover:f4_filt')
+    # --- structural shape ---
+    if len(m.subtunes) > 1:
+        f.add('struct:multi_subtune')
+    if len(m.instruments) > 10:
+        f.add('struct:inst_growth')
+    if len(m.sectors) > 40:
+        f.add('struct:sector_growth')
+    if m.filter:
+        f.add('struct:filter_table')
+    if m.pulse:
+        f.add('struct:pulse_table')
+    speeds = {s.speed for s in m.subtunes} or {m.speed}
+    if len(speeds) > 1:
+        f.add('struct:per_subtune_speed')
+    if any(s.master_vol != 0x0F for s in m.subtunes):
+        f.add('struct:master_vol')
+    # --- instrument effects ---
+    for i in m.instruments:
+        if i.vib_width:
+            f.add('fx:vibrato')
+            if i.vib_delay:
+                f.add('fx:vib_delay')
+        if i.pulse_ptr:
+            f.add('fx:pulse')
+        if i.filter_ptr:
+            f.add('fx:filter')
+        if getattr(i, 'offtable_freq', None):
+            f.add('fx:offtable_freq')      # C6
+    # --- sector / orderlist command vocabulary ---
+    for sec in m.sectors:
+        for ev in sec:
+            if ev[0] != 'note':
+                f.add(f'cmd:{ev[0]}')
+    for st in m.subtunes:
+        for ol in st.orderlists:
+            for ev in ol:
+                if ev[0] in ('loop', 'transpose', 'end'):
+                    f.add(f'track:{ev[0]}')
+    return (sid, f)
+
+
 MASM_WITNESSES = {
     # The C6 off-table freq read — the family's dominant residue class, and
     # both of its read sites (the arp path masks to 7 bits, the note path
@@ -528,7 +674,115 @@ ENGINES = {
         'witnesses': MASM_WITNESSES,
         'sid_key': 'sid',
     },
+    # DMC V5 — derived BEFORE the grind rather than at closeout (item 17(e));
+    # v4's was derived at closeout, so the whole v4 grind ran guarded by ad-hoc
+    # canaries. Built in BUDGET mode, see `budget_cover`.
+    'dmc_v5': {
+        'results': os.path.join(ROOT, 'tmp', 'dmc_v5_85_results.jsonl'),
+        'out': os.path.join(ROOT, 'tools',
+                            'dmc_v5_regression_portfolio.json'),
+        'features': dmc_v5_features,
+        'witnesses': DMC_V5_WITNESSES,
+        'pin_dims': DMC_V5_PIN_DIMS,
+        'sid_key': 'path',
+    },
 }
+
+
+def budget_cover(universe: dict[str, int],
+                 members: dict[str, set],
+                 pinned: set[str],
+                 budget: int,
+                 n_random: int,
+                 seed: int,
+                 pin_dims: set[str] = frozenset()) -> tuple[list[str], dict]:
+    """Best subset of size <= `budget`, instead of the exact minimum.
+
+    WHY NOT EXACT MINIMUM (measured, not preference — item 17 DEFECT 2):
+
+      * Zhang et al. put Greedy/HGS/GRE/ILP fault-detection loss at
+        5.23/5.21/5.33/5.11 — statistically indistinguishable. The CRITERION
+        dominates; the algorithm does not. So spending search effort on
+        minimality buys nothing.
+      * Every study finds detection tracks suite SIZE. Minimality is therefore
+        a cost we pay voluntarily while sitting on wall-clock headroom (tier 1
+        ~20 min vs tier 2's hours).
+      * Our reduction ratio was 98.8% (64 of 5,401). Every study that found
+        minimization survivable did so at 12-70% — one to two orders of
+        magnitude inside the validated envelope from where we sat.
+
+    Monotonically better than the exact form: the exact solution stays
+    feasible, and unused budget converts into fault detection instead of
+    being discarded.
+
+    Three strata, in priority order:
+      1. PINNED bug witnesses — HARD constraints, not tie-breaks. Historical
+         detection was the ONLY predictor that worked in Shi et al.'s 1,478
+         real failed builds (size reduction R^2=0.00; coverage loss also
+         non-predictive).
+      2. GREEDY MULTICOVER to satisfy the universe, then deepen it (each pass
+         raises required coverage by one) while budget remains.
+      3. A ROTATING RANDOM STRATUM. Random found 92% of 135 real config faults
+         vs one-enabled's 79% (Medeiros et al. ICSE'16), and it is the only
+         mitigation for the blind spot that our traits are extracted BY THE
+         CODE UNDER TEST: if the extractor mis-detects a trait, a
+         feature-derived portfolio is blind to that member class by
+         construction. Bump `seed` per derivation to rotate it.
+    """
+    rnd = random.Random(seed)
+    chosen: list[str] = sorted(m for m in pinned if m in members)
+    covered: dict[str, int] = {}
+    for m in chosen:
+        for d in members[m]:
+            covered[d] = covered.get(d, 0) + 1
+    carriers = {d: sum(1 for fs in members.values() if d in fs)
+                for d in universe}
+
+    n_rand_slots = min(n_random, max(0, budget - len(chosen)))
+    cover_budget = budget - n_rand_slots
+
+    def marginal(m: str, need: dict[str, int]) -> int:
+        return sum(1 for d in members[m] if need.get(d, 0) > 0)
+
+    # Required coverage per dimension at a given deepening pass. Pass 1 is the
+    # universe itself (1, or 2 where >=2 members carry the dimension); each
+    # further pass asks for one more, capped by how many members actually have
+    # it — so a dimension with a single carrier never blocks the loop.
+    def required(d: str, dep: int) -> int:
+        return min(universe[d] + (dep - 1) + (1 if d in pin_dims else 0),
+                   carriers[d])
+
+    depth = 1
+    while len(chosen) < cover_budget and depth <= 4:
+        need = {d: required(d, depth) - covered.get(d, 0) for d in universe}
+        need = {d: v for d, v in need.items() if v > 0}
+        avail = [m for m in members if m not in chosen]
+        if not need or not avail:
+            depth += 1
+            continue
+        best = max(avail, key=lambda m: (marginal(m, need), -len(members[m]), m))
+        if marginal(best, need) == 0:
+            depth += 1
+            continue
+        chosen.append(best)
+        for d in members[best]:
+            covered[d] = covered.get(d, 0) + 1
+
+    # Rotating random stratum, drawn from members the cover pass did not pick.
+    rest = sorted(set(members) - set(chosen))
+    rand_pick = rnd.sample(rest, min(n_rand_slots, len(rest))) if rest else []
+    chosen += rand_pick
+
+    unmet = sorted(d for d, r in universe.items() if covered.get(d, 0) < r)
+    stats = {
+        'pinned': sorted(m for m in pinned if m in members),
+        'random_stratum': sorted(rand_pick),
+        'random_seed': seed,
+        'budget': budget,
+        'max_depth_reached': depth,
+        'uncovered_dimensions': unmet,
+    }
+    return sorted(set(chosen)), stats
 
 
 def exact_multicover(universe: dict[str, int],
@@ -623,6 +877,13 @@ def main():
     ap.add_argument('--engine', default='fc_standard', choices=sorted(ENGINES),
                     help='which engine family to derive the portfolio for')
     ap.add_argument('--jobs', type=int, default=default_jobs())
+    ap.add_argument('--budget', type=int, default=0,
+                    help='BUDGET mode (item 17e): best subset of this size '
+                         'instead of the exact minimum. 0 = exact (legacy).')
+    ap.add_argument('--random', type=int, default=12,
+                    help='budget mode: size of the rotating random stratum')
+    ap.add_argument('--seed', type=int, default=20260822,
+                    help='budget mode: bump to rotate the random stratum')
     args = ap.parse_args()
     os.chdir(ROOT)
     eng = ENGINES[args.engine]
@@ -656,14 +917,30 @@ def main():
     dim_count = Counter(d for fs in members.values() for d in fs)
     universe = {d: min(2, n) for d, n in dim_count.items()}
     print(f'{len(universe)} feature dimensions', flush=True)
-    sol = exact_multicover(universe, members, witnesses)
+    stats = {}
+    if args.budget:
+        sol, stats = budget_cover(universe, members, witnesses, args.budget,
+                                  args.random, args.seed,
+                                  eng.get('pin_dims', frozenset()))
+    else:
+        sol = exact_multicover(universe, members, witnesses)
     sol.sort()
     cover = {d: sorted(m for m in sol if d in members[m])
              for d in sorted(universe)}
     json.dump({'engine': args.engine, 'portfolio': sol, 'dimensions': cover,
-               'corpus_full': len(members)},
+               'corpus_full': len(members),
+               'mode': 'budget' if args.budget else 'exact', **stats},
               open(out, 'w'), indent=1)
-    print(f'EXACT minimum portfolio: {len(sol)} members -> {out}')
+    kind = (f'BUDGET portfolio (<= {args.budget})' if args.budget
+            else 'EXACT minimum portfolio')
+    print(f'{kind}: {len(sol)} members -> {out}')
+    if stats:
+        print(f'  pinned witnesses : {len(stats["pinned"])}')
+        print(f'  random stratum   : {len(stats["random_stratum"])} '
+              f'(seed {stats["random_seed"]})')
+        print(f'  deepening reached: {stats["max_depth_reached"]}x')
+        if stats['uncovered_dimensions']:
+            print(f'  ⚠ UNCOVERED      : {stats["uncovered_dimensions"]}')
     for m in sol:
         tag = '  [witness]' if m in witnesses else ''
         print(f'  {m}{tag}')
