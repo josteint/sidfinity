@@ -1082,6 +1082,26 @@ state_end:
     # note-on writes FREQ=$0000 here; drop those 2 writes for family-4 so the
     # note-on emission order matches (note-on pass = SR/AD/CTRL only).
     if getattr(m, 'family4', False):
+        # PLAY-SKIP: family-3's play opens `LDA $1842 / BEQ / DEC $1842 / JMP
+        # exit`, and its canon init ends `LDA #$02 / STA $1842` — so the first
+        # two play() calls of a family-3 tune do nothing at all. family-4's play
+        # ($1095) has NO such counter: it goes straight into the DEC $1016
+        # 2-phase toggle. Emitting family-3's skip here put two silent frames in
+        # front of every family-4 rebuild, i.e. the whole tune ran 40 ms late.
+        #
+        # The flat write-stream verdict CANNOT see this — an empty frame
+        # contributes nothing to the concatenated stream, so both streams still
+        # line up. It is a real defect that no gate catches, which is exactly
+        # why it is worth fixing rather than leaving. (It is also why the fix is
+        # invisible in the FULL counts: the phase seed above is what moves them.)
+        #
+        # NB no USF field is needed: the skip count is DERIVABLE from the player
+        # variant, which the USF already carries. family-4 -> 0, family-3 -> the
+        # canon 2.
+        engine = engine.replace(
+            '        lda #$02\n        sta playskip',
+            '        lda #$00                ; family-4 play has no $1842 skip\n'
+            '        sta playskip')
         engine = engine.replace(
             '        sta notestart,x\n        lda #$00\n'
             '        sta $d400,y\n        sta $d401,y\n        inc secpos,x',

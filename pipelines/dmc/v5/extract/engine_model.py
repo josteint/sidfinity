@@ -319,13 +319,30 @@ def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
         m.f4_idle_notes = [mem[0x1012 + d + v] for v in range(3)]
         m.f4_filtmode = mem[0x1018 + d]
         m.f4_fcinit = mem[0x1019 + d]
-        # C-3: lo_spdctr was read from $1013 = V2 CURNOTE in family-4 (not a
-        # speed counter) → a bogus 36-frame startup delay. Zero it; speed=1
-        # already gives the 2-phase tick rate. lo_notes (idle) is overridden by
-        # f4_idle_notes in the composer, so zero it too. (lo_fchi/lo_fclo/
-        # lo_filtmode stay as-is — the filter is C-2's domain; zeroing them
-        # makes to_usf emit an empty init.sid filter block.)
-        m.lo_spdctr = m.lo_mvolfrac = 0
+        # STARTUP PHASE. family-4's play ($1095) does NOT use family-3's speed
+        # counter at $1013 — it toggles `DEC $1016 / BMI` between MAIN (effects
+        # only) and TICK (advance duration, fetch, then fall into MAIN). $1016
+        # is a FILE-IMAGE LEFTOVER the init never clears, so it sets how many
+        # idle plays precede the first note-on:
+        #     $1016 = 0  ->  play1 is a TICK   (dec -> $FF, BMI taken)
+        #     $1016 = 1  ->  play1 is MAIN     (dec -> $00), TICK from play2
+        #
+        # Reading $1013 here was wrong twice over: in family-4 that address is
+        # V2's CURNOTE, so it produced a bogus multi-frame startup delay (fixed
+        # in C-3 by zeroing it) — but zero is only right for the $1016=0 half of
+        # the corpus. The 2026-07-01 round already found the mechanism and
+        # recorded that seeding LEFT_SPDCTR from mem[base+$16] "did NOT fix it";
+        # what it was missing is that the composer ALSO emits family-3's
+        # `playskip = 2`, which family-4's play has no counterpart for.
+        #
+        # The composer's counter reproduces the toggle exactly at speed 1:
+        #   seed 1 -> play1 `dec`->0, no reload, speed(1) != spdctr(0) -> MAIN
+        #             play2 `dec`->$FF, reload to speed -> spdctr == speed -> TICK
+        # which is the orig's MAIN/TICK alternation with the same phase.
+        # (lo_notes (idle) is overridden by f4_idle_notes in the composer, so it
+        # stays zeroed; lo_fchi/lo_fclo/lo_filtmode are C-2's domain.)
+        m.lo_spdctr = mem[0x1016 + d]
+        m.lo_mvolfrac = 0
         m.lo_notes = [0, 0, 0]
     return m
 
