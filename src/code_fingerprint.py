@@ -154,6 +154,15 @@ def _derived() -> dict:
     return _DERIVED_CACHE
 
 
+# Cache-management code, not build/verify code: a batch imports this module to
+# COMPUTE the key, so a derived closure captures it — and then every edit to
+# the hashing logic invalidates every verdict in every family, including edits
+# that only widen what the key covers. It cannot affect a verdict (nothing here
+# runs during extract, compose or verify), so it is excluded by name. Anything
+# that reads it and CAN affect a verdict would have to be listed separately.
+_KEY_MANAGEMENT = frozenset({'src/code_fingerprint.py'})
+
+
 def _iter_files(root: Path):
     """Every hashable file under `root` (or `root` itself if it is a file).
 
@@ -161,6 +170,11 @@ def _iter_files(root: Path):
     determinism across processes and filesystems.
     """
     if root.is_file():
+        try:
+            if root.relative_to(ROOT).as_posix() in _KEY_MANAGEMENT:
+                return
+        except ValueError:
+            pass
         yield root
         return
     if not root.is_dir():
@@ -174,6 +188,8 @@ def _iter_files(root: Path):
         if f.name.startswith('.'):
             continue
         if f.suffix.lower() in _INERT_SUFFIXES:
+            continue
+        if f.relative_to(ROOT).as_posix() in _KEY_MANAGEMENT:
             continue
         out.append(f)
     yield from sorted(out)
