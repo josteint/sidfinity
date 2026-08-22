@@ -679,7 +679,14 @@ ENGINES = {
     # v4's was derived at closeout, so the whole v4 grind ran guarded by ad-hoc
     # canaries. Built in BUDGET mode, see `budget_cover`.
     'dmc_v5': {
-        'results': os.path.join(ROOT, 'tmp', 'dmc_v5_85_results.jsonl'),
+        # ⚠ THE POST-FIX BATCH, not `dmc_v5_85_results.jsonl` — that is the
+        # PRE-#85-list baseline (1,495 rows, stale code hash). Deriving from it
+        # silently produced a 1,120-member FULL pool containing ZERO family-4
+        # members, so `knob:family4` never became a dimension and the portfolio
+        # could not cover the branch the whole v5 grind is about. Same trap the
+        # dmc_v4 entry above warns of; caught by checking the derived
+        # dimensions against a member known to be FULL and family-4.
+        'results': os.path.join(ROOT, 'tmp', 'dmc_v5_r2_results.jsonl'),
         'out': os.path.join(ROOT, 'tools',
                             'dmc_v5_regression_portfolio.json'),
         'features': dmc_v5_features,

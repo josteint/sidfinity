@@ -407,6 +407,30 @@ def _w_dmc(label: str, kind: str, ref: str, group: str | None) -> dict:
     return res
 
 
+def _w_dmc_v5(sid: str, group: str | None) -> dict:
+    """DMC V5 — run the FAMILY BATCH's own per-member function.
+
+    Not a private re-implementation: `dmc_v5_family_batch.run_member` is what
+    stamps the family's verdicts, and ledger C20's fourth layer is precisely a
+    consumer taking a DIFFERENT build path from the verifier. v5 already has
+    two verdict implementations (`verify_v5.verify_v5` and the batch's inline
+    copy, which additionally handles per-subtune CIA speed bits); calling the
+    batch's keeps tier 1 and tier 2 judging the same thing.
+    """
+    import dmc_v5_family_batch as B
+    if getattr(B, '_db', None) is None:
+        B._worker_init()
+    r = B.run_member(sid)
+    st = r.get('status')
+    ok = st == 'full'
+    label = sid.split('/')[-1][:24]
+    res = {'family': 'DMC_V5', 'line': f'  {label:24s} {st}',
+           'ok': int(ok), 'partial': 0, 'fail': int(not ok), 'total': 1}
+    if group:
+        res['group'] = group
+    return res
+
+
 def _w_basic(sid: str, dur: float, group: str | None) -> dict:
     """Basic_Program — full SID->USF->SID round-trip of one member."""
     from pipelines.basic_program.usf_roundtrip import roundtrip
@@ -427,7 +451,7 @@ def _w_basic(sid: str, dur: float, group: str | None) -> dict:
 _WORKERS = {
     'hubbard': _w_hubbard, 'companion': _w_companion, 'c64me': _w_c64me,
     'jd': _w_jd, 'fc_canary': _w_fc_canary, 'fc_portfolio': _w_fc_portfolio,
-    'dmc': _w_dmc, 'basic': _w_basic,
+    'dmc': _w_dmc, 'dmc_v5': _w_dmc_v5, 'basic': _w_basic,
     'masm': _w_masm, 'masm_hetero': _w_masm_hetero, 'gtv1': _w_gtv1,
 }
 
@@ -518,6 +542,14 @@ def _build_tasks() -> list:
         if sid not in f2seen:
             add('dmc', sid.split('/')[-1][:24], 'cfg', sid,
                 'DMC bug witnesses (every measured f1 regression, FBDL 0/5):')
+    # DMC V5 — derived BEFORE the grind (item 17e) rather than at closeout, in
+    # BUDGET mode with the measured lever classes double-covered.
+    v5pf = os.path.join(os.path.dirname(__file__),
+                        'dmc_v5_regression_portfolio.json')
+    if os.path.exists(v5pf):
+        grp = 'DMC V5 portfolio (budget cover incl. the family-4 branch):'
+        for sid in json.load(open(v5pf))['portfolio']:
+            add('dmc_v5', sid, grp)
     bpf = os.path.join(os.path.dirname(__file__), 'basic_program_regression_portfolio.json')
     if os.path.exists(bpf):
         grp = 'Basic_Program portfolio (round-trip feature-cover):'
@@ -551,6 +583,8 @@ _FAMILY_ORDER = [
     ('FC', 'Future Composer family (4 canaries: Cyb II + Hawkeye + '
            'Adrenalin[0] + Jarre_2/standard):'),
     ('DMC', 'DMC family (canary: Geometrical_Zaks/v4):'),
+    ('DMC_V5', 'DMC V5 family (budget portfolio; family-4 branch is the '
+               'active grind):'),
     ('Basic_Program', 'Basic_Program family (RSID-BASIC round-trip portfolio):'),
     ('Music_Assembler',
      'Music Assembler family (SID -> USF -> SID round-trip portfolio):'),
@@ -606,6 +640,7 @@ def main():
     jd_ok, jd_part, jd_fail, _ = agg['Jay_Derrett']
     fc_ok, _, fc_fail, _ = agg['FC']
     dmc_ok, _, dmc_fail, _ = agg['DMC']
+    v5_ok, _, v5_fail, _ = agg['DMC_V5']
     bp_ok, _, bp_fail, _ = agg['Basic_Program']
     ma_ok, _, ma_fail, _ = agg['Music_Assembler']
     gt_ok, _, gt_fail, _ = agg['GoatTracker_V1']
@@ -618,12 +653,13 @@ def main():
           f'{jd_fail} regressed  (of 17 wired / 20 total)')
     print(f'FC:         {fc_ok} ok  +  {fc_fail} regressed')
     print(f'DMC:        {dmc_ok} ok  +  {dmc_fail} regressed')
+    print(f'DMC_V5:     {v5_ok} ok  +  {v5_fail} regressed')
     print(f'Basic_Program: {bp_ok} ok  +  {bp_fail} regressed')
     print(f'Music_Assembler: {ma_ok} ok  +  {ma_fail} regressed')
     print(f'GoatTracker_V1: {gt_ok} ok  +  {gt_fail} regressed')
 
     if (h_reg or c_fail or cme_fail or jd_fail or fc_fail or dmc_fail
-            or bp_fail or ma_fail or gt_fail):
+            or v5_fail or bp_fail or ma_fail or gt_fail):
         sys.exit(1)
 
 

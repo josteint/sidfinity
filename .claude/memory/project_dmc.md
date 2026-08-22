@@ -10,12 +10,13 @@ metadata:
 
 ## 🔎 DMC v5 GRIND OPENED (2026-08-22 night): the residue is ONE PLAYER VARIANT
 
-**The v5 grind is "make family-4 work".** Measured, not assumed:
-`family4` (the Jupiter41 branch, play +$95) is **~37% of buildable v5
-members (~750 of 2,151)**, and a 40-member sample of currently-FULL members
-contained **ZERO** family-4 — that branch had never produced a single FULL.
-The canon family-3/5 player is already ~89% FULL of buildable members. So
-family-4 is essentially the entire v5 residue.
+**The v5 grind is "make family-4 work".** Whole-corpus census (2026-08-23):
+`family4` (the Jupiter41 branch, play +$95) is **642 of 2,151 members** and
+sits at **7.0% FULL of buildable** (35 full / 466 partial) against canon's
+**84.5%** (1,132 full / 207 partial). family-4 carries **466 of the 673
+partials = 69%**, so it is the residue.
+⚠ An earlier claim this session that family-4 had ZERO FULLs was wrong — a
+40-member sample artifact (~30% likely at the true rate). Corrected by census.
 
 The planned "top lever" (a 352-member position-0 cluster read as a
 folded-in lead-in) was a MIS-DIAGNOSIS in two ways: the flat verdict

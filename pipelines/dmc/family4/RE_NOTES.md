@@ -45,12 +45,21 @@ whole round as "0 gained" — use the DEPTH HISTOGRAM for an unblocking lever
 (`tmp/v5_depth_measure.py`). Spot-check: `Eco/Different` partial → **FULL**
 (274,678/274,678); Katusha (family-3) byte-unchanged.
 
-**SCOPE — why this matters more than it looks.** family-4 is **~37% of
-buildable v5 members (~750 of 2,151)**, and a 40-member sample of
-currently-FULL members contained **ZERO** family-4. This branch had never
-produced a single FULL. The canon family-3/5 player is already ~89% FULL of
-buildable members, so **family-4 IS the v5 residue** and "the v5 grind" is
-really "make family-4 work".
+**SCOPE — measured over the whole corpus (2026-08-23, post-fix batch +
+`tmp/v5_family4_census.py`), correcting an earlier 40-member-sample claim:**
+
+| branch | n | FULL | of buildable |
+|---|---:|---:|---:|
+| family-4 | 642 | 35 (5.5%) | **7.0%** |
+| canon f3/f5 | 1,382 | 1,132 (81.9%) | **84.5%** |
+| unbuildable | 127 | 0 | — |
+
+⚠ The earlier claim that family-4 had "NEVER produced a single FULL" was
+WRONG — it came from a 40-member sample of FULLs that happened to contain
+none, which at the true 3% rate has ~30% probability. It is 7.0% of buildable,
+not 0%. The conclusion is unchanged and if anything sharper: family-4 carries
+**466 of the 673 v5 partials (69%)**, so it is still the residue, and "the v5
+grind" is still "make family-4 work".
 
 **NEXT TWO FIRST-DIVERGENCES** (both now the leading edge, not the lead-in):
 - `MHD/Street_Fighter` flat position 4 — `$D403` (V1 PW hi), orig `$08` vs our
