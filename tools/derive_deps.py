@@ -240,6 +240,54 @@ def derive(engine: str, per_path: int, n_random: int, seed: int) -> dict | None:
             'reached_verdict': reached, 'per_member': per_member}
 
 
+def check(engines, per_path: int, n_random: int, seed: int) -> int:
+    """Pre-flight audit: does anything escape the STORED dependency set?
+
+    Azure TIA's "safe fallback" property, arranged so it costs nothing. The
+    obvious implementation — have each batch call `check_derived_closure()`
+    after its first member — puts the call site INSIDE that family's own
+    dependency closure, so adding it changes the fingerprint and invalidates
+    every verdict the batch was about to reuse. Enforcement that destroys the
+    cache it protects is not enforcement.
+
+    So it runs OUTSIDE instead: same stratified sample, same clean
+    subprocesses, compared against the stored set. Run it before a batch (or
+    after any change that might have added an import); a non-empty result means
+    the stored set under-approximates and every row stamped under it is
+    suspect, which is the loud failure the property asks for.
+    """
+    from src.code_fingerprint import _derived, _ALWAYS, _iter_files, \
+        _KEY_MANAGEMENT, ROOT as CF_ROOT
+    bad = 0
+    for eng in engines:
+        spec = CONSUMERS[eng]
+        stored = (_derived().get(eng, {}) or {}).get(spec['consumer'])
+        if stored is None:
+            ts(f'{eng}: no derived set stored — declared fallback in force '
+               f'(over-broad, therefore safe); nothing to audit')
+            continue
+        covered = set(_KEY_MANAGEMENT)
+        for rel in set(stored) | set(_ALWAYS):
+            for f in _iter_files(CF_ROOT / rel):
+                covered.add(f.relative_to(CF_ROOT).as_posix())
+        got = derive(eng, per_path, n_random, seed)
+        if got is None:
+            ts(f'{eng}: could not measure — treat as UNAUDITED')
+            bad += 1
+            continue
+        escapees = sorted(set(got['files']) - covered)
+        if escapees:
+            bad += 1
+            ts(f'  ⚠ {eng}: {len(escapees)} MODULES ESCAPE THE STORED SET — '
+               f'every row stamped under it is suspect. Re-derive.')
+            for f in escapees[:20]:
+                ts(f'      + {f}')
+        else:
+            ts(f'  {eng}: clean ({len(got["files"])} modules, all inside the '
+               f'stored set)')
+    return 1 if bad else 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--engine', action='append',
@@ -250,7 +298,14 @@ def main():
                     help='extra random members (default 6)')
     ap.add_argument('--seed', type=int, default=20260822)
     ap.add_argument('--dry-run', action='store_true')
+    ap.add_argument('--check', action='store_true',
+                    help='PRE-FLIGHT AUDIT: re-measure and report modules that '
+                         'escape the STORED set, without writing. Exit 1 on any '
+                         'escapee. Run before a batch, not inside one.')
     a = ap.parse_args()
+
+    if a.check:
+        return check(a.engine or list(CONSUMERS), a.per_path, a.random, a.seed)
 
     engines = a.engine or list(CONSUMERS)
     existing = {}
