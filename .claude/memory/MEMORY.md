@@ -1,18 +1,22 @@
 ## Project state
 
 
-- [USF init.sid block](project_usf_init_sid_block.md) — CURRENT. USF carries SID-chip priming as typed `init.sid { master_vol, filter, voice N {...} }`; composer reads it directly; shape-detection deleted. Built on the init trichotomy (docs/the_trichotomy.md).
-- [Composer dissolution](project_composer_dissolution.md) — Phase 8 done; `composer_hubbard.py` DELETED. Hubbard '85 family lives entirely in `pipelines/composer.py` (feature-driven asm, 18 chunk emitters + typed args). `tools/regression.py` = verdict.
-- [FC principled composer](project_fc_principled_composer.md) — §9 closed: the FC build is orig-free at build time. Verdict = `verify_featuredriven`. 2026-07-22: **orig-free ≠ USF-complete — CLOSED** (per-member player-build params lived in the Python cfg, not the `.usf`; ledger C7 class A3). Detail in topic file.
-- [FC fingerprint DB + standard player](project_fc_fingerprint_and_standard.md) — `tools/engine_fingerprint.py` reloc-invariant fingerprinting; 91% of HVSC FC is ONE vanilla "standard" player. **✅ 2,604/2,748 FULL (94.8%)** (#85 sweep 2026-08-19: +114 members, 0 regressions; 1 new error = New_Sound py65-init, C9 class). Per-round detail in topic file — READ IT first.
+- [USF init.sid block](project_usf_init_sid_block.md) — USF carries SID-chip priming as typed `init.sid { master_vol, filter, voice N }`; composer reads it directly; shape-detection deleted. Built on the init trichotomy.
+- [Composer dissolution](project_composer_dissolution.md) — Phase 8 done; Hubbard '85 lives entirely in `pipelines/composer.py` (feature-driven asm, 18 chunk emitters + typed args).
+- [FC principled composer](project_fc_principled_composer.md) — §9 closed: the FC build is orig-free at build time; **orig-free ≠ USF-complete** also closed (ledger C7 class A3). Verdict = `verify_featuredriven`.
+- [FC fingerprint DB + standard player](project_fc_fingerprint_and_standard.md) — reloc-invariant fingerprinting (`tools/engine_fingerprint.py`); 91% of HVSC FC is ONE "standard" player. **✅ 2,604/2,748 FULL (94.8%)** ⚠STALE-VERDICTS Per-round detail in topic file — READ IT first.
 
 ## Per-engine project memories
 
-- [Basic_Program family](project_basic_program.md) — 524 RSID-BASIC tunes on #85 (engine IS the BASIC+KERNAL ROM); trace-lift → USF round-trip. **488/524 (93.1%) FULL**, re-baselined 2026-08-12 under honest verify windows (the 120s cap was ledger C20's eighth layer). Residue leads + round history: topic file.
-- [DMC migration](project_dmc.md) — THE FOCUS ENGINE (10,758 SIDs on #85; largest family). **f1 5,445/5,445 FULL (100%)** · **f2 2,924/2,924 (100%) — FAMILY-2 CLOSED 2026-08-21** (15 FULL landed that day; the final trio — Conversion, Witchs_Birthday, Just_11 — fell to ONE lever, the shipped f2 $FF loop-to-N immediate the factory never read, C9 10th occ). f1 5,445/5,445 + f2 2,924/2,924 = the whole DMC v4 space FULL. RESYNC DONE 2026-08-22: f2 re-batched 2,924/2,924 (0 regressions, +15), mass-written + audited 11/11; the 3 non-f2 dead-cargo carriers synced incrementally. Portfolios re-derived — `dmc_v4` 64 members + a NEW `dmc_f2` entry (f2 had been guarded by 4 canaries covering none of its levers). Full 2SID/3SID (C27/C28) + compilations incl. HETEROGENEOUS ([[project_dmc_compilations]]). **READ project_dmc.md FIRST** — round history, every lever, methodology (newest-first); do NOT expand this line.
-- [DMC compilations](project_dmc_compilations.md) — a WHOLE residue class: one file packs N independent players + a per-subtune dispatch wrapper (subtune→(base,song)). Ledger C31; ≥15 in Bayliss. Unified-merge built; homogeneous + HETEROGENEOUS (DMC + a `dmc_sfx` sub-player, Canyon 13/13 FULL r72) both land.
-- [Music_Assembler](project_music_assembler_target.md) — **MIGRATED, SID→USF→SID** (3rd-largest, 6,489 SIDs on #85). **4,021 FULL (62.0%)** (#85 sweep 2026-08-19: +138 members, 0 regressions); 16-member portfolio + the Freespace_2075 DMC+MA canary are tier 1. Residue half CHIP-GLOBAL. Corpus mass-write deliberately NOT done yet. Surfaced ledger **C34**. Detail in topic file.
-- [GoatTracker family](project_goattracker.md) — 2nd-largest (8,670). **Active: V1** (original 1.x, NOT GT2). Extract + composer built; wide batch **168/1387 FULL** (#85 sweep 2026-08-19: +28 members, 0 regressions), re-run THROUGH the stored `.usf`. Wired into regression.py. Per-round detail in topic file — READ IT first.
+⚠STALE-VERDICTS = the count predates a shared-code change and no batch has
+re-run; `tools/migrate_verdict_rows.py` refuses to carry those rows. Re-batch
+before quoting the number (measured 2026-08-22).
+
+- [Basic_Program family](project_basic_program.md) — 524 RSID-BASIC tunes on #85 (engine IS the BASIC+KERNAL ROM); trace-lift → USF round-trip. **488/524 (93.1%) FULL**, re-baselined 2026-08-12 under honest verify windows (the 120s cap was ledger C20's eighth layer). ⚠STALE-VERDICTS Residue leads + round history: topic file.
+- [DMC migration](project_dmc.md) — THE FOCUS ENGINE (10,758 SIDs on #85; largest family). **v4 CLOSED: f1 5,445/5,445 + f2 2,924/2,924 = 100% FULL**, mass-written + audited, both portfolios wired. **v5 GRIND OPEN** — the residue is ONE player variant (`family4`, ~750 members, was 0 FULL). 2SID/3SID + compilations incl. heterogeneous ([[project_dmc_compilations]]). **READ project_dmc.md FIRST** (newest-first); do NOT expand this line.
+- [DMC compilations](project_dmc_compilations.md) — a residue CLASS: one file packs N players + a per-subtune dispatch wrapper. Ledger C31. Unified-merge built; homogeneous + HETEROGENEOUS both land.
+- [Music_Assembler](project_music_assembler_target.md) — **MIGRATED, SID→USF→SID** (3rd-largest, 6,489 SIDs on #85). **4,021 FULL (62.0%)** ⚠STALE-VERDICTS 16-member portfolio + the Freespace_2075 DMC+MA canary are tier 1; residue half CHIP-GLOBAL; mass-write deliberately NOT done. Surfaced ledger **C34**.
+- [GoatTracker family](project_goattracker.md) — 2nd-largest (8,670). **Active: V1** (original 1.x, NOT GT2). Extract + composer built; wide batch **168/1387 FULL** ⚠STALE-VERDICTS re-run THROUGH the stored `.usf`; wired into regression.py. Detail in topic file — READ IT first.
 - [Commando — no drum engine](project_commando_no_drum_engine.md) — "the drum" is inst 4 played off the end of the freq table; the drum sub-engine never runs in subtune 0
 - [Chimera pipeline](project_chimera.md) — PSID rebuild (no KERNAL); music frame-exact + digi cycle-strict. Drove the digi pipeline + no-verbatim-engine-bytes refactor. Includes the C64 banking gotcha.
 - [Human Race effect audit](project_human_race_audit.md) — ALL FIVE HR effects collapse to existing shared-core effects (downslide≡freq_slide, drumarp≡fx_arp, skydive≡fx_incby2, PWmode≡fx_pwm, per-note slide≡fx_drumslide)
@@ -23,7 +27,7 @@
 - [Clever Music (Fairlight + Gyroscope)](project_clever_music.md) — pipelines/companion/clever_music/. Duration counters, embedded commands ($Bx tempo/$Cx vol/$Dx inst/$Ex jump), song-position sync counter $E0..$E5.
 - [Henrys House](project_henrys_house.md) — pipelines/companion/henrys_house/. Single-voice variant, hardcoded tempo 8, $FF restart-init handler.
 - [Yes Tune family](project_yes_tune.md) — pipelines/companion/yes_tune/. Per-voice state machine + 2-byte (note, duration) format. Multi-subtune + relocation-aware.
-- [Adrenalin (HeatWave)](project_adrenalin.md) — SUB 0 DONE: 3rd FC canary, exact via PURE-TRICHOTOMY init (`init_style='universal_reset'` + `compare_instruction_stream(mode='trichotomy')`). A COMPILATION (3 engines + 4 independent data pools); full Adrenalin needs multi-independent-song FC support.
+- [Adrenalin (HeatWave)](project_adrenalin.md) — SUB 0 DONE: 3rd FC canary, exact via PURE-TRICHOTOMY init. A COMPILATION (3 engines + 4 data pools); full Adrenalin needs multi-independent-song FC support.
 
 ## Engine quirks & open work
 
@@ -34,11 +38,11 @@
 
 ## Working principles (read these before acting)
 
-- [Knowledge placement](feedback_knowledge_placement.md) — 6 kinds → 6 homes (oracle=code, law=canon doc, technique=ledger, discipline=memory, status=project_<engine>, operation=CLAUDE.md); one home, point don't copy; NEVER retroactively distill a ledger entry/canon doc.
-- [Deprecate stale docs](feedback_deprecate_stale_docs.md) — USER PREFERENCE: a docs/ file that no longer holds live info gets DEPRECATED (git mv → deprecated/old_docs/ + dated banner + README line + repoint), not left in docs/ with an in-place banner. Test: every live fact already held elsewhere.
+- [Knowledge placement](feedback_knowledge_placement.md) — 6 kinds → 6 homes (oracle=code, law=canon, technique=ledger, discipline=memory, status=project_<engine>, operation=CLAUDE.md); one home, point don't copy.
+- [Deprecate stale docs](feedback_deprecate_stale_docs.md) — USER PREFERENCE: a stale docs/ file gets DEPRECATED (git mv → deprecated/old_docs/ + dated banner + README line + repoint), not banner-in-place.
 - [Re-anchor at decision points](feedback_reanchor_at_decisions.md) — TRIPWIRE. At EVERY representation/correctness decision re-run CORE TENET + USF principle + uready as adversarial checks. Drift tell: citing a precedent to DEFEND an easy choice.
-- [Convergence ledger](feedback_convergence_ledger.md) — TRIPWIRE. Recognition cards are imported at session start (full entries `docs/ledger/C<n>.md` — READ before applying); before ANY non-trivial solution actively CHECK for a match, RECORD every solution on 1st sight, canonicalize on the 2nd. Weak link = checking BEFORE solving.
-- [Three filters](feedback_three_filters.md) — every technique passes THREE: CORE TENET (permissive), USF PRINCIPLES (restrict the SCHEMA), MOVE-1 UNIFICATION-READINESS (restrict the COMPOSER — `shared_mechanism(per_engine_config)`, never ad-hoc).
+- [Convergence ledger](feedback_convergence_ledger.md) — TRIPWIRE. Cards import at session start (full entries `docs/ledger/C<n>.md` — READ before applying); CHECK before any non-trivial solution, RECORD on 1st sight, canonicalize on the 2nd. Weak link = checking BEFORE solving.
+- [Three filters](feedback_three_filters.md) — every technique passes THREE: CORE TENET (permissive), USF PRINCIPLES (restrict the SCHEMA), MOVE-1 READINESS (restrict the COMPOSER).
 
 ### Ground truth & methodology
 - [Ground truth is sidplayfp](feedback_ground_truth.md) — NEVER use py65/Python reimplementations as ground truth. Only `sidplayfp --writelog` is authoritative. The user's ear is final judge.
@@ -49,7 +53,7 @@
 - [subtune_frames not arbitrary](feedback_subtune_frames_not_arbitrary.md) — verify window = songlength × 1.1 (RATIFIED 2026-07-02), never arbitrary N, never 1.0x.
 - [NO writelog replay](feedback_no_writelog_replay.md) — user STRONGLY rejected. Never propose. Defeats the USF/ML purpose.
 - [py65 misses dispatch bugs](feedback_py65_misses_dispatch_bugs.md) — `verify_all` is silent about PSID speed / CIA timer / dispatch-rate bugs. Ear-test new engines / dispatch changes.
-- [Header flags are audible](feedback_header_flags_audible.md) — NEW-COMPOSER CHECKLIST: derive PSID flags from usf.psid + diff rebuilt header vs orig at bring-up. The write-log verdict is blind to SID-model/clock flags; the hardcode recurred in 3 composers before an ear-test caught it (Taurus_02).
+- [Header flags are audible](feedback_header_flags_audible.md) — NEW-COMPOSER CHECKLIST: derive PSID flags from usf.psid + diff rebuilt header vs orig at bring-up. The write-log verdict is blind to SID-model/clock flags.
 - [Observation drift vs music drift](feedback_observation_drift.md) — siddump's per-VBI-frame bucketing is OBSERVATION; the chip sees a continuous stream. Use `compare_instruction_stream`; don't trust per-frame "FAIL".
 - [Always through USF](feedback_always_through_usf.md) — pipeline MUST be SID → USF → SID
 - [USF spec sync](feedback_usf_sync.md) — update spec, all converters, player, and tests whenever USF changes
@@ -61,31 +65,31 @@
 - [Commit early](feedback_commit_early.md) — commit immediately after each verified improvement
 - [Repo tmp/ not /tmp](feedback_repo_tmp_dir.md) — ALL scratch artifacts go in the gitignored repo-local `tmp/`, never system /tmp (it gets wiped)
 - [Timestamped tool logging](feedback_timestamped_tool_logging.md) — OWNER DIRECTIVE: dev tools print timestamped flushed phase lines (`src.tslog`); silent long phases read as hangs. Wire into any tool you touch.
-- [Background jobs via harness](feedback_background_jobs_harness.md) — long batches MUST use Bash `run_in_background: true`, never `nohup&`, and NEVER pipe a backgrounded command through `tail` (its output file then stays empty until exit → reads as stalled → duplicate re-run). Sanity-check result mtime.
-- [Old-vs-new code compare = worktree](feedback_old_code_compare_worktree.md) — compare current vs pre-change behavior in a git WORKTREE, never `git stash` in the main tree; a stash/pop across a timed-out command stranded edits at old code. `git diff > patch` first if you must stash; split stash/run/pop into separate commands.
-- [No self-matching waiters](feedback_no_self_matching_waiters.md) — TRIPWIRE. NEVER `while pgrep -f 'PATTERN'; do sleep N; done` (pattern matches the waiter's OWN argv → infinite loop). Wait for `<task-notification>`; identify your procs vs a parallel session's before any kill.
+- [Background jobs via harness](feedback_background_jobs_harness.md) — long batches MUST use Bash `run_in_background: true`, never `nohup&`; never pipe a backgrounded command through `tail` (empty output reads as stalled). Sanity-check result mtime.
+- [Old-vs-new code compare = worktree](feedback_old_code_compare_worktree.md) — compare current vs pre-change behavior in a git WORKTREE, never `git stash` in the main tree (a stash/pop across a timed-out command stranded edits at old code).
+- [No self-matching waiters](feedback_no_self_matching_waiters.md) — TRIPWIRE. NEVER `while pgrep -f 'PATTERN'` (matches the waiter's OWN argv). Wait for `<task-notification>`; identify your procs before any kill.
 - [No co-author in commits](feedback_no_coauthor.md) — never add `Co-Authored-By`
 - [Do the actual work](feedback_do_the_work.md) — implement ALL optimizations, don't punt
 - [Worktree agents must commit](feedback_worktree_commit.md) — always tell agents to `git add` + commit
 - [Subagents: no git mutations](feedback_subagents_no_git.md) — fan-out/research agents forbidden from `git restore`/`checkout`; one reverted live DB state. Open shared DBs `mode=ro`.
-- [research-player leaf agents](feedback_research_player_leaf_agents.md) — TRIPWIRE. Fan-out agents recursively spawn their OWN sub-agents (a "6-agent" sweep became 30+). Every agent prompt MUST open with a LEAF constraint. Report the TRUE live agent count.
+- [research-player leaf agents](feedback_research_player_leaf_agents.md) — TRIPWIRE. Fan-out agents spawn their OWN sub-agents (a "6-agent" sweep became 30+). Every agent prompt MUST open with a LEAF constraint.
 - [Meta-process](feedback_meta_process.md) — at natural pauses, re-evaluate highest-ROI approach + whether memories / CLAUDE.md reflect reality
-- [VOCABULARY: "uready"](feedback_uready_vocabulary.md) — unification-ready: the 6-criteria gate for leaving an engine family (orig-free §9, no escape hatches, factored USF, representative verification, feature accounting, documented residue). Per-family status lives in project_<engine>, not here.
+- [VOCABULARY: "uready"](feedback_uready_vocabulary.md) — unification-ready: the 6-criteria gate for leaving an engine family. Per-family status lives in project_<engine>.
 
 ### USF schema discipline
 - [Principle-first analysis](feedback_principle_first_analysis.md) — CHECKLIST. Run the 6 questions BEFORE proposing any effect/instrument design or "engine-specific codegen". Don't wait to be caught.
-- [Schema addition discipline](feedback_schema_addition_discipline.md) — CHECKLIST + THE OWNER-APPROVAL GATE (2026-08-13): grammar/typed-field/new-representation changes NEVER land without owner approval — passing the tests is the argument to bring, not a permission slip; params-key wedge knobs under existing C19 licensing stay autonomous. Before proposing: re-read the principle IN FULL, exhaust derivation / engine_constants / existing-params; check for a typed sibling before taking the params-bag shortcut.
+- [Schema addition discipline](feedback_schema_addition_discipline.md) — CHECKLIST + the OWNER-APPROVAL GATE: grammar/typed-field/new-representation changes NEVER land without owner approval (passing the tests is the argument to BRING, not a permission slip); C19-licensed params wedge knobs stay autonomous. Exhaust derivation first; check for a typed sibling before the params-bag shortcut.
 
 ### Engineering reflexes
 - [Use 6502 mindset](feedback_6502_mindset.md) — all bugs are pointer errors; think in exact byte offsets
 - [Writelog divergence recipe](feedback_writelog_divergence_recipe.md) — the full step-by-step protocol behind CLAUDE.md's "start with find_first_divergence" convention. (Recovered 2026-07-14.)
 - [Measure mechanism before precedent](feedback_measure_mechanism_before_precedent.md) — diagnostic ordering: pc-trace the ACTUAL read before matching it to a prior round's index; read the WHOLE multi-stage pipeline before instrumenting one stage. Round-91 retrospective; spawned `dmc_offtable_probe.py`, `--find-write`, `dmc_build_one --localize` auto-target.
-- [Residue claim is a measurement](feedback_residue_claim_is_measured.md) — a "hard boundary / residue / can't-reproduce" verdict must be MEASURED (siddump/artifacts, never py65 for divergent memory), never inferred. 5 tells you're over-claiming + the re-test-the-load-bearing-assumptions reflex. DMC Verdict_01 mis-claimed "hard boundary" 3× → each fell to one measurement → FULL.
+- [Residue claim is a measurement](feedback_residue_claim_is_measured.md) — a "hard boundary / can't-reproduce" verdict must be MEASURED (siddump, never py65 for divergent memory), never inferred. DMC Verdict_01 mis-claimed it 3× → each fell to one measurement → FULL.
 - [SMC disasm check](feedback_smc_disasm_check.md) — before trusting a static disasm, scan for STA into instruction operands; SMC makes the static reading lie. (Recovered 2026-07-14.)
 - [Check existing engine docs](feedback_check_existing_engine_docs.md) — the three-source order (family docs → disassembly.s → RE_NOTES) behind CLAUDE.md's MANDATORY questions. (Recovered 2026-07-14.)
 - [C64 banking when relocating](feedback_c64_banking_relocation.md) — relocating code into $A000-$BFFF? Audit every `sta $01` inside it. A banking flip takes effect on the next fetch; if that fetch is in the banked range it reads ROM.
 - [Bug investigation methodology](feedback_bug_investigation.md) — pick one bad subtune, trace the first wrong frame, fix root cause
-- [Residue-triage order](feedback_residue_triage_order.md) — large wide-family residue: census FIRST, then attack in DEPENDENCY order (measure→fix-verdict→unblock-builds→fix-effects→accept-limit-last), never biggest-bucket-first. A verdict fix can flip ~150 false-partials at zero composer cost.
+- [Residue-triage order](feedback_residue_triage_order.md) — wide-family residue: census FIRST, then attack in DEPENDENCY order (measure→fix-verdict→unblock-builds→fix-effects→accept-last), never biggest-bucket-first.
 - [Full decompile before Hubbard work](feedback_full_decompile_hubbard.md) — disassemble init+play first for every new Hubbard SID
 - [Trust binary not disassembly](feedback_disassembly_data_section.md) — `!by` directives can be wrong about initial data; read the actual bytes
 - [Deconstruct, don't reproduce the trick](feedback_deconstruct_not_reproduce.md) — reproduce the exact instruction stream with clean code; the trick to avoid is the space-saving MECHANISM, not the output. Investigate odd behaviour before discarding.
@@ -96,7 +100,7 @@
 ## References
 
 - [siddump frame cycles](reference_siddump_frame_cycles.md) — TRIPWIRE: a siddump "frame" ≈ ~18,000 CPU cycles, NOT the 19,656-cycle PAL play period (ρ≈0.919). Bites absolute-cycle math; not the flat Mode-1 verdict. Mis-derived twice.
-- [HVSC index DB](reference_hvsc_db.md) — `hvsc85.parquet` (+ `engine_docs.csv`): STATIC catalogue, DuckDB via `src/sid_db`. Coverage/FULL-list = a FRESH family batch, NOT the index or stored `.usf`; batch jsonls are code_hash-gated. Regenerate via `tools/build_sid_db.py`.
+- [HVSC index DB](reference_hvsc_db.md) — `hvsc85.parquet` + `engine_docs.csv`: STATIC catalogue via `src/sid_db`. Coverage = a FRESH family batch, never the index. Regenerate with `tools/build_sid_db.py`.
 - [Songlength overrides](reference_songlength_overrides.md) — `tools/songlength_overrides.json`. Durable corrections to HVSC's Songlengths.md5 for anomalous durations. Survives HVSC re-fetches.
 - [USF format](reference_usf_format.md) — the on-disk .usf format + sidecar FLACs. Spec at `docs/usf_format.md`. Custom DSL, Lark grammar, `.usf` + N `.sample{N}.flac`.
 - [Digi pipeline](reference_digi_pipeline.md) — USF digi support; extract → Sample/FLAC → pack → SID. Cycle-strict via `siddump --writelog`. First engine: Chimera 1-bit wavetoggle.
@@ -104,9 +108,9 @@
 - [Audit tool](reference_audit_tool.md) — `src/usf/audit.py`: PC-traced per-voice SID-write capture. Use for Rule 1 collapse audits when voice attribution matters.
 - [Tokenization for ML](reference_tokenization.md) — USF is NOT tokens; tokenization is a downstream conversion when ML training starts. REMI-style is the proven start.
 - [Hubbard PWM bounds](reference_hubbard_pwm_bounds.md) — pulsework's $08/$0E direction-flip thresholds are HARDCODED, not per-instrument
-- [Divergence census tool](reference_divergence_census.md) — `tools/divergence_census.py`: clusters a family's non-FULL residue into ranked root-cause buckets. Found: detection ≠ FULL; partials are the bottleneck.
-- [Canon-diff wedge enumerator](reference_dmc_canon_diff.md) — `tools/dmc_canon_diff.py`: a-priori wedge catalogue — diff every member vs the canon player, cluster + tag handled/NEW, split partial/full. PROVED DMC f1 wedges ~fully handled.
-- [Post-project research ideas](reference_post_project_research.md) — pointer to `docs/post_project_research_ideas.md`: what the finished corpus enables beyond ML (player-code phylogeny vs musical lineage, the wedge census as scene ethnography, the C29 "not self-contained works" preservation finding) + the borrowed disciplinary vocabulary. A parking lot, not work.
+- [Divergence census tool](reference_divergence_census.md) — `tools/divergence_census.py`: clusters non-FULL residue into ranked root-cause buckets. Found: detection ≠ FULL.
+- [Canon-diff wedge enumerator](reference_dmc_canon_diff.md) — `tools/dmc_canon_diff.py`: diff every member vs the canon player, cluster + tag handled/NEW. PROVED DMC f1 wedges ~fully handled.
+- [Post-project research ideas](reference_post_project_research.md) — pointer to `docs/post_project_research_ideas.md`: what the finished corpus enables beyond ML. A parking lot, not work.
 
 ## Deprecated memories
 
