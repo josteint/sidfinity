@@ -189,6 +189,14 @@ practice, not code to factor).
   fail at the NEXT stage (cia / partial / error) — acceptance ≠ FULL.
 - CANONICAL: the verify PARTIALS, not the detect-rejects, are the FULL
   bottleneck. Census residue (`tools/divergence_census.py`) before attacking.
+- ⚠ SAME TRAP ONE STEP LATER (2026-08-22) — SCORE AN UNBLOCKING LEVER BY
+  DEPTH, NOT BY FULL: a fix that unblocks a residue CLASS moves each member's
+  first divergence to the NEXT bug rather than to FULL, so a full/partial
+  score reads "0 gained" and hides the whole effect. Use the first-divergence
+  DEPTH HISTOGRAM over a stratified subset + `deeper/shallower/unchanged`
+  (shallower = the regression signal). DMC v5 family-4: bucket 1-63 58→13,
+  deeper 49 / shallower 0, ZERO FULL — a full/partial score would have
+  reverted it.
 - FULL ENTRY: [`ledger/C5.md`](ledger/C5.md) — read it before applying.
 
 ### C6 — off-table FREQ-table lookup (index past the freq table)
@@ -712,6 +720,29 @@ practice, not code to factor).
   SOURCE (SLDB songlength) is itself broken for RSID-BASIC (precalc dead-air)
   — measure first-gate-on + last-write before trusting an entry
   (31 measured `songlength_overrides` corrections).
+- NINTH LAYER — the INVALIDATION FUNCTION is under-inclusive (2026-08-22). Every
+  layer above trusts the code_hash gate; it was a hand-declared, unenforced set,
+  wrong in BOTH directions. Too BROAD = precision (costs compute, can't lie: one
+  v5 edit invalidated 8,369 v4 rows). Too NARROW = safety, and SILENTLY WRONG:
+  `tools/siddump` was UNHASHED though it produces the REFERENCE trace too;
+  the `*.py`-only glob skipped `pipelines/dmc/docs/*.bin` (the canon players the
+  factory dispatches on) INSIDE a declared dir; composer_runtime / songlengths
+  (the verify WINDOW = the 8th layer) / the USF grammar / py65 / lark were all
+  absent. CURE: DERIVE the set (`tools/derive_deps.py`, `sys.modules` snapshot
+  after real work, per (engine, CONSUMER)) — it catches function-local imports a
+  static walk can't. TRAPS, all hit: closure is per-CONSUMER not per-engine; a
+  ONE-MEMBER closure UNDER-approximates (f1 single=56 modules, hetero_masm=68,
+  hetero_v5=76, union=77 — stratify over build_path); a derivation that "ran"
+  may have measured nothing (`_worker_init` unrun ⇒ a uniform plausible 61 —
+  report each member's VERDICT STATUS and refuse a sample that reached none);
+  and the key SELF-INVALIDATED (batches import code_fingerprint ⇒ it entered its
+  own closure). FAMILIES ARE NOT INDEPENDENT — f1's hetero_v5/hetero_masm paths
+  make v4's closure legitimately contain v5 + MA files; the right criterion is
+  "a file used by ONE consumer moves ONE key", not "families are separable".
+  MIGRATION across a key change (`tools/migrate_verdict_rows.py`): restamp only
+  under proof, comparing CONTENT via `git diff <commit-at-stamp>` — NEVER mtime
+  (a file modified and restored is byte-identical with a fresh mtime; the
+  mtime cut refused all 6 families on the session's own probe artifacts).
 - THIRD LAYER — the stored ARTIFACT is unreadable by the CURRENT grammar
   (schema drift). A typed-field move orphaned 1,182/11,943 stored .usf (9.9%)
   while regression stayed green — it builds from a ~116-member portfolio,

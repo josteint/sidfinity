@@ -1,5 +1,65 @@
 # DMC V5 family-4 — reverse-engineering notes (Phase A, in progress)
 
+## ✅ SESSION 2026-08-22 — THE LEADIN CLASS UNBLOCKED (commit 27b4530f)
+
+The 2026-07-01 session below diagnosed this correctly and its fix failed for
+ONE missing reason. Both halves are now in:
+
+1. **PHASE SEED.** `extract` now sets `m.lo_spdctr = mem[base+$16]` for
+   family-4 (it had been ZEROED by the C-3 fix, which was right only for the
+   `$1016 == 0` half of the corpus). The composer's family-3 counter
+   reproduces the orig's `DEC $1016 / BMI` toggle EXACTLY at speed 1:
+   `seed 1` → play1 `dec`→0, no reload, `speed != spdctr` → MAIN; play2
+   `dec`→$FF, reload → `spdctr == speed` → TICK. Same alternation, same phase.
+2. **PLAY-SKIP.** family-3's play opens `LDA $1842 / BEQ / DEC $1842` and its
+   canon init ends `LDA #$02 / STA $1842`, so its first two play() calls do
+   nothing. **family-4's play ($1095) has no such counter** — it goes straight
+   into the toggle. The composer emitted family-3's skip regardless, putting
+   two silent frames in front of every family-4 rebuild. THAT is why seeding
+   alone produced 0 recoveries in July.
+
+⚠ THE SKIP IS INVISIBLE TO THE VERDICT. An empty play() contributes nothing to
+the concatenated write stream, so the flat compare cannot see two blank frames
+at the front — the tune simply ran 40 ms late. Independently confirmed by
+`tools/oracle_fault_injection.py`: `leading_blank_frames` is one of exactly
+three mutations the oracle does not catch. So this half fixes a real defect
+that no gate would ever have reported, and it does NOT show up in the FULL
+counts (the phase seed is what moves those).
+
+**MEASURED** on a 140-member stratified subset (70 lead-in cluster / 25 other
+partials / 45 currently-FULL for regression cover), family-4 first-divergence
+depth:
+
+| bucket | before | after |
+|---|---:|---:|
+| 1-63 (the lead-in) | 58 | **13** |
+| 64-999 | 3 | 22 |
+| 1k-10k | 4 | 16 |
+| 10k+ | 7 | 21 |
+
+deeper 49 · shallower 0 · **regressed 0** · reached FULL 0.
+
+**HONEST READING: this unblocks the class, it does not close it.** The
+divergence moves to the next family-4 bug. Counting full/partial reports the
+whole round as "0 gained" — use the DEPTH HISTOGRAM for an unblocking lever
+(`tmp/v5_depth_measure.py`). Spot-check: `Eco/Different` partial → **FULL**
+(274,678/274,678); Katusha (family-3) byte-unchanged.
+
+**SCOPE — why this matters more than it looks.** family-4 is **~37% of
+buildable v5 members (~750 of 2,151)**, and a 40-member sample of
+currently-FULL members contained **ZERO** family-4. This branch had never
+produced a single FULL. The canon family-3/5 player is already ~89% FULL of
+buildable members, so **family-4 IS the v5 residue** and "the v5 grind" is
+really "make family-4 work".
+
+**NEXT TWO FIRST-DIVERGENCES** (both now the leading edge, not the lead-in):
+- `MHD/Street_Fighter` flat position 4 — `$D403` (V1 PW hi), orig `$08` vs our
+  `$00`, on the IDLE frame. Another uncleared leftover the idle MAIN sonifies;
+  find its address the way `$1016` was found (init clears `$17DF..$1857`, so
+  look below it).
+- `Ganja/Silicon_Dreams` 60,500 / 170,697 — deep, a different class.
+- 13 family-4 members remain in the 1-63 bucket: a residual lead-in sub-class.
+
 ## 📋 SESSION 2026-07-01 — 3 unblock/verdict fixes + partial triage (committed)
 Baseline (tmp/dmc_family4_full2.jsonl): 26 full / 336 partial / 156 unsupported
 / 168 error. Attacked in residue-triage dependency order (verdict → unblock →

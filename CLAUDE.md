@@ -250,6 +250,29 @@ HVSC original at `hvsc85/MUSICIANS/H/Hubbard_Rob/<Engine>.{usf, sidfinity.sid}`.
     it against the PREVIOUS batch as part of EVERY family-batch closeout; a
     regression is a SIGNAL (an exposure set some fix's census missed), never
     fold it into the partial queue undifferentiated.
+  - `tools/derive_deps.py` — **MEASURE each engine's real build+verify
+    dependency set** instead of hand-declaring it, into `tools/engine_deps.json`
+    (`sys.modules` snapshot after real work, per (engine, CONSUMER), UNIONED
+    over a build-path-stratified sample). `src/code_fingerprint` prefers it over
+    the declared `DEPS`. Re-run when a build path is added or a consumer grows
+    an import a sampled member doesn't exercise. Ledger C20 ninth layer.
+  - `tools/migrate_verdict_rows.py [--dry-run]` — carry verdict rows across a
+    KEY-DEFINITION change (new input folded in, EPOCH bump) **or refuse**. Per
+    family: did any file in the NEW closure change by CONTENT since the rows
+    were stamped (`git diff <commit-at-stamp>`, never mtime)? Restamps with
+    provenance, or names the changed files and tells you to re-batch.
+  - `tools/oracle_fault_injection.py [--sid REL]` — **what the write-stream
+    verdict CANNOT see.** Applies single mutations to a real capture and reports
+    the kill rate. Measured 8/12 (67%): exact on CONTENT, deliberately blind to
+    within-frame cycle position (Trap B, by design), to a write swapped ACROSS a
+    frame boundary (the price of Trap-C robustness), to LEADING BLANK FRAMES,
+    and to losing ≤128 trailing writes. Run it before trusting a FULL on a
+    member whose suspected bug is one of those shapes.
+  - `tools/dmc_v5_build_one.py <member> [--verify] [--localize]` — the v5
+    per-member tool (v4's `dmc_build_one` equivalent). Prints the dispatch facts
+    FIRST (base / family-4-vs-canon / CIA latch), because family-4 is a
+    DIFFERENT PLAYER and a canon-offset assumption against it returns a
+    confidently wrong answer. `--localize` uses the PER-play() capture.
   - `tools/divergence_census.py --engine ENGINE --results BATCH.jsonl [--partials]` — RESIDUE TRIAGE for a wide family: census a batch-results jsonl by status+reason, then CLUSTER either the detect-rejects (live first-divergence site, default) or the verify PARTIALS (`--partials`, by first writelog `(reg,role)` divergence). Turns N opaque failures into ranked root-cause buckets with representatives. Automates "stratify by first-diff bucket". Wired: dmc_v5 (one `ENGINES` entry per family). See [`reference_divergence_census`](.claude/memory/reference_divergence_census.md). Key lesson it proved: **detection ≠ FULL** — the partials, not the detect-rejects, are the FULL bottleneck.
   - `tools/dmc_canon_diff.py [--members family1|FILE] [--status JSONL] [--csv]` — A-PRIORI WEDGE ENUMERATOR (canon-player families): linear-align every member's reachable player code to the canonical player binary (`pipelines/dmc/docs/dmc4_player_embedded_1000.bin`), diff OPCODES + in-player OPERAND-REPOINTS (packer operands point below $1000, so wedge repoints into $1000-$17FF separate cleanly), Δ-mode-filter bulk state/table relocations, cluster by canon site, tag handled-vs-NEW, and split each cluster into partial/full carriers (`--status BATCH.jsonl`). The PROACTIVE complement to the reactive `_*_probe` detectors — enumerates the whole code-patch wedge space in ONE pass + audits the probes' true carrier counts. Proved DMC family-1's wedges are essentially fully handled: of 188 partials, 78% carry NO code wedge (= off-table/CIA hard residue), 17% a handled wedge, only **9 (4%) a genuine unhandled patch — all singletons** (no multi-carrier lever). LIMIT: misses immediate-value tweaks (hr_preset/cymbal) + re-assembled members (linear-align only). See [`reference_dmc_canon_diff`](.claude/memory/reference_dmc_canon_diff.md).
 - **py65 misses dispatch bugs** (CIA timer, PSID speed). Ear-test new engines and any dispatch changes in real sidplayfp before declaring done. Prefer `siddump --memwatch` for state inspection — it uses libsidplayfp = ground truth.

@@ -5,8 +5,37 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-22T16:31:35.754Z
+  modified: 2026-08-22T21:11:40.989Z
 ---
+
+## 🔎 DMC v5 GRIND OPENED (2026-08-22 night): the residue is ONE PLAYER VARIANT
+
+**The v5 grind is "make family-4 work".** Measured, not assumed:
+`family4` (the Jupiter41 branch, play +$95) is **~37% of buildable v5
+members (~750 of 2,151)**, and a 40-member sample of currently-FULL members
+contained **ZERO** family-4 — that branch had never produced a single FULL.
+The canon family-3/5 player is already ~89% FULL of buildable members. So
+family-4 is essentially the entire v5 residue.
+
+The planned "top lever" (a 352-member position-0 cluster read as a
+folded-in lead-in) was a MIS-DIAGNOSIS in two ways: the flat verdict
+structurally cannot see a folded-in lead-in (an empty play() adds nothing to
+the concatenated stream — confirmed by fault injection), and the cluster is
+80% family-4 rather than a family-wide phase bug.
+
+LANDED (27b4530f): family-4's `DEC $1016 / BMI` 2-phase startup seeded from
+the `$1016` file-image leftover, plus dropping family-3's `playskip = 2`
+(family-4's play has no such counter, so every family-4 rebuild opened with
+two silent frames — a real defect no gate can see). The 2026-07-01
+family-4 round had the mechanism and failed only for the missing second
+half. Depth on a 140-member stratified subset: the 1-63 bucket 58 → 13,
+deeper 49 / shallower 0 / **regressed 0**, 0 reached FULL — it UNBLOCKS the
+class rather than closing it. Detail + the next two first-divergences:
+`pipelines/dmc/family4/RE_NOTES.md` (2026-08-22 section).
+
+⚠ METHOD NOTE worth carrying: for an unblocking lever, full/partial counts
+report "0 gained" and hide the entire effect. Score it with the
+first-divergence DEPTH HISTOGRAM (`tmp/v5_depth_measure.py`).
 
 ## ✅ DMC v4 CLOSEOUT COMPLETE (2026-08-22): f1 + f2 verified, stored, audited, guarded
 FINAL STATE — f1 5,445/5,445 FULL and f2 2,924/2,924 FULL; every member
