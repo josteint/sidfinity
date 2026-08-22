@@ -1,0 +1,698 @@
+{
+ "_meta": {
+  "basic_program": {
+   "consumer": "basic_program_batch",
+   "per_member": {
+    "DEMOS/A-F/American_Flag_BASIC.sid": {
+     "n": 42,
+     "status": "FULL"
+    },
+    "DEMOS/UNKNOWN/Blue_Grass_Music_BASIC.sid": {
+     "n": 42,
+     "status": "FULL"
+    },
+    "DEMOS/UNKNOWN/Oh_Mama_Vib_BASIC.sid": {
+     "n": 42,
+     "status": "FULL"
+    },
+    "DEMOS/UNKNOWN/Tune_2_BASIC.sid": {
+     "n": 42,
+     "status": "FULL"
+    },
+    "DEMOS/UNKNOWN/Twinkle_BASIC.sid": {
+     "n": 42,
+     "status": "FULL"
+    },
+    "GAMES/M-R/Nightwalker_BASIC.sid": {
+     "n": 42,
+     "status": "FULL"
+    },
+    "GAMES/S-Z/Town-Rescue_BASIC.sid": {
+     "n": 42,
+     "status": "FULL"
+    },
+    "MUSICIANS/B/Bond_Alan/Tribal_BASIC.sid": {
+     "n": 41,
+     "status": "build_fail"
+    }
+   },
+   "reached_verdict": 7,
+   "sampled": [
+    "DEMOS/UNKNOWN/Blue_Grass_Music_BASIC.sid",
+    "DEMOS/UNKNOWN/Oh_Mama_Vib_BASIC.sid",
+    "DEMOS/UNKNOWN/Twinkle_BASIC.sid",
+    "DEMOS/UNKNOWN/Tune_2_BASIC.sid",
+    "DEMOS/A-F/American_Flag_BASIC.sid",
+    "GAMES/S-Z/Town-Rescue_BASIC.sid",
+    "MUSICIANS/B/Bond_Alan/Tribal_BASIC.sid",
+    "GAMES/M-R/Nightwalker_BASIC.sid"
+   ]
+  },
+  "dmc_v4": {
+   "consumer": "dmc_family_batch",
+   "per_member": {
+    "MUSICIANS/A/Aomeba/Shartnado.sid": {
+     "n": 56,
+     "status": "full"
+    },
+    "MUSICIANS/A/Ass_It/Jodel_2.sid": {
+     "n": 56,
+     "status": "full"
+    },
+    "MUSICIANS/B/Bakewell_Dwayne/Terminator.sid": {
+     "n": 56,
+     "status": "full"
+    },
+    "MUSICIANS/B/Bayliss_Richard/Freespace_2075.sid": {
+     "n": 68,
+     "status": "full"
+    },
+    "MUSICIANS/B/Bayliss_Richard/Heavy_Metal_Solid_preview.sid": {
+     "n": 58,
+     "status": "full"
+    },
+    "MUSICIANS/B/Bayliss_Richard/Launchpad.sid": {
+     "n": 58,
+     "status": "full"
+    },
+    "MUSICIANS/B/Bayliss_Richard/Super_Tau-Zeta.sid": {
+     "n": 76,
+     "status": "full"
+    },
+    "MUSICIANS/B/Benji/Castle.sid": {
+     "n": 57,
+     "status": "full"
+    },
+    "MUSICIANS/C/Cleve/Tropical_Bez.sid": {
+     "n": 56,
+     "status": "full"
+    },
+    "MUSICIANS/G/Gregfeel/Dont_Let_Me_Go.sid": {
+     "n": 56,
+     "status": "full"
+    },
+    "MUSICIANS/M/Moog/Techno-Rap.sid": {
+     "n": 57,
+     "status": "full"
+    },
+    "MUSICIANS/P/Praiser/Mega_Mix.sid": {
+     "n": 56,
+     "status": "full"
+    },
+    "MUSICIANS/R/Rayden/Mc_Dieter_2SID.sid": {
+     "n": 57,
+     "status": "full"
+    },
+    "MUSICIANS/R/Rayden/Physician_Remake_2SID.sid": {
+     "n": 57,
+     "status": "full"
+    },
+    "MUSICIANS/T/The_Syndrom/Black_It.sid": {
+     "n": 75,
+     "status": "full"
+    },
+    "MUSICIANS/T/Tips/Newcomer.sid": {
+     "n": 56,
+     "status": "full"
+    },
+    "MUSICIANS/Y/Yoko/Reaction_tune_2.sid": {
+     "n": 56,
+     "status": "full"
+    }
+   },
+   "reached_verdict": 17,
+   "sampled": [
+    "MUSICIANS/B/Benji/Castle.sid",
+    "MUSICIANS/B/Bayliss_Richard/Heavy_Metal_Solid_preview.sid",
+    "MUSICIANS/B/Bayliss_Richard/Freespace_2075.sid",
+    "MUSICIANS/B/Bayliss_Richard/Super_Tau-Zeta.sid",
+    "MUSICIANS/T/The_Syndrom/Black_It.sid",
+    "MUSICIANS/P/Praiser/Mega_Mix.sid",
+    "MUSICIANS/M/Moog/Techno-Rap.sid",
+    "MUSICIANS/R/Rayden/Physician_Remake_2SID.sid",
+    "MUSICIANS/R/Rayden/Mc_Dieter_2SID.sid",
+    "MUSICIANS/C/Cleve/Tropical_Bez.sid",
+    "MUSICIANS/T/Tips/Newcomer.sid",
+    "MUSICIANS/Y/Yoko/Reaction_tune_2.sid",
+    "MUSICIANS/A/Aomeba/Shartnado.sid",
+    "MUSICIANS/A/Ass_It/Jodel_2.sid",
+    "MUSICIANS/B/Bakewell_Dwayne/Terminator.sid",
+    "MUSICIANS/B/Bayliss_Richard/Launchpad.sid",
+    "MUSICIANS/G/Gregfeel/Dont_Let_Me_Go.sid"
+   ]
+  },
+  "dmc_v5": {
+   "consumer": "dmc_v5_family_batch",
+   "per_member": {
+    "DEMOS/A-F/Brillant_Tune.sid": {
+     "n": 61,
+     "status": "full"
+    },
+    "MUSICIANS/B/Bizet/Hyper_Speed.sid": {
+     "n": 61,
+     "status": "full"
+    },
+    "MUSICIANS/D/Deetsay/Oravahaennaetoen.sid": {
+     "n": 61,
+     "status": "full"
+    },
+    "MUSICIANS/D/Digger/New_Tendency.sid": {
+     "n": 61,
+     "status": "full"
+    },
+    "MUSICIANS/D/Digger/Slow_Metal.sid": {
+     "n": 61,
+     "status": "full"
+    },
+    "MUSICIANS/P/Praiser/Homesick.sid": {
+     "n": 56,
+     "status": "unsupported"
+    },
+    "MUSICIANS/T/The_Magical_Garfield/TMG_30.sid": {
+     "n": 61,
+     "status": "full"
+    },
+    "MUSICIANS/T/The_Syndrom/Trip_Le_Music.sid": {
+     "n": 61,
+     "status": "partial"
+    }
+   },
+   "reached_verdict": 7,
+   "sampled": [
+    "MUSICIANS/T/The_Magical_Garfield/TMG_30.sid",
+    "MUSICIANS/B/Bizet/Hyper_Speed.sid",
+    "MUSICIANS/D/Deetsay/Oravahaennaetoen.sid",
+    "MUSICIANS/T/The_Syndrom/Trip_Le_Music.sid",
+    "MUSICIANS/D/Digger/Slow_Metal.sid",
+    "MUSICIANS/D/Digger/New_Tendency.sid",
+    "DEMOS/A-F/Brillant_Tune.sid",
+    "MUSICIANS/P/Praiser/Homesick.sid"
+   ]
+  },
+  "fc_standard": {
+   "consumer": "fc_family_batch",
+   "per_member": {
+    "DEMOS/A-F/Compomusic.sid": {
+     "n": 55,
+     "status": "full"
+    },
+    "MUSICIANS/B/Beat_Machine/Xayne/Escape.sid": {
+     "n": 55,
+     "status": "full"
+    },
+    "MUSICIANS/D/Digiblaster/Probeer.sid": {
+     "n": 48,
+     "status": "full"
+    },
+    "MUSICIANS/E/ELA/SkrotLeif.sid": {
+     "n": 55,
+     "status": "full"
+    },
+    "MUSICIANS/E/Emotional_Mozes/Berliner_Luft.sid": {
+     "n": 48,
+     "status": "full"
+    },
+    "MUSICIANS/N/NecroPolo/Out_of_Noises.sid": {
+     "n": 55,
+     "status": "full"
+    },
+    "MUSICIANS/S/SFR/Worktunes/080.sid": {
+     "n": 55,
+     "status": "full"
+    },
+    "MUSICIANS/T/TLF/Mag_Music.sid": {
+     "n": 55,
+     "status": "full"
+    }
+   },
+   "reached_verdict": 8,
+   "sampled": [
+    "MUSICIANS/T/TLF/Mag_Music.sid",
+    "MUSICIANS/B/Beat_Machine/Xayne/Escape.sid",
+    "MUSICIANS/D/Digiblaster/Probeer.sid",
+    "MUSICIANS/E/Emotional_Mozes/Berliner_Luft.sid",
+    "MUSICIANS/E/ELA/SkrotLeif.sid",
+    "DEMOS/A-F/Compomusic.sid",
+    "MUSICIANS/N/NecroPolo/Out_of_Noises.sid",
+    "MUSICIANS/S/SFR/Worktunes/080.sid"
+   ]
+  },
+  "goattracker_v1": {
+   "consumer": "goattracker_v1_family_batch",
+   "per_member": {
+    "DEMOS/0-9/1394.sid": {
+     "n": 43,
+     "status": "detect_fail"
+    },
+    "MUSICIANS/D/Dexter/As_Usual.sid": {
+     "n": 43,
+     "status": "partial"
+    },
+    "MUSICIANS/D/Dexter/John_Holmes.sid": {
+     "n": 43,
+     "status": "partial"
+    },
+    "MUSICIANS/E/Et1999cc/Just_to_Funk.sid": {
+     "n": 43,
+     "status": "full"
+    },
+    "MUSICIANS/H/Holt_Hein/LunaTikTak.sid": {
+     "n": 43,
+     "status": "full"
+    },
+    "MUSICIANS/H/Holt_Hein/Rock_Sid_long_version_8580.sid": {
+     "n": 43,
+     "status": "partial"
+    },
+    "MUSICIANS/R/Rusty46/Alive.sid": {
+     "n": 43,
+     "status": "full"
+    },
+    "MUSICIANS/S/Sack/Echoes.sid": {
+     "n": 43,
+     "status": "partial"
+    }
+   },
+   "reached_verdict": 7,
+   "sampled": [
+    "MUSICIANS/R/Rusty46/Alive.sid",
+    "MUSICIANS/H/Holt_Hein/LunaTikTak.sid",
+    "MUSICIANS/D/Dexter/John_Holmes.sid",
+    "MUSICIANS/S/Sack/Echoes.sid",
+    "MUSICIANS/D/Dexter/As_Usual.sid",
+    "MUSICIANS/E/Et1999cc/Just_to_Funk.sid",
+    "DEMOS/0-9/1394.sid",
+    "MUSICIANS/H/Holt_Hein/Rock_Sid_long_version_8580.sid"
+   ]
+  },
+  "music_assembler": {
+   "consumer": "masm_family_batch",
+   "per_member": {
+    "MUSICIANS/A/Avalon/Impressions.sid": {
+     "n": 59,
+     "status": "full"
+    },
+    "MUSICIANS/C/Chaos/Svejk_92_part_1.sid": {
+     "n": 59,
+     "status": "full"
+    },
+    "MUSICIANS/C/Chock/Must_Go.sid": {
+     "n": 59,
+     "status": "partial"
+    },
+    "MUSICIANS/C/Chotaire/Massacre_30.sid": {
+     "n": 59,
+     "status": "full"
+    },
+    "MUSICIANS/M/Merman/Hello_Goodbye.sid": {
+     "n": 59,
+     "status": "full"
+    },
+    "MUSICIANS/R/Roebuck_Kristopher/White_Mage.sid": {
+     "n": 59,
+     "status": "full"
+    },
+    "MUSICIANS/W/Waz/End_of_Level_2.sid": {
+     "n": 59,
+     "status": "full"
+    },
+    "MUSICIANS/Z/Zeus_Anzac/Full_Game_Music_for_Mason.sid": {
+     "n": 59,
+     "status": "full"
+    }
+   },
+   "reached_verdict": 8,
+   "sampled": [
+    "MUSICIANS/M/Merman/Hello_Goodbye.sid",
+    "MUSICIANS/A/Avalon/Impressions.sid",
+    "MUSICIANS/C/Chotaire/Massacre_30.sid",
+    "MUSICIANS/R/Roebuck_Kristopher/White_Mage.sid",
+    "MUSICIANS/Z/Zeus_Anzac/Full_Game_Music_for_Mason.sid",
+    "MUSICIANS/W/Waz/End_of_Level_2.sid",
+    "MUSICIANS/C/Chock/Must_Go.sid",
+    "MUSICIANS/C/Chaos/Svejk_92_part_1.sid"
+   ]
+  }
+ },
+ "basic_program": {
+  "basic_program_batch": [
+   ".pylocal/lib/python3.12/site-packages/lark/__init__.py",
+   ".pylocal/lib/python3.12/site-packages/lark/common.py",
+   ".pylocal/lib/python3.12/site-packages/lark/exceptions.py",
+   ".pylocal/lib/python3.12/site-packages/lark/grammar.py",
+   ".pylocal/lib/python3.12/site-packages/lark/lark.py",
+   ".pylocal/lib/python3.12/site-packages/lark/lexer.py",
+   ".pylocal/lib/python3.12/site-packages/lark/load_grammar.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parse_tree_builder.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parser_frontends.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/__init__.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/cyk.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley_common.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley_forest.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/grammar_analysis.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_analysis.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_interactive_parser.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_parser.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_parser_state.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/xearley.py",
+   ".pylocal/lib/python3.12/site-packages/lark/tree.py",
+   ".pylocal/lib/python3.12/site-packages/lark/utils.py",
+   ".pylocal/lib/python3.12/site-packages/lark/visitors.py",
+   "pipelines/__init__.py",
+   "pipelines/basic_program/family_batch.py",
+   "pipelines/basic_program/normal_form.py",
+   "pipelines/basic_program/proof_multivoice.py",
+   "pipelines/basic_program/proof_twinkle.py",
+   "pipelines/basic_program/semantic_lift.py",
+   "pipelines/basic_program/usf_roundtrip.py",
+   "pipelines/hubbard/__init__.py",
+   "pipelines/hubbard/verify_cycle.py",
+   "src/code_fingerprint.py",
+   "src/composer_runtime/__init__.py",
+   "src/composer_runtime/psid.py",
+   "src/composer_runtime/xa65.py",
+   "src/jobs.py",
+   "src/usf/__init__.py",
+   "src/usf/parser.py",
+   "src/usf/types.py",
+   "src/usf/validate.py",
+   "src/usf/writer.py"
+  ]
+ },
+ "dmc_v4": {
+  "dmc_family_batch": [
+   ".pylocal/lib/python3.12/site-packages/lark/__init__.py",
+   ".pylocal/lib/python3.12/site-packages/lark/common.py",
+   ".pylocal/lib/python3.12/site-packages/lark/exceptions.py",
+   ".pylocal/lib/python3.12/site-packages/lark/grammar.py",
+   ".pylocal/lib/python3.12/site-packages/lark/lark.py",
+   ".pylocal/lib/python3.12/site-packages/lark/lexer.py",
+   ".pylocal/lib/python3.12/site-packages/lark/load_grammar.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parse_tree_builder.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parser_frontends.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/__init__.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/cyk.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley_common.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley_forest.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/grammar_analysis.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_analysis.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_interactive_parser.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_parser.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_parser_state.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/xearley.py",
+   ".pylocal/lib/python3.12/site-packages/lark/tree.py",
+   ".pylocal/lib/python3.12/site-packages/lark/utils.py",
+   ".pylocal/lib/python3.12/site-packages/lark/visitors.py",
+   "pipelines/__init__.py",
+   "pipelines/dmc/composer_asm.py",
+   "pipelines/dmc/engine_constants.py",
+   "pipelines/dmc/v4/compilation.py",
+   "pipelines/dmc/v4/config.py",
+   "pipelines/dmc/v4/dataflow.py",
+   "pipelines/dmc/v4/extract/engine_model.py",
+   "pipelines/dmc/v4/extract/to_usf.py",
+   "pipelines/dmc/v4/factory.py",
+   "pipelines/dmc/v4/sfx_engine.py",
+   "pipelines/dmc/v5/composer_v5.py",
+   "pipelines/dmc/v5/config.py",
+   "pipelines/dmc/v5/extract/__init__.py",
+   "pipelines/dmc/v5/extract/engine_model.py",
+   "pipelines/dmc/v5/extract/to_usf.py",
+   "pipelines/dmc/v5/factory.py",
+   "pipelines/dmc/v5/from_usf.py",
+   "pipelines/hubbard/__init__.py",
+   "pipelines/hubbard/verify_cycle.py",
+   "pipelines/music_assembler/__init__.py",
+   "pipelines/music_assembler/composer_asm.py",
+   "pipelines/music_assembler/extract/__init__.py",
+   "pipelines/music_assembler/extract/arps.py",
+   "pipelines/music_assembler/extract/decode.py",
+   "pipelines/music_assembler/extract/model.py",
+   "pipelines/music_assembler/extract/presets.py",
+   "pipelines/music_assembler/extract/to_usf.py",
+   "pipelines/music_assembler/from_usf.py",
+   "pipelines/music_assembler/heterogeneous.py",
+   "pipelines/music_assembler/locate.py",
+   "src/code_fingerprint.py",
+   "src/code_flow.py",
+   "src/composer_runtime/__init__.py",
+   "src/composer_runtime/psid.py",
+   "src/composer_runtime/xa65.py",
+   "src/jobs.py",
+   "src/songlengths.py",
+   "src/usf/__init__.py",
+   "src/usf/parser.py",
+   "src/usf/resolve.py",
+   "src/usf/types.py",
+   "src/usf/validate.py",
+   "src/usf/writer.py",
+   "tools/dmc_family_batch.py",
+   "tools/py65_lib/py65/__init__.py",
+   "tools/py65_lib/py65/devices/__init__.py",
+   "tools/py65_lib/py65/devices/mpu6502.py",
+   "tools/py65_lib/py65/disassembler.py",
+   "tools/py65_lib/py65/memory.py",
+   "tools/py65_lib/py65/utils/__init__.py",
+   "tools/py65_lib/py65/utils/addressing.py",
+   "tools/py65_lib/py65/utils/conversions.py",
+   "tools/py65_lib/py65/utils/devices.py",
+   "tools/seed_disassembly.py"
+  ]
+ },
+ "dmc_v5": {
+  "dmc_v5_family_batch": [
+   ".pylocal/lib/python3.12/site-packages/lark/__init__.py",
+   ".pylocal/lib/python3.12/site-packages/lark/common.py",
+   ".pylocal/lib/python3.12/site-packages/lark/exceptions.py",
+   ".pylocal/lib/python3.12/site-packages/lark/grammar.py",
+   ".pylocal/lib/python3.12/site-packages/lark/lark.py",
+   ".pylocal/lib/python3.12/site-packages/lark/lexer.py",
+   ".pylocal/lib/python3.12/site-packages/lark/load_grammar.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parse_tree_builder.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parser_frontends.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/__init__.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/cyk.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley_common.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley_forest.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/grammar_analysis.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_analysis.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_interactive_parser.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_parser.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_parser_state.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/xearley.py",
+   ".pylocal/lib/python3.12/site-packages/lark/tree.py",
+   ".pylocal/lib/python3.12/site-packages/lark/utils.py",
+   ".pylocal/lib/python3.12/site-packages/lark/visitors.py",
+   "pipelines/__init__.py",
+   "pipelines/dmc/composer_asm.py",
+   "pipelines/dmc/engine_constants.py",
+   "pipelines/dmc/v4/config.py",
+   "pipelines/dmc/v4/extract/engine_model.py",
+   "pipelines/dmc/v5/composer_v5.py",
+   "pipelines/dmc/v5/config.py",
+   "pipelines/dmc/v5/extract/__init__.py",
+   "pipelines/dmc/v5/extract/engine_model.py",
+   "pipelines/dmc/v5/extract/to_usf.py",
+   "pipelines/dmc/v5/factory.py",
+   "pipelines/dmc/v5/from_usf.py",
+   "pipelines/dmc/v5/verify_v5.py",
+   "pipelines/hubbard/__init__.py",
+   "pipelines/hubbard/verify_cycle.py",
+   "src/code_fingerprint.py",
+   "src/code_flow.py",
+   "src/composer_runtime/__init__.py",
+   "src/composer_runtime/psid.py",
+   "src/composer_runtime/xa65.py",
+   "src/jobs.py",
+   "src/songlengths.py",
+   "src/usf/__init__.py",
+   "src/usf/parser.py",
+   "src/usf/resolve.py",
+   "src/usf/types.py",
+   "src/usf/validate.py",
+   "src/usf/writer.py",
+   "tools/dmc_v5_family_batch.py",
+   "tools/py65_lib/py65/__init__.py",
+   "tools/py65_lib/py65/devices/__init__.py",
+   "tools/py65_lib/py65/devices/mpu6502.py",
+   "tools/py65_lib/py65/disassembler.py",
+   "tools/py65_lib/py65/utils/__init__.py",
+   "tools/py65_lib/py65/utils/addressing.py",
+   "tools/py65_lib/py65/utils/conversions.py",
+   "tools/py65_lib/py65/utils/devices.py",
+   "tools/seed_disassembly.py"
+  ]
+ },
+ "fc_standard": {
+  "fc_family_batch": [
+   ".pylocal/lib/python3.12/site-packages/lark/__init__.py",
+   ".pylocal/lib/python3.12/site-packages/lark/common.py",
+   ".pylocal/lib/python3.12/site-packages/lark/exceptions.py",
+   ".pylocal/lib/python3.12/site-packages/lark/grammar.py",
+   ".pylocal/lib/python3.12/site-packages/lark/lark.py",
+   ".pylocal/lib/python3.12/site-packages/lark/lexer.py",
+   ".pylocal/lib/python3.12/site-packages/lark/load_grammar.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parse_tree_builder.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parser_frontends.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/__init__.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/cyk.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley_common.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley_forest.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/grammar_analysis.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_analysis.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_interactive_parser.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_parser.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_parser_state.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/xearley.py",
+   ".pylocal/lib/python3.12/site-packages/lark/tree.py",
+   ".pylocal/lib/python3.12/site-packages/lark/utils.py",
+   ".pylocal/lib/python3.12/site-packages/lark/visitors.py",
+   "pipelines/__init__.py",
+   "pipelines/future_composer/__init__.py",
+   "pipelines/future_composer/composer.py",
+   "pipelines/future_composer/composer_asm.py",
+   "pipelines/future_composer/config.py",
+   "pipelines/future_composer/data_emit.py",
+   "pipelines/future_composer/engine_model.py",
+   "pipelines/future_composer/standard/__init__.py",
+   "pipelines/future_composer/standard/config.py",
+   "pipelines/future_composer/to_usf.py",
+   "pipelines/future_composer/verify.py",
+   "pipelines/hubbard/__init__.py",
+   "pipelines/hubbard/verify_cycle.py",
+   "src/code_fingerprint.py",
+   "src/composer_runtime/__init__.py",
+   "src/composer_runtime/psid.py",
+   "src/composer_runtime/xa65.py",
+   "src/jobs.py",
+   "src/usf/__init__.py",
+   "src/usf/parser.py",
+   "src/usf/resolve.py",
+   "src/usf/types.py",
+   "src/usf/validate.py",
+   "src/usf/writer.py",
+   "tools/fc_family_batch.py",
+   "tools/py65_lib/py65/__init__.py",
+   "tools/py65_lib/py65/devices/__init__.py",
+   "tools/py65_lib/py65/devices/mpu6502.py",
+   "tools/py65_lib/py65/memory.py",
+   "tools/py65_lib/py65/utils/__init__.py",
+   "tools/py65_lib/py65/utils/conversions.py",
+   "tools/py65_lib/py65/utils/devices.py"
+  ]
+ },
+ "goattracker_v1": {
+  "goattracker_v1_family_batch": [
+   ".pylocal/lib/python3.12/site-packages/lark/__init__.py",
+   ".pylocal/lib/python3.12/site-packages/lark/common.py",
+   ".pylocal/lib/python3.12/site-packages/lark/exceptions.py",
+   ".pylocal/lib/python3.12/site-packages/lark/grammar.py",
+   ".pylocal/lib/python3.12/site-packages/lark/lark.py",
+   ".pylocal/lib/python3.12/site-packages/lark/lexer.py",
+   ".pylocal/lib/python3.12/site-packages/lark/load_grammar.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parse_tree_builder.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parser_frontends.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/__init__.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/cyk.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley_common.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley_forest.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/grammar_analysis.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_analysis.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_interactive_parser.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_parser.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_parser_state.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/xearley.py",
+   ".pylocal/lib/python3.12/site-packages/lark/tree.py",
+   ".pylocal/lib/python3.12/site-packages/lark/utils.py",
+   ".pylocal/lib/python3.12/site-packages/lark/visitors.py",
+   "pipelines/__init__.py",
+   "pipelines/goattracker/__init__.py",
+   "pipelines/goattracker/v1/__init__.py",
+   "pipelines/goattracker/v1/composer.py",
+   "pipelines/goattracker/v1/extract/__init__.py",
+   "pipelines/goattracker/v1/extract/engine_model.py",
+   "pipelines/goattracker/v1/extract/to_usf.py",
+   "pipelines/goattracker/v1/family_batch.py",
+   "pipelines/hubbard/__init__.py",
+   "pipelines/hubbard/verify_cycle.py",
+   "src/code_fingerprint.py",
+   "src/composer_runtime/__init__.py",
+   "src/composer_runtime/psid.py",
+   "src/composer_runtime/xa65.py",
+   "src/jobs.py",
+   "src/usf/__init__.py",
+   "src/usf/parser.py",
+   "src/usf/types.py",
+   "src/usf/validate.py",
+   "src/usf/writer.py"
+  ]
+ },
+ "music_assembler": {
+  "masm_family_batch": [
+   ".pylocal/lib/python3.12/site-packages/lark/__init__.py",
+   ".pylocal/lib/python3.12/site-packages/lark/common.py",
+   ".pylocal/lib/python3.12/site-packages/lark/exceptions.py",
+   ".pylocal/lib/python3.12/site-packages/lark/grammar.py",
+   ".pylocal/lib/python3.12/site-packages/lark/lark.py",
+   ".pylocal/lib/python3.12/site-packages/lark/lexer.py",
+   ".pylocal/lib/python3.12/site-packages/lark/load_grammar.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parse_tree_builder.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parser_frontends.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/__init__.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/cyk.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley_common.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/earley_forest.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/grammar_analysis.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_analysis.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_interactive_parser.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_parser.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/lalr_parser_state.py",
+   ".pylocal/lib/python3.12/site-packages/lark/parsers/xearley.py",
+   ".pylocal/lib/python3.12/site-packages/lark/tree.py",
+   ".pylocal/lib/python3.12/site-packages/lark/utils.py",
+   ".pylocal/lib/python3.12/site-packages/lark/visitors.py",
+   "pipelines/__init__.py",
+   "pipelines/hubbard/__init__.py",
+   "pipelines/hubbard/verify_cycle.py",
+   "pipelines/music_assembler/__init__.py",
+   "pipelines/music_assembler/composer_asm.py",
+   "pipelines/music_assembler/extract/__init__.py",
+   "pipelines/music_assembler/extract/arps.py",
+   "pipelines/music_assembler/extract/decode.py",
+   "pipelines/music_assembler/extract/model.py",
+   "pipelines/music_assembler/extract/presets.py",
+   "pipelines/music_assembler/extract/to_usf.py",
+   "pipelines/music_assembler/from_usf.py",
+   "pipelines/music_assembler/locate.py",
+   "pipelines/music_assembler/verify.py",
+   "src/code_fingerprint.py",
+   "src/code_flow.py",
+   "src/composer_runtime/__init__.py",
+   "src/composer_runtime/psid.py",
+   "src/composer_runtime/xa65.py",
+   "src/jobs.py",
+   "src/songlengths.py",
+   "src/usf/__init__.py",
+   "src/usf/parser.py",
+   "src/usf/types.py",
+   "src/usf/validate.py",
+   "src/usf/writer.py",
+   "tools/masm_family_batch.py",
+   "tools/py65_lib/py65/__init__.py",
+   "tools/py65_lib/py65/devices/__init__.py",
+   "tools/py65_lib/py65/devices/mpu6502.py",
+   "tools/py65_lib/py65/disassembler.py",
+   "tools/py65_lib/py65/utils/__init__.py",
+   "tools/py65_lib/py65/utils/addressing.py",
+   "tools/py65_lib/py65/utils/conversions.py",
+   "tools/py65_lib/py65/utils/devices.py",
+   "tools/seed_disassembly.py"
+  ]
+ }
+}
