@@ -5,8 +5,27 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-22T07:20:52.463Z
+  modified: 2026-08-22T16:31:35.754Z
 ---
+
+## ✅ DMC v4 CLOSEOUT COMPLETE (2026-08-22): f1 + f2 verified, stored, audited, guarded
+FINAL STATE — f1 5,445/5,445 FULL and f2 2,924/2,924 FULL; every member
+stored (`.usf` + `.sidfinity.sid`); mass-write 0 err / 0 orphans on both;
+from-disk audits 11/11 (f2) and 10/10 (f1, stratified over ALL six build
+paths: compilation / hetero_masm / hetero_v5 / medley / multisid /
+single). The f1 FULL re-batch under current code came back 5,445/5,445
+with **0 regressions and 0 gains** vs the #85 baseline — the byte-identity
+censuses had predicted exactly that, now confirmed by measurement.
+Regression tier-1 guards 103 DMC members (64 f1 portfolio + 33 NEW f2
+portfolio + canaries), 0 regressed.
+⚠ f2's 2,924 rows read STALE-HASH again, and that is FINE — the only
+hashed change since its batch is `pipelines/dmc/verify.py` (the
+`verify_member` addition + the behaviour-preserving `_verify_rebuilt`
+factoring), and `tools/dmc_family_batch.py` does not import that module
+at all (it carries its own capture/compare). Conservative invalidation
+saying "unknown" + a cheap proof is the correct response; re-batching
+1.5 h to satisfy a hash is the waste the RTS literature warns about.
+Recorded here so the next session doesn't re-run it reflexively.
 
 ## ⚠ HARNESS BUG the portfolios exposed (2026-08-22): regression built EVERY DMC member as a single player
 The re-derived portfolios pulled in two COMPILATIONS (Defuzion_3,
