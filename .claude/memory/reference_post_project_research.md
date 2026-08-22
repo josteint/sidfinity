@@ -27,6 +27,17 @@ What it holds, so a future session knows whether it is worth opening:
   sonify banked-in KERNAL ROM, psiddrv's patched vectors, the power-on
   RAM stripe. Composition and machine state are not separable, and we
   have a measured list.
+- **What the Core Tenet COSTS historical work** (§5, added same day):
+  our record of engine variation is filtered to the AUDIBLE subset —
+  the phylogenetically LEAST informative one (neutral variants are the
+  good clock and our verdict cannot see them); Rule 1 erases the
+  homology/homoplasy distinction by design; cycle timing, CPU/raster
+  cost, memory footprint, code idiom and the editor-level encoding are
+  structurally unanswerable from our outputs. ⚠ C34 means the corpus is
+  audio-faithful BY PROOF but musically faithful only BY DILIGENCE.
+  Mitigation is curatorial not architectural: curate the JOIN (member ->
+  USF + config/params + wedge set + fingerprint + verdict) and declare
+  the editorial policy. Do NOT weaken the Core Tenet for research use.
 - **Honest limits** to state before any claim: coverage is DMC-shaped
   today (the largest families have no pipeline), HVSC credit metadata is
   inherited uncertainty, hacks have no provenance.

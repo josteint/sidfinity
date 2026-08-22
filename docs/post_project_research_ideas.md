@@ -138,7 +138,111 @@ Two mechanisms:
 
 ---
 
-## 5. Honest limits (state these before any claim)
+## 5. What the Core Tenet COSTS — and creates — for historical work
+
+Asked directly (2026-08-22): the Core Tenet abandons the original engine
+and synthesises our own, judged only by write-stream equality. What does
+that cost the research above, and what becomes hard *because of it*?
+
+The costs are systematic, not incidental, and they all follow from one
+fact: **our USF is a critical edition, not a facsimile.**
+
+**The irony at the centre.** Our verdict can only see deviations that
+change the write stream, so our record of engine variation is filtered to
+the AUDIBLE subset — which is the phylogenetically LEAST informative one.
+In stemmatics and in molecular phylogeny the valuable markers are the
+variants under no functional pressure (a scribe's inert quirk, a
+synonymous mutation): they propagate cleanly by copying, so they trace
+descent. Ours are the opposite: every wedge we record was, by
+construction, under selective pressure — and several we chased turned out
+to be dead code, which we only learned by chasing them. The wedge census
+of §2 is therefore a BIASED SAMPLE of deviations, and biased in the
+direction that hurts lineage work most.
+
+**Rule 1 erases the homology/homoplasy distinction by design.** "Three
+byte-different 6502 routines that all produce the same triangle LFO are
+ONE USF vibrato, not three." Correct for ML — you want the musical fact,
+not the byte accident. Destructive for history: it removes exactly the
+evidence that separates "these two authors' identical instruments are
+identical because one copied the other" (homology) from "both landed on
+the obvious setting" (homoplasy). USF normalises away the signal that
+indicates copying.
+
+**Structurally unanswerable from our outputs** (not fixable by trying
+harder — it follows from what we chose to preserve):
+
+- **Cycle-level timing within a frame.** Trap B makes intra-frame
+  position observation, not signal (digi excepted). Raster-time sharing,
+  hard-restart timing in cycles, 6581 write-timing tricks: not our layer.
+- **CPU cost / raster budget.** Our play routine's cycle profile is
+  nothing like the original's — proven the hard way in ledger C25, where
+  our body overran a CIA latch the original fitted inside. "How expensive
+  was this driver in a demo" is unanswerable from our artifacts.
+- **Memory footprint and packing efficiency.** The 5 Title Tunes unified
+  build is 38% the size of the compound one.
+- **Code idiom as authorship signature** — SMC habits, routine ordering,
+  register conventions. Destroyed by construction; we emit our own player.
+- **The editor-level encoding** — command bytes, table layouts, what the
+  musician actually saw and typed. C32's stated notation recovers
+  authored STRUCTURE where the walk needs it, but USF is deliberately
+  etic; it is not the editor's view.
+- **Inert bugs.** A real bug in the original player that never reaches
+  the chip is invisible to us.
+
+**A caveat for anyone reading our USF as a score.** Ledger C34: a
+mis-decoded packed-stream byte can re-emit to a byte-identical write
+stream, so a member verifies FULL forever while the USF carries WRONG
+musical content (a `tie` where the music rests). The oracle is blind to
+it by construction; those are found only by reading the engine's handler.
+So the corpus is **audio-faithful by proof, and musically faithful by
+diligence** — a real distinction for musicological use.
+
+**The editorial acts a historian would need declared:**
+
+- **Rule 1's collapse** — variant mechanisms merged into one musical form.
+- **The C19 33rd-occurrence rule** — a hack that changes a musical value
+  is deconstructed INTO content. The durrel-ramp driver became per-row
+  durations: the fact that it was a hack disappears into the music.
+- **The C29 environment capture** — when a piece sonifies KERNAL ROM or
+  the power-on RAM stripe, we capture those bytes AS musical content,
+  making the piece self-contained in our representation. A defensible
+  emendation (it is what lets the work play outside its original machine)
+  but it fixes an accident into the text.
+- **Selection bias** — the corpus is the members we can do FULL: biased
+  toward migrated engines and, within them, away from hard-residue
+  members. No statistical claim about "SID music" survives without it.
+
+**Where to look instead.** Nothing is lost to the world: HVSC keeps the
+originals, and the mechanism half is retained on our EXTRACTION side —
+fingerprints, canon-diff deviations, per-member configs and probed wedge
+knobs, batch verdicts. The right research artifact is therefore not the
+USF corpus alone but **the join**: member -> (USF, config/params, wedge
+set, code fingerprint, verdict). Music questions go left, mechanism
+questions go right. Curating that join is the single cheapest thing we
+could do for future research, and it needs no change to the pipeline.
+
+**What the Core Tenet CREATES, which is worth more than what it costs:**
+
+- **A canonical reference write-stream per member** — integer-exact,
+  model-independent, and a better MIR substrate than either the binary or
+  rendered audio (the register stream is the last exactly reproducible
+  point in the chain; every serious SID tool operates there). Nothing
+  like it exists publicly. This is §7's first item and it is
+  Core-Tenet-native.
+- **The residue catalogue.** Our list of what we CANNOT reproduce, and
+  why, is a systematic inventory of engine behaviours that are not
+  expressible as music — an empirical map of exactly where mechanism and
+  music come apart. That is a research finding, not a failure log.
+
+**Verdict: do not change the Core Tenet for any of this.** Preserving
+mechanism inside USF is precisely the Principle §7/§8 leak, and the ML
+goal is the project's reason to exist. The mitigation is curatorial, not
+architectural: keep the extraction-side record joinable, and declare the
+editorial policy above alongside any historical claim.
+
+---
+
+## 6. Honest limits (state these before any claim)
 
 - **Coverage is uneven.** DMC v4 is complete (8,369 members); the
   largest families have no pipeline at all (GoatTracker V2 ~7,800,
@@ -160,7 +264,7 @@ Two mechanisms:
 
 ---
 
-## 6. Borrowed vocabulary — terms that fit, and what they name here
+## 7. Borrowed vocabulary — terms that fit, and what they name here
 
 Useful for framing any future write-up, and for talking to historians
 and musicologists in their own words. Three of the project's own
@@ -253,7 +357,7 @@ criticism's word for surviving copies of a text), and C20's
 
 ---
 
-## 7. If this is ever picked up
+## 8. If this is ever picked up
 
 Rough order, cheapest first:
 
@@ -270,4 +374,4 @@ Rough order, cheapest first:
 4. **The C29 "not self-contained" list**, written up as a preservation
    note.
 5. Musical-lineage work — only once coverage spans several families,
-   for the reason in §5.
+   for the reason in §6.
