@@ -106,19 +106,33 @@ _REF = None         # full (init+play) reachable-instruction reference
 _PLAY_REF = None    # play-ONLY reachable reference (init excluded)
 
 
+_REF_BIN = os.path.join(os.path.dirname(__file__), '..', 'docs',
+                        'dmc5_player_embedded_1000.bin')
+
+
 def _build_ref(init_pc):
+    """Reachable-instruction reference, traced from the COMMITTED player image.
+
+    ⚠ This used to read `hvsc85/DEMOS/G-L/Katusha.sid` at runtime, which made
+    every v5 member's player-code validation depend on a file in the music
+    collection: an HVSC update that touched that one SID would silently move
+    the reference every member is dispatched against, and a missing hvsc85
+    tree would break detection outright. That is ledger C20's seventh layer
+    (the input changed under the stored artifact) sitting in the DISPATCH
+    layer, where no gate can see it. The reference is now a committed binary,
+    the way v4 carries `dmc4_player_embedded_1000.bin`, and it is inside the
+    fingerprint (the `*.py`-only glob used to skip it).
+    """
     import sys
     sys.path.insert(0, os.path.join(os.path.dirname(__file__),
                                     '..', '..', '..', 'tools'))
     sys.path.insert(0, os.path.join(os.path.dirname(__file__),
                                     '..', '..', '..', 'tools', 'py65_lib'))
-    from seed_disassembly import parse_psid, trace, _INST_LEN
-    rep = os.path.join(os.path.dirname(__file__), '..', '..', '..',
-                       'hvsc85', 'DEMOS', 'G-L', 'Katusha.sid')
-    s = parse_psid(rep)
+    from seed_disassembly import trace, _INST_LEN
     mem = bytearray(0x10000)
-    for i, b in enumerate(s['payload']):
-        mem[s['load'] + i] = b
+    with open(_REF_BIN, 'rb') as f:
+        blob = f.read()
+    mem[0x1000:0x1000 + len(blob)] = blob
     _c, starts, _l, _j = trace(bytes(mem), 0, init_pc, 0x10A1, ())
     ref = []
     for pc in sorted(p for p in starts if 0x1000 <= p < 0x1A00):

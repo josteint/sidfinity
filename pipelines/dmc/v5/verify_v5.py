@@ -85,6 +85,26 @@ def verify_v5(cfg: DMCV5Config, hvsc_root: str | None = None) -> dict:
                     for (_c, reg, val) in (ch[0] if ch else []):
                         st[reg] = val
                     return st
+
+                def _first_flat_diff(x, y):
+                    """(pos, (reg, orig), (reg, mine)) of the first difference
+                    in the flattened play stream.
+
+                    `compare_instruction_stream` returns `first_play_diff` only
+                    on its trichotomy path and NEVER a `first_diff` key, so the
+                    original port's `r2.get('first_diff')` recorded None for
+                    every member routed here — which defeated the whole point
+                    of reporting the per-IRQ numbers (the census clusters on
+                    this field, and a column of nulls clusters into nothing).
+                    """
+                    fa = [(w[-2], w[-1]) for c in x for w in c]
+                    fb = [(w[-2], w[-1]) for c in y for w in c]
+                    for i in range(min(len(fa), len(fb))):
+                        if fa[i] != fb[i]:
+                            return [i, list(fa[i]), list(fb[i])]
+                    if len(fa) != len(fb):        # pure length divergence
+                        return [min(len(fa), len(fb)), None, None]
+                    return None
                 state2 = _st(a2) == _st(b2)
                 r2 = compare_instruction_stream(a2[1:], b2[1:])
                 la, lb = r2['len_all_a'], r2['len_all_b']
@@ -103,7 +123,7 @@ def verify_v5(cfg: DMCV5Config, hvsc_root: str | None = None) -> dict:
                 out['subtunes'][sub] = {
                     'is_full': False, 'state_match': state2,
                     'play_match': r2['match_all'], 'overlap': min(la, lb),
-                    'first_play_diff': r2.get('first_diff'),
+                    'first_play_diff': _first_flat_diff(a2[1:], b2[1:]),
                     'via': 'per_irq_diag',
                 }
                 continue
