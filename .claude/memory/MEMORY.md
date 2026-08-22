@@ -106,6 +106,7 @@
 - [Hubbard PWM bounds](reference_hubbard_pwm_bounds.md) — pulsework's $08/$0E direction-flip thresholds are HARDCODED, not per-instrument
 - [Divergence census tool](reference_divergence_census.md) — `tools/divergence_census.py`: clusters a family's non-FULL residue into ranked root-cause buckets. Found: detection ≠ FULL; partials are the bottleneck.
 - [Canon-diff wedge enumerator](reference_dmc_canon_diff.md) — `tools/dmc_canon_diff.py`: a-priori wedge catalogue — diff every member vs the canon player, cluster + tag handled/NEW, split partial/full. PROVED DMC f1 wedges ~fully handled.
+- [Post-project research ideas](reference_post_project_research.md) — pointer to `docs/post_project_research_ideas.md`: what the finished corpus enables beyond ML (player-code phylogeny vs musical lineage, the wedge census as scene ethnography, the C29 "not self-contained works" preservation finding) + the borrowed disciplinary vocabulary. A parking lot, not work.
 
 ## Deprecated memories
 

@@ -1,0 +1,256 @@
+# Post-project research ideas — what the artifact enables
+
+**Status: not work. A parking lot.** Nothing here is scheduled, and
+nothing here should displace the grind (CLAUDE.md: engine by engine to
+full family coverage; Move 1 waits for the owner). This file exists
+because the ideas came up in conversation (2026-08-22) and are worth not
+losing — they are the *byproduct* case for the project: what a completed
+USF corpus makes possible beyond ML training data.
+
+The framing that generated it: *"if/when we reach the project goal, we
+would have produced an artifact we could use to make a lineage map of
+players, and many other things of interest to historians."* That is
+true, and some of it is already latent in the repo today.
+
+---
+
+## 1. Lineage is TWO maps, and we have machinery for both
+
+This is the distinction to keep straight, because the two live on
+opposite sides of the pipeline.
+
+**Player-code lineage — the extraction side, not USF.** USF deliberately
+abstracts the player's code away (that is the whole point of the Core
+Tenet), so code phylogeny cannot come from the corpus. It comes from the
+tooling we built to *read* the binaries:
+
+- `tools/engine_fingerprint.py` — reloc-invariant player-body skeleton
+  fingerprinting. This is what established that 91% of HVSC's
+  FutureComposer is one vanilla "standard" player.
+- `tools/dmc_canon_diff.py` — linear-aligns every member's reachable
+  player code against a canonical player binary, diffs opcodes and
+  in-player operand repoints, clusters by site. That is a *collation
+  tool*: it produces, per member, the set of deviations from the
+  reference.
+- The wedge knobs recorded per member in each family's config/params —
+  effectively a coded transcription of those deviations.
+
+Turning this into a tree is a small step from what exists. Precedent
+in-repo: the Hubbard clustering (backlog item 15) showed the
+unmigrated Hubbard mass is not a long tail but three distinct
+*generations*, in one afternoon's measurement.
+
+**Musical lineage — the USF side.** This is the half the binaries cannot
+give you: cover versions, remixes, quotation, self-plagiarism, and an
+author's style surviving a move from one editor to another. Comparable
+across engines by construction, because that is exactly what the
+Principle's parametric-over-a-musical-basis rule buys.
+
+---
+
+## 2. The wedge census is already scene ethnography
+
+Per member we know which player patches it carries. The carrier-count
+distribution separates two very different phenomena:
+
+- **High counts = a circulated player variant.** 661 carriers of one
+  gate-handling variant, 176 of a rest-effects variant, 140 of a
+  play-phase wrapper. That is one modified player build passed around a
+  group or a release chain and used for every tune its owner made.
+  Family 2 itself is this phenomenon one level up: a whole variant build
+  of the DMC player with remapped command bytes.
+- **Low counts (1–3) = a one-off hack.** One musician, one evening, one
+  tune — the singletons chased during the f2 grind.
+
+Cross that with HVSC's author/group metadata and you have a map of who
+modified their tools, how, and how those modifications propagated: a
+social history of practice, evidenced at byte level rather than recalled
+in interviews decades later.
+
+**The making-of evidence is also readable from the bytes.** Almost all
+wedges are in-place and *the same length* (opcode swaps, operand
+repoints, patched immediates, stores NOPed or aimed at a void address) —
+the signature of a freezer-cartridge machine-code monitor, not source
+reassembly. New code is appended after the music data with a vector
+re-pointed to it. A minority of members are genuinely re-assembled. In
+archaeology's terms this is a *chaîne opératoire* reconstruction, and it
+is already implicit in the ledger's C19 catalogue.
+
+---
+
+## 3. Other studies the corpus supports
+
+- **Editor market share over time**, per scene group — engine
+  classification joined to HVSC dates/authors.
+- **Instrument-preset diffusion**: editors ship default instruments. Do
+  authors modify them? Which presets propagate between groups? Our
+  instrument records are typed and comparable, and dedup keys already
+  exist.
+- **Attribution for HVSC's unknowns** (stylometry): instrument
+  fingerprints + wedge signatures + structural habits.
+- **Cover/remix detection at the musical level** — e.g. the ten-plus
+  members named `James_Bond` by different authors; with USF you can
+  actually compare the notes.
+- **Playback-practice history**: adoption curves for multispeed timing
+  and for filter use (which is chip-model dependent, so it is a
+  taste-versus-hardware story).
+- **Preservation**: a verified round-trip means the corpus is
+  re-renderable without the original binaries.
+
+---
+
+## 4. The preservation finding we stumbled into
+
+Worth writing up on its own, because it is a claim stronger than the
+usual hand-wave about hardware dependence:
+
+**A nonzero number of these pieces are not self-contained works.**
+Ledger C29 covers members that *sonify the machine's environment* —
+notes read out of banked-in KERNAL ROM; a melody whose pitch is
+psiddrv's patched reset vector; sectors that play the power-on RAM
+stripe because the `$FF` fill they land in *is* the terminator the
+player needs; a loop target read through a null pointer into live zero
+page. For these, "the composition" and "the machine state" are not
+separable, and we have a *measured list* of them rather than an
+anecdote.
+
+Related, and equally concrete: several members play bytes that are the
+author's own credit text (a fade counter whose values are the `**` of a
+signature string; a `$FF` handler whose re-dispatch JMP is overwritten
+by text that then executes).
+
+---
+
+## 5. Honest limits (state these before any claim)
+
+- **Coverage is uneven.** DMC v4 is complete (8,369 members); the
+  largest families have no pipeline at all (GoatTracker V2 ~7,800,
+  Soundmonitor ~3,700, JCH ~3,700). Any scene-wide claim drawn today
+  would be DMC-shaped and would mislead. This is the single reason most
+  of this file has to wait.
+- **USF abstracts code away by design.** Code-lineage work leans on the
+  fingerprint/canon-diff side; do not claim USF gives it.
+- **Metadata quality is inherited.** Authorship and dates come from
+  HVSC's credits, whose dominant edit between releases is precisely
+  credit/title corrections (ledger C20's seventh layer). Claims inherit
+  that uncertainty rather than resolving it.
+- **Hacks have no provenance.** We can see *that* a wedge exists, not
+  who made it. Musician versus demo coder is inference.
+- **One ambiguous class we could not resolve**: the f2 `$FF` loop-to-N
+  immediate ships non-zero in ten members, four by one author with
+  *different* values each. Private player build with a loop-point
+  option, or a habitual per-tune poke? Both fit the bytes.
+
+---
+
+## 6. Borrowed vocabulary — terms that fit, and what they name here
+
+Useful for framing any future write-up, and for talking to historians
+and musicologists in their own words. Three of the project's own
+coinages are already borrowed terms of art: the **Convergence Ledger**
+(evolutionary biology), `DMC_WITNESSES` in the portfolio code (textual
+criticism's word for surviving copies of a text), and C20's
+**palimpsest**.
+
+**Textual scholarship** (the closest-fitting field):
+
+- **Stemmatics** — reconstructing a manuscript family tree from shared
+  copying *errors*, on the logic that idiosyncratic mistakes travel by
+  descent while correctness does not discriminate. Exactly
+  `dmc_canon_diff`: align to the canon, let the deviations group the
+  members. Our wedges are scribal errors that happen to be deliberate.
+- **Collation** — the systematic comparison of witnesses that produces
+  the apparatus. The same tool, its other half.
+- **Diplomatic vs critical edition** — a diplomatic edition transcribes
+  one witness exactly, warts included; a critical edition reconstructs
+  the work behind the witnesses. The project demands both at once: the
+  Core Tenet requires diplomatic fidelity in *output* (the write
+  stream), the Principle requires a critical edition in
+  *representation*. Most hard calls live in that tension.
+- **Urtext** — the work without editorial accretion. The C19
+  33rd-occurrence rule is an urtext judgement made repeatedly: if a hack
+  changes a musical value it is not accretion, it is the work, and it
+  gets deconstructed into content rather than parked in a knob.
+- **Conjectural emendation** — an editor's plausible guess at a corrupt
+  passage. What the project systematically refuses (`dmc_state_addr`
+  declining to name an address on non-canon geometry instead of
+  returning a confident wrong one).
+- **Lacuna** — a gap in a witness. Our residue.
+
+**Evolutionary biology:**
+
+- **Homology vs homoplasy** — same trait by descent vs independently
+  arrived at. The Principle's Rule 1 in another language: three
+  byte-different routines producing one triangle LFO are homoplasy and
+  must collapse to one representation; f1/f2 sharing a player body is
+  homology.
+- **Vestigial structure** — persists, does nothing. Good_Beat's `$1512`
+  wedge, proven dead by pc-watch. C30 is the sharper case: a flag bit
+  the engine's priority renders mechanically dead, yet still *observable*
+  through a state-as-data read — a vestige that leaves a fossil trace in
+  the output.
+- **Founder effect** — a small group's quirks dominating a population by
+  descent rather than merit. The 661-carrier variant; family 2 itself.
+- **Holotype** — the specimen that defines a name.
+  `dmc4_player_embedded_1000.bin`.
+- **Character matrix** — taxa × characters, the input to a phylogeny.
+  `select_regression_portfolio.py` builds one (members × 93 feature
+  dimensions). We use it to pick a test set; a historian would use the
+  same object to draw a tree.
+- **Cladistics vs phenetics** — informative shared characters vs overall
+  similarity. Worth naming because we *proved* the phenetic version
+  fails here: code-Jaccard clustering predicts nothing, since within a
+  family the player is near-identical and behaviour varies by data.
+
+**Archaeology and anthropology:**
+
+- **Taphonomy** — what happens to remains between death and discovery,
+  and how to subtract it. Everything between authorship and the HVSC
+  entry: packers, rips, re-files, credit corrections, truncated copies.
+  C20's seventh layer is a taphonomy problem, which is why identity had
+  to be the payload hash rather than the file.
+- **Chaîne opératoire** — the operational sequence reconstructed from
+  manufacturing traces. See §2.
+- **In situ vs ex situ** — every SID in HVSC is ex situ, ripped out of
+  the demo it was written for. Medley and segment wrappers only make
+  sense in situ, which is why they read as bizarre until you picture the
+  demo around them.
+- **Emic vs etic** — the insider's own categories vs the analyst's
+  imposed frame. The Principle is a decision to be etic-but-musical:
+  not the editor's categories (that leaks mechanism), not raw signal,
+  but a frame comparable across engines. C32's "stated notation" is a
+  deliberate step back toward emic.
+
+**Historical linguistics and one philosophical:**
+
+- **The comparative method** — reconstruct the proto-language from
+  systematic correspondences among daughters. That is Move 1 exactly,
+  with the ledger entries as cognate sets and the factor-candidates as
+  its asterisked (hypothetical) forms.
+- **Isogloss** — the map line where a feature stops. Wedge carrier
+  distributions across authors and groups draw isoglosses.
+- **Ship of Theseus** — identity through total material replacement. The
+  composer keeps not one byte of the original player and the rebuild is
+  nonetheless the same piece; the write stream is our answer to the
+  puzzle, naming what must be preserved for identity to survive.
+
+---
+
+## 7. If this is ever picked up
+
+Rough order, cheapest first:
+
+1. **Publish the corpus as a community artifact.** A per-member,
+   per-subtune reference write-stream corpus. Nothing like it exists;
+   the emulator world's shared test suites (Lorenz, blargg,
+   SingleStepTests) became infrastructure that third parties — including
+   FPGA implementations — report against.
+2. **The wedge census table** — carriers per wedge class joined to
+   author/group/year. Already computable from the family batches and the
+   stored configs.
+3. **Player-code phylogeny** from `engine_fingerprint` +
+   `dmc_canon_diff` distances, one family at a time.
+4. **The C29 "not self-contained" list**, written up as a preservation
+   note.
+5. Musical-lineage work — only once coverage spans several families,
+   for the reason in §5.

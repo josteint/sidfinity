@@ -494,7 +494,11 @@ ENGINES = {
         'sid_key': 'sid',
     },
     'dmc_v4': {
-        'results': os.path.join(ROOT, 'tmp', 'dmc_wide_results.jsonl'),
+        # family 1, #85 member set (5,445), fully re-verified 2026-08-22 at
+        # the current code hash. NOT `dmc_wide_results.jsonl` — that is the
+        # PRE-#85 working file (5,401 rows, missing 47 members) and pointing
+        # a derivation at it silently derives from a stale member set.
+        'results': os.path.join(ROOT, 'tmp', 'dmc_f1_85_results.jsonl'),
         'out': os.path.join(ROOT, 'tools', 'dmc_regression_portfolio.json'),
         'features': dmc_features,
         'witnesses': DMC_WITNESSES,
