@@ -115,9 +115,26 @@ separable, and we have a *measured list* of them rather than an
 anecdote.
 
 Related, and equally concrete: several members play bytes that are the
-author's own credit text (a fade counter whose values are the `**` of a
-signature string; a `$FF` handler whose re-dispatch JMP is overwritten
-by text that then executes).
+author's own credit text. ⚠ NOT the PSID header's `name`/`author`/
+`released` fields — those are CONTAINER metadata added by rippers
+decades later, and the emulator loads only the payload from
+`dataOffset`, so the header never enters C64 RAM and the player cannot
+read it. This is the author's handle stored INSIDE the C64 program
+itself (standard scene practice — it shows up in a memory dump), sitting
+in leftover space that the player's own code and state then overlap.
+Two mechanisms:
+
+- Over_and_Out stores "D BY ARTHUR/PRIDE'92**" at $1D60; the two
+  trailing `*` land at $1D74/$1D75, which are exactly the song-chain
+  countdown's two counter bytes. The init wrapper arms them only for
+  subtune 2 (`CMP #$02`), so subtunes 0 and 1 count down from the
+  ASCII leftover — 42*256+42 = 10,794 plays, 216 seconds — and then
+  chain into the next song. The asterisks of a signature are the
+  timer.
+- A `$FF` track handler whose re-dispatch `JMP` is overwritten by
+  author text: the text then EXECUTES (a `BVC` falls into the
+  dispatch with A=$00) and injects a spurious note-0 row at every
+  orderlist wrap (ledger C13, `loop_note_inject`).
 
 ---
 
