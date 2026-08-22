@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import sys
 from multiprocessing import Pool
 from pathlib import Path
@@ -769,8 +770,14 @@ def budget_cover(universe: dict[str, int],
             covered[d] = covered.get(d, 0) + 1
 
     # Rotating random stratum, drawn from members the cover pass did not pick.
+    # If the cover pass stopped early (deepening capped, or the universe ran
+    # out of uncovered dimensions), the leftover budget goes here rather than
+    # being discarded — spending it on random members is the whole point of a
+    # budget, and random sampling found 92% of 135 real config faults against
+    # one-enabled's 79% (Medeiros et al. ICSE'16).
+    slots = n_rand_slots + max(0, cover_budget - len(chosen))
     rest = sorted(set(members) - set(chosen))
-    rand_pick = rnd.sample(rest, min(n_rand_slots, len(rest))) if rest else []
+    rand_pick = rnd.sample(rest, min(slots, len(rest))) if rest else []
     chosen += rand_pick
 
     unmet = sorted(d for d, r in universe.items() if covered.get(d, 0) < r)
