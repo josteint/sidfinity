@@ -56,7 +56,7 @@ def _build_one(rel: str, mode: str = 'build') -> str:
         from pipelines.dmc.v4.factory import dmc_v4_config_2sid
         cfgs = dmc_v4_config_2sid(rel, hvsc_root=os.path.join(ROOT, 'hvsc85'))
         return f'config ok ({len(cfgs) if cfgs else 0} chip(s))'
-    from tools.dmc_build_one import build
+    from pipelines.dmc.build_one import build
     td = tempfile.mkdtemp()
     out_sid = os.path.join(td, 'smoke.sid')
     nch, _, path = build(rel, out_sid, None)
