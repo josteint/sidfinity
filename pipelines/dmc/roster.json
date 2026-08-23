@@ -3,10 +3,20 @@
 "generated_utc": "2026-08-23T18:34:25+00:00",
 "corpus": 10774,
 "fingerprints": {
-"dmc_v4": "0d2371f4f6a12188",
-"dmc_v5": "d22938e5f12893b2"
+"dmc_v4": "f9ba3b9166958265",
+"dmc_v5": "f31f8a4b98395ca4"
 },
-"provenance": "routed 2026-08-23 17:47-19:40; stamped afterwards with the fingerprints of the SAME code \u2014 proof: the only commit in between (13c23a55) touched no detector file (v4/v5 factory.py, config.py, v4/compilation.py), so dmc_v4_config/dmc_v5_config were byte-identical throughout."
+"provenance": "routed 2026-08-23 17:47-19:40; stamped afterwards with the fingerprints of the SAME code \u2014 proof: the only commit in between (13c23a55) touched no detector file (v4/v5 factory.py, config.py, v4/compilation.py), so dmc_v4_config/dmc_v5_config were byte-identical throughout.",
+"restamps": [
+{
+"at": "13c23a553bb8f08e87b5ebc130a392b3f951dbc6",
+"closure_files": 17
+},
+{
+"at": "13c23a553bb8f08e87b5ebc130a392b3f951dbc6",
+"closure_files": 17
+}
+]
 },
 "rows": [
 {

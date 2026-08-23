@@ -21,9 +21,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.a
 sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
                 os.path.join(ROOT, 'tools'), os.path.join(ROOT, 'src'), ROOT]
 
-OUT = os.path.join(ROOT, 'tmp', 'dmc_v5_results.jsonl')
-_F3 = '004e82fa5908e2706df85f5c4b500477e0b1bf96'   # family-3 (Katusha), 1461
-_F5 = '18bcb61eaea9d835e99840b205489273f1e181a1'   # family-5 sibling, 34
+from src.batch_results import store_path                     # noqa: E402
+
+# The family's CURRENT results file, from the one registry
+# (src/batch_results.STORES) rather than a hardcoded name per tool.
+OUT = store_path('dmc_v5')
 
 # Resume-cache invalidation on code change (see src/code_fingerprint.py).
 from src.code_fingerprint import code_fingerprint  # noqa: E402

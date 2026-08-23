@@ -32,7 +32,14 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
                 os.path.join(ROOT, 'tools'), os.path.join(ROOT, 'src'), ROOT]
 
-OUT = os.path.join(ROOT, 'tmp', 'dmc_wide_results.jsonl')
+from src.batch_results import store_path                     # noqa: E402
+
+# The family's CURRENT results file comes from the one registry
+# (src/batch_results.STORES). This default used to be the pre-#85 working file
+# `tmp/dmc_wide_results.jsonl`, which no consumer read any more — so a bare run
+# appended fresh verdicts into a file nobody looked at. Resolved per variant in
+# main(), because canonical and family-2 batch into separate stores.
+OUT = store_path('dmc_v4')
 
 # Content hash of the DMC build+verify dependency set. Every result row is
 # stamped with it; on resume a row is reused ONLY if its code_hash matches the
@@ -333,6 +340,7 @@ def main():
     global OUT
     members_file = None
     variant = 'canonical'
+    out_given = False
     sample = 0
     args = sys.argv[1:]
     while args:
@@ -345,6 +353,11 @@ def main():
             variant = args.pop(0)
         elif a == '--out':
             OUT = args.pop(0)
+            out_given = True
+    if not out_given and variant == 'family2':
+        # family-2 has its OWN store; batching it into the canonical one would
+        # mix two member sets in a single append-only file.
+        OUT = store_path('dmc_v4_family2')
     if members_file:
         members = json.load(open(members_file))
     else:

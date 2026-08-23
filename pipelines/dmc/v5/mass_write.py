@@ -22,7 +22,12 @@ sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
 
 from src.jobs import default_jobs  # noqa: E402
 
-RESULTS = os.path.join(ROOT, 'tmp', 'dmc_v5_full_results.jsonl')
+from src.batch_results import store_path  # noqa: E402
+
+# ⚠ From the one registry (src/batch_results.STORES). This pointed at
+# `dmc_v5_full_results.jsonl`, last written 2026-06-29 — two months stale, and
+# a mass-write DELETES the artifacts of members it does not see as full.
+RESULTS = store_path('dmc_v5')
 
 
 def write_member(rel: str) -> tuple:

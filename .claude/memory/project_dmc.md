@@ -5,8 +5,47 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-23T18:38:50.186Z
+  modified: 2026-08-23T19:36:08.143Z
 ---
+
+## ✅ ONE REGISTRY for "which results file is current" (2026-08-23)
+
+`src/batch_results.STORES` — the module that already owned HOW to read a batch
+results file now owns WHICH file. `Store(store, rel, engine, id_key)`; helpers
+`store_path` / `stores_for_engine` / `load_store`. FIVE consumer groups had
+each hardcoded their own answer and drifted:
+
+| consumer | was | now |
+|---|---|---|
+| dmc v4 `family_batch.OUT` | `dmc_wide_results.jsonl` (**pre-#85**) | `dmc_f1_85_results.jsonl` |
+| dmc v4 `mass_write.RESULTS` | `dmc_wide_results.jsonl` (**pre-#85**) | same as above |
+| dmc v5 `family_batch.OUT` | `dmc_v5_results.jsonl` (Jul-21) | `dmc_v5_r3_results.jsonl` |
+| dmc v5 `mass_write.RESULTS` | `dmc_v5_full_results.jsonl` (**Jun-29**) | same as above |
+| `migrate_verdict_rows.STORES` | `dmc_v5_r2` | r3 |
+| `select_regression_portfolio` | `dmc_v5_r2` | r3 |
+| `derive_deps` | `dmc_v5_merged.jsonl` (a snapshot) | r3 |
+
+⚠ THE SHARP EDGE: a mass-write is a SYNC that DELETES the artifacts of members
+it does not see as full, so v4's was deciding deletions from a superseded
+collection and v5's from a two-month-old one. Verified SAFE to switch: both
+`corpus_sync.plan()`s report write=0 / orphans=0 today because every row is
+stale-hash — the code_hash gate is doing its job. The pointer change only
+means the next sync sees the complete set (5,445 vs 5,401; 2,151 vs 1,495).
+Producers matter as much as readers: a batch with the wrong default OUT
+appends fresh verdicts into a file nobody reads.
+
+**`route.py --restamp`** — the roster costs ~110 min to rebuild and its
+staleness check is keyed to the whole engine closure, so it fires when any
+unrelated tool in `pipelines/dmc` changes. Rather than re-run, restamp proves
+the MEASURED routing closure is unchanged by CONTENT via git (never mtime),
+the way `migrate_verdict_rows` proves verdict rows. The closure is measured by
+sys.modules snapshot (16-17 files) — it caught `dataflow.py`,
+`engine_constants.py`, `code_flow.py`, py65 and `seed_disassembly.py`, which a
+hand-declared list would have missed. ⚠ AND it guards its own trap: a snapshot
+taken in a process that ALREADY imported the factories measures a short
+closure and the proof would be vacuous, so it REFUSES unless both factories
+are in the measured set (C20 ninth layer, "refuse a sample that reached none").
+Both paths tested: passes on a real closure, refuses a pre-imported one.
 
 ## ✅ BATCHES NOW READ THE ROSTER + heterogeneous files made visible (2026-08-23)
 

@@ -51,27 +51,23 @@ sys.path[:0] = [os.path.join(ROOT, 'tools'), os.path.join(ROOT, 'src'), ROOT]
 
 from src.code_fingerprint import (code_fingerprint, resolve_roots,   # noqa: E402
                                   _iter_files, fingerprint_components)
-from src.batch_results import load_latest                            # noqa: E402
+from src.batch_results import (load_latest, STORES as _REGISTRY,     # noqa: E402
+                               stores_for_engine)
 from src.tslog import ts                                             # noqa: E402
 
-# Every family's verdict store. One entry per results file that a batch stamps.
-STORES = {
-    'dmc_v4': [('tmp/dmc_f1_85_results.jsonl', 'path'),
-               ('tmp/dmc_f2_85_results.jsonl', 'path')],
-    # ⚠ ONLY THE FAMILY'S LIVE STORE BELONGS HERE. The stamp time is taken from
-    # the file's MTIME, which is a lie for any file that was later REWRITTEN:
-    # `dmc_v5_85_results.jsonl` (the pre-#85-list baseline) and
-    # `dmc_v5_merged.jsonl` were both edited after their rows were produced, so
-    # their mtimes postdate the code that made them and a blanket run would
-    # have restamped genuinely PRE-FIX verdicts as current — the exact
-    # palimpsest C20 is about. They are historical snapshots now; the live
-    # store is the post-fix batch.
-    'dmc_v5': [('tmp/dmc_v5_r2_results.jsonl', 'path')],
-    'fc_standard': [('tmp/fc_std_wide_results.jsonl', 'sid')],
-    'music_assembler': [('tmp/masm_wide_results.jsonl', 'sid')],
-    'goattracker_v1': [('tmp/gt_v1_results.jsonl', 'path')],
-    'basic_program': [('tmp/basic_program_research/family_batch.jsonl', 'path')],
-}
+# Every family's verdict store, from the ONE registry (src/batch_results).
+# It used to be a private copy here, and it drifted: this table still named
+# `dmc_v5_r2` after `r3` superseded it.
+#
+# ⚠ ONLY A FAMILY'S LIVE STORE BELONGS IN THE REGISTRY. The stamp time is taken
+# from the file's MTIME, which is a lie for any file that was later REWRITTEN:
+# `dmc_v5_85_results.jsonl` (the pre-#85-list baseline) and `dmc_v5_merged.jsonl`
+# were both edited after their rows were produced, so their mtimes postdate the
+# code that made them and a blanket run would have restamped genuinely PRE-FIX
+# verdicts as current — the exact palimpsest C20 is about. Historical snapshots
+# stay out of the registry.
+STORES = {eng: [(s.rel, s.id_key) for s in stores_for_engine(eng)]
+          for eng in sorted({s.engine for s in _REGISTRY.values()})}
 
 
 def closure_files(engine: str) -> list[Path]:

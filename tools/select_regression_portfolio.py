@@ -42,6 +42,7 @@ ROOT = str(Path(__file__).resolve().parents[1])
 sys.path.insert(0, ROOT)
 
 from src.jobs import default_jobs  # noqa: E402
+from src.batch_results import store_path  # noqa: E402
 
 # Members that caught a real FC-family bug during rollout — preferred
 # on ties.
@@ -744,8 +745,7 @@ ENGINES = {
     # per-member verify WINDOW, so this entry supplies an `emit` hook; the
     # driver is otherwise unchanged.
     'basic_program': {
-        'results': os.path.join(ROOT, 'tmp', 'basic_program_research',
-                                'family_batch.jsonl'),
+        'results': store_path('basic_program'),
         'out': os.path.join(ROOT, 'pipelines', 'basic_program',
                             'regression_portfolio.json'),
         'features': basic_program_features,
@@ -755,7 +755,7 @@ ENGINES = {
         'emit': lambda sid: {'sid': sid, 'dur': round(_bp_dur(sid), 1)},
     },
     'fc_standard': {
-        'results': os.path.join(ROOT, 'tmp', 'fc_std_wide_results.jsonl'),
+        'results': store_path('fc_standard'),
         'out': os.path.join(ROOT, 'pipelines', 'future_composer',
                             'regression_portfolio.json'),
         'features': member_features,
@@ -767,7 +767,7 @@ ENGINES = {
         # the current code hash. NOT `dmc_wide_results.jsonl` — that is the
         # PRE-#85 working file (5,401 rows, missing 47 members) and pointing
         # a derivation at it silently derives from a stale member set.
-        'results': os.path.join(ROOT, 'tmp', 'dmc_f1_85_results.jsonl'),
+        'results': store_path('dmc_v4'),
         'out': os.path.join(ROOT, 'pipelines', 'dmc', 'regression_portfolio.json'),
         'features': dmc_features,
         'witnesses': DMC_WITNESSES,
@@ -782,7 +782,7 @@ ENGINES = {
     # canaries while every f2 lever of the Aug-21 grind was uncovered.
     # Same extractor (it is family-blind — generic over extra_params).
     'dmc_f2': {
-        'results': os.path.join(ROOT, 'tmp', 'dmc_f2_85_results.jsonl'),
+        'results': store_path('dmc_v4_family2'),
         'out': os.path.join(ROOT, 'pipelines', 'dmc',
                             'f2_regression_portfolio.json'),
         'features': dmc_features,
@@ -790,7 +790,7 @@ ENGINES = {
         'sid_key': 'path',
     },
     'music_assembler': {
-        'results': os.path.join(ROOT, 'tmp', 'masm_wide_results.jsonl'),
+        'results': store_path('music_assembler'),
         'out': os.path.join(ROOT, 'pipelines', 'music_assembler',
                             'regression_portfolio.json'),
         'features': masm_features,
@@ -813,7 +813,7 @@ ENGINES = {
         # could not cover the branch the whole v5 grind is about. Same trap the
         # dmc_v4 entry above warns of; caught by checking the derived
         # dimensions against a member known to be FULL and family-4.
-        'results': os.path.join(ROOT, 'tmp', 'dmc_v5_r2_results.jsonl'),
+        'results': store_path('dmc_v5'),
         'out': os.path.join(ROOT, 'pipelines', 'dmc', 'v5',
                             'regression_portfolio.json'),
         'features': dmc_v5_features,

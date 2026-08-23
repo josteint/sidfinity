@@ -63,48 +63,60 @@ from src.batch_results import load_latest    # noqa: E402
 
 OUT_PATH = os.path.join(ROOT, 'tools', 'engine_deps.json')
 
+from src.batch_results import stores_for_engine  # noqa: E402
+
+
+def _stores(engine: str) -> list:
+    """The engine's results files, from the ONE registry (src/batch_results).
+
+    These were hardcoded per consumer and drifted — this table still named
+    `tmp/dmc_v5_merged.jsonl`, a historical snapshot, as v5's live store.
+    """
+    return [s.rel for s in stores_for_engine(engine)]
+
+
 # One entry per consumer that STAMPS or CHECKS a code_hash. `arg` turns a
 # results row into the per-member argument that consumer's function takes.
 CONSUMERS = {
     'dmc_v4': {
         'consumer': 'dmc_family_batch',
         'module': 'pipelines.dmc.family_batch', 'fn': 'run_member',
-        'results': ['tmp/dmc_f1_85_results.jsonl', 'tmp/dmc_f2_85_results.jsonl'],
+        'results': _stores('dmc_v4'),
         'path_key': 'path',
         'arg': lambda r: r['path'],
     },
     'dmc_v5': {
         'consumer': 'dmc_v5_family_batch',
         'module': 'pipelines.dmc.v5.family_batch', 'fn': 'run_member',
-        'results': ['tmp/dmc_v5_merged.jsonl'],
+        'results': _stores('dmc_v5'),
         'path_key': 'path',
         'arg': lambda r: r['path'],
     },
     'fc_standard': {
         'consumer': 'fc_family_batch',
         'module': 'pipelines.future_composer.family_batch', 'fn': 'run',
-        'results': ['tmp/fc_std_wide_results.jsonl'],
+        'results': _stores('fc_standard'),
         'path_key': 'sid',
         'arg': lambda r: r['sid'],
     },
     'music_assembler': {
         'consumer': 'masm_family_batch',
         'module': 'pipelines.music_assembler.family_batch', 'fn': 'run',
-        'results': ['tmp/masm_wide_results.jsonl'],
+        'results': _stores('music_assembler'),
         'path_key': 'sid',
         'arg': lambda r: r['sid'],
     },
     'goattracker_v1': {
         'consumer': 'goattracker_v1_family_batch',
         'module': 'pipelines.goattracker.v1.family_batch', 'fn': 'run_member',
-        'results': ['tmp/gt_v1_results.jsonl'],
+        'results': _stores('goattracker_v1'),
         'path_key': 'path',
         'arg': lambda r: [r['path'], r.get('songlength') or 0],
     },
     'basic_program': {
         'consumer': 'basic_program_batch',
         'module': 'pipelines.basic_program.family_batch', 'fn': 'process',
-        'results': ['tmp/basic_program_research/family_batch.jsonl'],
+        'results': _stores('basic_program'),
         'path_key': 'path',
         'arg': lambda r: [r['path'], r.get('songlength') or 10, False],
     },

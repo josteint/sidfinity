@@ -95,10 +95,99 @@ def load_roster(path: str = ROSTER) -> tuple:
 
 
 def roster_staleness(meta: dict) -> list:
-    """Which routing engines have changed since the roster was built."""
+    """Which routing engines have changed since the roster was built.
+
+    CONSERVATIVE BY DESIGN: keyed to the whole `dmc_v4`/`dmc_v5` closure, so it
+    also fires when something in `pipelines/dmc` that routing never imports
+    changed (a batch tool, a mass-writer, this file). That direction is the
+    safe one — C20's ninth layer: too broad costs compute and cannot lie, too
+    narrow is silently wrong. When it fires spuriously, `--restamp` proves the
+    routing closure specifically is untouched instead of re-running the roster.
+    """
     was = (meta or {}).get('fingerprints') or {}
     now = _fingerprints()
     return [e for e in _FINGERPRINTED if was.get(e) and was[e] != now.get(e)]
+
+
+def route_closure(sample_rel: str) -> set:
+    """Repo files a ROUTING DECISION actually imports — MEASURED, not declared.
+
+    Same method as `tools/derive_deps.py`: exercise the real call and snapshot
+    `sys.modules`. Declaring the set by hand is what C20's ninth layer calls
+    under-inclusive-and-silently-wrong; `dmc_v4_config` reaches well past
+    `factory.py` into the extract, and a hand-written list would miss it.
+    """
+    import importlib
+    before = set(sys.modules)
+    route(sample_rel)
+    out = set()
+    for name in set(sys.modules) - before:
+        mod = sys.modules.get(name)
+        f = getattr(mod, '__file__', None)
+        if not f:
+            continue
+        f = os.path.abspath(f)
+        if f.startswith(ROOT + os.sep) and f.endswith('.py'):
+            out.add(os.path.relpath(f, ROOT))
+    return out
+
+
+def restamp(path: str = ROSTER) -> int:
+    """Refresh the roster's fingerprints IF the routing closure is unchanged.
+
+    The roster costs ~110 minutes to rebuild. Re-running it to satisfy a hash
+    that moved for an unrelated reason is the waste this repo already warns
+    about for verdict rows — so prove it instead, the way
+    `tools/migrate_verdict_rows.py` does: compare CONTENT via git (never
+    mtime) between the commit that was HEAD when the roster was generated and
+    now, restricted to the measured routing closure. Refuses on any real
+    change; then a re-run is the only honest answer.
+    """
+    import subprocess
+    meta, rows = load_roster(path)
+    when = (meta or {}).get('generated_utc')
+    if not when or not rows:
+        print('roster has no generated_utc — re-run route.py', file=sys.stderr)
+        return 1
+    closure = route_closure(rows[0]['rel'])
+    # ⚠ A sys.modules SNAPSHOT only sees modules imported DURING the call, so
+    # in a process that already imported the factories it measures a short (or
+    # empty) closure — and a proof over an empty set passes trivially. That is
+    # C20's ninth layer verbatim ("a derivation that 'ran' may have measured
+    # nothing — refuse a sample that reached none"), so require the detectors
+    # themselves to be in it before trusting the result.
+    need = {'pipelines/dmc/v4/factory.py', 'pipelines/dmc/v5/factory.py'}
+    missing = need - closure
+    if missing:
+        print(f'REFUSED — the routing closure measured {len(closure)} files and '
+              f'is missing {sorted(missing)}; it was measured in a process that '
+              f'had already imported them, so the proof would be vacuous.',
+              file=sys.stderr)
+        return 1
+    base = subprocess.run(['git', 'rev-list', '-1', f'--before={when}', 'HEAD'],
+                          cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    if not base:
+        print('no commit at the roster timestamp — re-run route.py', file=sys.stderr)
+        return 1
+    changed = subprocess.run(['git', 'diff', '--name-only', base, 'HEAD', '--',
+                              *sorted(closure)],
+                             cwd=ROOT, capture_output=True, text=True).stdout.split()
+    ts(f'routing closure: {len(closure)} files measured, base {base[:8]}')
+    if changed:
+        print('REFUSED — these routing files changed since the roster:',
+              file=sys.stderr)
+        for c in changed:
+            print('   ' + c, file=sys.stderr)
+        print('re-run pipelines/dmc/route.py', file=sys.stderr)
+        return 1
+    meta['fingerprints'] = _fingerprints()
+    meta.setdefault('restamps', []).append(
+        {'at': base, 'closure_files': len(closure)})
+    with open(path, 'w') as f:
+        json.dump({'meta': meta, 'rows': rows}, f, indent=0)
+    ts(f'restamped: routing closure unchanged since {base[:8]} '
+       f'({len(closure)} files compared by content)')
+    return 0
 
 
 def members_for(pipeline: str, variant: str | None = None,
@@ -389,6 +478,9 @@ def main() -> int:
     ap.add_argument('--jobs', type=int, default=None)
     ap.add_argument('--summary', action='store_true',
                     help='re-summarise an existing roster without re-routing')
+    ap.add_argument('--restamp', action='store_true',
+                    help='refresh the roster fingerprints if the MEASURED '
+                         'routing closure is unchanged by content (else refuse)')
     ap.add_argument('--enrich', action='store_true',
                     help='fold RECORDED build paths in from the batch results '
                          '(surfaces heterogeneous files); updates the roster '
@@ -398,6 +490,9 @@ def main() -> int:
     _RESULTS = [os.path.join(ROOT, 'tmp', n) for n in
                 ('dmc_f1_85_results.jsonl', 'dmc_f2_85_results.jsonl',
                  'dmc_v5_r3_results.jsonl')]
+
+    if args.restamp:
+        return restamp(args.out)
 
     if args.summary or args.enrich:
         meta, rows = load_roster(args.out)

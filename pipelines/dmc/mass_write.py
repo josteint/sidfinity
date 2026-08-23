@@ -40,7 +40,13 @@ sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
 
 from src.jobs import default_jobs  # noqa: E402
 
-RESULTS = os.path.join(ROOT, 'tmp', 'dmc_wide_results.jsonl')
+from src.batch_results import store_path  # noqa: E402
+
+# ⚠ From the one registry (src/batch_results.STORES). This pointed at the
+# PRE-#85 working file while every other consumer had moved to the #85 batch —
+# and a mass-write is a SYNC that DELETES the artifacts of members it does not
+# see as full, so it was deciding deletions from a superseded collection.
+RESULTS = store_path('dmc_v4')
 
 
 def write_member(item) -> tuple:
