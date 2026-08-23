@@ -8,6 +8,42 @@ metadata:
   modified: 2026-08-22T21:11:40.989Z
 ---
 
+## ✅ PRINCIPLE AUDIT + REMEDIATION (2026-08-23)
+
+An audit of the v5 work against the four canon docs found the Core Tenet and
+the trichotomy clean but TWO real problems, both now closed:
+
+1. **Principle §8 leak.** `family4` was a params key naming the ORIGINATING
+   PLAYER, and the composer gated ~190 lines of 20 emitter branches on it —
+   §8's shape exactly, breaking its constraint that such a tag is read by the
+   dispatcher and never by an emitter. DECOMPOSED into 14 named mechanism
+   knobs (play_skip_init, pulse_ctr_8bit, filter_d416_only, filter_prog_8bit,
+   …). Detection stays in the extract; what crosses into the USF is the list
+   of BEHAVIOURS. Gate = byte-identity, 123/123 unchanged (C33 carrier
+   refactor).
+2. **`play_phases` in the params bag** while `Environment` already had typed
+   siblings — promoted to a typed field via the generic CNAME-key form (a
+   keyword terminal would have shadowed CNAME in ~5.4k stored files).
+
+⚠ TWO THINGS THE GATES CAUGHT that grepping had not:
+   * SIX more `family4` reads lived in `to_usf`/`from_usf`, not the composer,
+     controlling the pulse/filter 8-bit (add,count) encoding. Byte-identity
+     failed on 51 family-4 members until they were repointed — the composer's
+     asm was identical, the difference was in the USF ROUND-TRIP.
+   * 28 stored `.usf` carried `family4`; they parse fine and would have
+     rebuilt as CANON members (C20 third layer). Regenerated, each `.sid`
+     rebuilt FROM its `.usf`, and the one hetero_v5 member resynced through
+     its own path.
+
+⚠ AND THE PARAM LINT COULD NOT SEE ANY OF IT: v5 routes params through its
+MODEL rather than `params.fields`, so its whole surface was invisible and the
+lint said "clean" while 3 of 4 keys were registered nowhere. It now follows
+the from_usf layer.
+
+METHOD NOTE: the ledger check happened AFTER diagnosing, not before — the
+documented weak link. And the v5 engine work had ZERO ledger record until the
+audit; C18/C9/C13 now carry it.
+
 ## 🔎 DMC v5 GRIND OPENED (2026-08-22 night): the residue is ONE PLAYER VARIANT
 
 **The v5 grind is "make family-4 work".** Whole-corpus census (2026-08-23):
