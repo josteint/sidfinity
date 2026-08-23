@@ -46,9 +46,50 @@ strong suspicion is a play-vector WRAPPER (ledger C18 phase schedule) that
 CIA-multispeed canon members carry and we do not model, which would also
 explain the orig's per-frame `$D418` count pattern `[3,3,3,3,0]`.
 
-NEXT: disassemble THIS member's play vector rather than assuming canon offsets
-(the `dmc_state_addr` lesson — never name a canon address on a member whose
-geometry you have not checked), and confirm whether the 26 share the wrapper.
+**CONFIRMED — IT IS A LEDGER C18 PLAY-VECTOR WRAPPER, AND V5 HAS NO PHASE
+SUPPORT AT ALL.** Cyber_Brain's PSID play vector is `$2317`, NOT the jump
+table, and it is an SMC counter living in an `LDX #imm` OPERAND:
+
+    $2317: CE 1B 23   DEC $231B      ; $231B IS the LDX operand below
+    $231A: A2 00      LDX #$00       ; loads the counter; Z set iff it hit 0
+    $231C: D0 08      BNE $2326
+    $231E: A2 05      LDX #$05       ; reload
+    $2320: 8E 1B 23   STX $231B
+    $2323: 4C 03 10   JMP $1003      ; FULL play (canon $10A1)
+    $2326: 4C 06 10   JMP $1006      ; EFFECTS-ONLY pass
+
+`$1006` is a THIRD jump-table entry (canon f3/f5 has only two) pointing at an
+appended routine that runs canon `run_effects` ($1332) per voice, gated by a
+per-voice table indexed by a counter — a per-voice phase schedule. The member
+also has a re-implemented init at `$2269` (ledger C13: variant dispatch, canon
+play body). With CIA `$0F5A` = 5 plays/frame and reload 5, exactly ONE full
+play lands per PAL frame and four are effects-only.
+
+⇒ THIS RESOLVES THE OPEN QUESTION ABOVE: `$1013` holds `$01` across ~4 plays
+because it is DEC'd only inside the FULL play, which runs once in five.
+
+**SCOPE — 48 carriers, ZERO of them FULL** (34 partial, 13 unsupported, 1
+error). Wrapper shapes vary exactly as the C18 card warns:
+
+| shape | example |
+|---|---|
+| SMC counter in an `LDX #imm` operand | Astovel/Cyber_Brain (reload 5) |
+| `INC / AND #$03 / BNE` modulo gate | Glover/Plus_60k_Scheme |
+| `INC / CMP #$04 / BNE` + SMC store | Lemmie_Eat_the_Rastertime |
+| per-call CIA-LATCH SWING from a table (`STA $DC05`) | Arkanoid — also ledger C9 8th occ |
+| bare `JMP $1003` trampoline (no phase) | Bayliss/Last_Amazon_2 — NOT this class |
+
+⚠ EVERY carrier runs an effects-only pass on the non-full calls — there is no
+"pure rate divider" sub-case. That matters because a pure divider would have
+had a cheap fix (just divide the measured CIA rate); this class does not, and
+the measured `cia_period` counts ALL IRQs including the effects-only ones.
+
+**IMPLEMENTATION PATH:** port v4's C18 `play_phases` to v5, with the
+effects-only entry being the third jump-table routine. Per the C18 card, do
+NOT parse the wrapper to derive the schedule — OBSERVE entry-point
+reachability. And note these are CIA members, which py65 cannot run (C9), so
+the observer is `siddump --pc-watch` (native-capture Phase 2, built for exactly
+the C18 play-phase observers).
 
 
 Rep: `DEMOS/G-L/Katusha.sid` (family-3, 1461 + family-5 sibling 34 = the
