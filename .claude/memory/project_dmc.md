@@ -5,8 +5,47 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-23T13:08:05.627Z
+  modified: 2026-08-23T17:48:43.691Z
 ---
+
+## ✅ DMC ROUTER + ROSTER — allocation is now DETECTED, not a frozen list (2026-08-23)
+
+`pipelines/dmc/route.py`: `route(rel)` asks every DMC pipeline whether it
+claims a member; the CLI builds `pipelines/dmc/roster.json`, which accounts
+for **every** DMC SID in exactly one bucket (asserted). Replaces the frozen
+`tmp/dmc_*_members_85.json` lists derived once from the #84 fingerprint
+census — ledger C13 (dispatch on the signature, never a stored label).
+
+**A pipeline is a COMPOSER, not a bucket** (Principle §8 / C35). So there is
+deliberately no `vX`: family-2 and family-4 are variants inside v4/v5, and an
+unclaimed member has no composer to put in a directory. `family-N` is demoted
+to a census cluster id for RE notes only. Owner asked about a 3rd `vX`
+pipeline; this is the agreed alternative.
+
+MEASURED over 10,774 members: **claimed 10,465 (97.1%)** — v4 canonical 5,474
+· v4 family2 2,944 · v5 f3 1,381 · v5 family4 650 · v6 16. **Unclaimed 309**,
+and the split that matters: **199 are NEAR-MISSES** (a detector recognised the
+player and refused the member — 186 v5, 13 v4 = work to do) vs only **110 with
+no recogniser at all** (1.0% of DMC). Near-miss is derived from the refusal
+itself (`player_code_mismatch` = head matched, body differs; `no_jumptable` =
+not my player), so it needs no frozen classification — C20's orphan rule
+(MINE-AND-FAILED vs NOT MINE) one level up.
+
+⚠ **THE DRIFT THE FROZEN LISTS HAD ACCUMULATED**: 57 members were in NO list
+yet ARE claimed by current detectors (30 v4-canon, 18 f2, 8 family4, 1 f3) —
+invisible to every batch, so coverage numbers silently excluded them
+(`tmp/dmc_newly_routed.json`). Conversely 128 list members are refused by the
+detector that supposedly owns them (v5 list-only −129). NOT yet folded into
+the batches — that is the follow-up.
+⚠ **2 AMBIGUOUS members** (Bayliss Grid_Zone_Remix + Last_Amazon, both claimed
+by v4 AND v5). Resolved by measurement: v4 builds+verifies at relocated bases
+($8200/$2900); the v5 CONFIG succeeds and its EXTRACT then dies ("orderlist
+never ends") — a v5 config-level false positive. v4-first precedence is
+therefore correct and is documented as measured, not assumed.
+ALSO: `detect_v4_build_path()` factored out of `verify.py:verify_member` so
+the router reuses the one dispatch instead of becoming a 5th copy (the debt
+recorded below). Behaviour-preserving — Defuzion_3 4/4, Nyaaaah_9 2/2,
+single-player 7/7, matching the recorded values.
 
 ## ✅ v5 family-4 LEAD-IN OFF-TABLE FREQ fixed (2026-08-23, later session)
 

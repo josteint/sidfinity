@@ -154,6 +154,45 @@ def _verify_rebuilt(orig: str, rebuilt: bytes, cia: bool, root: str) -> dict:
     return out
 
 
+def detect_v4_build_path(rel: str, hvsc_root: str | None = None) -> dict:
+    """Which v4 BUILD PATH a member takes, as the detector objects plus a
+    `kind` name. THE one place that ordering lives.
+
+    The order is load-bearing and is not alphabetical: 2SID first, then
+    medley, then compilation, then multiplex, each guarded on the previous
+    having declined — a compilation probe run against a 2SID member answers a
+    different question. Factored out of `verify_member` (2026-08-23) so the
+    router can ask "what path is this?" without becoming yet another copy;
+    `project_dmc` records that this dispatch already lives in four places and
+    that each copy is where ledger C20's fourth layer recurs.
+
+    Detection only — it builds nothing and raises nothing about support."""
+    root = hvsc_root or os.path.join(_ROOT, 'hvsc85')
+    from pipelines.dmc.v4.factory import dmc_v4_config_2sid
+    from pipelines.dmc.v4.compilation import (detect_compilation,
+                                              detect_medley, detect_multiplex)
+    cfgs2 = dmc_v4_config_2sid(rel, hvsc_root=root)
+    med = detect_medley(rel, hvsc_root=root) if cfgs2 is None else None
+    comp = (None if (cfgs2 is not None or med is not None)
+            else detect_compilation(rel, hvsc_root=root))
+    mux = (detect_multiplex(rel, hvsc_root=root)
+           if (cfgs2 is None and med is None and comp is None) else None)
+    if cfgs2 is not None:
+        kind = 'multisid'
+    elif med is not None:
+        kind = 'medley'
+    elif comp is not None:
+        kind = ('compilation'
+                if all(k == 'dmc' for k in (comp.get('kinds') or []))
+                else 'heterogeneous')
+    elif mux is not None:
+        kind = 'multiplex'
+    else:
+        kind = 'single'
+    return {'kind': kind, 'cfgs2': cfgs2, 'medley': med,
+            'compilation': comp, 'multiplex': mux}
+
+
 def verify_member(rel: str, hvsc_root: str | None = None) -> dict:
     """Verify one member through the CANONICAL DISPATCH — the build path the
     family batch takes — instead of assuming the single-player config path.
@@ -174,15 +213,9 @@ def verify_member(rel: str, hvsc_root: str | None = None) -> dict:
     """
     root = hvsc_root or os.path.join(_ROOT, 'hvsc85')
     orig = os.path.join(root, rel)
-    from pipelines.dmc.v4.factory import dmc_v4_config, dmc_v4_config_2sid
-    from pipelines.dmc.v4.compilation import (detect_compilation,
-                                              detect_medley, detect_multiplex)
-    cfgs2 = dmc_v4_config_2sid(rel, hvsc_root=root)
-    med = detect_medley(rel, hvsc_root=root) if cfgs2 is None else None
-    comp = (None if (cfgs2 is not None or med is not None)
-            else detect_compilation(rel, hvsc_root=root))
-    mux = (detect_multiplex(rel, hvsc_root=root)
-           if (cfgs2 is None and med is None and comp is None) else None)
+    from pipelines.dmc.v4.factory import dmc_v4_config
+    d = detect_v4_build_path(rel, hvsc_root=root)
+    cfgs2, med, comp, mux = d['cfgs2'], d['medley'], d['compilation'], d['multiplex']
     if cfgs2 is None and med is None and comp is None and mux is None:
         # single player: unchanged path, so every member that passed before
         # takes exactly the same code as before.
@@ -196,9 +229,7 @@ def verify_member(rel: str, hvsc_root: str | None = None) -> dict:
             hdr = f.read(0x16)
         cia = len(hdr) >= 0x16 and int.from_bytes(hdr[0x12:0x16], 'big') != 0
         return _verify_rebuilt(orig, rebuilt, cia, root)
-    kind = ('multisid' if cfgs2 is not None else 'medley' if med is not None
-            else 'multiplex' if mux is not None else 'heterogeneous')
     raise RuntimeError(
-        f'verify_member: {rel} builds through the {kind} path, which this '
+        f'verify_member: {rel} builds through the {d["kind"]} path, which this '
         f'entry does not implement — add it here rather than letting the '
         f'caller fall back to a single-player build (ledger C20).')

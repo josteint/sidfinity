@@ -1,8 +1,41 @@
 # pipelines/dmc/docs — index
 
-DMC (Demo Music Creator) by Brian/Graffity, ~10,660 SIDs in HVSC (largest
+DMC (Demo Music Creator) by Brian/Graffity, 10,774 SIDs in HVSC #85 (largest
 single player). Research gathered across multiple waves; per-file provenance
 headers inside each doc, full URL log in `provenance_log.md`.
+
+## ⚠ Read this first: `V4/V5/V6` and `family-N` are TWO DIFFERENT NAMINGS
+
+They are orthogonal, and confusing them is the single most common way to
+misread anything in this tree:
+
+* **`V4` / `V5` / `V6` are REAL** — actual Demo Music Creator editor releases,
+  identified by sidid signatures (`DMC_V4.x`, `DMC_V5.x`, `DMC_V6.x`).
+* **`family-N` is OURS** — a cluster id from the 2026-06-12 opcode-skeleton
+  census in `fingerprint_census.md` (10,676 SIDs → 134 clusters at Jaccard
+  ≥ 0.85), **numbered by size**. Nothing in DMC calls them that. It belongs in
+  RE notes; it is never a routing concept.
+
+| family | identity | pipeline |
+|---|---|---|
+| 1 | V4 canonical | `v4` |
+| 2 | V4-derived (re-laid-out tables + its own sector encoding) | `v4` — same composer |
+| 3 | V5, dominant player | `v5` |
+| 4 | V5, distinct branch (Jupiter41) | `v5` — same composer, 14 knobs |
+| 5 | V5, sibling of family-3 (0.832, just under the merge threshold) | `v5` |
+| 6 | V6 — a genuinely different player | `v6` (RE done, not migrated) |
+| 7-134 | ≤10 members each; hacks/customs | mostly unclaimed |
+
+**A pipeline is a COMPOSER, not a bucket** (the Principle §8 / ledger C35
+boundary: "more than one COMPOSER", not "more than one engine"). That is why
+family-2 and family-4 are not pipelines — they are variants inside one.
+There is deliberately no `vX`: an unclaimed member has no composer, so there
+would be nothing to put in the directory.
+
+**Which pipeline owns a given SID is answered by `pipelines/dmc/route.py`,
+never by a stored list** (ledger C13 — dispatch on the signature). Its
+`roster.json` accounts for every DMC member in exactly one bucket; run
+`python3 pipelines/dmc/route.py --summary` to read it.
 
 | File | What |
 |---|---|
