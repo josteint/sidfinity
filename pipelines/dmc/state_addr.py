@@ -3,7 +3,7 @@
 any engine state variable, for ONE member, relocation-aware.
 
 WHY THIS EXISTS. CLAUDE.md already says "DO NOT hand-craft state maps (wrong
-addresses bit hard last session)" and points at tools/state_map_gen.py — but
+addresses bit hard last session)" and points at pipelines/future_composer/state_map_gen.py — but
 that tool is FC-shaped, so DMC investigations kept hand-rolling addresses. The
 DMC player is usually RELOCATED (base != $1000), so probing the canon $17xx
 address watches unrelated RAM and returns a coherent-looking LIE. On
@@ -19,13 +19,13 @@ the canonical name -> address table, the factory already knows the member's
 
 Usage:
     # what does off-table window index 121 sonify on this member?
-    python3 tools/dmc_state_addr.py MUSICIANS/B/Bayliss_Richard/Industrial_Sci-Fi.sid --idx 121
+    python3 pipelines/dmc/state_addr.py MUSICIANS/B/Bayliss_Richard/Industrial_Sci-Fi.sid --idx 121
 
     # where do the orig and our rebuild keep the filter claim flag?
-    python3 tools/dmc_state_addr.py <path> --var fclaim
+    python3 pipelines/dmc/state_addr.py <path> --var fclaim
 
     # every mapped variable, plus ready-to-paste siddump probes
-    python3 tools/dmc_state_addr.py <path> --all --reg D40F
+    python3 pipelines/dmc/state_addr.py <path> --all --reg D40F
 
 `--reg R` prints the paired `siddump --memwatch-on-write R <addr>` commands for
 the orig and the rebuild — the C11 tracking measurement: run both, compare the
@@ -39,7 +39,7 @@ import os
 import sys
 import tempfile
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
                 os.path.join(ROOT, 'tools'), os.path.join(ROOT, 'src'), ROOT]
 
@@ -74,7 +74,7 @@ def _our_labels(rel: str):
     path than the builder reports confident nonsense). Labels are only
     meaningful for the single-chip asm; the multi-SID / compilation / hetero
     builders compose differently, so we say so instead of guessing."""
-    from dmc_build_one import build
+    from pipelines.dmc.build_one import build
     from src.usf.parser import parse_file
     from pipelines.dmc import composer_asm as CA
     from src.composer_runtime.xa65 import assemble

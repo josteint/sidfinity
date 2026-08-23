@@ -10,10 +10,10 @@ HVSC original in one command (the family batch only runs in bulk). It is the
 promoted form of the throwaway tmp/build_one.py scratch helper.
 
 Usage:
-    python3 tools/dmc_build_one.py MUSICIANS/S/SilverFox/Seaside_99.sid
-    python3 tools/dmc_build_one.py <path> --verify           # trichotomy verdict
-    python3 tools/dmc_build_one.py <path> --localize          # first divergence
-    python3 tools/dmc_build_one.py <path> --out foo.sid --usf foo.usf
+    python3 pipelines/dmc/build_one.py MUSICIANS/S/SilverFox/Seaside_99.sid
+    python3 pipelines/dmc/build_one.py <path> --verify           # trichotomy verdict
+    python3 pipelines/dmc/build_one.py <path> --localize          # first divergence
+    python3 pipelines/dmc/build_one.py <path> --out foo.sid --usf foo.usf
 
 <path> is HVSC-relative (under hvsc85/). --verify uses the SAME comparator the
 family batch does (compare_instruction_stream, mode='trichotomy', per-IRQ
@@ -28,7 +28,7 @@ import subprocess
 import sys
 import tempfile
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
                 os.path.join(ROOT, 'tools'), os.path.join(ROOT, 'src'), ROOT]
 

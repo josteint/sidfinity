@@ -164,7 +164,7 @@ an inline `from py65` / `import py65` in a Bash heredoc/`-c` or a Write, and
 injects the "is this an OBSERVATION? use siddump native-capture" reminder. It is
 NON-blocking (py65 is load-bearing in ~50 extract files — a hard ban would break
 extraction) and precise: running a committed py65-importing tool
-(`python3 tools/dmc_family_batch.py`) carries no inline import, so it never
+(`python3 pipelines/dmc/family_batch.py`) carries no inline import, so it never
 fires. Prompted by nearly reaching for a py65 harness to measure which addresses
 DMC `$101D` writes during the Mega_Mix medley fix (r150) — the answer was
 `siddump --pc-watch`.

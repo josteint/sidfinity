@@ -176,5 +176,5 @@ perturbation" PROVEN rather than asserted.
 - Do NOT let the batch's own `code_hash` gate reuse rows across the commit
   boundary — the two code states have different hashes, so a fresh `--out` file
   per side avoids contamination.
-- The batch tool: `tools/dmc_family_batch.py --members <f1 list> --out <file>`
+- The batch tool: `pipelines/dmc/family_batch.py --members <f1 list> --out <file>`
   (crash-safe/resumable). ~5 h/side on the X230, ~20 min on the EPYC.

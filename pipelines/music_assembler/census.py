@@ -11,7 +11,7 @@ Reports, over every `engine='Music_Assembler'` member:
   - the PSID vector convention (init=base+$48/play=base+$21 vs +$00/+$03)
   - the song-speed distribution
 
-Usage: python3 tools/masm_census.py [--limit N] [--json OUT.jsonl]
+Usage: python3 pipelines/music_assembler/census.py [--limit N] [--json OUT.jsonl]
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ import json
 import os
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
 sys.path.insert(0, os.path.join(ROOT, "tools", "py65_lib"))

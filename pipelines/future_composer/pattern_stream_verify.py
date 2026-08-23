@@ -21,8 +21,8 @@ For Hubbard '85 / Companion engines where USF encodes patterns
 structurally, this tool would catch real extraction bugs.
 
 Usage:
-    python3 tools/pattern_stream_verify.py --engine ENGINE
-    python3 tools/pattern_stream_verify.py --all   # all canaries
+    python3 pipelines/future_composer/pattern_stream_verify.py --engine ENGINE
+    python3 pipelines/future_composer/pattern_stream_verify.py --all   # all canaries
 
 Output:
     For each engine: number of pattern bytes verified, number of
@@ -39,7 +39,7 @@ import struct
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 

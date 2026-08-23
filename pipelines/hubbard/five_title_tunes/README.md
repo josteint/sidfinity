@@ -39,7 +39,7 @@ same engine family, so the merged representation is faithful in spirit.
 ```
 data/.../5_Title_Tunes.sid                      (parent, multi-binary)
     │
-    ▼ tools/split_multi_binary.py
+    ▼ pipelines/hubbard/split_multi_binary.py
 work_subs/sub_0..4.sid                          (5 standalone Hubbard PSIDs;
                                                  regenerated on demand,
                                                  gitignored)

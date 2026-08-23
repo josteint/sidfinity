@@ -135,7 +135,7 @@ canon-compatible operand sites (tunetab via $1051, d417 base+$34, instr
 base $17B0 from the $1227 operand). The 5 family-2 write-stream knobs go
 into `cfg.extra_params` (factory-PROBED, not hardcoded — `hold_gateoff`
 varies across sub-builds: STA $100f,x mask-only vs JSR a helper that
-also clears AD/SR=$00). Runner: `tools/dmc_family_batch.py --members
+also clears AD/SR=$00). Runner: `pipelines/dmc/family_batch.py --members
 tmp/dmc_family2_members.json` (Pool(8), crash-safe).
 
 **Batch (2889 members): 1884 FULL (65.2%)** — exceeds family-1's 54.5%.

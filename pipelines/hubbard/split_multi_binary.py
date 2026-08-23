@@ -11,10 +11,10 @@ extracted payload is sliced from `min(load, play, init)` to the highest
 relevant address.
 
 Usage:
-    python tools/split_multi_binary.py <parent_sid> <out_dir>
+    python pipelines/hubbard/split_multi_binary.py <parent_sid> <out_dir>
 
 Example:
-    python tools/split_multi_binary.py \\
+    python pipelines/hubbard/split_multi_binary.py \\
         hvsc85/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid \\
         /tmp/5tt_subs
 

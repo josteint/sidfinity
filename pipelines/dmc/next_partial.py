@@ -16,9 +16,9 @@ earlier fix already flipped to FULL is confirmed and skipped.
 It is fix-AGNOSTIC — it only verifies + localizes; it never touches a fix.
 
 Usage:
-    python3 tools/dmc_next_partial.py               # find + localize next partial
-    python3 tools/dmc_next_partial.py --window 8    # confirm 8 in parallel per pass
-    python3 tools/dmc_next_partial.py --list PATH    # custom queue file
+    python3 pipelines/dmc/next_partial.py               # find + localize next partial
+    python3 pipelines/dmc/next_partial.py --window 8    # confirm 8 in parallel per pass
+    python3 pipelines/dmc/next_partial.py --list PATH    # custom queue file
 Confirmation uses the SAME verdict as the family batch (dmc_build_one --verify).
 """
 from __future__ import annotations
@@ -30,7 +30,7 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 from src.jobs import default_jobs  # noqa: E402
 
@@ -41,7 +41,7 @@ def _confirm(path: str) -> tuple[str, str, str]:
     """Build + verify + localize one member. Returns (path, status, localize),
     status in {'full','partial','error'}."""
     r = subprocess.run(
-        [sys.executable, os.path.join(ROOT, 'tools', 'dmc_build_one.py'),
+        [sys.executable, os.path.join(ROOT, 'pipelines', 'dmc', 'build_one.py'),
          path, '--verify', '--localize'],
         capture_output=True, text=True, cwd=ROOT)
     out = r.stdout + r.stderr

@@ -47,7 +47,7 @@ hvsc85/<member>.sid                             (RSID, BASIC payload)
   screens) false-fails at the raw DB songlength — `best_attempt` probes up to
   240 s for the real music start; `verify_usf` does not. Known artifacts:
   God_Save_the_King, Casino_Poker, Pong (all verify clean at honest windows).
-- The regression tier is `tools/basic_program_regression_portfolio.json`,
+- The regression tier is `pipelines/basic_program/regression_portfolio.json`,
   wired into `tools/regression.py`.
 
 ## The two USF forms

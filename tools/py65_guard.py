@@ -18,7 +18,7 @@ No syntactic check can separate extraction from observation (same MPU class), so
 this is a non-blocking nudge: it fires on the SMELL (an inline `from py65` /
 `import py65` in a Bash heredoc/-c, or a Write introducing py65) and lets the
 tool proceed. Committed code that merely runs a py65-importing tool
-(`python3 tools/dmc_family_batch.py`) carries no inline import, so it never
+(`python3 pipelines/dmc/family_batch.py`) carries no inline import, so it never
 fires — no alarm fatigue.
 
 Reads the PreToolUse hook JSON on stdin; emits `additionalContext` when matched.

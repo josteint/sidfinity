@@ -612,7 +612,7 @@ inst/program probe.
 `tools/state_diff.py --on-write D418 --align-value 1F` — snapshots at
 every write to the trigger register and compares by GLOBAL EVENT INDEX
 (one event per play() for the standard player) — NO frame bucketing, NO
-Trap C. Map via `tools/state_map_gen.py --engine standard --sid SID.sid`
+Trap C. Map via `pipelines/future_composer/state_map_gen.py --engine standard --sid SID.sid`
 (NEW --sid: per-member rebuild layout + orig reloc shift; annotation in
 standard/state_map.py — stream CURSORS tabcount/begcount intentionally
 unmapped, the composer re-encodes streams). "NO STATE DIVERGENCE +

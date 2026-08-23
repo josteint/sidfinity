@@ -286,7 +286,7 @@ writelog freq bytes.
      gives `timerALo/Hi`; `setPage`/`nextBlock`/`nextPage` give `fromPage`/`toPage`/`lastPage`.
   This is the CORE-TENET-compliant approach (derive the layout from code dataflow; the composer
   re-emits its own layout). A reloc-invariant `engine_fingerprint`-style probe (cf.
-  `tools/engine_fingerprint.py` for FC) should classify the variants before a wide batch.
+  `pipelines/future_composer/engine_fingerprint.py` for FC) should classify the variants before a wide batch.
 
 ---
 
@@ -313,7 +313,7 @@ writelog freq bytes.
 - **Variant taxonomy (highest priority).** Maniac's sidid sits at +$1E4; Poole_Chris's
   Star_Trek_II (also load=$7580) at +$1A3, with only 1434/2752 leading bytes matching ⇒ ≥2 player
   code variants with DIFFERENT table bases. Build a reloc-invariant fingerprint over all 1019
-  tunes (à la `tools/engine_fingerprint.py`) to enumerate variants + per-variant table-base maps
+  tunes (à la `pipelines/future_composer/engine_fingerprint.py`) to enumerate variants + per-variant table-base maps
   BEFORE coding the extractor. Until then, derive every table base by dataflow from the player
   operands (§6), never from the §2B absolute map. (Binary: all `engine='Master_Composer'` SIDs.)
 - **Confirm `lastPage` / page count semantics + 1-based ranges.** `lastPage` (+$3CA) gates

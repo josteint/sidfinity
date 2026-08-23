@@ -15,7 +15,7 @@ provenance:
 > **CORRECTION (2026-07-22, migration session).** Two table labels below are
 > SWAPPED relative to this document's own disassembly, and one anchor rule does
 > not generalise. Verified against 5,618 located HVSC members
-> (`tools/masm_census.py`) — trust these over the text below:
+> (`pipelines/music_assembler/census.py`) — trust these over the text below:
 >
 > - **Seq pointer LO is `$C675`, HI is `$C669`** (this file's "Data tables"
 >   row says the opposite). The disassembly here is right and the table is
@@ -64,7 +64,7 @@ provenance:
 >
 > Implementation: `pipelines/music_assembler/locate.py` +
 > `pipelines/music_assembler/extract/decode.py`; scale checks
-> `tools/masm_census.py`, `tools/masm_decode_check.py`.
+> `pipelines/music_assembler/census.py`, `pipelines/music_assembler/decode_check.py`.
 
 This is the crux deliverable: the packed runtime layout and the per-frame
 `$D400-$D418` write model, derived by **disassembling a real HVSC member**

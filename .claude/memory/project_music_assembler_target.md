@@ -12,7 +12,7 @@ STATUS (2026-07-22, round 2): **THROUGH USF, wide batch 3,915 / 6,351 FULL
 (61.6%; 71.2% of the 5,502 members with a locatable player).** The pipeline is
 SID -> USF -> SID. Regression portfolio (16 members) + the Freespace_2075
 cross-family canary are wired as tier 1 in `tools/regression.py`; the family
-batch is `tools/masm_family_batch.py` (tier 2, code_hash-gated).
+batch is `pipelines/music_assembler/family_batch.py` (tier 2, code_hash-gated).
 Freespace_2075 (the DMC+MA heterogeneous member) is now DETECTED, counted FULL
 by the DMC batch, and STORABLE as one `.usf` (ledger C35 `origin_engine`).
 NOT yet done: the MA family's own corpus mass-write/sync (deliberate — 33%
@@ -85,7 +85,7 @@ chip-global buckets are half the residue and neither is modelled at all —
 automation or a player variant), and `$D416` is the filter sweep. Then
 `length_only`, which is a rate/song-end class, not a content class.
 
-## Census result (tools/masm_census.py, 2026-07-22)
+## Census result (pipelines/music_assembler/census.py, 2026-07-22)
 
 | | |
 |---|---:|
@@ -103,7 +103,7 @@ The 733 misses are the predicted version tail (V1.1 / V1.4 Triad,
 VoiceTracker derivative, multispeed DoubleTracker/Ten Tracker) — not yet
 triaged. `tmp/masm_census.jsonl` holds the per-member rows.
 
-## Decode check (tools/masm_decode_check.py, 2026-07-22)
+## Decode check (pipelines/music_assembler/decode_check.py, 2026-07-22)
 
 | | |
 |---|---:|

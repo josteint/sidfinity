@@ -4,7 +4,7 @@
 - [USF init.sid block](project_usf_init_sid_block.md) — USF carries SID-chip priming as typed `init.sid { master_vol, filter, voice N }`; composer reads it directly; shape-detection deleted. Built on the init trichotomy.
 - [Composer dissolution](project_composer_dissolution.md) — Phase 8 done; Hubbard '85 lives entirely in `pipelines/composer.py` (feature-driven asm, 18 chunk emitters + typed args).
 - [FC principled composer](project_fc_principled_composer.md) — §9 closed: the FC build is orig-free at build time; **orig-free ≠ USF-complete** also closed (ledger C7 class A3). Verdict = `verify_featuredriven`.
-- [FC fingerprint DB + standard player](project_fc_fingerprint_and_standard.md) — reloc-invariant fingerprinting (`tools/engine_fingerprint.py`); 91% of HVSC FC is ONE "standard" player. **✅ 2,604/2,748 FULL (94.8%)** ⚠STALE-VERDICTS Per-round detail in topic file — READ IT first.
+- [FC fingerprint DB + standard player](project_fc_fingerprint_and_standard.md) — reloc-invariant fingerprinting (`pipelines/future_composer/engine_fingerprint.py`); 91% of HVSC FC is ONE "standard" player. **✅ 2,604/2,748 FULL (94.8%)** ⚠STALE-VERDICTS Per-round detail in topic file — READ IT first.
 
 ## Per-engine project memories
 
@@ -83,7 +83,7 @@ before quoting the number (measured 2026-08-22).
 ### Engineering reflexes
 - [Use 6502 mindset](feedback_6502_mindset.md) — all bugs are pointer errors; think in exact byte offsets
 - [Writelog divergence recipe](feedback_writelog_divergence_recipe.md) — the full step-by-step protocol behind CLAUDE.md's "start with find_first_divergence" convention. (Recovered 2026-07-14.)
-- [Measure mechanism before precedent](feedback_measure_mechanism_before_precedent.md) — diagnostic ordering: pc-trace the ACTUAL read before matching it to a prior round's index; read the WHOLE multi-stage pipeline before instrumenting one stage. Round-91 retrospective; spawned `dmc_offtable_probe.py`, `--find-write`, `dmc_build_one --localize` auto-target.
+- [Measure mechanism before precedent](feedback_measure_mechanism_before_precedent.md) — diagnostic ordering: pc-trace the ACTUAL read before matching it to a prior round's index; read the WHOLE multi-stage pipeline before instrumenting one stage. Round-91 retrospective; spawned `pipelines/dmc/offtable_probe.py`, `--find-write`, `dmc_build_one --localize` auto-target.
 - [Residue claim is a measurement](feedback_residue_claim_is_measured.md) — a "hard boundary / can't-reproduce" verdict must be MEASURED (siddump, never py65 for divergent memory), never inferred. DMC Verdict_01 mis-claimed it 3× → each fell to one measurement → FULL.
 - [SMC disasm check](feedback_smc_disasm_check.md) — before trusting a static disasm, scan for STA into instruction operands; SMC makes the static reading lie. (Recovered 2026-07-14.)
 - [Check existing engine docs](feedback_check_existing_engine_docs.md) — the three-source order (family docs → disassembly.s → RE_NOTES) behind CLAUDE.md's MANDATORY questions. (Recovered 2026-07-14.)
@@ -109,7 +109,7 @@ before quoting the number (measured 2026-08-22).
 - [Tokenization for ML](reference_tokenization.md) — USF is NOT tokens; tokenization is a downstream conversion when ML training starts. REMI-style is the proven start.
 - [Hubbard PWM bounds](reference_hubbard_pwm_bounds.md) — pulsework's $08/$0E direction-flip thresholds are HARDCODED, not per-instrument
 - [Divergence census tool](reference_divergence_census.md) — `tools/divergence_census.py`: clusters non-FULL residue into ranked root-cause buckets. Found: detection ≠ FULL.
-- [Canon-diff wedge enumerator](reference_dmc_canon_diff.md) — `tools/dmc_canon_diff.py`: diff every member vs the canon player, cluster + tag handled/NEW. PROVED DMC f1 wedges ~fully handled.
+- [Canon-diff wedge enumerator](reference_dmc_canon_diff.md) — `pipelines/dmc/canon_diff.py`: diff every member vs the canon player, cluster + tag handled/NEW. PROVED DMC f1 wedges ~fully handled.
 - [Post-project research ideas](reference_post_project_research.md) — pointer to `docs/post_project_research_ideas.md`: what the finished corpus enables beyond ML. A parking lot, not work.
 
 ## Deprecated memories

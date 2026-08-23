@@ -18,7 +18,7 @@ RE into a lookup — point it at any FC SID (or a relocated sub-engine like
 Adrenalin's) and read off its cluster, then reuse a cluster-mate's known layout.
 
 Usage:
-    PYTHONPATH=tools/py65_lib:tools:src python3 tools/engine_fingerprint.py [--corpus]
+    PYTHONPATH=tools/py65_lib:tools:src python3 pipelines/future_composer/engine_fingerprint.py [--corpus]
 """
 import sys, os, hashlib
 

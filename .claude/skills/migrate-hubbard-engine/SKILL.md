@@ -27,7 +27,7 @@ independent sub-engines, like 5 Title Tunes) extend the model: each
 sub becomes its own `EngineConfig`, and a per-engine `build_compound.py`
 codegens 5 sub-engines at non-overlapping LOAD addresses + emits a
 dispatcher. The shared `_emit_sid(load_addr=...)` and
-`tools/split_multi_binary.py` provide the building blocks; see
+`pipelines/hubbard/split_multi_binary.py` provide the building blocks; see
 [[project_five_title_tunes]] for the worked example.
 
 ## The principle — do not violate this
@@ -277,7 +277,7 @@ where Y wraps high, suspect these knobs first** — the existing
   inst's fx-flags / pwm_speed.
 - **Compound PSIDs (one dispatcher → N sub-engines)**: 5 Title Tunes
   is the only one in the Hubbard catalog. The pattern that worked:
-  (1) split with `tools/split_multi_binary.py` into N standalone
+  (1) split with `pipelines/hubbard/split_multi_binary.py` into N standalone
   PSIDs, (2) write N EngineConfigs + N EngineConstants entries,
   (3) build each sub at a unique LOAD via `_emit_sid(load_addr=...)`,
   (4) emit a CMP/BNE/JSR/RTS dispatcher at the original init/play

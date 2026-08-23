@@ -51,7 +51,7 @@ portfolio + canaries), 0 regressed.
 ⚠ f2's 2,924 rows read STALE-HASH again, and that is FINE — the only
 hashed change since its batch is `pipelines/dmc/verify.py` (the
 `verify_member` addition + the behaviour-preserving `_verify_rebuilt`
-factoring), and `tools/dmc_family_batch.py` does not import that module
+factoring), and `pipelines/dmc/family_batch.py` does not import that module
 at all (it carries its own capture/compare). Conservative invalidation
 saying "unknown" + a cheap proof is the correct response; re-batching
 1.5 h to satisfy a hash is the waste the RTS literature warns about.
@@ -884,7 +884,7 @@ Owner-directed resumption after f1 closed at 100%. Done this session:
   `tmp/dmc_classify_new.json`; 11 old paths gone = renames among the 46, f1
   precedent). C20 seventh layer honored — no whole-file-hash matching.
 - **Fresh full f2 batch RUNNING** (2026-08-12, background):
-  `tools/dmc_family_batch.py --members tmp/dmc_f2_members_85.json --out
+  `pipelines/dmc/family_batch.py --members tmp/dmc_f2_members_85.json --out
   tmp/dmc_f2_85_results.jsonl`, log `tmp/dmc_f2_85_batch.log`. Early mix at
   90 members: 82 full / 8 partial (91% — above July's 86.8%, the r113-r187
   shared rounds paying out). ~8 h on the X230. July baseline for batch_diff:
@@ -3664,7 +3664,7 @@ Census 117 stored play_phases carriers: 115 identical, 2 flips
 (their stored .usf now carry the stale F token — refresh at next
 mass-write). Gates: dmc_smoke 6/6, full regression 0 regressed.
 f1 = closeout's 5296 + Ed×4 + Chwat + Real_Hardcore. Fixed
-tools/dmc_state_addr.py label-build unpack (build() returns 3-tuple).
+pipelines/dmc/state_addr.py label-build unpack (build() returns 3-tuple).
 
 ## ✅ ROUND 110 (2026-07-23): Chwat compilation — per-subtune slide_phase + state-addr sanity (C31). ALL 7 subs FULL
 Next f1 partial by path = `Eye/Chwat` (compilation, players $1000 + $2000;
@@ -5184,7 +5184,7 @@ reproduced if the READING site honors it; audit every site. Post-fix sweep
 DEFERRED per session instruction.
 
 ## 📊 CANON-DIFF WEDGE ACCOUNTING (2026-07-10): family-1 wedge space is ~fully handled — the residue is NOT a wedge problem
-Built `tools/dmc_canon_diff.py` ([[reference_dmc_canon_diff]]) — the PROACTIVE
+Built `pipelines/dmc/canon_diff.py` ([[reference_dmc_canon_diff]]) — the PROACTIVE
 complement to the reactive `_*_probe` detectors: linear-align every member's player
 code to the canon binary + diff opcodes/operand-repoints, cluster, tag handled/NEW,
 split partial/full. DEFINITIVE result cross-referencing the fresh 188 f1 partials:
@@ -5582,7 +5582,7 @@ NOT sub_17FB's shape (first census keyed on sub_17FB `99/B9` → false-negatived
 ALL 9). Census over 5401 f1: exactly 9 carriers (Welcome_to_Egypt, Bayliss ×4,
 DaFunk ×2, SilverFox ×2), ALL partial (0 FULL exposure) => regression-safe by
 construction; **ALL 9 partial → FULL**. 0 f2 carriers. Full tools/regression.py
-GREEN. Promoted the scratch build helper to `tools/dmc_build_one.py` (build one
+GREEN. Promoted the scratch build helper to `pipelines/dmc/build_one.py` (build one
 member → .sid+.usf, --verify/--localize) — user-requested. LESSON (repeats
 round 50): when a derived value's memwatch/runtime disagrees with expected,
 pc-trace the ACTUAL executed opcode — disassembly.s can be locally patched per
@@ -5988,7 +5988,7 @@ flips, all of them the known carriers); partials sweep = exactly 1 new arm
 carrier (Wavefrontline; the other 8 arm partials already detected at 12 frames,
 builds unchanged, deeper blockers); full tools/regression.py green (DMC
 14ok+0regr). Batch verdict FULL 288100/288100; artifacts written; truth merged
-(5477 full / 165 partial). TRAP re-confirmed: dmc_mass_write.py has NO --help —
+(5477 full / 165 partial). TRAP re-confirmed: pipelines/dmc/mass_write.py has NO --help —
 invoking it with --help RUNS the tool (harmless here: 0 current-hash rows).
 
 ## ✅ ROUND 42 (2026-07-06): dual_hack → dual_freq_generator — the /uready-review C7 flag RESOLVED (0 count change) [ledger C7 note rewritten]
@@ -7802,7 +7802,7 @@ Largest HVSC family: 10,676 SIDs (`engine LIKE 'DMC%'` in hvsc84.db).
 Player by Brian/Graffity, never source-released. All research in
 `pipelines/dmc/docs/` (README.md is the index; provenance_log.md per wave).
 
-## Census (tools/engine_fingerprint.py — renamed/generalized from fc_fingerprint)
+## Census (pipelines/future_composer/engine_fingerprint.py — renamed/generalized from fc_fingerprint)
 `pipelines/dmc/docs/fingerprint_census.md`. 688 exact skeletons → 134
 families. **Family 1 = V4 canonical, 5401 (50.6%)** — 0.973 vs the V4
 player binary carved from DMC 4 Editor 2025
@@ -8353,7 +8353,7 @@ fragments (unreachable padding w/ relocated operands). vibdepth compared
 Factory `dmc_v4_config(sid)` (pipelines/dmc/v4/factory.py): masked
 identity compare vs the carved canonical player + multi-site operand
 consistency + typed DMCV4Unsupported reasons. Wide runner:
-tools/dmc_family_batch.py (Pool(8), crash-safe JSONL resume).
+pipelines/dmc/family_batch.py (Pool(8), crash-safe JSONL resume).
 Results: tmp/dmc_wide_results.jsonl (first_diff per partial member).
 
 5 triage classes solved this batch (all in RE_NOTES.md):
@@ -8430,7 +8430,7 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    (reloc-aware), table addrs from canon-compatible sites (tunetab $1051,
    d417 base+$34, instr $17B0 from $1227). The 5 knobs → factory-PROBED
    `cfg.extra_params` (hold_gateoff VARIES: mask_only vs adsr_clear-via-
-   helper-at-$1018). Runner tools/dmc_family_batch.py (--members/--out).
+   helper-at-$1018). Runner pipelines/dmc/family_batch.py (--members/--out).
    Triage round 1 (+43): $129F filter-mode (STA $9E dead store ≡ AND #$0F,
    probe+mask) + 2-entry jump table (init+play only). 4 family-2 canaries
    wired into regress_dmc (Kajun/Lameness/Fury/Bells = variant cover).
@@ -8477,7 +8477,7 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    by CAPTURE-BY-SIMULATION (`_capture_env` follows $90 jumps, cycle-detects
    on revisit, reach-bounded); from_usf SYNTHESIZES a de-fused table. All
    5 sample-FULL members verify FULL through it. Batch:
-   tools/dmc_v5_family_batch.py. **WIDE-BATCH COVERAGE = COMPOSER-GATED
+   pipelines/dmc/v5/family_batch.py. **WIDE-BATCH COVERAGE = COMPOSER-GATED
    (6% on an 80-sample, NOT a representation issue — partials reproduce in
    the DIRECT model path).** composer_v5 was proven only on Katusha;
    bug-lever order from the batch: $D416/$D415 FILTER cutoff (22),
@@ -8532,7 +8532,7 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    **✅✅ FAMILY-3/5 CLOSEOUT (commit d46146f): 354/1495 FULL (23.7%; 42.4%
    of the 835 supported full+partial).** Full batch (tmp/dmc_v5_full_results
    .jsonl) -> mass-wrote all 354 .usf + .sidfinity.sid (0 err,
-   tools/dmc_v5_mass_write.py) + hvsc84.db refreshed. RESIDUE: 481 partial
+   pipelines/dmc/v5/mass_write.py) + hvsc84.db refreshed. RESIDUE: 481 partial
    (diverse long tail: Minoam/Conanious end-of-song V1/V2-SR + V3-freq tail,
    + state-only Check-A + freq/PW buckets); 593 unsupported (no_jumptable
    261 reloc/CIA + player_code_mismatch 266 sub-builds + note_out_of_range
@@ -8686,7 +8686,7 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
 ## REGRESSION PORTFOLIO (2026-06-13): generalized + DMC wired
 `tools/select_regression_portfolio.py` made engine-parametric (registry:
 engine -> jsonl/out/feature_fn/witnesses/sid_key; exact_multicover stays
-engine-blind). DMC feature extractor + `tools/dmc_regression_portfolio.json`
+engine-blind). DMC feature extractor + `pipelines/dmc/regression_portfolio.json`
 wired as tier-1 in regress_dmc(). The closeout step is now standard
 (documented in CLAUDE.md + migrate skill): family reaches FULL coverage
 -> derive portfolio -> wire tier-1 (full family batch = tier-2).
@@ -8741,7 +8741,7 @@ absolute markers) but family-4 has 0 FULL so low yield — deferred.
 
 **⭐ FAMILY-4: 0 → 26 FULL (2026-07-01).** The off-table CAPTURE fix — truncate_on_cap +
 overflow-gated pool dedup — applied to BOTH the pulse and filter paths across the full
-686-member corpus (`tools/dmc_v5_family_batch.py --members tmp/v5_family4_members.json`),
+686-member corpus (`pipelines/dmc/v5/family_batch.py --members tmp/v5_family4_members.json`),
 took family-4 from 0 to **26 FULL** (pulse fix +20, filter fix +6). Mass-written +
 hvsc84.csv refreshed (batch `tmp/dmc_family4_full2.jsonl`). The FILTER extension
 (`_capture_env_f4` truncate + `_filter_env_for` + `from_usf.add_filter` dedup) ELIMINATED

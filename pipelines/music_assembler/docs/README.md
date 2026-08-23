@@ -67,7 +67,7 @@ which is why confidence is high. Provenance headers are on every file;
 ## What remains (for the migration, not for research)
 
 - **Fingerprint the 6,351 members into version groups** before bulk extraction
-  (template: `project_fc_fingerprint_and_standard` + `tools/engine_fingerprint.py`).
+  (template: `project_fc_fingerprint_and_standard` + `pipelines/future_composer/engine_fingerprint.py`).
   Two PSID header conventions exist (init+$48/play+$21 vs init+$00/play+$03) —
   accept both.
 - **Confirm the opcode map against a 2nd binary** (the JC64dis map is from MC_01;

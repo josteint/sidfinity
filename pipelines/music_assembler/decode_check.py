@@ -13,7 +13,7 @@ consistency proof of the format, not a verdict):
   - every sequence stream terminates on its end-of-pattern $FF
   - note indices stay inside the 96-entry freq table after transpose
 
-Usage: python3 tools/masm_decode_check.py [--limit N] [--json OUT.jsonl]
+Usage: python3 pipelines/music_assembler/decode_check.py [--limit N] [--json OUT.jsonl]
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ import json
 import os
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
 from concurrent.futures import ProcessPoolExecutor      # noqa: E402

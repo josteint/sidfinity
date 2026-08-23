@@ -2,7 +2,7 @@
 source_url: local: tmp/dmc_census.py over hvsc84.db (engine LIKE 'DMC%')
 fetched_via: local read
 fetch_date: 2026-06-12
-author: SIDfinity census (tools/engine_fingerprint.py, opcode-skeleton clustering)
+author: SIDfinity census (pipelines/future_composer/engine_fingerprint.py, opcode-skeleton clustering)
 content_date: 2026-06-12
 reliability: primary
 ---

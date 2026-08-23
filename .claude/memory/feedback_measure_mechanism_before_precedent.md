@@ -31,7 +31,7 @@ Reaching for the precedent's specific value to avoid a measurement is the
 **How to apply:** for any freq lo/hi divergence, the FIRST action is the
 pc-trace upstream walk to get the index + effective address. Then match the
 CLASS to a precedent (C6/C11/C31), never the index. Tool that does the whole
-chain now: `tools/dmc_offtable_probe.py <member>` (localize -> pc-trace the
+chain now: `pipelines/dmc/offtable_probe.py <member>` (localize -> pc-trace the
 off-table read -> static/live -> per-player value). Use it before recalling
 "which idx was it last time".
 
@@ -89,11 +89,11 @@ that turns out to be a NAMED EDITOR KNOB is musical content by default;
 the burden shifts to proving it inert, not to proving it reachable.
 
 ## Tools built from this retrospective (round 91)
-- `dmc_offtable_probe.py` — the whole off-table diagnosis in one command.
+- `pipelines/dmc/offtable_probe.py` — the whole off-table diagnosis in one command.
 - `effect_chain_profiler.py --find-write REG=VAL` — locate a write by VALUE,
   not a guessed frame (kills the siddump-frame vs play()-index confusion;
   see [[reference_siddump_frame_cycles]]).
-- `dmc_build_one.py --localize` — now auto-localizes the FAILING subtune from
+- `pipelines/dmc/build_one.py --localize` — now auto-localizes the FAILING subtune from
   the verify capture (a compilation's sub 0 is often FULL; the old default
   localized sub 0 and found nothing), with no second full-songlength siddump.
 

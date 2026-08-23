@@ -274,5 +274,5 @@ as a typed `voice_init`, not residue.
 tune-record read gives ground truth (py65 post-init does NOT reproduce a
 relocating wrapper). Ledger C31.
 
-**Queue note:** `tools/dmc_next_partial.py` returned Abyssal_Karma first; now
+**Queue note:** `pipelines/dmc/next_partial.py` returned Abyssal_Karma first; now
 FULL, so the queue advances. See [[project_dmc]].

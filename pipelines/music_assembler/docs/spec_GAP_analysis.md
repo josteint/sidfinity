@@ -53,7 +53,7 @@ binaries. This session has already done the first end-to-end trace — see
 
 Treat these like the FC standard-player census: fingerprint the 6,351 HVSC
 members (reloc-invariant) into version groups before assuming one layout.
-(`project_fc_fingerprint_and_standard` is the template; `tools/engine_fingerprint.py`.)
+(`project_fc_fingerprint_and_standard` is the template; `pipelines/future_composer/engine_fingerprint.py`.)
 
 ## sidid signature decode (the reloc-invariant anchor)
 

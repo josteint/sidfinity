@@ -21,7 +21,7 @@ Statuses:
 Each row records `build_path` so the mass-write REPLAYS the path the verdict
 came from rather than re-deriving it (ledger C20, fourth layer).
 
-Run:  python3 tools/masm_family_batch.py
+Run:  python3 pipelines/music_assembler/family_batch.py
 """
 import json
 import os
@@ -29,7 +29,7 @@ import sys
 import traceback
 from multiprocessing import Pool
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [ROOT, os.path.join(ROOT, 'tools'), os.path.join(ROOT, 'src')]
 os.chdir(ROOT)
 os.environ['TMPDIR'] = os.path.join(ROOT, 'tmp', 'work')

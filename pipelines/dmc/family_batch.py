@@ -7,7 +7,7 @@ first_play_diff signature for bucketing) / unsupported (typed factory
 reason) / error.
 
 Usage:
-    PYTHONPATH=tools/py65_lib:tools:src python3 tools/dmc_family_batch.py \
+    PYTHONPATH=tools/py65_lib:tools:src python3 pipelines/dmc/family_batch.py \
         [--sample N] [--members FILE.json]
 
 --sample N    : run only every len/N-th member (load-spread triage)
@@ -23,7 +23,7 @@ import signal
 import sys
 from multiprocessing import Pool
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
                 os.path.join(ROOT, 'tools'), os.path.join(ROOT, 'src'), ROOT]
 

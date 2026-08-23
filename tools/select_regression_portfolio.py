@@ -746,8 +746,8 @@ ENGINES = {
     'basic_program': {
         'results': os.path.join(ROOT, 'tmp', 'basic_program_research',
                                 'family_batch.jsonl'),
-        'out': os.path.join(ROOT, 'tools',
-                            'basic_program_regression_portfolio.json'),
+        'out': os.path.join(ROOT, 'pipelines', 'basic_program',
+                            'regression_portfolio.json'),
         'features': basic_program_features,
         'witnesses': set(),
         'pin_dims': BASIC_PIN_DIMS,
@@ -756,7 +756,8 @@ ENGINES = {
     },
     'fc_standard': {
         'results': os.path.join(ROOT, 'tmp', 'fc_std_wide_results.jsonl'),
-        'out': os.path.join(ROOT, 'tools', 'fc_regression_portfolio.json'),
+        'out': os.path.join(ROOT, 'pipelines', 'future_composer',
+                            'regression_portfolio.json'),
         'features': member_features,
         'witnesses': FC_WITNESSES,
         'sid_key': 'sid',
@@ -767,7 +768,7 @@ ENGINES = {
         # PRE-#85 working file (5,401 rows, missing 47 members) and pointing
         # a derivation at it silently derives from a stale member set.
         'results': os.path.join(ROOT, 'tmp', 'dmc_f1_85_results.jsonl'),
-        'out': os.path.join(ROOT, 'tools', 'dmc_regression_portfolio.json'),
+        'out': os.path.join(ROOT, 'pipelines', 'dmc', 'regression_portfolio.json'),
         'features': dmc_features,
         'witnesses': DMC_WITNESSES,
         'sid_key': 'path',
@@ -782,16 +783,16 @@ ENGINES = {
     # Same extractor (it is family-blind — generic over extra_params).
     'dmc_f2': {
         'results': os.path.join(ROOT, 'tmp', 'dmc_f2_85_results.jsonl'),
-        'out': os.path.join(ROOT, 'tools',
-                            'dmc_f2_regression_portfolio.json'),
+        'out': os.path.join(ROOT, 'pipelines', 'dmc',
+                            'f2_regression_portfolio.json'),
         'features': dmc_features,
         'witnesses': DMC_F2_WITNESSES,
         'sid_key': 'path',
     },
     'music_assembler': {
         'results': os.path.join(ROOT, 'tmp', 'masm_wide_results.jsonl'),
-        'out': os.path.join(ROOT, 'tools',
-                            'masm_regression_portfolio.json'),
+        'out': os.path.join(ROOT, 'pipelines', 'music_assembler',
+                            'regression_portfolio.json'),
         'features': masm_features,
         # ⚠ these were declared as `witnesses`, but witnesses are MEMBER PATHS
         # and these are DIMENSION names — so the tie-break had been inert since
@@ -813,8 +814,8 @@ ENGINES = {
         # dmc_v4 entry above warns of; caught by checking the derived
         # dimensions against a member known to be FULL and family-4.
         'results': os.path.join(ROOT, 'tmp', 'dmc_v5_r2_results.jsonl'),
-        'out': os.path.join(ROOT, 'tools',
-                            'dmc_v5_regression_portfolio.json'),
+        'out': os.path.join(ROOT, 'pipelines', 'dmc', 'v5',
+                            'regression_portfolio.json'),
         'features': dmc_v5_features,
         'witnesses': DMC_V5_WITNESSES,
         'pin_dims': DMC_V5_PIN_DIMS,

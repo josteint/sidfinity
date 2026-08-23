@@ -77,7 +77,7 @@ namelessalgorithm blog 404s live but was captured via Wayback — see
 ## What remains (migration, not research)
 
 - **Fingerprint the 3,625 members into builds** before bulk extraction
-  (`tools/engine_fingerprint.py`; template `project_fc_fingerprint_and_standard`).
+  (`pipelines/future_composer/engine_fingerprint.py`; template `project_fc_fingerprint_and_standard`).
   `load_addr=$0000` for all; init/play vary — **anchor by code signature, not
   address**. `$C000/$C020` = 1,182; a second build has play-delta `+$475`;
   `play=$0000` = 1,301.

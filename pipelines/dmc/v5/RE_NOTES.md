@@ -158,7 +158,7 @@ classification (verified by tracing): code+state ([$1006,$170F) ∪
 [$17CF,$1878)) RELOCATE; freq+data tables ([$170F,$17CF) ∪ [$1878,$19D0))
 MASKED (packer-patched); SID/CIA (≥$19D0) absolute. Typed
 `DMCV5Unsupported` (player_code_mismatch / no_jumptable / family4_branch /
-cia_multispeed). Batch runner: `tools/dmc_v5_family_batch.py`.
+cia_multispeed). Batch runner: `pipelines/dmc/v5/family_batch.py`.
 
 PULSE/FILTER REPRESENTATION — **parameterized, NOT a shared table.** The
 engine's pulse/filter tables are SHARED, FUSED resources (the packer
@@ -832,7 +832,7 @@ RESULT: **1041 FULL = the freq_overrun baseline, blob eliminated — fully lossl
 
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
-operand sites above, carved reference) + reuse tools/dmc_family_batch.py
+operand sites above, carved reference) + reuse pipelines/dmc/family_batch.py
 over family-3/5 (1495). Then the family-4 branch (686, play +$95).
 
 ## (historical) Phase C plan

@@ -215,7 +215,7 @@ Rationale:
 
 ## 5. Factory Probe Design (INFERRED — verify with disasm)
 
-The FC standard pipeline uses a fingerprint DB (`tools/engine_fingerprint.py`)
+The FC standard pipeline uses a fingerprint DB (`pipelines/future_composer/engine_fingerprint.py`)
 to map each SID to its player variant. A similar approach is recommended here:
 
 1. **Relocation-invariant fingerprint:** extract a short byte run from

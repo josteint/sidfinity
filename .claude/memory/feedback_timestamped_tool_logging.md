@@ -28,7 +28,7 @@ input scale ("capture 25 subtune pairs, 8 workers") and an end line per
 phase that can exceed a few seconds. The convention lives in CLAUDE.md
 (Working conventions); wire it into any tool you touch that lacks it — the
 full retrofit of ~50 existing tools is opportunistic, not a big-bang pass.
-Wired so far: tools/dmc_build_one.py (build + capture phases).
+Wired so far: pipelines/dmc/build_one.py (build + capture phases).
 
 Related: [[feedback_background_jobs_harness]] (long commands run
 backgrounded — timestamped logs are what make their progress READABLE).

@@ -417,7 +417,7 @@ def _w_dmc_v5(sid: str, group: str | None) -> dict:
     copy, which additionally handles per-subtune CIA speed bits); calling the
     batch's keeps tier 1 and tier 2 judging the same thing.
     """
-    import dmc_v5_family_batch as B
+    from pipelines.dmc.v5 import family_batch as B
     if getattr(B, '_db', None) is None:
         B._worker_init()
     r = B.run_member(sid)
@@ -463,6 +463,14 @@ def _run_task(task: tuple) -> dict:
     return res
 
 
+# Engine-owned artifacts live WITH their engine (2026-08-23): each family's
+# regression portfolio now sits at `pipelines/<family>/regression_portfolio.json`,
+# beside the batch and mass-write tools that produce and consume it. The
+# regression harness itself stays in tools/ — it is cross-family by definition.
+_PIPE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     'pipelines')
+
+
 def _build_tasks() -> list:
     """Flat task list in the original print order."""
     import json
@@ -489,12 +497,12 @@ def _build_tasks() -> list:
     add('fc_canary', f'{fc}.hawkeye.config', 'HAWKEYE', 'Hawkeye', None)
     add('fc_canary', f'{fc}.adrenalin.config', 'ADRENALIN', 'Adrenalin[0]', [0])
     add('fc_canary', f'{fc}.standard.config', 'FC_STANDARD', 'Jarre_2', None)
-    pf = os.path.join(os.path.dirname(__file__), 'fc_regression_portfolio.json')
+    pf = os.path.join(_PIPE, 'future_composer', 'regression_portfolio.json')
     if os.path.exists(pf):
         for sid in json.load(open(pf))['portfolio']:
             add('fc_portfolio', sid)
     add('dmc', 'Geometrical_Zaks', 'zaks', '', None)
-    dpf = os.path.join(os.path.dirname(__file__), 'dmc_regression_portfolio.json')
+    dpf = os.path.join(_PIPE, 'dmc', 'regression_portfolio.json')
     if os.path.exists(dpf):
         grp = 'DMC v4 portfolio (feature-cover of the verified family):'
         for sid in json.load(open(dpf))['portfolio']:
@@ -505,8 +513,7 @@ def _build_tasks() -> list:
     # the f2 grind's levers (the vib-swell wedges, pulse_tail_hi, the $FF
     # loop immediate, filter_before_voice, the C31 dispatch wrappers).
     f2seen = set()
-    f2pf = os.path.join(os.path.dirname(__file__),
-                        'dmc_f2_regression_portfolio.json')
+    f2pf = os.path.join(_PIPE, 'dmc', 'f2_regression_portfolio.json')
     if os.path.exists(f2pf):
         grp = 'DMC family-2 portfolio (feature-cover of the closed family):'
         for sid in json.load(open(f2pf))['portfolio']:
@@ -544,19 +551,17 @@ def _build_tasks() -> list:
                 'DMC bug witnesses (every measured f1 regression, FBDL 0/5):')
     # DMC V5 — derived BEFORE the grind (item 17e) rather than at closeout, in
     # BUDGET mode with the measured lever classes double-covered.
-    v5pf = os.path.join(os.path.dirname(__file__),
-                        'dmc_v5_regression_portfolio.json')
+    v5pf = os.path.join(_PIPE, 'dmc', 'v5', 'regression_portfolio.json')
     if os.path.exists(v5pf):
         grp = 'DMC V5 portfolio (budget cover incl. the family-4 branch):'
         for sid in json.load(open(v5pf))['portfolio']:
             add('dmc_v5', sid, grp)
-    bpf = os.path.join(os.path.dirname(__file__), 'basic_program_regression_portfolio.json')
+    bpf = os.path.join(_PIPE, 'basic_program', 'regression_portfolio.json')
     if os.path.exists(bpf):
         grp = 'Basic_Program portfolio (round-trip feature-cover):'
         for m in json.load(open(bpf))['portfolio']:
             add('basic', m['sid'], m['dur'], grp)
-    mpf = os.path.join(os.path.dirname(__file__),
-                       'masm_regression_portfolio.json')
+    mpf = os.path.join(_PIPE, 'music_assembler', 'regression_portfolio.json')
     if os.path.exists(mpf):
         for sid in json.load(open(mpf))['portfolio']:
             add('masm', sid, None)

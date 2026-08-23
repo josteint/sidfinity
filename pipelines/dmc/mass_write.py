@@ -23,7 +23,7 @@ ARTIFACTS (one per distinct build_path) — the only check that exercises
 writer and verifier against each other — and exits 1 if any fails.
 
 Usage:
-    PYTHONPATH=tools/py65_lib:tools:src python3 tools/dmc_mass_write.py
+    PYTHONPATH=tools/py65_lib:tools:src python3 pipelines/dmc/mass_write.py
     ... --results FILE     read a different batch results jsonl
     ... --audit N          audit N members from disk (0 = skip; default 12)
 """
@@ -34,7 +34,7 @@ import os
 import sys
 from multiprocessing import Pool
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
                 os.path.join(ROOT, 'tools'), os.path.join(ROOT, 'src'), ROOT]
 
@@ -162,7 +162,7 @@ def _audit(written, n: int) -> int:
     multi-SID case.
     """
     sys.path.insert(0, os.path.join(ROOT, 'tools'))
-    from dmc_build_one import verify
+    from pipelines.dmc.build_one import verify
     from src import corpus_sync
     import io
     import contextlib
@@ -209,7 +209,7 @@ def main():
     from src import corpus_sync
     p = corpus_sync.plan(results, 'dmc_v4', os.path.join(ROOT, 'hvsc85'),
                          require_build_path=True)
-    for line in p.report('tools/dmc_family_batch.py'):
+    for line in p.report('pipelines/dmc/family_batch.py'):
         print(line, flush=True)
     full = [(d['path'], d.get('hold_gateoff'), d['build_path'])
             for d in p.write]

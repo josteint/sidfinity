@@ -73,7 +73,7 @@ def _path_key(rel: str) -> str:
 
 def _build_one(rel: str):
     """Build one member; return dict(path, md5, chips, feats, err, sid_bytes)."""
-    from dmc_build_one import build
+    from pipelines.dmc.build_one import build
     td = tempfile.mkdtemp()
     out_sid = os.path.join(td, 'o.sid')
     out_usf = os.path.join(td, 'o.usf')

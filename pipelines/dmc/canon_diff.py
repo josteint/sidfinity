@@ -43,11 +43,11 @@ kept out of the clusters.
 
 Usage:
     source src/env.sh
-    python3 tools/dmc_canon_diff.py                       # family1, all
-    python3 tools/dmc_canon_diff.py --members FILE.json    # explicit path list
-    python3 tools/dmc_canon_diff.py --limit 300 --jobs 8   # quick sample
-    python3 tools/dmc_canon_diff.py --new-only             # hide handled clusters
-    python3 tools/dmc_canon_diff.py --csv tmp/wedges.csv   # per-carrier rows
+    python3 pipelines/dmc/canon_diff.py                       # family1, all
+    python3 pipelines/dmc/canon_diff.py --members FILE.json    # explicit path list
+    python3 pipelines/dmc/canon_diff.py --limit 300 --jobs 8   # quick sample
+    python3 pipelines/dmc/canon_diff.py --new-only             # hide handled clusters
+    python3 pipelines/dmc/canon_diff.py --csv tmp/wedges.csv   # per-carrier rows
 """
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ import os
 import sys
 from multiprocessing import Pool
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
                 os.path.join(ROOT, 'tools'), os.path.join(ROOT, 'src'), ROOT]
 

@@ -1,7 +1,7 @@
 """FCConfig for the STANDARD ("vanilla") Future Composer player.
 
 This is the dominant FC player: ~91% (3673/4024) of HVSC FutureComposer SIDs
-share it (tools/engine_fingerprint.py). Migrating it covers the bulk of the FC
+share it (pipelines/future_composer/engine_fingerprint.py). Migrating it covers the bulk of the FC
 catalogue. Address map from disassembly.s (representative Carter/Jarre_2 @
 load $1800).
 

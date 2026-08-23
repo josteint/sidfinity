@@ -12,7 +12,7 @@ state_diff map file (Python dict literal) that maps every orig state
 address (per-voice expanded) to its rebuild counterpart with a label.
 
 Usage:
-    python3 tools/state_map_gen.py --engine ENGINE [--voice {1,2,3,all}] \
+    python3 pipelines/future_composer/state_map_gen.py --engine ENGINE [--voice {1,2,3,all}] \
                                    [--output PATH]
 
 ENGINE is the engine name (e.g. 'hawkeye', 'cybernoid_ii') — looks for
@@ -35,7 +35,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 

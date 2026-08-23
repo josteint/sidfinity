@@ -89,7 +89,7 @@ Jaccard → significant code differences; likely a different V5 version).
   (the trichotomy/per-IRQ infra is engine-neutral, reuse as-is).
 - **Phase D — factory + wide batch** over family-3/5 (1495). New
   `dmc_v5_config` factory (carved V5 reference, probed knobs) + reuse
-  `tools/dmc_family_batch.py` (--members the V5 list).
+  `pipelines/dmc/family_batch.py` (--members the V5 list).
 - **Phase E — family-4 branch (686).** A second RE pass (0.310 Jaccard
   = real differences; likely a V5 version variant — diff its disasm
   against family-3's, like family-2 vs V4).
@@ -104,7 +104,7 @@ Jaccard → significant code differences; likely a different V5 version).
   off-table architectural limit applies here too), that's ~1200-1400
   more FULL → DMC total ~6200-6400 (~58-60% of all 10,676 DMC).
 - Reusable as-is: verify (`pipelines/dmc/verify.py`, trichotomy/per-IRQ),
-  the factory + wide-batch pattern, `dmc_mass_write.py`, the USF
+  the factory + wide-batch pattern, `pipelines/dmc/mass_write.py`, the USF
   pipeline, the regression harness.
 
 ## Recommended first step

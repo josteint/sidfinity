@@ -25,7 +25,7 @@ members that were never actually broken.
    The trap that motivated this: a partial whose `first_play_diff` is None looks
    uncategorized, but it's actually length/CIA or init-state — distinguishable
    from `state_match`+`close`+`len_post_a/b` WITHOUT a re-verify, once the batch
-   records them (folded into `tools/dmc_family_batch.py`). See
+   records them (folded into `pipelines/dmc/family_batch.py`). See
    [[reference_divergence_census]] for the clustering tool.
 1. **FIX THE VERDICT.** Measurement bugs first (CIA-aware per-IRQ capture for
    multispeed; tail `close_tol`). Converts false-partials → FULL at zero

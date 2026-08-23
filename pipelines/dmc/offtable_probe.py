@@ -32,8 +32,8 @@ it came up (Rogue_Ninja, round 91). This tool does the whole chain:
      window fact directly (player 1 idx 97 = $B7 vs player 0 = $D6).
 
 Usage:
-    python3 tools/dmc_offtable_probe.py MUSICIANS/B/Bayliss_Richard/Rogue_Ninja.sid
-    python3 tools/dmc_offtable_probe.py <path> --subtune 1      # a specific subtune
+    python3 pipelines/dmc/offtable_probe.py MUSICIANS/B/Bayliss_Richard/Rogue_Ninja.sid
+    python3 pipelines/dmc/offtable_probe.py <path> --subtune 1      # a specific subtune
 
 <path> is HVSC-relative (under hvsc85/).
 """
@@ -46,7 +46,7 @@ import subprocess
 import sys
 import tempfile
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
                 os.path.join(ROOT, 'tools'), os.path.join(ROOT, 'src'), ROOT]
 
@@ -161,7 +161,7 @@ def main():
                     help='probe this subtune (default: every failing one)')
     args = ap.parse_args()
 
-    from dmc_build_one import build, verify
+    from pipelines.dmc.build_one import build, verify
     from find_first_divergence import _flatten, describe_reg
     from pipelines.dmc.v4.compilation import detect_compilation
     from pipelines.hubbard.verify_cycle import (writelog_capture,

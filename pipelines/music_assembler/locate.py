@@ -24,7 +24,7 @@ anchored on init's fixed prefix at base+$48, NOT on the signature and NOT on
 the work block — those offsets are build-dependent, and using either as the
 primary anchor costs ~50 members and admits false positives. With the init
 anchor the signature offset measures `+$91` for ALL 5,618 members that locate
-(tools/masm_census.py), i.e. ONE dominant build — which supersedes the
+(pipelines/music_assembler/census.py), i.e. ONE dominant build — which supersedes the
 `+$91/+$B5/+$70/+$191` spread reported in docs/README.md. See the CORRECTION
 block at the head of docs/spec_player_RE_grounded.md.
 """

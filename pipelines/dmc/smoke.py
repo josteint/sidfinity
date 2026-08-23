@@ -18,8 +18,8 @@ crash on even though it targets a canonical member:
 It is fix-AGNOSTIC: it exercises the pipeline, not any particular fix.
 
 Usage:
-    python3 tools/dmc_smoke.py                 # default diverse set
-    python3 tools/dmc_smoke.py PATH [PATH...]  # custom members (HVSC-relative)
+    python3 pipelines/dmc/smoke.py                 # default diverse set
+    python3 pipelines/dmc/smoke.py PATH [PATH...]  # custom members (HVSC-relative)
 Exit code is nonzero if ANY member crashed.
 """
 from __future__ import annotations
@@ -29,7 +29,7 @@ import sys
 import tempfile
 import traceback
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
                 os.path.join(ROOT, 'tools'), os.path.join(ROOT, 'src'), ROOT]
 

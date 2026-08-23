@@ -68,28 +68,28 @@ OUT_PATH = os.path.join(ROOT, 'tools', 'engine_deps.json')
 CONSUMERS = {
     'dmc_v4': {
         'consumer': 'dmc_family_batch',
-        'module': 'dmc_family_batch', 'fn': 'run_member',
+        'module': 'pipelines.dmc.family_batch', 'fn': 'run_member',
         'results': ['tmp/dmc_f1_85_results.jsonl', 'tmp/dmc_f2_85_results.jsonl'],
         'path_key': 'path',
         'arg': lambda r: r['path'],
     },
     'dmc_v5': {
         'consumer': 'dmc_v5_family_batch',
-        'module': 'dmc_v5_family_batch', 'fn': 'run_member',
+        'module': 'pipelines.dmc.v5.family_batch', 'fn': 'run_member',
         'results': ['tmp/dmc_v5_merged.jsonl'],
         'path_key': 'path',
         'arg': lambda r: r['path'],
     },
     'fc_standard': {
         'consumer': 'fc_family_batch',
-        'module': 'fc_family_batch', 'fn': 'run',
+        'module': 'pipelines.future_composer.family_batch', 'fn': 'run',
         'results': ['tmp/fc_std_wide_results.jsonl'],
         'path_key': 'sid',
         'arg': lambda r: r['sid'],
     },
     'music_assembler': {
         'consumer': 'masm_family_batch',
-        'module': 'masm_family_batch', 'fn': 'run',
+        'module': 'pipelines.music_assembler.family_batch', 'fn': 'run',
         'results': ['tmp/masm_wide_results.jsonl'],
         'path_key': 'sid',
         'arg': lambda r: r['sid'],

@@ -433,7 +433,7 @@ index → reuse the arpeggio/chord representation.
 
 > **OPEN-7:** acquire format details for non-NP20.G4 packed variants (17.G0, 21.G4-G6,
 > 22-25, the `$0fe0/$0ff1` group, the self-relocating `Starburst`-type). These are
-> ~416 of 3611 tunes. Use `tools/engine_fingerprint.py`-style reloc-invariant
+> ~416 of 3611 tunes. Use `pipelines/future_composer/engine_fingerprint.py`-style reloc-invariant
 > fingerprinting (cf. FC standard-player work, `project_fc_fingerprint_and_standard`)
 > to bucket the 3611 by player sub-version, then anchor each bucket's table map
 > against one representative binary. Likely 80-90% collapse to the single dominant

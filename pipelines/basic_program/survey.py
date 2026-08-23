@@ -14,7 +14,7 @@ of the 81 GET play-along tunes). Output -> tmp/basic_program_research/survey.jso
 import json, os, re, subprocess, sys
 from concurrent.futures import ProcessPoolExecutor
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 from src.jobs import default_jobs  # noqa: E402
 

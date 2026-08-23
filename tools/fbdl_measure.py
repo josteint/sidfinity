@@ -46,8 +46,8 @@ from src.tslog import ts                         # noqa: E402
 # experiment outputs, and a wrong ordering silently inverts every transition.
 GENERATIONS = {
     'dmc_v4': {
-        'portfolios': ['tools/dmc_regression_portfolio.json',
-                       'tools/dmc_f2_regression_portfolio.json'],
+        'portfolios': ['pipelines/dmc/regression_portfolio.json',
+                       'pipelines/dmc/f2_regression_portfolio.json'],
         'key': 'path',
         'files': [
             'tmp/dmc_f1_r83.jsonl',
@@ -65,7 +65,7 @@ GENERATIONS = {
         ],
     },
     'dmc_f2': {
-        'portfolios': ['tools/dmc_f2_regression_portfolio.json'],
+        'portfolios': ['pipelines/dmc/f2_regression_portfolio.json'],
         'key': 'path',
         'files': [
             'tmp/dmc_f2_85_prev.jsonl',

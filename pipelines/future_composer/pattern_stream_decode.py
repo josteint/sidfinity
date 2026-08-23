@@ -24,10 +24,10 @@ interpretation:
   $FF      loop to start
 
 Usage:
-    python3 tools/pattern_stream_decode.py SID --addr HEX [--max-bytes N]
+    python3 pipelines/future_composer/pattern_stream_decode.py SID --addr HEX [--max-bytes N]
 
     # FC family canned: decode V<voice>'s seq+pattern for a subtune
-    python3 tools/pattern_stream_decode.py SID --engine fc \
+    python3 pipelines/future_composer/pattern_stream_decode.py SID --engine fc \
         --subtune N --voice {1|2|3} [--frame F]
 
 Outputs a side-by-side: hex bytes + decoded command + offset position

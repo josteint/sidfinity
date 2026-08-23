@@ -297,7 +297,7 @@ false-negatived ALL carriers). Census over all 5401 f1: exactly 9 carriers
 (Welcome_to_Egypt, Bayliss ×4, DaFunk ×2, SilverFox ×2), ALL partial (0 FULL
 exposure) => regression-safe by construction; ALL 9 partial -> FULL (fresh
 full-songlength verify). 0 f2 carriers. Also promoted the scratch build helper
-to `tools/dmc_build_one.py` (build one member -> .sid + .usf, --verify /
+to `pipelines/dmc/build_one.py` (build one member -> .sid + .usf, --verify /
 --localize). LESSON (repeats round 50): when a derived value's memwatch/runtime
 disagrees with "what should happen", pc-trace the ACTUAL executed opcode — the
 canonical disassembly.s can be locally patched in a given member. f1 ≈ 5155

@@ -18,7 +18,7 @@ Run:  PYTHONPATH=.:tools/py65_lib:tools:src python3 tmp/run_wide.py
 import json, os, sys, traceback
 from multiprocessing import Pool
 
-ROOT = '/home/jtr/sidfinity'
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 os.environ['TMPDIR'] = os.path.join(ROOT, 'tmp', 'work')

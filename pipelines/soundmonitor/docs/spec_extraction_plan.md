@@ -43,7 +43,7 @@ The briefing's "master track/step table rows `SP TRKx TR ST 00`" and "24-paramet
 **Extraction step 1 — anchor by code signature, then derive base from PSID `init_addr`:**
 
 1. Read PSID header → `init_addr`, `play_addr`, payload. Load payload to `load_addr` = first 2 bytes of payload.
-2. The replayer's `play()` entry is `playSound` (label in disasm). Confirm engine identity with a **relocation-invariant fingerprint** of the `playSound`/`processNote`/`makeEffects` code (reuse `tools/engine_fingerprint.py` methodology — it already does reloc-invariant FC fingerprinting). Anchor candidates: the `makeEffects` JSR chain
+2. The replayer's `play()` entry is `playSound` (label in disasm). Confirm engine identity with a **relocation-invariant fingerprint** of the `playSound`/`processNote`/`makeEffects` code (reuse `pipelines/future_composer/engine_fingerprint.py` methodology — it already does reloc-invariant FC fingerprinting). Anchor candidates: the `makeEffects` JSR chain
    ```
    jsr makePortamentoEffect / jsr makeVibratoEffect / jsr makeFilterCutEffect / jsr makeWavePulseEffect
    ```

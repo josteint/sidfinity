@@ -277,7 +277,7 @@ BLIND_DETECTORS = [
 # --------------------------------------------------------------------------
 
 def _dmc_offtable(orig, rebuild, subtune, r) -> 'Signal | None':
-    """Adapter onto tools/dmc_offtable_probe.py (C6). Only meaningful when the
+    """Adapter onto pipelines/dmc/offtable_probe.py (C6). Only meaningful when the
     divergence is a voice freq lo/hi (the probe bows out otherwise)."""
     if _div_kind(r) != 'wrong_value':
         return None

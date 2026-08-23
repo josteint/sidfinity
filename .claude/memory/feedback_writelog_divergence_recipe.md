@@ -73,7 +73,7 @@ type bugs), reach for `tools/state_diff.py` instead of py65.
 
 ```bash
 # 1. Generate map (joins per-engine annotation with composer xa65 labels)
-python3 tools/state_map_gen.py --engine ENGINE --voice {1,2,3,all} \
+python3 pipelines/future_composer/state_map_gen.py --engine ENGINE --voice {1,2,3,all} \
     --output tmp/map.py
 # 2. Run state_diff
 python3 tools/state_diff.py ORIG.sid REBUILD.sid \
@@ -142,7 +142,7 @@ under "Built (active)" with use cases.
   routine (nolengset/pulse_prog/glide/etc). Use when "which effect
   produced this write?" is the question. Supports `--diff-against
   OTHER.sid` for side-by-side.
-- **`tools/pattern_stream_decode.py SID --addr HEX`** — decode FC
+- **`pipelines/future_composer/pattern_stream_decode.py SID --addr HEX`** — decode FC
   pattern stream bytes ($Cx wave/inst, $Fx markers, glide triples, etc.)
   as readable command list. `--seq` for seq stream mode. Use when "what
   byte does the pattern stream actually contain at this offset?" is the
@@ -163,7 +163,7 @@ under "Built (active)" with use cases.
   Cross-references writelog + pc-trace. Answers "which routine wrote
   this $D408 = $47?" in one command. The Hawkeye sub 1 V2 freq hi
   divergence would have been 5 minutes instead of 30.
-- **`tools/pattern_stream_verify.py --engine ENGINE` (or `--all`)** —
+- **`pipelines/future_composer/pattern_stream_verify.py --engine ENGINE` (or `--all`)** —
   sanity check, not an investigation tool. Run BEFORE diving into a
   writelog divergence to confirm the extract/compose pipeline isn't
   the culprit: verifies orig and rebuild pattern bytes match (with

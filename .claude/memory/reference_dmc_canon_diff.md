@@ -1,13 +1,13 @@
 ---
 name: reference_dmc_canon_diff
-description: "tools/dmc_canon_diff.py — a-priori wedge enumerator: diff every member's player code vs the canonical player binary, cluster deviations by site, tag handled/NEW, split partial/full. Proved DMC family-1's wedge space is essentially fully handled."
+description: "pipelines/dmc/canon_diff.py — a-priori wedge enumerator: diff every member's player code vs the canonical player binary, cluster deviations by site, tag handled/NEW, split partial/full. Proved DMC family-1's wedge space is essentially fully handled."
 metadata: 
   node_type: memory
   type: reference
   originSessionId: 5c8305f4-b394-4c76-b68a-f7ff5fb5da03
 ---
 
-`tools/dmc_canon_diff.py` (built 2026-07-10) — the PROACTIVE complement to the
+`pipelines/dmc/canon_diff.py` (built 2026-07-10) — the PROACTIVE complement to the
 reactive `pipelines/dmc/v4/factory.py::_*_probe` wedge detectors. Answers "can we
 predict the residue wedges a priori instead of one-divergence-at-a-time?"
 
@@ -23,7 +23,7 @@ relocations (a moved state block repoints ~346 sites by ONE Δ — not a wedge),
 cluster by canon site, tag handled-vs-NEW (`_KNOWN_SITES`), and split each cluster
 into partial/full carriers with `--status BATCH.jsonl`.
 
-`python3 tools/dmc_canon_diff.py [--members family1|FILE.json] [--status
+`python3 pipelines/dmc/canon_diff.py [--members family1|FILE.json] [--status
 tmp/dmc_wide_results.jsonl] [--csv out.csv] [--new-only] [--limit N]`
 
 ## The finding it produced (2026-07-10) — the residue is NOT a wedge problem

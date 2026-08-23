@@ -379,7 +379,7 @@ alongside a V3.1 canary; compare sound-record layout field by field.
 4. **V1.0 Cluster** — identify via sidid sub-variant label `Soundmaster_V1.0`.
    The sidid signature fragment `B9 ?? ?? 4A 4A 4A 4A 9D ?? ??` (nibble-split store
    sequence) should allow writing a relocation-invariant fingerprinter analogous to
-   `tools/engine_fingerprint.py` (FC standard player).
+   `pipelines/future_composer/engine_fingerprint.py` (FC standard player).
 
 5. **Cluster E (play before init, −41 delta)** — check whether these are actually
    SoedeSoft or a mis-classification. The Danko Tomas tunes in that cluster have

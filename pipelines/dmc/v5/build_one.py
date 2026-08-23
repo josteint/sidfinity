@@ -22,9 +22,9 @@ per-frame compare misaligns by a whole frame and reports a meaningless
 position 0 (Trap C via differing init length; ledger C21).
 
 Usage:
-    python3 tools/dmc_v5_build_one.py MUSICIANS/G/Ganja/Silicon_Dreams.sid \
+    python3 pipelines/dmc/v5/build_one.py MUSICIANS/G/Ganja/Silicon_Dreams.sid \
         --verify --localize
-    python3 tools/dmc_v5_build_one.py <rel> --usf out.usf --out out.sid
+    python3 pipelines/dmc/v5/build_one.py <rel> --usf out.usf --out out.sid
 """
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ import os
 import sys
 import tempfile
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
                 os.path.join(ROOT, 'tools'), os.path.join(ROOT, 'src'), ROOT]
 

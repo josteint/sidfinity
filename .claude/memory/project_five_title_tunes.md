@@ -41,7 +41,7 @@ intact for reference.
 ```
 data/.../5_Title_Tunes.sid                       (parent PSID, 11.7KB)
     │
-    ▼ tools/split_multi_binary.py (existed already)
+    ▼ pipelines/hubbard/split_multi_binary.py (existed already)
 work_subs/sub_{0..4}.sid                         (5 standalone PSIDs)
     │
     ▼ v2/config.py — 5 EngineConfigs (TUNE0..TUNE4)
@@ -127,7 +127,7 @@ $0BA8.
 
 ### Splitter has a load-offset bug (cosmetic, not blocking)
 
-`tools/split_multi_binary.py` writes `sub_0.sid` with `load=$0C06` but
+`pipelines/hubbard/split_multi_binary.py` writes `sub_0.sid` with `load=$0C06` but
 sub_0's $1850 init JSRs $0C00 (6 bytes earlier). The standalone
 sub_0.sid as-written by the splitter doesn't play correctly through
 py65 capture — the JSR to $0C00 hits unloaded ($00) memory.

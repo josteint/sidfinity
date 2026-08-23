@@ -6,7 +6,7 @@ whose code_hash matches the current code (stale rows skipped + warned), writes
 its .usf + .sidfinity.sid via the real SID -> USF -> SID pipeline.
 
 Usage:
-    PYTHONPATH=tools/py65_lib:tools:src python3 tools/dmc_v5_mass_write.py \
+    PYTHONPATH=tools/py65_lib:tools:src python3 pipelines/dmc/v5/mass_write.py \
         [--results FILE.jsonl]
 """
 from __future__ import annotations
@@ -16,7 +16,7 @@ import os
 import sys
 from multiprocessing import Pool
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
                 os.path.join(ROOT, 'tools'), os.path.join(ROOT, 'src'), ROOT]
 
@@ -62,7 +62,7 @@ def main():
     # grows a second, the batch must record one and this must require it.
     from src import corpus_sync
     p = corpus_sync.plan(results, 'dmc_v5', os.path.join(ROOT, 'hvsc85'))
-    for line in p.report('tools/dmc_v5_family_batch.py'):
+    for line in p.report('pipelines/dmc/v5/family_batch.py'):
         print(line, flush=True)
     full = [d['path'] for d in p.write]
     corpus_sync.remove_orphans(p)

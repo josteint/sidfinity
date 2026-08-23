@@ -36,7 +36,7 @@ progress file stays empty for the entire run, which reads as "stalled", and the
 natural next move is to re-run it in the foreground.
 
 **Why:** burned a cycle in the round-88 session — backgrounded
-`dmc_next_partial.py 2>&1 | tail -40`, read the empty output file, concluded
+`pipelines/dmc/next_partial.py 2>&1 | tail -40`, read the empty output file, concluded
 nothing was happening, and ran the SAME command in the foreground. Both did
 full builds+verifies concurrently, both writing the same queue file
 (`tmp/dmc_f1_partials.jsonl`). It survived intact, but that was luck: two

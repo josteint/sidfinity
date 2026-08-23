@@ -3,7 +3,7 @@
 5 Title Tunes is a compilation PSID: 5 standalone Hubbard '85 engines
 selected by a dispatcher at $0B10/$0B40. Each sub-engine is migrated
 as its own EngineConfig (TUNE0..TUNE4) using the standalone PSIDs
-written by `tools/split_multi_binary.py` (see /tmp/five_tt_subs/ or
+written by `pipelines/hubbard/split_multi_binary.py` (see /tmp/five_tt_subs/ or
 `pipelines/hubbard/five_title_tunes/work_subs/`).
 
 The compound build (codegen-relocated 5 engines + dispatcher → one
@@ -29,7 +29,7 @@ from pipelines.hubbard.five_title_tunes.unified.extract import engine_model as _
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))))
 
-# Standalone sub PSIDs (written by tools/split_multi_binary.py). The
+# Standalone sub PSIDs (written by pipelines/hubbard/split_multi_binary.py). The
 # `_ensure_subs()` helper regenerates these on demand so the configs
 # are usable even without pre-running the splitter.
 WORK_SUBS = os.path.join(ROOT, 'pipelines', 'hubbard', 'five_title_tunes', 'work_subs')

@@ -1,0 +1,401 @@
+{
+ "engine": "basic_program",
+ "portfolio": [
+  {
+   "sid": "DEMOS/A-F/Chess_Offenbach_BASIC.sid",
+   "dur": 77.7
+  },
+  {
+   "sid": "DEMOS/A-F/Chromatic_Boogie_BASIC.sid",
+   "dur": 65.4
+  },
+  {
+   "sid": "DEMOS/A-F/Fog_BASIC.sid",
+   "dur": 68.2
+  },
+  {
+   "sid": "DEMOS/Commodore/Invention_1_in_C_J_S_Bach_BASIC.sid",
+   "dur": 73.7
+  },
+  {
+   "sid": "DEMOS/G-L/Gabooto_Bach_BASIC.sid",
+   "dur": 92.2
+  },
+  {
+   "sid": "DEMOS/M-R/Momo_Color_BASIC.sid",
+   "dur": 28.6
+  },
+  {
+   "sid": "DEMOS/M-R/Pink_Panther_BASIC.sid",
+   "dur": 109.4
+  },
+  {
+   "sid": "DEMOS/S-Z/Singalong-a-Summer_BASIC.sid",
+   "dur": 27.5
+  },
+  {
+   "sid": "DEMOS/S-Z/Sound_of_Silence_BASIC.sid",
+   "dur": 112.6
+  },
+  {
+   "sid": "DEMOS/UNKNOWN/Baby_Elephant_Walk_BASIC.sid",
+   "dur": 80.7
+  },
+  {
+   "sid": "DEMOS/UNKNOWN/Videobreak_11_BASIC.sid",
+   "dur": 128.7
+  },
+  {
+   "sid": "GAMES/A-F/Candy_Bandit_BASIC.sid",
+   "dur": 15.0
+  },
+  {
+   "sid": "GAMES/G-L/Johnny_Reb_BASIC.sid",
+   "dur": 15.0
+  },
+  {
+   "sid": "GAMES/S-Z/Spaceshuttle_BASIC.sid",
+   "dur": 15.0
+  },
+  {
+   "sid": "GAMES/S-Z/Trickly_BASIC.sid",
+   "dur": 19.8
+  },
+  {
+   "sid": "MUSICIANS/B/Bond_Alan/Interlace_BASIC.sid",
+   "dur": 15.0
+  },
+  {
+   "sid": "MUSICIANS/B/Bond_Alan/One_Voice_Tune_2_BASIC.sid",
+   "dur": 15.0
+  },
+  {
+   "sid": "MUSICIANS/B/Bond_Alan/One_Voice_Tune_3_BASIC.sid",
+   "dur": 15.0
+  },
+  {
+   "sid": "MUSICIANS/B/Bond_Alan/Rmod_Stabiliser_BASIC.sid",
+   "dur": 15.0
+  },
+  {
+   "sid": "MUSICIANS/B/Bond_Alan/Two_Lines_of_Code_2_BASIC.sid",
+   "dur": 15.0
+  },
+  {
+   "sid": "MUSICIANS/F/Fong_William/Electronic_Foreheads_in_Concert_BASIC.sid",
+   "dur": 433.4
+  },
+  {
+   "sid": "MUSICIANS/G/Giombini_Marcello/Music_Game_BASIC.sid",
+   "dur": 15.0
+  },
+  {
+   "sid": "MUSICIANS/H/Haas_Eric/Stars_and_Stripes_Forever_BASIC.sid",
+   "dur": 152.9
+  },
+  {
+   "sid": "MUSICIANS/K/Karlsson_Peter/Kaxiga_Myran_BASIC.sid",
+   "dur": 185.9
+  },
+  {
+   "sid": "MUSICIANS/K/Kidd_Clark_and_Kathy/Notecrafter_BASIC.sid",
+   "dur": 18.7
+  },
+  {
+   "sid": "MUSICIANS/L/Latimer_Joey/Computer_Shake_BASIC.sid",
+   "dur": 89.1
+  },
+  {
+   "sid": "MUSICIANS/L/Latimer_Joey/Techno-Rock_Fugue_BASIC.sid",
+   "dur": 30.8
+  },
+  {
+   "sid": "MUSICIANS/P/Pace_Wayne/A_Time_for_Us_BASIC.sid",
+   "dur": 69.3
+  },
+  {
+   "sid": "MUSICIANS/T/Tel_Jeroen/Final_Countdown_BASIC.sid",
+   "dur": 51.7
+  }
+ ],
+ "dimensions": {
+  "fx:filter": [
+   "GAMES/G-L/Johnny_Reb_BASIC.sid",
+   "GAMES/S-Z/Trickly_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Rmod_Stabiliser_BASIC.sid",
+   "MUSICIANS/G/Giombini_Marcello/Music_Game_BASIC.sid"
+  ],
+  "fx:mastervol": [
+   "DEMOS/M-R/Momo_Color_BASIC.sid",
+   "GAMES/G-L/Johnny_Reb_BASIC.sid",
+   "GAMES/S-Z/Spaceshuttle_BASIC.sid",
+   "GAMES/S-Z/Trickly_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Rmod_Stabiliser_BASIC.sid",
+   "MUSICIANS/G/Giombini_Marcello/Music_Game_BASIC.sid",
+   "MUSICIANS/K/Karlsson_Peter/Kaxiga_Myran_BASIC.sid"
+  ],
+  "fx:perstep_timbre": [
+   "GAMES/G-L/Johnny_Reb_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Interlace_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/One_Voice_Tune_2_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/One_Voice_Tune_3_BASIC.sid",
+   "MUSICIANS/F/Fong_William/Electronic_Foreheads_in_Concert_BASIC.sid"
+  ],
+  "init:filter": [
+   "DEMOS/A-F/Fog_BASIC.sid",
+   "DEMOS/M-R/Pink_Panther_BASIC.sid",
+   "DEMOS/UNKNOWN/Baby_Elephant_Walk_BASIC.sid",
+   "DEMOS/UNKNOWN/Videobreak_11_BASIC.sid",
+   "GAMES/A-F/Candy_Bandit_BASIC.sid",
+   "GAMES/G-L/Johnny_Reb_BASIC.sid",
+   "MUSICIANS/G/Giombini_Marcello/Music_Game_BASIC.sid",
+   "MUSICIANS/K/Karlsson_Peter/Kaxiga_Myran_BASIC.sid",
+   "MUSICIANS/L/Latimer_Joey/Techno-Rock_Fugue_BASIC.sid"
+  ],
+  "steps:000+": [
+   "DEMOS/M-R/Momo_Color_BASIC.sid",
+   "DEMOS/S-Z/Singalong-a-Summer_BASIC.sid",
+   "GAMES/A-F/Candy_Bandit_BASIC.sid",
+   "GAMES/G-L/Johnny_Reb_BASIC.sid",
+   "GAMES/S-Z/Spaceshuttle_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Rmod_Stabiliser_BASIC.sid",
+   "MUSICIANS/G/Giombini_Marcello/Music_Game_BASIC.sid",
+   "MUSICIANS/K/Kidd_Clark_and_Kathy/Notecrafter_BASIC.sid"
+  ],
+  "steps:100+": [
+   "GAMES/S-Z/Trickly_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Interlace_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/One_Voice_Tune_2_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/One_Voice_Tune_3_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Two_Lines_of_Code_2_BASIC.sid",
+   "MUSICIANS/L/Latimer_Joey/Techno-Rock_Fugue_BASIC.sid"
+  ],
+  "steps:200+": [
+   "DEMOS/M-R/Pink_Panther_BASIC.sid",
+   "MUSICIANS/L/Latimer_Joey/Computer_Shake_BASIC.sid",
+   "MUSICIANS/P/Pace_Wayne/A_Time_for_Us_BASIC.sid",
+   "MUSICIANS/T/Tel_Jeroen/Final_Countdown_BASIC.sid"
+  ],
+  "steps:300+": [
+   "DEMOS/A-F/Chess_Offenbach_BASIC.sid",
+   "DEMOS/A-F/Chromatic_Boogie_BASIC.sid",
+   "DEMOS/Commodore/Invention_1_in_C_J_S_Bach_BASIC.sid"
+  ],
+  "steps:400+": [
+   "DEMOS/A-F/Fog_BASIC.sid",
+   "DEMOS/G-L/Gabooto_Bach_BASIC.sid",
+   "MUSICIANS/K/Karlsson_Peter/Kaxiga_Myran_BASIC.sid"
+  ],
+  "steps:500+": [
+   "DEMOS/UNKNOWN/Baby_Elephant_Walk_BASIC.sid",
+   "DEMOS/UNKNOWN/Videobreak_11_BASIC.sid",
+   "MUSICIANS/H/Haas_Eric/Stars_and_Stripes_Forever_BASIC.sid"
+  ],
+  "steps:600+": [
+   "DEMOS/S-Z/Sound_of_Silence_BASIC.sid",
+   "DEMOS/UNKNOWN/Medley_BASIC.sid",
+   "MUSICIANS/F/Fong_William/Electronic_Foreheads_in_Concert_BASIC.sid"
+  ],
+  "struct:clean": [
+   "DEMOS/A-F/Chess_Offenbach_BASIC.sid",
+   "DEMOS/A-F/Chromatic_Boogie_BASIC.sid",
+   "DEMOS/A-F/Fog_BASIC.sid",
+   "DEMOS/Commodore/Invention_1_in_C_J_S_Bach_BASIC.sid",
+   "DEMOS/G-L/Gabooto_Bach_BASIC.sid",
+   "DEMOS/M-R/Momo_Color_BASIC.sid",
+   "DEMOS/M-R/Pink_Panther_BASIC.sid",
+   "DEMOS/S-Z/Singalong-a-Summer_BASIC.sid",
+   "DEMOS/S-Z/Sound_of_Silence_BASIC.sid",
+   "DEMOS/UNKNOWN/Baby_Elephant_Walk_BASIC.sid",
+   "DEMOS/UNKNOWN/Medley_BASIC.sid",
+   "DEMOS/UNKNOWN/Videobreak_11_BASIC.sid",
+   "GAMES/A-F/Candy_Bandit_BASIC.sid",
+   "GAMES/G-L/Johnny_Reb_BASIC.sid",
+   "GAMES/S-Z/Spaceshuttle_BASIC.sid",
+   "GAMES/S-Z/Trickly_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Interlace_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/One_Voice_Tune_2_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/One_Voice_Tune_3_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Rmod_Stabiliser_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Two_Lines_of_Code_2_BASIC.sid",
+   "MUSICIANS/F/Fong_William/Electronic_Foreheads_in_Concert_BASIC.sid",
+   "MUSICIANS/G/Giombini_Marcello/Music_Game_BASIC.sid",
+   "MUSICIANS/H/Haas_Eric/Stars_and_Stripes_Forever_BASIC.sid",
+   "MUSICIANS/K/Karlsson_Peter/Kaxiga_Myran_BASIC.sid",
+   "MUSICIANS/K/Kidd_Clark_and_Kathy/Notecrafter_BASIC.sid",
+   "MUSICIANS/L/Latimer_Joey/Computer_Shake_BASIC.sid",
+   "MUSICIANS/L/Latimer_Joey/Techno-Rock_Fugue_BASIC.sid",
+   "MUSICIANS/P/Pace_Wayne/A_Time_for_Us_BASIC.sid",
+   "MUSICIANS/T/Tel_Jeroen/Final_Countdown_BASIC.sid"
+  ],
+  "struct:gated": [
+   "DEMOS/A-F/Chess_Offenbach_BASIC.sid",
+   "DEMOS/A-F/Chromatic_Boogie_BASIC.sid",
+   "DEMOS/A-F/Fog_BASIC.sid",
+   "DEMOS/Commodore/Invention_1_in_C_J_S_Bach_BASIC.sid",
+   "DEMOS/G-L/Gabooto_Bach_BASIC.sid",
+   "DEMOS/M-R/Momo_Color_BASIC.sid",
+   "DEMOS/M-R/Pink_Panther_BASIC.sid",
+   "DEMOS/S-Z/Singalong-a-Summer_BASIC.sid",
+   "DEMOS/S-Z/Sound_of_Silence_BASIC.sid",
+   "DEMOS/UNKNOWN/Medley_BASIC.sid",
+   "DEMOS/UNKNOWN/Videobreak_11_BASIC.sid",
+   "GAMES/G-L/Johnny_Reb_BASIC.sid",
+   "GAMES/S-Z/Trickly_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Interlace_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/One_Voice_Tune_3_BASIC.sid",
+   "MUSICIANS/F/Fong_William/Electronic_Foreheads_in_Concert_BASIC.sid",
+   "MUSICIANS/G/Giombini_Marcello/Music_Game_BASIC.sid",
+   "MUSICIANS/H/Haas_Eric/Stars_and_Stripes_Forever_BASIC.sid",
+   "MUSICIANS/K/Karlsson_Peter/Kaxiga_Myran_BASIC.sid",
+   "MUSICIANS/K/Kidd_Clark_and_Kathy/Notecrafter_BASIC.sid",
+   "MUSICIANS/L/Latimer_Joey/Computer_Shake_BASIC.sid",
+   "MUSICIANS/L/Latimer_Joey/Techno-Rock_Fugue_BASIC.sid",
+   "MUSICIANS/P/Pace_Wayne/A_Time_for_Us_BASIC.sid",
+   "MUSICIANS/T/Tel_Jeroen/Final_Countdown_BASIC.sid"
+  ],
+  "struct:legato": [
+   "DEMOS/UNKNOWN/Baby_Elephant_Walk_BASIC.sid",
+   "GAMES/A-F/Candy_Bandit_BASIC.sid",
+   "GAMES/S-Z/Spaceshuttle_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/One_Voice_Tune_2_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Rmod_Stabiliser_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Two_Lines_of_Code_2_BASIC.sid"
+  ],
+  "struct:loop": [
+   "DEMOS/A-F/Fog_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/One_Voice_Tune_3_BASIC.sid",
+   "MUSICIANS/G/Giombini_Marcello/Music_Game_BASIC.sid"
+  ],
+  "struct:multi_template": [
+   "DEMOS/A-F/Chess_Offenbach_BASIC.sid",
+   "DEMOS/A-F/Chromatic_Boogie_BASIC.sid",
+   "DEMOS/Commodore/Invention_1_in_C_J_S_Bach_BASIC.sid",
+   "DEMOS/G-L/Gabooto_Bach_BASIC.sid",
+   "DEMOS/M-R/Momo_Color_BASIC.sid",
+   "DEMOS/M-R/Pink_Panther_BASIC.sid",
+   "DEMOS/S-Z/Singalong-a-Summer_BASIC.sid",
+   "DEMOS/S-Z/Sound_of_Silence_BASIC.sid",
+   "DEMOS/UNKNOWN/Medley_BASIC.sid",
+   "DEMOS/UNKNOWN/Videobreak_11_BASIC.sid",
+   "GAMES/A-F/Candy_Bandit_BASIC.sid",
+   "GAMES/G-L/Johnny_Reb_BASIC.sid",
+   "GAMES/S-Z/Spaceshuttle_BASIC.sid",
+   "GAMES/S-Z/Trickly_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Interlace_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/One_Voice_Tune_2_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/One_Voice_Tune_3_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Rmod_Stabiliser_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Two_Lines_of_Code_2_BASIC.sid",
+   "MUSICIANS/F/Fong_William/Electronic_Foreheads_in_Concert_BASIC.sid",
+   "MUSICIANS/G/Giombini_Marcello/Music_Game_BASIC.sid",
+   "MUSICIANS/K/Karlsson_Peter/Kaxiga_Myran_BASIC.sid",
+   "MUSICIANS/L/Latimer_Joey/Computer_Shake_BASIC.sid",
+   "MUSICIANS/P/Pace_Wayne/A_Time_for_Us_BASIC.sid",
+   "MUSICIANS/T/Tel_Jeroen/Final_Countdown_BASIC.sid"
+  ],
+  "struct:song_end": [
+   "DEMOS/UNKNOWN/Videobreak_11_BASIC.sid",
+   "GAMES/A-F/Candy_Bandit_BASIC.sid",
+   "GAMES/G-L/Johnny_Reb_BASIC.sid",
+   "GAMES/S-Z/Spaceshuttle_BASIC.sid",
+   "MUSICIANS/F/Fong_William/Electronic_Foreheads_in_Concert_BASIC.sid"
+  ],
+  "tmpl:k=2": [
+   "DEMOS/M-R/Momo_Color_BASIC.sid",
+   "GAMES/A-F/Candy_Bandit_BASIC.sid",
+   "MUSICIANS/K/Karlsson_Peter/Kaxiga_Myran_BASIC.sid",
+   "MUSICIANS/T/Tel_Jeroen/Final_Countdown_BASIC.sid"
+  ],
+  "tmpl:k=3": [
+   "MUSICIANS/B/Bond_Alan/One_Voice_Tune_2_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/One_Voice_Tune_3_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Rmod_Stabiliser_BASIC.sid",
+   "MUSICIANS/P/Pace_Wayne/A_Time_for_Us_BASIC.sid"
+  ],
+  "tmpl:k=4": [
+   "DEMOS/A-F/Chromatic_Boogie_BASIC.sid",
+   "GAMES/S-Z/Spaceshuttle_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Two_Lines_of_Code_2_BASIC.sid"
+  ],
+  "tmpl:k=5": [
+   "DEMOS/A-F/Chess_Offenbach_BASIC.sid",
+   "DEMOS/UNKNOWN/Videobreak_11_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Interlace_BASIC.sid",
+   "MUSICIANS/L/Latimer_Joey/Computer_Shake_BASIC.sid"
+  ],
+  "tmpl:k=6": [
+   "DEMOS/Commodore/Invention_1_in_C_J_S_Bach_BASIC.sid",
+   "DEMOS/S-Z/Sound_of_Silence_BASIC.sid",
+   "GAMES/G-L/Johnny_Reb_BASIC.sid"
+  ],
+  "tmpl:k=7": [
+   "DEMOS/S-Z/Singalong-a-Summer_BASIC.sid",
+   "GAMES/S-Z/Trickly_BASIC.sid",
+   "MUSICIANS/G/Giombini_Marcello/Music_Game_BASIC.sid"
+  ],
+  "tmpl:k=8": [
+   "DEMOS/G-L/Gabooto_Bach_BASIC.sid",
+   "DEMOS/M-R/Pink_Panther_BASIC.sid",
+   "DEMOS/UNKNOWN/Medley_BASIC.sid",
+   "MUSICIANS/F/Fong_William/Electronic_Foreheads_in_Concert_BASIC.sid"
+  ],
+  "voices:1": [
+   "DEMOS/A-F/Fog_BASIC.sid",
+   "DEMOS/M-R/Momo_Color_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/One_Voice_Tune_2_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/One_Voice_Tune_3_BASIC.sid",
+   "MUSICIANS/H/Haas_Eric/Stars_and_Stripes_Forever_BASIC.sid",
+   "MUSICIANS/K/Kidd_Clark_and_Kathy/Notecrafter_BASIC.sid"
+  ],
+  "voices:2": [
+   "DEMOS/A-F/Chromatic_Boogie_BASIC.sid",
+   "GAMES/A-F/Candy_Bandit_BASIC.sid",
+   "GAMES/S-Z/Spaceshuttle_BASIC.sid",
+   "MUSICIANS/P/Pace_Wayne/A_Time_for_Us_BASIC.sid",
+   "MUSICIANS/T/Tel_Jeroen/Final_Countdown_BASIC.sid"
+  ],
+  "voices:3": [
+   "DEMOS/A-F/Chess_Offenbach_BASIC.sid",
+   "DEMOS/Commodore/Invention_1_in_C_J_S_Bach_BASIC.sid",
+   "DEMOS/G-L/Gabooto_Bach_BASIC.sid",
+   "DEMOS/M-R/Pink_Panther_BASIC.sid",
+   "DEMOS/S-Z/Singalong-a-Summer_BASIC.sid",
+   "DEMOS/S-Z/Sound_of_Silence_BASIC.sid",
+   "DEMOS/UNKNOWN/Baby_Elephant_Walk_BASIC.sid",
+   "DEMOS/UNKNOWN/Medley_BASIC.sid",
+   "DEMOS/UNKNOWN/Videobreak_11_BASIC.sid",
+   "GAMES/G-L/Johnny_Reb_BASIC.sid",
+   "GAMES/S-Z/Trickly_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Interlace_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Rmod_Stabiliser_BASIC.sid",
+   "MUSICIANS/B/Bond_Alan/Two_Lines_of_Code_2_BASIC.sid",
+   "MUSICIANS/F/Fong_William/Electronic_Foreheads_in_Concert_BASIC.sid",
+   "MUSICIANS/G/Giombini_Marcello/Music_Game_BASIC.sid",
+   "MUSICIANS/K/Karlsson_Peter/Kaxiga_Myran_BASIC.sid",
+   "MUSICIANS/L/Latimer_Joey/Computer_Shake_BASIC.sid",
+   "MUSICIANS/L/Latimer_Joey/Techno-Rock_Fugue_BASIC.sid"
+  ]
+ },
+ "corpus_full": 480,
+ "mode": "budget",
+ "pinned": [],
+ "random_stratum": [
+  "DEMOS/M-R/Momo_Color_BASIC.sid",
+  "DEMOS/M-R/Pink_Panther_BASIC.sid",
+  "MUSICIANS/B/Bond_Alan/Interlace_BASIC.sid",
+  "MUSICIANS/B/Bond_Alan/Rmod_Stabiliser_BASIC.sid",
+  "MUSICIANS/K/Kidd_Clark_and_Kathy/Notecrafter_BASIC.sid",
+  "MUSICIANS/L/Latimer_Joey/Techno-Rock_Fugue_BASIC.sid"
+ ],
+ "random_seed": 20260822,
+ "budget": 30,
+ "max_depth_reached": 2,
+ "uncovered_dimensions": [],
+ "_excluded": [
+  {
+   "sid": "DEMOS/UNKNOWN/Medley_BASIC.sid",
+   "reason": "derived from a FULL list stamped 2026-08-11; under current code it is unsupported:variable_template. Not a regression \u2014 a portfolio member picked from a STALE candidate pool. Re-derive after this family is re-batched."
+  }
+ ]
+}

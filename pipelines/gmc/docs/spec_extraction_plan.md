@@ -246,7 +246,7 @@ components transfer directly to GMC migration:
 | Sector decoder loop (path-resolved with loop-unroll cycle detection) | Port to GMC once sector byte ranges are known (OPEN-1). The loop architecture is the same. |
 | USF schema blocks (wave_freq, gate_mode, pwm, vibrato, slide, filter) | Most are reusable; APM/HLD will add at most 1-2 new USF fields (subject to schema-addition discipline). |
 | `pipelines/dmc/composer_asm.py` | Our OWN composer; the write-model (see spec_write_model.md) determines how much to reuse vs clone. |
-| `tools/dmc_family_batch.py` | Generalise (or clone) for GMC-family wide-batch rollout. |
+| `pipelines/dmc/family_batch.py` | Generalise (or clone) for GMC-family wide-batch rollout. |
 | `tools/regression.py` DMC section | Add a GMC section when the first canary verifies. |
 | `verify_all` / `compare_instruction_stream` | No change needed; verification tooling is format-agnostic. |
 | Trichotomy init path | GMC's init will differ from our universal-reset init → apply `init_style='universal_reset'` + `mode='trichotomy'` comparison as for FC/Adrenalin. |

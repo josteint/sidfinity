@@ -1,5 +1,5 @@
 ---
-source_url: local: tools/basic_program_survey.py over hvsc85/ (ROM-enabled siddump)
+source_url: local: pipelines/basic_program/survey.py over hvsc85/ (ROM-enabled siddump)
 fetched_via: local read
 fetch_date: 2026-06-23
 author: SIDfinity orchestrator
@@ -13,7 +13,7 @@ After patching `siddump` to load real C64 ROMs (commit 495c877, `--roms-dir`),
 all 486 RSID-BASIC tunes now execute and emit `$D400` write streams. This is the
 empirical survey that validates Blocker 1's fix and sizes the exclusion set.
 
-Tool: `tools/basic_program_survey.py` — each tune captured TWICE via
+Tool: `pipelines/basic_program/survey.py` — each tune captured TWICE via
 `siddump --writelog` at `min(songlength*1.1, 30s)`; records richness +
 run-to-run determinism. Raw: `tmp/basic_program_research/survey.jsonl`.
 

@@ -1,6 +1,6 @@
 ---
 name: project_fc_fingerprint_and_standard
-description: "FC player-version fingerprint DB (tools/engine_fingerprint.py) + the dominant 'vanilla' FC standard-player migration (pipelines/future_composer/standard/). 91% of HVSC FC is ONE player. Current status = the STATUS section at the head of the body (+ MEMORY.md line); older sections are the migration log."
+description: "FC player-version fingerprint DB (pipelines/future_composer/engine_fingerprint.py) + the dominant 'vanilla' FC standard-player migration (pipelines/future_composer/standard/). 91% of HVSC FC is ONE player. Current status = the STATUS section at the head of the body (+ MEMORY.md line); older sections are the migration log."
 metadata: 
   node_type: memory
   type: project
@@ -80,13 +80,13 @@ chain gated; the fc_standard 11-member portfolio is wired as tier 1 in
 `tools/regression.py`. Older in-body status blocks (batch RUNNING etc.) are
 the historical log.
 
-## FC player-version fingerprinting — `tools/engine_fingerprint.py`
+## FC player-version fingerprinting — `pipelines/future_composer/engine_fingerprint.py`
 Relocation-invariant FC player identification. Traces reachable code from
 init+play (reuses `seed_disassembly.trace`), takes the OPCODE skeleton
 (relocation changes operands, not opcodes → reloc-invariant), clusters by exact
 SHA1 + opcode-4-gram Jaccard. Validated: same engine relocated → 0.94-1.0;
 different FC versions → ≤0.64 (Adrenalin engine A vs Cyb II vs Hawkeye).
-Run: `PYTHONPATH=tools/py65_lib:tools:src python3 tools/engine_fingerprint.py --corpus`.
+Run: `PYTHONPATH=tools/py65_lib:tools:src python3 pipelines/future_composer/engine_fingerprint.py --corpus`.
 NB: the corpus query must use `LIKE '%FutureComposer%'` — `LIKE '%MoN%'` is
 case-insensitive and sweeps in SoundMONitor.
 
@@ -441,7 +441,7 @@ biggest buckets (stale-X likely among them); (3) mass-write USF +
 portfolio: USER WANTS SAT-EXACT minimum multicover** (not greedy) over
 the member×feature matrix (factory knobs + effects exercised + $FE/
 chained-$8x/multi-sub traits), ≥2 coverage per dimension, bug-witness
-tie-break; full family batch becomes tier-2 (tools/fc_family_batch.py);
+tie-break; full family batch becomes tier-2 (pipelines/future_composer/family_batch.py);
 (5) uready scoreboard + refactor_1 trigger entry update.
 
 Verdict: verify_featuredriven(fc_standard_config(sid)); localize with

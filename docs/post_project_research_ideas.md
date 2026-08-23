@@ -24,10 +24,10 @@ abstracts the player's code away (that is the whole point of the Core
 Tenet), so code phylogeny cannot come from the corpus. It comes from the
 tooling we built to *read* the binaries:
 
-- `tools/engine_fingerprint.py` — reloc-invariant player-body skeleton
+- `pipelines/future_composer/engine_fingerprint.py` — reloc-invariant player-body skeleton
   fingerprinting. This is what established that 91% of HVSC's
   FutureComposer is one vanilla "standard" player.
-- `tools/dmc_canon_diff.py` — linear-aligns every member's reachable
+- `pipelines/dmc/canon_diff.py` — linear-aligns every member's reachable
   player code against a canonical player binary, diffs opcodes and
   in-player operand repoints, clusters by site. That is a *collation
   tool*: it produces, per member, the set of deviations from the

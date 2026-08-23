@@ -15,7 +15,7 @@ parking lot, explicitly subordinate to the grind.
 What it holds, so a future session knows whether it is worth opening:
 
 - **Lineage is TWO maps.** Player-CODE phylogeny comes from the
-  extraction tooling (`engine_fingerprint.py`, `dmc_canon_diff.py`), NOT
+  extraction tooling (`engine_fingerprint.py`, `pipelines/dmc/canon_diff.py`), NOT
   from USF — USF abstracts the player away by design. Musical lineage
   (covers, remixes, an author's style across editors) is the USF half.
 - **The wedge census is already scene ethnography**: carrier counts

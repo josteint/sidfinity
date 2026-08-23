@@ -636,7 +636,7 @@ practice, not code to factor).
   dispatch as the verifier; when the build path grows a branch, grep every
   tool that reconstructs a member. DETECTOR: re-verify FROM THE STORED
   artifact (not a fresh in-memory build). CLOSED structurally by
-  `src/corpus_sync.py` (shared by every `*_mass_write.py`): the batch
+  `src/corpus_sync.py` (shared by every `pipelines/<family>/mass_write.py`): the batch
   RECORDS `build_path` and the writer REPLAYS it; non-FULL members get their
   orphaned artifacts DELETED (nothing else ever does); the writer audits a
   path-stratified sample from disk.

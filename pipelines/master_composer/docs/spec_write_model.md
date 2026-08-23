@@ -267,7 +267,7 @@ gateOff ($758D):  LDA $D404 : AND #$FE : STA $D404   ; (V1; then V2 $D40B, V3 �
 ## Leads to follow
 - **Confirm the player-variant taxonomy.** Maniac (sig +$1E4) vs Poole_Chris Star_Trek_II (sig
   +$1A3, only 1434/2752 leading bytes match) prove ≥2 code variants. Build a reloc-invariant
-  fingerprint (à la `tools/engine_fingerprint.py`) over the 1019 tunes to enumerate variants +
+  fingerprint (à la `pipelines/future_composer/engine_fingerprint.py`) over the 1019 tunes to enumerate variants +
   their table-base maps BEFORE a wide batch. Close with: per-tune sidid offset + `outTimbre`
   operand dataflow. (Binary: every Master_Composer `.sid`; tool: a new `mc_fingerprint`.)
 - **Resolve the freq-table length + index range.** Tables are 95 (lo) / 96 (hi) bytes; note bytes

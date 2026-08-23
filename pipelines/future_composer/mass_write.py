@@ -6,7 +6,7 @@ whose code_hash matches the current code (stale rows skipped + warned), writes
 its .usf + .sidfinity.sid via the real SID -> USF -> SID featuredriven pipeline.
 
 Usage:
-    PYTHONPATH=src:. python3 tools/fc_mass_write.py [--results FILE.jsonl]
+    PYTHONPATH=src:. python3 pipelines/future_composer/mass_write.py [--results FILE.jsonl]
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import os
 import sys
 from multiprocessing import Pool
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [os.path.join(ROOT, 'src'), ROOT]
 
 from src.jobs import default_jobs  # noqa: E402
@@ -68,7 +68,7 @@ def main():
     # stored artifacts and broke the regression (2026-07-22).
     p = corpus_sync.plan(results, 'fc_standard', os.path.join(ROOT, 'hvsc85'),
                          path_key='sid', out_of_scope=('flagged',))
-    for line in p.report('tools/fc_family_batch.py'):
+    for line in p.report('pipelines/future_composer/family_batch.py'):
         print(line, flush=True)
     full = [d['sid'] for d in p.write]
     corpus_sync.remove_orphans(p)

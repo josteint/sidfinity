@@ -34,7 +34,7 @@ reintroduce a build-status column** — see [[feedback_convergence_ledger]] C20.
 ## Coverage / FULL-list = a fresh family batch, never the index or stored files
 
 The source of truth for "which members are FULL" is a fresh
-`tools/<engine>_family_batch.py` run (each `run_member` re-extracts into a temp
+`pipelines/<family>/family_batch.py` run (each `run_member` re-extracts into a temp
 dir — it never reads stored `.usf`). Do NOT derive a FULL list from stored
 `hvsc85/*.usf` existence or from the index. Batch results jsonls are stamped
 with a **`code_hash`** ([[reference_hvsc_db]] → `src/code_fingerprint.py`): on
@@ -43,7 +43,7 @@ set (`pipelines/<engine>` + `src/usf` + `verify_cycle`), so a code change
 auto-re-verifies the members it could have affected — killing the "stale-.usf
 palimpsest" trap (the phantom "my fix regressed N FULLs"). This is safe under
 parallel sessions on different engines: a shared-code edit changes every
-dependent engine's hash; an other-engine edit doesn't. The `*_mass_write.py`
+dependent engine's hash; an other-engine edit doesn't. The `pipelines/<family>/mass_write.py`
 tools skip + warn on any FULL row whose code_hash is stale, so they never write
 an unverified build to disk.
 
