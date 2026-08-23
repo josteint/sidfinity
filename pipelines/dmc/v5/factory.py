@@ -102,6 +102,71 @@ def _cia_period_from_writelog(sid_path: str, subtune: int,
     return 19656 // n - 1
 
 
+def _observe_play_phases(sid_path: str, subtune: int, play_addr: int,
+                         base: int, n_calls: int = 18):
+    """Ledger C18 per-call phase schedule for a V5 wrapper member.
+
+    A CIA-multispeed V5 member's PSID play vector is NOT the jump table: it is a
+    small wrapper that runs the FULL play (jump-table entry `base+3`) once every
+    N calls and an EFFECTS-ONLY pass (a THIRD jump-table entry at `base+6`,
+    which canon family-3/5 does not have) on the others. The tune's real tempo
+    is the divided rate; running the full play every call makes the rebuild N×
+    too fast and one tick out of phase from the first frame.
+
+    ⚠ CLASSIFY BY ENTRY-POINT REACHABILITY, NOT BY THE WRITE FOOTPRINT — the
+    C18 card's rule, and it is load-bearing here. The footprints are actively
+    misleading on this family: the effects pass emits 21 writes (3 voices × the
+    per-voice tail) while the full play emits 18, and early full plays emit
+    NOTHING at all while the lead-in runs. A footprint-based reading of
+    Cyber_Brain gives `S F F F F S F F F F P ...` — no clean period; watching
+    the two jump-table entries gives `P_F123_F123_F123_F123` from call 0.
+
+    ⚠ AND DO NOT PARSE THE WRAPPER. Measured shapes in this corpus: an SMC
+    counter living in an `LDX #imm` OPERAND, an `INC/AND #$03/BNE` modulo gate,
+    an `INC/CMP #$04/BNE` with an SMC store, and a per-call CIA-latch SWING that
+    rewrites $DC05 from a table. Observation covers all of them for free.
+
+    py65 cannot run these members (they are CIA/IRQ-armed — ledger C9), so the
+    observer is the libsidplayfp pc-trace, which is also straddle-free.
+
+    Returns a `play_phases` token string ('P_F123_...') or None — None both for
+    "no wrapper" (the degenerate all-P schedule, so canon members are
+    unaffected) and for any shape that does not settle into a clean period from
+    call 0, which the build+verify gate then judges as before.
+    """
+    if play_addr == base + 3:
+        return None                      # canon vector: no wrapper to observe
+    try:
+        from pipelines.hubbard.verify_cycle import pctrace_per_play_capture
+        plays, hits = pctrace_per_play_capture(
+            sid_path, subtune, play_addr, n_frames=max(10, n_calls),
+            watch_pcs={'full': {base + 3}, 'fx': {base + 6}})
+    except Exception:
+        return None
+    if len(plays) < 8:
+        return None
+    seq = []
+    for i, w in enumerate(plays[:n_calls]):
+        h = hits[i] if i < len(hits) else set()
+        if 'full' in h:
+            seq.append('P')
+        elif 'fx' in h:
+            voices = sorted({r // 7 for r, _v in w if r < 21})
+            if not voices:
+                return None              # effects call touching no voice: unmodelled
+            seq.append('F' + ''.join(str(v + 1) for v in voices))
+        elif not w:
+            seq.append('S')
+        else:
+            return None                  # neither entry reached: unmodelled shape
+    n = len(seq)
+    for p in range(1, n // 2 + 1):
+        if all(seq[i] == seq[i % p] for i in range(n)):
+            sched = '_'.join(seq[:p])
+            return None if set(seq) == {'P'} else sched
+    return None
+
+
 _REF = None         # full (init+play) reachable-instruction reference
 _PLAY_REF = None    # play-ONLY reachable reference (init excluded)
 
@@ -347,17 +412,32 @@ def v5_diagnose(sid_path: str, hvsc_root: str = 'hvsc85') -> dict:
     return {**out, 'status': 'ok'}
 
 
-def _family4_config(sid_path, mem, s, jt_addr) -> DMCV5Config:
+def _family4_config(sid_path, mem, s, jt_addr,
+                    hvsc_root: str = 'hvsc85') -> DMCV5Config:
     """Build the config for the family-4 (Jupiter41) V5 variant. Same data
     format as family-3, relocated, with a different player — so the extract
     reuses the V5 decode at the family-4 operand sites (FAMILY4_SITES + delta).
-    The composer player knobs (2-phase timing, $D416-only filter) are Phase C."""
+
+    ⚠ THIS IS A SECOND BUILD PATH, AND IT WAS DEFAULTING PROBED PARAMS —
+    ledger C9's recurring shape ("a SECOND build path that defaults probed
+    params: fix the CONSTRUCTOR, not the knob"). It measured neither the CIA
+    latch nor the C18 phase schedule, so every family-4 member with the PSID
+    speed bit was built as VBLANK: 37 members, of which ZERO were FULL. A
+    defaulted rate is silently wrong MUSIC, not a refusal."""
     from pipelines.dmc.v5.config import FAMILY4_SITES
     base = jt_addr                              # family-4 base = the jump table
     delta = base - 0x1000
+    full = os.path.join(hvsc_root, sid_path)
+    cia_period = 0
+    if s['play'] != jt_addr + 3 and (s.get('speed', 0) & 1):
+        cia_period = _cia_period_from_writelog(full, s['start'] - 1)
+        if not (0x0100 <= cia_period <= 0xFFFF):
+            raise DMCV5Unsupported('cia_multispeed', f"play=${s['play']:04X}")
     d = DMCV5Config(sid_path=sid_path,
                     name=os.path.splitext(os.path.basename(sid_path))[0],
-                    base=base, family4=True)
+                    base=base, family4=True, cia_period=cia_period,
+                    play_phases=_observe_play_phases(
+                        full, s['start'] - 1, s['play'], base) or '')
     for f, pc in FAMILY4_SITES.items():
         setattr(d, f, pc + delta)
     return d
@@ -391,7 +471,7 @@ def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc85',
             'no_jumptable',
             f"load=${s['load']:04X} init=${s['init']:04X} play=${s['play']:04X}")
     if layout == 'family4':
-        d = _family4_config(sid_path, mem, s, jt_addr)
+        d = _family4_config(sid_path, mem, s, jt_addr, hvsc_root)
         d.n_songs, d.post_init_sub = n_songs, post_init_sub
         return d
     delta = base - 0x1000
@@ -430,9 +510,15 @@ def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc85',
         if not (0x0100 <= cia_period <= 0xFFFF):
             raise DMCV5Unsupported('cia_multispeed', f"play=${s['play']:04X}")
 
+    # C18 phase schedule — observed, never parsed (see _observe_play_phases).
+    # Only a non-canon play vector can carry one, so canon members pay nothing.
+    play_phases = _observe_play_phases(
+        os.path.join(hvsc_root, sid_path), s['start'] - 1, s['play'], base) or ''
+
     d = DMCV5Config(sid_path=sid_path,
                     name=os.path.splitext(os.path.basename(sid_path))[0],
                     base=base, cia_period=cia_period, n_songs=n_songs,
+                    play_phases=play_phases,
                     post_init_sub=post_init_sub)
     # play-body operand sites relocate with the base; the orderlist site is
     # read from the (possibly relocated/wrapped) init's actual load operand.

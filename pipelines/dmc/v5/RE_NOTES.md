@@ -84,12 +84,39 @@ error). Wrapper shapes vary exactly as the C18 card warns:
 had a cheap fix (just divide the measured CIA rate); this class does not, and
 the measured `cia_period` counts ALL IRQs including the effects-only ones.
 
-**IMPLEMENTATION PATH:** port v4's C18 `play_phases` to v5, with the
-effects-only entry being the third jump-table routine. Per the C18 card, do
-NOT parse the wrapper to derive the schedule — OBSERVE entry-point
-reachability. And note these are CIA members, which py65 cannot run (C9), so
-the observer is `siddump --pc-watch` (native-capture Phase 2, built for exactly
-the C18 play-phase observers).
+**✅ PORTED 2026-08-23.** `_observe_play_phases` (factory) + `_apply_play_phases`
+(composer), threaded model -> USF `params.play_phases` -> from_usf. Token
+vocabulary is v4's exactly, so both families speak one language.
+
+MEASURED over the 34 buildable carriers + 40 currently-FULL members:
+
+| depth | before | after |
+|---|---:|---:|
+| position 0 | 17 | 3 |
+| 1-63 | 16 | 8 |
+| 64-999 | 0 | 2 |
+| 1k-10k | 0 | 2 |
+| 10k+ | 1 | 10 |
+| **FULL** | **0** | **9** |
+
+deeper 13 · shallower 0 · **regressed 0** · regression sample 40/40 still FULL.
+Full pipeline regression GREEN (387 tasks, 0 regressed anywhere).
+Schedules seen: `P_F123_F123_F123` (6), `P_F123`×5 (6), `P_F123`×4 (5),
+`P_F123` (3), `P_F123_F123` (2), `P_F12_F12_F12` (1).
+
+⚠ **AND IT SURFACED A LEDGER C9 DEFAULTING BUG.** `_family4_config` is a SECOND
+constructor and it measured NEITHER the CIA latch NOR the phase schedule — so
+every family-4 member carrying the PSID speed bit had been built as VBLANK:
+**37 members, of which ZERO were FULL**. C9's recorded cure applies verbatim
+("fix the CONSTRUCTOR, not the knob"); both are now measured there.
+Lame_as_Rambo went from `cia=$0000` to `cia=$2663, phases='P_F123'`.
+
+RESIDUE ON THIS CLASS: 3 still at position 0 and 8 in 1-63 — the leading-frame
+shape differs (the orig's effects pass is GATED per voice by its own table, so
+its first F calls emit nothing while ours emit 21 writes). That is invisible to
+the flat verdict (empty frames contribute nothing), so it is not what blocks
+them; the deeper ones are ordinary content bugs, e.g. Cyber_Brain now diverges
+at 3,503/581,300 on V2 freq-hi.
 
 
 Rep: `DEMOS/G-L/Katusha.sid` (family-3, 1461 + family-5 sibling 34 = the

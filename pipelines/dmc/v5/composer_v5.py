@@ -1286,9 +1286,83 @@ state_end:
     return consts + engine + '\n' + _emit_data(m) + '\n' + state
 
 
+def _apply_play_phases(asm: str, m) -> str:
+    """Ledger C18: splice a per-call PHASE dispatcher in front of the play body.
+
+    A V5 wrapper member's play vector runs the FULL play only every Nth call and
+    an EFFECTS-ONLY pass on the others (the original's third jump-table entry:
+    canon `run_effects` per voice, no tick, no fetch, no $D415/$D416 tail). The
+    tune's real tempo is that divided rate — without this the rebuild runs the
+    full play on every IRQ, so it is N× too fast AND one tick out of phase from
+    the very first frame.
+
+    The schedule is OBSERVED per member (factory `_observe_play_phases`), never
+    derived from the wrapper's code — the shapes vary far too much (SMC operand
+    counter, modulo gate, CMP gate, CIA-latch swing) and the C18 card is explicit
+    that observation is the method.
+
+    Token vocabulary matches v4's `play_phases` exactly, so the two families
+    speak one language: `P` = full play, `F<voices>` = per-voice effects only,
+    `S` = a call that writes nothing.
+
+    No schedule => the asm is returned UNCHANGED, so every canon member stays
+    byte-identical.
+    """
+    sched = str(getattr(m, 'play_phases', '') or '')
+    tokens = [t for t in sched.split('_') if t]
+    if len(tokens) < 2:
+        return asm
+    ok = all(t == 'P' or t == 'S'
+             or (t[0] == 'F' and t[1:] and set(t[1:]) <= set('123'))
+             for t in tokens)
+    if not ok:
+        return asm
+    kinds = []
+    for t in tokens:
+        if t not in kinds:
+            kinds.append(t)
+    disp, routines = '', ''
+    for k, t in enumerate(kinds):
+        disp += f'        cmp #{k}\n        beq ph_r{k}\n'
+        if t == 'P':
+            body = '        jmp playframe                ; P = full play\n'
+        elif t == 'S':
+            body = '        rts                          ; S = silent call\n'
+        else:                                    # F<voices>: effects only
+            body = ''
+            for v in t[1:]:
+                body += (f'        ldx #{int(v) - 1}\n'
+                         '        jsr run_effects\n')
+            body += '        rts\n'
+        routines += f'ph_r{k}:\n{body}'
+    n_ph = len(tokens)
+    tab = ','.join(str(kinds.index(t)) for t in tokens)
+    wrapper = (
+        'playphases:\n'
+        '        ldy phasectr\n'
+        '        iny\n'
+        f'        cpy #{n_ph}\n'
+        '        bne ph_set\n'
+        '        ldy #$00\n'
+        'ph_set:\n'
+        '        sty phasectr\n'
+        '        lda phasetab,y\n'
+        + disp
+        + '        rts                          ; (unreachable)\n'
+        + routines
+        + f'phasetab: .byt {tab}\n'
+        # seeded to n-1 so the FIRST call increments to 0 = tokens[0], i.e. the
+        # schedule starts exactly where the observation started (call 0).
+        + f'phasectr: .byt {n_ph - 1}\n\n')
+    # Point the jump table at the wrapper and define it just before the play
+    # body. The PSID header keeps play = LOAD+3, so nothing else moves.
+    asm = asm.replace('        jmp playframe\n', '        jmp playphases\n', 1)
+    return asm.replace('playframe:\n', wrapper + 'playframe:\n', 1)
+
+
 def build_v5_sid(m) -> bytes:
     from pipelines.dmc.composer_asm import _sanitize_asm
-    code = assemble(_sanitize_asm(emit_v5_asm(m)))
+    code = assemble(_sanitize_asm(_apply_play_phases(emit_v5_asm(m), m)))
     n_songs = len(m.subtunes) if m.subtunes else 1
     # CIA multispeed: set the PSID speed bit for every subtune so libsidplayfp
     # drives play() via the CIA1 timer A our init programs (cia_period 0 = VBI).

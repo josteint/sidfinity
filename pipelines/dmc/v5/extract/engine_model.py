@@ -88,6 +88,11 @@ class V5Model:
     # speed bit runs play() off the CIA1 timer; the rate is measured from the
     # ground-truth writelog in the factory (py65 can't run the wrapper init).
     cia_period: int = 0
+    # ledger C18 per-call phase schedule ('P_F123_...') for a WRAPPER member:
+    # the play vector runs the full play only every Nth call and an
+    # effects-only pass on the others. '' = no wrapper. Observed by the
+    # factory, never parsed from the wrapper's code.
+    play_phases: str = ''
     # the Jupiter41 V5 variant (play +$95): same data, different player. The
     # composer emits the family-4 mechanics (2-phase $1016 timing, $D416-only
     # 8-bit filter + $D418 mode, $1012 leadin-curnote leftover). Phase C.
@@ -313,6 +318,7 @@ def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
     # family-4 (Jupiter41): capture the player-specific leftovers the composer
     # needs (Phase C). curnote $1012-$1014 is NOT cleared by init → the leadin
     # freq before the first note; $1018 = the filter MODE nibble → $D418.
+    m.play_phases = str(getattr(cfg, 'play_phases', '') or '')
     if getattr(cfg, 'family4', False):
         m.family4 = True
         d = cfg.base - 0x1000

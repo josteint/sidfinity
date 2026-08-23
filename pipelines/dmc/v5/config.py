@@ -45,6 +45,11 @@ class DMCV5Config:
                                  # COMPILATION sub-player (ledger C31) owns
                                  # fewer songs than the FILE header declares;
                                  # None = the PSID header count (standalone).
+    play_phases: str = ''        # ledger C18 per-call phase schedule
+                                 # ('P_F123_F123_...') for a WRAPPER member
+                                 # whose play vector runs the full play only
+                                 # every Nth call and an effects-only pass on
+                                 # the others. '' = no wrapper (canon).
     post_init_sub: 'int | None' = None  # RELOCATED sub-player (C31+C26): the
                                  # wrapper copies it into RAM, so every memory
                                  # read uses the RAM left by THIS subtune's

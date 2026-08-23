@@ -164,6 +164,7 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     )
     # family-4 (Jupiter41) player flag + leftovers (Phase C composer knobs)
     pf = usf.params.fields if usf.params and usf.params.fields else {}
+    m.play_phases = str(pf.get('play_phases', '') or '')
     if int(pf.get('family4', 0)):
         m.family4 = True
         m.f4_filtmode = int(pf.get('f4_filtmode', 0))
