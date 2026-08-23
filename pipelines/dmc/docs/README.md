@@ -37,6 +37,35 @@ never by a stored list** (ledger C13 — dispatch on the signature). Its
 `roster.json` accounts for every DMC member in exactly one bucket; run
 `python3 pipelines/dmc/route.py --summary` to read it.
 
+## One FILE, several engine families
+
+A single `.sid` can pack players from DIFFERENT families behind a per-subtune
+dispatch wrapper (ledger C31). Three exist in DMC, and the pattern is a
+Bayliss habit — `Bayliss/Freespace_2075` packs one DMC player and TWO
+Music_Assembler players; `Bayliss/Super_Tau-Zeta` and `The_Syndrom/Black_It`
+each pack DMC v4 beside v5. All three are FULL.
+
+They split into two sub-cases, and the line between them is **how many
+COMPOSERS are needed** — the Principle §8 / C35 boundary, not "how many
+engines are in the file":
+
+* **One composer suffices → unified merge, no tagging.** DMC + `dmc_sfx` is
+  this: `extract_heterogeneous` merges the DMC players and lifts the sfx
+  player to a typed `SfxEngine`, and the DMC composer emits both behind a
+  per-subtune dispatcher. Nothing in the USF names an engine.
+* **Genuinely needs two composers → `origin_engine` (C35).** DMC + MA, and
+  DMC v4 + v5, are this. Each packed player is extracted by ITS OWN family's
+  extractor; the result is ONE `.usf` carrying every player, with
+  `MusicSubtune.origin_engine` naming which composer builds each subtune, and
+  `music_assembler/heterogeneous.build_from_usf` dispatching on it.
+  `src/usf/validate.py` enforces the scaffold's constraints (all-or-nothing,
+  ≥2 distinct values), and Move 1 deletes it.
+
+For the roster this means **owner ≠ content**: all three are owned by `v4`
+(v4's compilation machinery drives detection and the merge), and the
+`build_path` recorded beside them — `hetero_masm` / `hetero_v5` — is what
+makes the other families' content visible. Owner alone would hide it.
+
 | File | What |
 |---|---|
 | `research.md` | Wave-1 synthesis: versions, memory layout, instrument/sector/track formats, sidid signatures. |

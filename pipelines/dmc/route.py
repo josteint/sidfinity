@@ -68,6 +68,64 @@ ROSTER = os.path.join(ROOT, 'pipelines', 'dmc', 'roster.json')
 # sidid engine strings that mean "this is a DMC member at all".
 DMC_ENGINE_SQL = "engine LIKE 'DMC%'"
 
+# Engines whose detectors decide the routing. Stamped into the roster so a
+# stale roster ANNOUNCES itself: the frozen member lists this replaces went
+# wrong precisely because nothing could tell they had drifted (ledger C20).
+_FINGERPRINTED = ('dmc_v4', 'dmc_v5')
+
+
+def _fingerprints() -> dict:
+    from src.code_fingerprint import code_fingerprint
+    out = {}
+    for e in _FINGERPRINTED:
+        try:
+            out[e] = code_fingerprint(e)
+        except Exception as ex:                  # noqa: BLE001
+            out[e] = 'ERR:' + type(ex).__name__
+    return out
+
+
+def load_roster(path: str = ROSTER) -> tuple:
+    """(meta, rows). Accepts the original flat-list roster too."""
+    with open(path) as f:
+        d = json.load(f)
+    if isinstance(d, list):                      # pre-meta format
+        return {}, d
+    return d.get('meta', {}), d.get('rows', [])
+
+
+def roster_staleness(meta: dict) -> list:
+    """Which routing engines have changed since the roster was built."""
+    was = (meta or {}).get('fingerprints') or {}
+    now = _fingerprints()
+    return [e for e in _FINGERPRINTED if was.get(e) and was[e] != now.get(e)]
+
+
+def members_for(pipeline: str, variant: str | None = None,
+                path: str = ROSTER, warn: bool = True) -> list:
+    """The members a pipeline CLAIMS, from the roster.
+
+    This is what a family batch should iterate instead of a frozen list. The
+    difference is not cosmetic: a frozen list both MISSES members the detector
+    now claims (57 of them when this landed) and CONTAINS members the detector
+    refuses (128), and neither shows up anywhere.
+
+    Members no pipeline claims are deliberately NOT returned by anyone — they
+    are accounted for in the roster's unclaimed bucket (and split there into
+    near-miss vs unrecognised), which is the ledger C20 orphan distinction:
+    a batch must not silently own members its extractor refuses.
+    """
+    meta, rows = load_roster(path)
+    if warn:
+        stale = roster_staleness(meta)
+        if stale:
+            print(f'⚠ roster {os.path.basename(path)} predates changes to '
+                  f'{", ".join(stale)} — re-run pipelines/dmc/route.py',
+                  file=sys.stderr, flush=True)
+    return sorted(r['rel'] for r in rows
+                  if r['pipeline'] == pipeline
+                  and (variant is None or r['variant'] == variant))
+
 
 @dataclass
 class Route:
@@ -181,6 +239,45 @@ def route(rel: str, hvsc_root: str | None = None,
     return r
 
 
+def enrich_build_paths(rows: list, results: list) -> int:
+    """Fold each member's RECORDED build path in from batch results.
+
+    Why recorded and not re-derived: a compilation's build path costs a py65
+    observation per member, and — more importantly — ledger C20's fourth layer
+    is precisely a consumer RE-DERIVING the dispatch instead of taking the one
+    the verdict was earned on. The batch already records `build_path`, so the
+    roster reads it.
+
+    This is also how a HETEROGENEOUS file becomes visible. One DMC `.sid` can
+    pack players from DIFFERENT engine families behind a per-subtune wrapper
+    (ledger C31; the C35 `origin_engine` case when it needs more than one
+    COMPOSER) — e.g. Bayliss/Freespace_2075 packs one DMC player and TWO
+    Music_Assembler players, and Bayliss/Super_Tau-Zeta and The_Syndrom/
+    Black_It each pack DMC v4 beside v5. The router answers "who OWNS this
+    member" and the answer is legitimately `v4` for all three (v4's
+    compilation machinery drives the build and pulls in the other families'
+    extractors). But owner alone HIDES that the file's musical content spans
+    families, so the build path is recorded beside it: `hetero_masm` /
+    `hetero_v5` name exactly which.
+    """
+    from src.batch_results import load_latest
+    by_rel = {}
+    for f in results:
+        if not os.path.exists(f):
+            continue
+        for rel, row in load_latest(f).items():
+            bp = row.get('build_path')
+            if bp:
+                by_rel[rel] = bp
+    n = 0
+    for r in rows:
+        bp = by_rel.get(r['rel'])
+        if bp and r.get('build_path') != bp:
+            r['build_path'] = bp
+            n += 1
+    return n
+
+
 def _dmc_members() -> list:
     from src import sid_db
     return sorted(p for (p,) in sid_db.query(
@@ -223,7 +320,11 @@ def build_roster(members: list, engines: dict, want_paths: bool = False,
     return rows
 
 
-def summarise(rows: list) -> None:
+def summarise(rows: list, meta: dict | None = None) -> None:
+    stale = roster_staleness(meta or {})
+    if stale:
+        print(f'⚠ STALE: this roster predates changes to {", ".join(stale)} '
+              f'— re-run pipelines/dmc/route.py')
     total = len(rows)
     claimed = collections.Counter()
     unclaimed = collections.Counter()
@@ -264,9 +365,16 @@ def summarise(rows: list) -> None:
             print(f'         v5: {v5[:52]}')
     paths = collections.Counter(r['build_path'] for r in rows if r['build_path'])
     if paths:
-        print('\n--- v4 build paths ---')
+        print('\n--- build paths (recorded by the batches) ---')
         for k, n in paths.most_common():
             print(f'  {n:5d}  {k}')
+        het = [r for r in rows if str(r.get('build_path') or '').startswith('hetero')]
+        if het:
+            print(f'\n--- HETEROGENEOUS: one file, players from >1 engine family '
+                  f'({len(het)}) ---')
+            for r in sorted(het, key=lambda r: r['rel']):
+                print(f'  {r["rel"]}   owner={r["pipeline"]}  '
+                      f'path={r["build_path"]}')
     # The roster's whole contract: every member lands in exactly one bucket.
     assert nclaimed + nunc == total, 'roster does not partition the corpus'
 
@@ -281,20 +389,38 @@ def main() -> int:
     ap.add_argument('--jobs', type=int, default=None)
     ap.add_argument('--summary', action='store_true',
                     help='re-summarise an existing roster without re-routing')
+    ap.add_argument('--enrich', action='store_true',
+                    help='fold RECORDED build paths in from the batch results '
+                         '(surfaces heterogeneous files); updates the roster '
+                         'in place, no re-routing')
     args = ap.parse_args()
 
-    if args.summary:
-        summarise(json.load(open(args.out)))
+    _RESULTS = [os.path.join(ROOT, 'tmp', n) for n in
+                ('dmc_f1_85_results.jsonl', 'dmc_f2_85_results.jsonl',
+                 'dmc_v5_r3_results.jsonl')]
+
+    if args.summary or args.enrich:
+        meta, rows = load_roster(args.out)
+        if args.enrich:
+            n = enrich_build_paths(rows, _RESULTS)
+            with open(args.out, 'w') as f:
+                json.dump({'meta': meta, 'rows': rows}, f, indent=0)
+            ts(f'enriched {n} build paths -> {args.out}')
+        summarise(rows, meta)
         return 0
 
     engines = _engines()
     members = (json.load(open(args.members)) if args.members else _dmc_members())
     ts(f'DMC corpus: {len(members)} members')
     rows = build_roster(members, engines, args.paths, args.jobs)
+    enrich_build_paths(rows, _RESULTS)
+    meta = {'generated_utc': __import__('datetime').datetime.now(
+                __import__('datetime').timezone.utc).isoformat(timespec='seconds'),
+            'corpus': len(rows), 'fingerprints': _fingerprints()}
     with open(args.out, 'w') as f:
-        json.dump(rows, f, indent=0)
+        json.dump({'meta': meta, 'rows': rows}, f, indent=0)
     ts(f'roster -> {args.out}')
-    summarise(rows)
+    summarise(rows, meta)
     return 0
 
 

@@ -5,8 +5,49 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-23T17:48:43.691Z
+  modified: 2026-08-23T18:38:50.186Z
 ---
+
+## ✅ BATCHES NOW READ THE ROSTER + heterogeneous files made visible (2026-08-23)
+
+Both family batches take their default member list from
+`pipelines/dmc/roster.json` via `route.members_for(pipeline, variant)` instead
+of the frozen #84 census file: `family_batch.py` → `members_for('v4', variant)`
+(new `--variant canonical|family2`), `v5/family_batch.py` → `members_for('v5')`.
+⚠ The v5 default had silently EXCLUDED family-4 (it read census families 3+5),
+so the 650-member branch that IS the current grind only ran when a caller
+passed `--members`. Wiring verified end-to-end on all three paths.
+
+**Roster now carries `meta`** (generated_utc, corpus, per-engine fingerprints)
+and `members_for` WARNS when the roster predates a detector change — the
+self-policing the frozen lists lacked.
+
+⚠ **THE ROSTER SELF-INVALIDATED, and the fix is a one-line precedent.**
+`roster.json` lives inside `pipelines/dmc`, which is hashed, so stamping the
+dmc_v4/dmc_v5 fingerprints into it MOVED the key it had just recorded (C20's
+ninth layer, "the key SELF-INVALIDATED", observed within seconds of landing).
+Cure: add it to `code_fingerprint._SELECTION_SUFFIXES` beside
+`*_regression_portfolio.json` — the same category, already reasoned out there:
+it decides WHICH members a run visits, never what any member builds to, and
+verdict rows are per-member. Now stable across roster rewrites.
+
+**HETEROGENEOUS FILES — the owner≠content answer** (owner asked). Build paths
+are folded into the roster from the BATCH RECORDS, never re-derived (C20 4th
+layer). Three carriers, all FULL, and Bayliss is 2 of 3: Freespace_2075
+(`hetero_masm`, 1 DMC + 2 Music_Assembler), Super_Tau-Zeta + Black_It
+(`hetero_v5`, DMC v4 beside v5). Two sub-cases split by HOW MANY COMPOSERS:
+DMC+`dmc_sfx` needs one (unified merge, no tag); DMC+MA and v4+v5 need two →
+ONE `.usf` with `MusicSubtune.origin_engine` per subtune and
+`music_assembler/heterogeneous.build_from_usf` dispatching on it = the C35
+scaffold used exactly as licensed. The roster gives such a file ONE owner
+(`v4`) and records `build_path` so the other families' content stays visible.
+
+⚠ STALE POINTERS FOUND, NOT FIXED: `tools/migrate_verdict_rows.py` still
+registers `tmp/dmc_v5_r2_results.jsonl` (superseded by the authoritative
+`r3`), and CLAUDE.md already records `select_regression_portfolio.py`'s
+`dmc_v4` entry pointing at the pre-#85 `tmp/dmc_wide_results.jsonl`. Two
+sightings of the same class = worth a single source of truth for "the current
+results file per family".
 
 ## ✅ DMC ROUTER + ROSTER — allocation is now DETECTED, not a frozen list (2026-08-23)
 

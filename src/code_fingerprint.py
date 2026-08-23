@@ -168,7 +168,16 @@ _KEY_MANAGEMENT = frozenset({'src/code_fingerprint.py'})
 # invalidate that family's verdicts, which is backwards: choosing a different
 # sample cannot change what the composer produces. Matched by suffix so a new
 # family's portfolio is excluded automatically.
-_SELECTION_SUFFIXES = ('_regression_portfolio.json',)
+#
+# `roster.json` (pipelines/dmc/route.py) is the same category one level up: it
+# decides which members a FAMILY BATCH iterates. Without this exclusion it
+# self-invalidates — the roster stamps the dmc_v4/dmc_v5 fingerprints into
+# itself, lives inside `pipelines/dmc`, and so moves the key it just recorded
+# (observed immediately on landing; ledger C20's ninth layer, "the key
+# SELF-INVALIDATED"). Excluding it is SAFE in the direction that matters: a
+# roster change alters the SET of members a batch visits, never the bytes any
+# one member builds to, and verdict rows are per-member.
+_SELECTION_SUFFIXES = ('_regression_portfolio.json', 'roster.json')
 
 
 def _iter_files(root: Path):

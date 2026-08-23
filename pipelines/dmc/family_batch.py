@@ -8,11 +8,16 @@ reason) / error.
 
 Usage:
     PYTHONPATH=tools/py65_lib:tools:src python3 pipelines/dmc/family_batch.py \
-        [--sample N] [--members FILE.json]
+        [--sample N] [--members FILE.json] [--variant canonical|family2]
 
 --sample N    : run only every len/N-th member (load-spread triage)
---members F   : JSON file with the member path list (default: family 1
-                from tmp/dmc_families.json)
+--members F   : JSON file with the member path list (overrides the roster)
+--variant V   : which v4 variant to batch, from the roster —
+                'canonical' (default, the old family-1) or 'family2'
+
+Members come from `pipelines/dmc/roster.json` (built by
+`pipelines/dmc/route.py`), i.e. from what the v4 DETECTOR claims today, not
+from the frozen #84 fingerprint census this used to read.
 """
 from __future__ import annotations
 
@@ -327,6 +332,7 @@ def run_member(rel: str) -> dict:
 def main():
     global OUT
     members_file = None
+    variant = 'canonical'
     sample = 0
     args = sys.argv[1:]
     while args:
@@ -335,13 +341,19 @@ def main():
             sample = int(args.pop(0))
         elif a == '--members':
             members_file = args.pop(0)
+        elif a == '--variant':
+            variant = args.pop(0)
         elif a == '--out':
             OUT = args.pop(0)
     if members_file:
         members = json.load(open(members_file))
     else:
-        fams = json.load(open(os.path.join(ROOT, 'tmp', 'dmc_families.json')))
-        members = sorted(fams.items(), key=lambda kv: -len(kv[1]))[0][1]
+        # THE ROSTER, not a frozen list (see pipelines/dmc/route.py). The old
+        # default read the biggest cluster out of the #84 fingerprint census
+        # and nothing ever re-derived it, so it drifted both ways: it missed
+        # members the detector now claims and contained members it refuses.
+        from pipelines.dmc.route import members_for
+        members = members_for('v4', variant)
     if sample:
         members = members[::max(1, len(members) // sample)][:sample]
 

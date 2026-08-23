@@ -155,8 +155,12 @@ def main():
     if members_file:
         members = json.load(open(members_file))
     else:
-        fams = json.load(open(os.path.join(ROOT, 'tmp', 'dmc_families.json')))
-        members = sorted(fams[_F3]) + sorted(fams[_F5])
+        # THE ROSTER, not a frozen list (see pipelines/dmc/route.py). The old
+        # default read census families 3+5 out of the #84 fingerprint census
+        # and so silently EXCLUDED family-4 — the 650-member branch that is
+        # currently the whole v5 grind — unless a caller passed --members.
+        from pipelines.dmc.route import members_for
+        members = members_for('v5')
     if sample:
         members = members[::max(1, len(members) // sample)][:sample]
 
