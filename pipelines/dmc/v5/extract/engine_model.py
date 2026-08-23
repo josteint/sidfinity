@@ -336,9 +336,6 @@ def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
             ev, raw = [], b''
         m.sectors.append(ev)
         m.sector_raw.append(raw)
-    # Off-table arpeggio frequencies, per instrument (the off-table-read form;
-    # see _assign_offtable_freq).
-    _assign_offtable_freq(mem, a_flo, a_fhi, m)
     # family-4 (Jupiter41): capture the player-specific leftovers the composer
     # needs (Phase C). curnote $1012-$1014 is NOT cleared by init → the leadin
     # freq before the first note; $1018 = the filter MODE nibble → $D418.
@@ -400,6 +397,23 @@ def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
         # of the §8 branches; one source per quantity replaces it.)
         m.lo_spdctr = mem[0x1016 + d]
         m.lo_mvolfrac = 0
+    # Off-table arpeggio frequencies, per instrument (the off-table-read form;
+    # see _assign_offtable_freq).
+    #
+    # ⚠ THIS MUST RUN AFTER the leftover block above. Its lead-in capture reads
+    # `m.lo_notes`, and family-4 keeps those notes at $1012-$1014 rather than
+    # the canonical $100F-$1011 — so while this call sat BEFORE the override it
+    # saw the canon-offset bytes (for Pride: $01/$02/$04 instead of
+    # $45/$30/$3C). Those decoy notes index INSIDE the 96-entry table, so the
+    # `idx > 95` test never fired and every family-4 lead-in off-table read was
+    # silently dropped: the composer then had no explicit frequency to place at
+    # that index and the rebuild played $00 where the orig played the byte.
+    # Canon members are unaffected (their `lo_notes` is identical either side of
+    # the block), so moving the call is byte-identical for family-3/5.
+    _assign_offtable_freq(mem, a_flo, a_fhi, m,
+                          clear_range=(_init_clear_range(mem, cfg.base)
+                                       if getattr(cfg, 'family4', False)
+                                       else None))
     return m
 
 
@@ -448,16 +462,41 @@ def _slice_wave(wave: list, start: int):
         first = False
 
 
-def _assign_offtable_freq(mem, a_flo: int, a_fhi: int, m) -> None:
+def _init_clear_range(mem, base: int) -> 'tuple[int, int] | None':
+    """The RAM window the player's init zeroes, probed from the member's own
+    bytes (static, relocation-aware — ledger C19's method).
+
+    family-4's init ends with a plain clear loop:
+
+        base+$65: A2 00      LDX #$00
+        base+$67: 8A         TXA
+        base+$68: 9D DF 17   STA <clr>,x
+        base+$6B: E8         INX
+        base+$6C: E0 79      CPX #$79
+        base+$6E: D0 F8      BNE
+
+    It matters to the off-table capture because the freq-HI table ends only 6
+    bytes below `clr` (uniform across all 642 family-4 members), so an
+    off-table read of any depth lands in memory the init has already zeroed —
+    the FILE-IMAGE byte there is stale and is not what the engine reads.
+    Returns None (caller keeps the file image) if the shape does not match."""
+    if mem[base + 0x68] != 0x9D or mem[base + 0x6C] != 0xE0:
+        return None
+    start = mem[base + 0x69] | (mem[base + 0x6A] << 8)
+    return start, start + mem[base + 0x6D]
+
+
+def _assign_offtable_freq(mem, a_flo: int, a_fhi: int, m,
+                          clear_range: 'tuple[int, int] | None' = None) -> None:
     """Set `offtable_freq` on each instrument: per (wave step, effective note)
     the explicit (lo,hi) frequency the step produces when its note-relative
     index `(wave_freq[step] + note) & $FF` runs past the 96-entry freq table.
     Ties each instrument's wave program to the notes it is actually played at
     (orderlist walk: snd-tracked instrument + transpose). The ML-musical
     replacement for the pooled freq_overrun window — frequencies attributed to
-    the arpeggio, not bytes-at-offset. (The lead-in idle program at index 0 is
-    NOT captured here; if a tune relies on an idle off-table read it shows up as
-    a verify regression — handled separately.)"""
+    the arpeggio, not bytes-at-offset. The lead-in idle program at index 0 IS
+    captured, in the second pass below — which is why this must be called after
+    `m.lo_notes` has been resolved to the member's real leftover addresses."""
     # per-instrument melodic steps: list of (step_index, freq_offset)
     inst_steps = {}
     for ins in m.instruments:
@@ -524,11 +563,49 @@ def _assign_offtable_freq(mem, a_flo: int, a_fhi: int, m) -> None:
     # too, attributed to instrument 0 (the composer builds ext[idx] from the union
     # of all records, so attribution is functional; the idle is the lead-in, not
     # instrument 0's arpeggio).
-    if m.instruments and any(m.lo_notes):
+    #
+    # ⚠ NOT gated on `any(m.lo_notes)`. A leftover note of $00 is an ORDINARY
+    # note, and the idle program's own step OFFSETS are what push the index
+    # off-table: Chronic_Music_3 idles at note $00 with idle steps at offsets
+    # 251/254, so it reads idx 251-254 and the orig plays those bytes. The
+    # all-zero-notes gate skipped exactly those members. (It was invisible
+    # while the family-4 notes were read from the canonical address, because
+    # the decoy bytes there were usually non-zero — the gate passed for the
+    # wrong reason and the block then enumerated the wrong notes.)
+    if m.instruments:
         try:
             ic, ifr, _ = _slice_wave(m.wave, 0)
         except Exception:
             ic = ifr = []
+        # The lead-in read happens on the FIRST play(), i.e. immediately after
+        # init — so the byte the engine sees is the POST-INIT one, and for any
+        # address inside the init's clear window that is $00, not the stale
+        # file-image byte. (Measured over the family: 253 members make a
+        # lead-in off-table read and 86 of them read into the cleared window.)
+        # Deeper per-instrument reads deliberately keep the file image: by then
+        # that memory holds LIVE engine state, which is ledger C11 territory,
+        # not a value this capture can state.
+        #
+        # ⚠ CONVERGENCE NOTE (ledger C6). DMC **v4** already solves the general
+        # form of this — `_correct_offtable_postinit` / `_postinit_values` in
+        # `pipelines/dmc/v4/extract/engine_model.py` — by MEASURING the source
+        # bytes post-init with `siddump --memwatch` (libsidplayfp ground truth,
+        # per-subtune) and keeping only those constant across the sample. That
+        # is strictly more general than the clear-window probe here: it also
+        # serves bytes init WRITES rather than zeroes (v5 family-4's freq-HI
+        # table ends 6 bytes below the clear window, and those 6 are the tune
+        # record's track pointers — an off-table read at idx 96-101 still gets
+        # the stale file byte from this code). It is deliberately NOT adopted
+        # wholesale here yet: it would change captured values for the 1,132
+        # canon v5 members that are already FULL, which is a far larger blast
+        # radius than this lead-in fix. Converge on the v4 mechanism when that
+        # is measured; do not grow a second variant in its place.
+        def _at(addr: int) -> int:
+            addr &= 0xFFFF
+            if clear_range and clear_range[0] <= addr < clear_range[1]:
+                return 0
+            return mem[addr]
+
         recs = set(m.instruments[0].offtable_freq)
         for c, off in zip(ic, ifr):
             if c & 0x08:
@@ -538,6 +615,5 @@ def _assign_offtable_freq(mem, a_flo: int, a_fhi: int, m) -> None:
                     cn = (n + t) & 0xFF
                     idx = (off + cn) & 0xFF
                     if idx > 95:
-                        recs.add((off, cn, mem[(a_flo + idx) & 0xFFFF],
-                                  mem[(a_fhi + idx) & 0xFFFF]))
+                        recs.add((off, cn, _at(a_flo + idx), _at(a_fhi + idx)))
         m.instruments[0].offtable_freq = sorted(recs)

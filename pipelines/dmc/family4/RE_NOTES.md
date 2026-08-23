@@ -1,5 +1,100 @@
 # DMC V5 family-4 — reverse-engineering notes (Phase A, in progress)
 
+## ✅ SESSION 2026-08-23 — THE LEAD-IN OFF-TABLE FREQ (ledger C6), THREE BUGS
+
+The 2026-08-22 entry below fixed the lead-in PHASE (how many idle plays run
+before the first note). This fixes what those idle plays SOUND: family-4's
+lead-in reads the freq table PAST ITS END, and all three ingredients of that
+capture were wrong.
+
+**Worked example — `MUSICIANS/W/Wodnik/Pride.sid`, traced instruction by
+instruction** (`siddump --pc-trace`, the orig's first play):
+
+    $1654: LDY $17FD,X   ; wave pos = 0
+    $1657: LDA $1D14,Y   ; idle wave CTRL[0] = $01   (bit 3 clear -> melodic)
+    $167D: LDA $1D49,Y   ; idle wave FREQ[0] = $44   (the step's semitone offset)
+    $1681: ADC $1012,X   ; + curnote = $45           <- the LEFTOVER note
+    $1684: TAY           ; Y = $89 = 137             <- 41 PAST the 96-entry table
+    $1685: LDA $1719,Y   ; freq_lo[137] -> $17A2 = $0B
+    $168E: LDA $1779,Y   ; freq_hi[137] -> $1802 = $00 (init CLEARED it)
+
+So the lead-in plays `$000B` on V1. We played `$0000`.
+
+**BUG 1 — an ORDERING bug: the correction landed after its consumer.**
+`_assign_offtable_freq` was called at line 341, and the family-4 block that
+corrects `m.lo_notes` from the canonical `$100F` to family-4's `$1012` ran at
+line 346. So the lead-in capture enumerated the CANON-offset decoy bytes
+(Pride: `$01/$02/$04`) instead of the real leftovers (`$45/$30/$3C`). Those
+decoys index INSIDE the 96-entry table, so the `idx > 95` test never fired and
+every family-4 lead-in off-table read was silently dropped. Moving the call to
+the end of `extract()` fixes it and is byte-identical for canon members (their
+`lo_notes` is the same either side of the block) — measured, see below.
+
+⚠ The general lesson is worth more than the fix: **a variant's state-ADDRESS
+correction must precede every consumer of the value.** The `$1012` correction
+was already there and correct; it simply ran too late, and nothing detects
+that. When a variant block re-points an address, grep for readers of the field
+ABOVE it, not just below.
+
+**BUG 2 — the `any(m.lo_notes)` gate.** The lead-in block was skipped when all
+three leftover notes were `$00`. But `$00` is an ORDINARY note, and it is the
+idle program's own step OFFSETS that push the index off-table:
+`Bakewell_Dwayne/Chronic_Music_3` idles at note `$00` with idle steps at
+offsets 251/254, so it reads idx 251-254 and the orig plays those bytes. The
+gate had been passing for the WRONG REASON on family-4 (the canon-offset decoy
+bytes were usually non-zero), so fixing bug 1 exposed it: Chronic_Music_3 went
+45 -> 24 (SHALLOWER) before the gate was removed, then 45 -> 392.
+⚠ That shallower member was the whole reason the gate bug was found — it is
+the ledger-C5 "score by depth, shallower is the signal" rule paying off inside
+a single round.
+
+**BUG 3 — the captured VALUE was the file-image byte.** The lead-in read
+happens on the FIRST play(), so the byte the engine sees is the POST-INIT one.
+family-4's init zeroes `base+$7DF..$857`, and the freq-HI table ends exactly 6
+bytes below that window (uniform across all 642 members — the 6 are the tune
+record's track pointers), so an off-table HI read of any depth lands in
+already-zeroed memory. Pride's V1 HI read is `$1802`: file image `$06`, runtime
+`$00`. `_init_clear_range()` probes the member's own clear loop (static,
+relocation-aware, ledger C19's method) and the capture reads through it.
+Measured: 253 of 642 members make a lead-in off-table read; 86 of those read
+into the cleared window.
+
+**MEASURED — exact exposure set, not a sample.** Both trees built all 2,151 v5
+members and MD5-compared (`tmp/v5_build_md5.py`, the carrier-refactor gate):
+**167 members byte-changed, ALL family-4, ZERO canon.** Those 167 were then
+verified on both sides:
+
+| first-divergence depth | before | after |
+|---|---:|---:|
+| 1-63 (the lead-in) | 29 | **18** |
+| 64-999 | 41 | 46 |
+| 1k-10k | 41 | 45 |
+| 10k+ | 47 | 49 |
+| FULL | 9 | 9 |
+
+deeper 11 · shallower 0 · **regressed 0** · new FULL 0. Biggest movers:
+Wodnik/Motyw_8 2 -> 61,224 · Britelite/Would_You 47 -> 42,219 ·
+Britelite/Spank_Me 43 -> 9,013 · Pride 1 -> 135.
+
+**HONEST READING: an unblocking lever, like its predecessor.** It corrects what
+the lead-in SOUNDS and moves 11 members onto their next bug; it takes none to
+FULL. Score it by depth, not by full/partial (ledger C5).
+
+⚠ **RESYNC DEBT (C20):** 8 of the 9 FULL members in the exposure set have
+stored `.usf`/`.sid` that are now stale (still FULL, different bytes). Fold
+into the next v5 mass-write.
+
+⚠ **CONVERGENCE, NAMED (ledger C6):** DMC **v4** already solves the general
+form of bug 3 — `_correct_offtable_postinit` / `_postinit_values` — by
+MEASURING the source bytes post-init with `siddump --memwatch` (libsidplayfp
+ground truth, per subtune) and keeping only those constant across the sample.
+That is strictly more general than the clear-window probe used here: it also
+serves bytes init WRITES rather than zeroes (the 6 track-pointer bytes at idx
+96-101 still get the stale file byte). It was NOT adopted wholesale because it
+would change captured values for the 1,132 canon v5 members that are already
+FULL. **Converge on the v4 mechanism when that is measured; do not grow a
+second variant beside it.**
+
 ## ✅ SESSION 2026-08-22 — THE LEADIN CLASS UNBLOCKED (commit 27b4530f)
 
 The 2026-07-01 session below diagnosed this correctly and its fix failed for

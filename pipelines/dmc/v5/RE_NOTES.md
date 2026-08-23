@@ -1,5 +1,41 @@
 # DMC V5 — RE notes (Phase A complete)
 
+## ✅ 2026-08-23 (later) — family-4's LEAD-IN OFF-TABLE FREQ (ledger C6)
+
+Three bugs in one capture, worked example + measurements in
+[`../family4/RE_NOTES.md`](../family4/RE_NOTES.md) (2026-08-23 section). In
+short: `_assign_offtable_freq` ran BEFORE the family-4 block that re-points
+`lo_notes` from canon `$100F` to the variant's `$1012`, so the lead-in capture
+enumerated decoy bytes that indexed in-table and every family-4 lead-in
+off-table read was silently dropped; the block was additionally gated on
+`any(lo_notes)`, which skips members idling at note `$00` even though the idle
+program's own step offsets run off-table; and the captured value was the
+file-image byte where the engine reads a POST-INIT (init-zeroed) one.
+
+Gate = build all 2,151 members before/after and MD5-compare, then verify only
+the changed set: **167 changed, ALL family-4, ZERO canon**; deeper 11 ·
+shallower 0 · **regressed 0** · new FULL 0. Lead-in bucket (1-63) 29 → 18.
+An UNBLOCKING lever — score it by depth, not full/partial (ledger C5).
+
+⚠ **TWO METHOD TRAPS THIS ROUND, both cost real time:**
+
+* **THE BATCH ROWS WERE STALE AND I CLUSTERED ON THEM ANYWAY.** `dmc_v5_r2`
+  ran at 00:42; FIVE substantive commits landed after it (08:52-12:43),
+  including the C18 phase port (+9 FULL) and the family-4 CIA/phase defaulting
+  fix (37 members). The "1,167/2,151" headline and every partial row predate
+  them. A census built on those rows produced a confident, wrong picture — a
+  "324-member $D418 class" that dissolved on measurement. Ledger C20: coverage
+  is a FRESH batch. **Check the results file's mtime against `git log` before
+  clustering anything.**
+* **The first shallow carrier I picked was a SINGLETON.** Vextacy's per-voice
+  `JSR` sites are repointed at a 6-byte `JSR $1373 / JMP $1373` stub = the
+  voice unit runs TWICE per play (a clean ledger C24 unit-repeat, and the
+  divergence is legible at position 7). A static census of the call sites over
+  all 642 family-4 members found **638 canon, 1 carrier (Vextacy), 3 with a
+  non-JSR site** — so it is worth almost nothing as a lever. Censusing the
+  carriers BEFORE building the fix (C19's rule) is what stopped it.
+  `tmp/f4_unitrepeat_census.py` is the probe if anyone wants those 4.
+
 ## 🔎 NEXT LEVER (2026-08-23) — the CANON shallow $D418 cluster is a TICK-PHASE bug
 
 After the family-4 startup lever (see `pipelines/dmc/family4/RE_NOTES.md`), the

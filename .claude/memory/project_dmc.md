@@ -5,8 +5,43 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-22T21:11:40.989Z
+  modified: 2026-08-23T13:08:05.627Z
 ---
+
+## ✅ v5 family-4 LEAD-IN OFF-TABLE FREQ fixed (2026-08-23, later session)
+
+Ledger C6. Three bugs in ONE capture (the idle wave program × the per-voice
+leftover note, read past the 96-entry freq table): (1) `_assign_offtable_freq`
+ran BEFORE the family-4 block that re-points `lo_notes` `$100F`→`$1012`, so it
+enumerated decoy bytes that indexed in-table — every family-4 lead-in
+off-table read silently dropped; (2) the block was gated on `any(lo_notes)`,
+skipping members idling at note `$00` whose idle step OFFSETS run off-table;
+(3) the captured value was the file-image byte where the engine reads a
+POST-INIT (init-zeroed) one. Detail + worked instruction trace:
+`pipelines/dmc/family4/RE_NOTES.md` (2026-08-23).
+
+**Gate = byte-identity over the WHOLE family, then verify only the delta**
+(build all 2,151 in a pre-change worktree + after, MD5-compare): **167 changed,
+ALL family-4, ZERO canon**; deeper 11 · shallower 0 · **regressed 0** · new
+FULL 0. Lead-in bucket 29 → 18. An UNBLOCKING lever (C5: score by depth).
+
+⚠ RESYNC DEBT (C20): 8 of the 9 FULL members in the exposure set have stored
+`.usf`/`.sid` that are now stale (still FULL, different bytes) — fold into the
+next v5 mass-write.
+⚠ CONVERGENCE NAMED: v4's `_correct_offtable_postinit`/`_postinit_values`
+(siddump-measured, per-subtune) is the GENERAL form of bug 3 and covers
+init-WRITTEN bytes too; v5 has only a narrow clear-window probe. Adopting v4's
+would touch the 1,132 canon v5 FULLs, so it is deferred — converge there, do
+not grow a third variant.
+⚠ TWO METHOD TRAPS (both cost time, both recorded in `v5/RE_NOTES.md`): the
+`dmc_v5_r2` rows were STALE by five commits and a census built on them
+produced a confident wrong picture (a "324-member $D418 class" that dissolved
+on measurement — check the jsonl mtime against `git log` first); and the first
+shallow carrier picked (Vextacy, a clean C24 unit-repeat `JSR/JMP` stub) is a
+SINGLETON — 638 of 642 family-4 members have canon call sites, found by
+censusing carriers before building the fix.
+ALSO FIXED: `pipelines/dmc/smoke.py` imported `tools.dmc_build_one`, which
+79ccf560 had moved — the smoke gate had been dead since this morning (6/6 now).
 
 ## ✅ PRINCIPLE AUDIT + REMEDIATION (2026-08-23)
 

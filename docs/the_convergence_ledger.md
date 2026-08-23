@@ -210,11 +210,23 @@ practice, not code to factor).
   `at(...)`/`live(...)` read flags; the composer rebuilds its window from the
   records. ❌ never a contiguous `freq_overrun` window. Reach model must
   include deferred note-init / soft-note TRANSITION reads, per-subtune
-  post-init state, AND glide-ARRIVAL curnote reloads landing under a LATER
+  post-init state, the LEAD-IN idle read (idle wave step offset × the per-voice
+  LEFTOVER note — never gate it on `any(leftover_notes)`: note $00 is an
+  ordinary note and the idle OFFSETS are what run off-table), AND glide-ARRIVAL
+  curnote reloads landing under a LATER
   instrument's wave (glide-to-0 dive → idx 255..; statically un-walkable —
   the event capture CREATES those records, gated to glide-target keys);
   non-canon state geometry must be probed before any live
   serving. Full entry has the hard-boundary list (dynamic work-RAM residue).
+- ⚠ THE CAPTURED VALUE IS THE POST-INIT BYTE, NOT THE FILE IMAGE (the read
+  happens after init ran) — v4's `_correct_offtable_postinit`/`_postinit_values`
+  MEASURES it with `siddump --memwatch`; v5 family-4 has only a narrow
+  clear-window probe. Converge on v4's, don't add a third variant.
+- ⚠ ORDERING TRAP (2026-08-23): a VARIANT's state-ADDRESS correction must run
+  BEFORE this capture. v5 family-4's `lo_notes` re-point ($100F→$1012) landed
+  two lines AFTER `_assign_offtable_freq`, so it enumerated decoy bytes that
+  indexed in-table and every lead-in off-table read was silently dropped.
+  When a variant block re-points a state address, grep for readers ABOVE it.
 - FULL ENTRY: [`ledger/C6.md`](ledger/C6.md) — read it before applying.
 
 ### C7 — ANTI-PATTERN: orig bytes carrying musical intent that bypass / opaquely sit in the USF
