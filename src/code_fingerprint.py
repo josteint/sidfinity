@@ -162,6 +162,14 @@ def _derived() -> dict:
 # that reads it and CAN affect a verdict would have to be listed separately.
 _KEY_MANAGEMENT = frozenset({'src/code_fingerprint.py'})
 
+# Test-SELECTION artifacts: they decide WHICH members tier 1 runs, never what a
+# build emits. Once the engine tools moved into `pipelines/<family>/`, these
+# landed inside the hashed dirs — and then re-deriving a portfolio would
+# invalidate that family's verdicts, which is backwards: choosing a different
+# sample cannot change what the composer produces. Matched by suffix so a new
+# family's portfolio is excluded automatically.
+_SELECTION_SUFFIXES = ('_regression_portfolio.json',)
+
 
 def _iter_files(root: Path):
     """Every hashable file under `root` (or `root` itself if it is a file).
@@ -171,7 +179,8 @@ def _iter_files(root: Path):
     """
     if root.is_file():
         try:
-            if root.relative_to(ROOT).as_posix() in _KEY_MANAGEMENT:
+            rel = root.relative_to(ROOT).as_posix()
+            if rel in _KEY_MANAGEMENT or rel.endswith(_SELECTION_SUFFIXES):
                 return
         except ValueError:
             pass
@@ -189,7 +198,8 @@ def _iter_files(root: Path):
             continue
         if f.suffix.lower() in _INERT_SUFFIXES:
             continue
-        if f.relative_to(ROOT).as_posix() in _KEY_MANAGEMENT:
+        rel = f.relative_to(ROOT).as_posix()
+        if rel in _KEY_MANAGEMENT or rel.endswith(_SELECTION_SUFFIXES):
             continue
         out.append(f)
     yield from sorted(out)

@@ -58,8 +58,15 @@ from src.tslog import ts                                             # noqa: E40
 STORES = {
     'dmc_v4': [('tmp/dmc_f1_85_results.jsonl', 'path'),
                ('tmp/dmc_f2_85_results.jsonl', 'path')],
-    'dmc_v5': [('tmp/dmc_v5_85_results.jsonl', 'path'),
-               ('tmp/dmc_v5_merged.jsonl', 'path')],
+    # ⚠ ONLY THE FAMILY'S LIVE STORE BELONGS HERE. The stamp time is taken from
+    # the file's MTIME, which is a lie for any file that was later REWRITTEN:
+    # `dmc_v5_85_results.jsonl` (the pre-#85-list baseline) and
+    # `dmc_v5_merged.jsonl` were both edited after their rows were produced, so
+    # their mtimes postdate the code that made them and a blanket run would
+    # have restamped genuinely PRE-FIX verdicts as current — the exact
+    # palimpsest C20 is about. They are historical snapshots now; the live
+    # store is the post-fix batch.
+    'dmc_v5': [('tmp/dmc_v5_r2_results.jsonl', 'path')],
     'fc_standard': [('tmp/fc_std_wide_results.jsonl', 'sid')],
     'music_assembler': [('tmp/masm_wide_results.jsonl', 'sid')],
     'goattracker_v1': [('tmp/gt_v1_results.jsonl', 'path')],
@@ -107,9 +114,31 @@ def changed_after(files, when: float) -> tuple[list[str], list[str]]:
     changed = []
     commit = _commit_at(when)
     if commit and tracked:
-        changed = subprocess.run(
-            ['git', 'diff', '--name-only', commit, '--'] + sorted(tracked),
-            capture_output=True, text=True, cwd=ROOT).stdout.split()
+        # RENAME DETECTION (-M) IS LOAD-BEARING, not a nicety. The fingerprint
+        # hashes each file's PATH as well as its bytes, so relocating a tool
+        # (e.g. engine tools moving from tools/ into pipelines/<family>/)
+        # changes every affected family's key even though not one byte of
+        # behaviour moved. Without -M, `git diff` reports the new paths as
+        # added-and-changed and this tool refuses every family — turning a pure
+        # move into a full re-verification of the whole corpus.
+        #
+        # With -M, git pairs old->new by content and reports the pair as R100;
+        # a 100%-similarity rename is exactly the case where restamping is
+        # provably safe. Anything else (R0xx = renamed AND edited, M, A, D)
+        # still counts as changed.
+        out = subprocess.run(
+            ['git', 'diff', '-M', '--name-status', commit, '--'],
+            capture_output=True, text=True, cwd=ROOT).stdout
+        for line in out.splitlines():
+            parts = line.split('\t')
+            status = parts[0]
+            if status.startswith('R') and len(parts) == 3:
+                if status == 'R100':
+                    continue          # pure move: content identical
+                changed.append(parts[2])
+            elif len(parts) >= 2 and parts[-1] in tracked:
+                changed.append(parts[-1])
+        changed = [c for c in changed if c in tracked]
     untracked = [f for f in files
                  if f.relative_to(ROOT).as_posix() not in tracked]
     unverifiable = sorted(f.relative_to(ROOT).as_posix() for f in untracked

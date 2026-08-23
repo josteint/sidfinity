@@ -502,7 +502,112 @@ def dmc_v5_features(sid: str) -> tuple[str, set] | None:
     return (sid, f)
 
 
-MASM_WITNESSES = {
+BASIC_PIN_DIMS = {
+    # The trace-lift's own decision points. basic_program has no "engine" to
+    # probe — the engine IS the BASIC+KERNAL ROM — so its feature dimensions
+    # are the LIFTER's structural choices, which is exactly where its bugs
+    # live. Double-cover the ones that select a different code path.
+    'struct:legato', 'struct:gated', 'struct:multi_template',
+    'struct:song_end', 'struct:start_offset', 'fx:perstep_timbre',
+}
+
+
+def _bp_dur(sid: str) -> float:
+    """The batch's own window rule, so a portfolio member is verified over the
+    same span the batch verified it over (songlength*1.1, floor 15 s, NO upper
+    cap — the cap was ledger C20's eighth layer)."""
+    from src.songlengths import load_database, get_durations
+    root = os.path.join(ROOT, 'hvsc85')
+    db = load_database(os.path.join(root, 'DOCUMENTS', 'Songlengths.md5'))
+    try:
+        d = get_durations(os.path.join(root, sid), db)
+        sl = d[0] if d else 10
+    except Exception:
+        sl = 10
+    return max((sl or 10) * 1.1, 15.0)
+
+
+def basic_program_features(sid: str) -> tuple[str, set] | None:
+    """basic_program feature set: the TRACE-LIFT's structural decisions.
+
+    Unlike every other family there is no player to probe — the engine is the
+    BASIC interpreter — so the dimensions that matter are the ones the lifter
+    branches on: gated vs legato segmentation, single vs multi positional
+    template (ledger C17), song-end detection, start-frame offset, per-step
+    timbre, voice count and step count.
+    """
+    import signal
+
+    def _bail(_sig, _frm):
+        raise TimeoutError
+
+    signal.signal(signal.SIGALRM, _bail)
+    signal.alarm(300)          # a lift runs a real capture; be generous
+    try:
+        from pipelines.basic_program import semantic_lift as S
+        from pipelines.basic_program import usf_roundtrip as RT
+        # ⚠ build_model takes an ABSOLUTE path. Handed an HVSC-relative one it
+        # captures nothing and returns `unsupported: too_few_steps` — the exact
+        # symptom CLAUDE.md documents for a MISSING ROM, so it reads as a broken
+        # environment rather than a wrong argument. Every member returned None
+        # until this was fixed.
+        m = S.build_model(os.path.join(ROOT, 'hvsc85', sid), _bp_dur(sid),
+                          multi_template=True, detect_song_end=True)
+        if not m or m.get('unsupported'):
+            return None
+    except Exception:
+        return None
+    finally:
+        signal.alarm(0)
+
+    f: set[str] = set()
+    f.add('struct:legato' if m.get('legato') else 'struct:gated')
+    multi = m.get('multi') or []
+    if len(multi) > 1:
+        f.add('struct:multi_template')
+        f.add(f'tmpl:k={min(len(multi), 8)}')
+    if m.get('song_end'):
+        f.add('struct:song_end')
+    if m.get('start_frame'):
+        f.add('struct:start_offset')
+    try:
+        if RT._perstep_timbre(m):
+            f.add('fx:perstep_timbre')
+    except Exception:
+        pass
+    try:
+        if RT.is_clean(m):
+            f.add('struct:clean')
+    except Exception:
+        pass
+    steps = m.get('steps') or []
+    f.add(f'steps:{min(len(steps) // 100, 6)}00+')
+    # voices + globals actually written across the lifted steps
+    regs = {w[-2] for s in steps
+            for w in (list(s.get('attack') or []) + list(s.get('release') or []))}
+    voices = {1 for r in regs if 0x00 <= r <= 0x06} | \
+             {2 for r in regs if 0x07 <= r <= 0x0D} | \
+             {3 for r in regs if 0x0E <= r <= 0x14}
+    f.add(f'voices:{len(voices)}')
+    if any(0x15 <= r <= 0x17 for r in regs):
+        f.add('fx:filter')
+    if any(r == 0x18 for r in regs):
+        f.add('fx:mastervol')
+    if m.get('pw_program'):
+        f.add('fx:pw_program')
+    if m.get('mod_inc') or m.get('mod_start'):
+        f.add('fx:modulation')
+    if m.get('masked'):
+        f.add('struct:masked_template')
+    if m.get('loop_to') is not None:
+        f.add('struct:loop')
+    init = {w[-2] for w in (m.get('init') or [])}
+    if any(0x15 <= r <= 0x17 for r in init):
+        f.add('init:filter')
+    return (sid, f)
+
+
+MASM_PIN_DIMS = {
     # The C6 off-table freq read — the family's dominant residue class, and
     # both of its read sites (the arp path masks to 7 bits, the note path
     # does not, so they overrun differently).
@@ -633,6 +738,22 @@ def masm_features(sid: str) -> tuple[str, set] | None:
 # one entry + a `<engine>_features` function; exact_multicover and the
 # driver stay engine-blind.
 ENGINES = {
+    # basic_program — the one family with no PLAYER to probe (the engine IS the
+    # BASIC+KERNAL ROM), so its dimensions are the TRACE-LIFT's own structural
+    # choices, which is where its bugs live. Its portfolio format carries a
+    # per-member verify WINDOW, so this entry supplies an `emit` hook; the
+    # driver is otherwise unchanged.
+    'basic_program': {
+        'results': os.path.join(ROOT, 'tmp', 'basic_program_research',
+                                'family_batch.jsonl'),
+        'out': os.path.join(ROOT, 'tools',
+                            'basic_program_regression_portfolio.json'),
+        'features': basic_program_features,
+        'witnesses': set(),
+        'pin_dims': BASIC_PIN_DIMS,
+        'sid_key': 'path',
+        'emit': lambda sid: {'sid': sid, 'dur': round(_bp_dur(sid), 1)},
+    },
     'fc_standard': {
         'results': os.path.join(ROOT, 'tmp', 'fc_std_wide_results.jsonl'),
         'out': os.path.join(ROOT, 'tools', 'fc_regression_portfolio.json'),
@@ -672,7 +793,12 @@ ENGINES = {
         'out': os.path.join(ROOT, 'tools',
                             'masm_regression_portfolio.json'),
         'features': masm_features,
-        'witnesses': MASM_WITNESSES,
+        # ⚠ these were declared as `witnesses`, but witnesses are MEMBER PATHS
+        # and these are DIMENSION names — so the tie-break had been inert since
+        # the family was wired. They are semantically pin_dims; moved there,
+        # where budget mode enforces them as double-cover constraints.
+        'witnesses': set(),
+        'pin_dims': MASM_PIN_DIMS,
         'sid_key': 'sid',
     },
     # DMC V5 — derived BEFORE the grind rather than at closeout (item 17(e));
@@ -910,7 +1036,10 @@ def main():
     # it would fail regression forever.
     from batch_results import load_latest
     _latest = load_latest(results, sid_key)
-    fulls = [p for p, r in _latest.items() if r['status'] == 'full']
+    # basic_program records 'FULL', the others 'full' — compare case-blind
+    # or that family silently derives from an EMPTY candidate pool.
+    fulls = [p for p, r in _latest.items()
+             if str(r.get('status', '')).lower() == 'full']
     print(f'[{args.engine}] {len(fulls)} FULL members; '
           f'deriving feature matrix...', flush=True)
     rows = []
@@ -941,7 +1070,10 @@ def main():
     sol.sort()
     cover = {d: sorted(m for m in sol if d in members[m])
              for d in sorted(universe)}
-    json.dump({'engine': args.engine, 'portfolio': sol, 'dimensions': cover,
+    emit = eng.get('emit')
+    out_portfolio = [emit(m) for m in sol] if emit else sol
+    json.dump({'engine': args.engine, 'portfolio': out_portfolio,
+               'dimensions': cover,
                'corpus_full': len(members),
                'mode': 'budget' if args.budget else 'exact', **stats},
               open(out, 'w'), indent=1)
