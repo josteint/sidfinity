@@ -1356,6 +1356,21 @@ def _apply_play_phases(asm: str, m) -> str:
         + f'phasectr: .byt {n_ph - 1}\n\n')
     # Point the jump table at the wrapper and define it just before the play
     # body. The PSID header keeps play = LOAD+3, so nothing else moves.
+    #
+    # ⚠ ASSERT BOTH ANCHORS. A `str.replace` that finds nothing returns the
+    # string unchanged, so a renamed label here would silently produce a build
+    # with the wrapper DEFINED BUT NEVER REACHED — it assembles, it verifies as
+    # a partial, and it looks exactly like the bug still being unfixed. The
+    # session that added this had already been bitten by the same shape twice
+    # (a `.get('first_diff')` that always returned None; a `_worker_init` that
+    # was never called), so fail loudly instead.
+    jt_before = asm.count('        jmp playframe\n')
+    body_before = asm.count('playframe:\n')
+    if jt_before < 1 or body_before < 1:
+        raise RuntimeError(
+            f'play_phases: engine asm anchors moved (jump-table entries '
+            f'{jt_before}, body labels {body_before}) — the phase wrapper '
+            f'would be emitted but never entered')
     asm = asm.replace('        jmp playframe\n', '        jmp playphases\n', 1)
     return asm.replace('playframe:\n', wrapper + 'playframe:\n', 1)
 
