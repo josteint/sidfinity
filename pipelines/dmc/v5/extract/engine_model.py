@@ -306,11 +306,30 @@ def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
     for sub in range(n_sub):
         rec = a_order + sub * 8
         st = V5Subtune(speed=mem[rec + 6], master_vol=mem[rec + 7])
-        for v in range(3):
-            tp = _rd16(mem, rec + v * 2)
-            ev, raw = _decode_orderlist(mem, tp)
-            st.orderlists.append(ev)
-            st.orderlist_raw.append(raw)
+        try:
+            for v in range(3):
+                tp = _rd16(mem, rec + v * 2)
+                ev, raw = _decode_orderlist(mem, tp)
+                st.orderlists.append(ev)
+                st.orderlist_raw.append(raw)
+        except RuntimeError:
+            # THE PSID HEADER OVERSTATES THE SONG COUNT. Past the last real
+            # record the read runs into whatever follows the table — usually
+            # orderlist bytes — and decodes as garbage pointers into low RAM
+            # (Bayliss/Xmas_Crazy declares 6 songs, has 5: record 5 reads
+            # `FC 08 FD 06 48 FE 43 FE` = track commands, giving track
+            # pointers $08FC/$06FD/$FE48 whose "orderlist" never terminates).
+            # The engine would play that record as noise, so it is not a song
+            # and there is nothing musical to represent (C7).
+            #
+            # Stop at the first record that will not decode and keep the songs
+            # that do. Only widening: a member whose records ALL decode is
+            # untouched, so every currently-building member is byte-identical.
+            # A failure at record 0 is a genuinely unreadable member and still
+            # raises.
+            if sub == 0:
+                raise
+            break
         m.subtunes.append(st)
     # mirror subtune 0 onto the top-level fields (single-subtune readers)
     m.orderlists = m.subtunes[0].orderlists
