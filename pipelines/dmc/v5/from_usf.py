@@ -164,7 +164,12 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     )
     # family-4 (Jupiter41) player flag + leftovers (Phase C composer knobs)
     pf = usf.params.fields if usf.params and usf.params.fields else {}
-    m.play_phases = str(pf.get('play_phases', '') or '')
+    # TYPED FIRST, params FALLBACK: `play_phases` moved to Environment
+    # (trichotomy §4.3 / ledger C33), but stored .usf written before the move
+    # still carry it in params{} — reading both keeps every stored artifact
+    # building identically (C20 third layer).
+    _envph = getattr(getattr(usf, 'environment', None), 'play_phases', '') or ''
+    m.play_phases = str(_envph or pf.get('play_phases', '') or '')
     # PLAYER-MECHANISM KNOBS (Principle §8) — each names the behaviour it
     # changes; the composer branches on these, never on a player identity.
     m.noteon_skip_freq_clear = bool(int(pf.get('noteon_skip_freq_clear', 0)))

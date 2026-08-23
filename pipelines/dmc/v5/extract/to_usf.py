@@ -525,11 +525,14 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
                       clock=getattr(m, 'clock', 'PAL'),
                       sid=getattr(m, 'sid_model', 6581),
                       start_song=1),
-        environment=(Environment(cia_period=m.cia_period)
-                     if getattr(m, 'cia_period', 0) else None),
+        # C18 phase schedule is TEMPORAL DISPATCH — trichotomy §4.3, so it
+        # belongs beside cia_period/play_repeat/init_plays rather than in the
+        # params bag (ledger C33).
+        environment=(Environment(cia_period=getattr(m, 'cia_period', 0),
+                                 play_phases=getattr(m, 'play_phases', '') or '')
+                     if (getattr(m, 'cia_period', 0)
+                         or getattr(m, 'play_phases', '')) else None),
         params=Params(fields={
-            **({'play_phases': m.play_phases}
-               if getattr(m, 'play_phases', '') else {}),
             # PLAYER-MECHANISM KNOBS (Principle §8): named behaviours, not
             # the originating player's name. Emitted only when they differ
             # from the default, so a canon member's USF is unchanged.

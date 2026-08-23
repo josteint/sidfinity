@@ -221,6 +221,8 @@ def _write_environment(env) -> list[str]:
         lines.append(f'  play_repeat: {env.play_repeat}')
     if getattr(env, 'init_plays', 0):
         lines.append(f'  init_plays: {env.init_plays}')
+    if getattr(env, 'play_phases', ''):
+        lines.append(f'  play_phases: "{env.play_phases}"')
     lines.append('}')
     return lines
 

@@ -282,13 +282,19 @@ class _T(Transformer):
 
     # Environment fields that ride the GENERIC CNAME-key rule (see grammar
     # note — a keyword terminal would shadow CNAME in old-corpus params{}).
-    _ENV_NAMED = {'init_plays': int}
+    # Generic named ENVIRONMENT fields (the CNAME-key form). `play_phases`
+    # is the ledger-C18 per-call phase schedule, typed here beside cia_period /
+    # play_repeat / init_plays instead of living in the params bag (C33).
+    _ENV_NAMED = {'init_plays': int, 'play_phases': str}
 
     def env_named(self, items):
         key, val = str(items[0]), items[1]
         typ = self._ENV_NAMED.get(key)
         if typ is None:
             raise UsfParseError(f'environment: unknown field {key!r}')
+        if typ is str:
+            v = str(val)
+            return (key, v[1:-1] if v[:1] in '"\'' else v)   # strip quotes
         return (key, typ(val))
 
     def environment_block(self, items):

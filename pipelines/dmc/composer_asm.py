@@ -2369,7 +2369,13 @@ fx_dual_up:
     # the mechanism: a phase counter dispatching full-play (P), fx-only (F)
     # or silence (S) per call. phasectr lives in code (not the cleared state
     # block), seeded so call #1 executes phases[0] = the observed sequence.
-    play_phases = str(usf.params.fields.get('play_phases', '') or '')
+    # TYPED FIRST, params FALLBACK. `play_phases` is now a typed Environment
+    # field (trichotomy §4.3 temporal dispatch; ledger C33 closing the last
+    # params escape hatch of that family) — but ~5.4k stored .usf carry it in
+    # params{}, so both are read and those artifacts keep building unchanged.
+    play_phases = str(getattr(getattr(usf, 'environment', None),
+                              'play_phases', '')
+                      or usf.params.fields.get('play_phases', '') or '')
     tokens = [t for t in play_phases.split('_') if t] if play_phases else []
     # notestart_arm: the F phase enters the wave step PAST the note-init check,
     # so a fetched note ARMS on the F call (wave-step only, envelope held at the

@@ -166,7 +166,8 @@
   },
   "play_phases": {
    "category": "temporal-dispatch",
-   "licensed_by": "C18 (per-call phase schedule)"
+   "licensed_by": "C18 (per-call phase schedule)",
+   "note": "MIGRATED to the typed Environment.play_phases field (trichotomy \u00a74.3) on 2026-08-23 \u2014 ledger C33. The key is still read as a FALLBACK because ~5.4k stored .usf carry the old params form; delete this row once they are regenerated."
   },
   "play_unit_repeat": {
    "category": "temporal-dispatch",
@@ -327,7 +328,8 @@
   },
   "play_phases": {
    "category": "temporal-dispatch",
-   "licensed_by": "C18 (per-call phase schedule)"
+   "licensed_by": "C18 (per-call phase schedule)",
+   "note": "MIGRATED to the typed Environment.play_phases field (trichotomy \u00a74.3) on 2026-08-23 \u2014 ledger C33. The key is still read as a FALLBACK because ~5.4k stored .usf carry the old params form; delete this row once they are regenerated."
   }
  }
 }

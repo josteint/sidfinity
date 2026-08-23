@@ -243,6 +243,14 @@ environment_field: "cia_period" ":" number    -> env_cia_period
                    // would shadow CNAME there and break every stored file.
                    // The transformer validates the name.
                  | CNAME ":" INT              -> env_named
+                   // play_phases = the ledger-C18 per-call phase
+                   // schedule ("P_F123_F123"), typed here beside its
+                   // siblings rather than left in the params bag (C33).
+                   // Same CNAME-key form and for the same reason: the
+                   // word occurs as a params{} key in ~5.4k stored
+                   // files, and a keyword terminal would shadow CNAME
+                   // there and break every one of them.
+                 | CNAME ":" STRING           -> env_named
 
 // ----- freq table (optional) -----
 // Per-tune freq table bytes. The codegen places them at the canonical

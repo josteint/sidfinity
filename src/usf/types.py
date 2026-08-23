@@ -1071,10 +1071,18 @@ class Environment:
         returns, so the song's first N frames happen at init time
         (ledger C24's temporal family, sibling of `play_repeat`).
         0 = init returns without playing.
+      `play_phases`: the ledger-C18 PER-CALL phase schedule — one token per
+        call in the minimal repeating period ('P' full play, 'F<voices>'
+        effects-only, 'S' a call that writes nothing), e.g.
+        'P_F123_F123_F123_F123'. Where `play_repeat` says HOW MANY times the
+        body runs per call, this says WHICH KIND of work each successive call
+        does; both are counts-and-shape of when play happens, never what it
+        plays (the §4.3 boundary). '' = every call is a full play.
     """
     cia_period: int = 0
     play_repeat: int = 1
     init_plays: int = 0
+    play_phases: str = ''
 
 
 @dataclass
