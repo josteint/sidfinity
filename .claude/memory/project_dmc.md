@@ -5,8 +5,46 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-23T19:36:08.143Z
+  modified: 2026-08-23T21:01:45.030Z
 ---
+
+## ✅ v5 `$90` MARKER FOLLOWED ONCE (+30 building) + flat_div repaired (2026-08-24, overnight)
+
+`capture_loop` (47 members) was `_capture_env`/`_capture_env_f4` CHASING `$90`
+chains; the engine follows ONE marker then uses the target cell as a VALUE
+(canon `filter_run_v3` $14A0-$14AE re-reads at the target and stores it with NO
+second check; family-4's $14B4 handler matches). ⚠ First guess — unused
+instrument slots holding garbage — REFUTED: 46 of 47 reach the program from a
+played instrument. ⚠ `_slice_wave` ALREADY documented this rule, so the fix
+CONVERGES the three walkers rather than inventing a reading.
+Exact exposure gate (build 2,151 before/after, MD5, verify the delta): 66
+changed → **7 new FULL · 0 REGRESSED · 23 unsupported/error → partial**; 3 fell
+into the deferred overflow bucket. Detail: `v5/RE_NOTES.md` 2026-08-24.
+
+⚠⚠ **`flat_div` WAS MAKING THE PARTIAL CENSUS LIE.** It recorded ORIG's register
+with MINE's VALUE and no mine-register, so "V1 freqlo mine=$3F" actually meant
+we emitted `$D418=$3F` where the orig emitted a note — a STREAM-OUT-OF-STEP,
+not a wrong frequency. Every partial cluster built on it is suspect. Both DMC
+batches now append mine's register (6th element, old rows still parse);
+`divergence_census` clusters mismatches separately as `[STREAM OUT OF STEP]`
+and prints a NOTE on pre-fix rows. **Re-cluster before trusting any earlier
+partial analysis.**
+
+⚠ IN FLIGHT at hand-off: a full v5 re-batch (`tmp/dmc_v5_r3_results.jsonl`,
+2,031 roster members — the pre-fix copy is `…r3_results.pre90.jsonl`). It is
+the first batch to carry the corrected flat_div, so it is the honest basis for
+the partials grind. NOTE the denominator changed: the batch now runs what the
+ROSTER claims (2,031), not the old 2,151 list; the 120 the v5 detector refuses
+are accounted in the roster's unclaimed/near-miss bucket instead, so compare
+with `batch_diff` and read membership changes as such, not as regressions.
+
+PARKED for the owner in `backlog.md` (items 19-21): the 103-member
+pulse/filter/wave table overflow (needs the positional-pool representation —
+converge on v4's `wave_table_pos`, C8 already refuted packing), the ~106
+`player_code_mismatch` v5 player VARIANT (inline speed counter at $10A7 + a
+9-byte play-skip prologue; migration-sized, needs its own site map), and
+`trailing_sector_cmds` (15; C32 shape — measure whether the commands are dead
+before growing a representation).
 
 ## ✅ ONE REGISTRY for "which results file is current" (2026-08-23)
 
