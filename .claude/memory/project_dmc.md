@@ -5,8 +5,28 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-23T21:45:24.986Z
+  modified: 2026-08-23T23:23:46.784Z
 ---
+
+## 📊 v5 OVERNIGHT CLOSEOUT (2026-08-24): 1,181/2,031 FULL, and the next lever named
+
+Fresh batch on the ROSTER's 2,031 members (`tmp/dmc_v5_r3_results.jsonl`, the
+first with the corrected `flat_div`): **1,181 full / 693 partial / 143
+unsupported / 14 error**. `batch_diff` vs the pre-fix baseline: **0
+REGRESSIONS**, 7 gains, 32 status changes (the intended unsupported/error →
+partial moves, minus 3 that fell into the parked overflow bucket).
+⚠ Denominator changed (2,031 roster-claimed vs the old 2,151 list) — the 120
+the detector refuses now sit in the roster's unclaimed/near-miss bucket.
+
+**THE NEXT LEVER, isolated and half-solved: 268 partials where we emit ONE
+`$D418` TOO MANY** (291 of 693 partials are stream-out-of-step; 273 of those are
+family-4; in 268 our register is `$D418`). The orig skips the per-voice `$D418`
+on vib-REVERSAL frames (the only paths bypassing `$1651` are $15C9/$15DA on the
+UP reversal and $160F on the DOWN when `$1812 != 0`); the composer models the
+UP reversal only. ⚠ The obvious completion — gate the DOWN reversal on
+step-doubling `byte7>>4`, which the extract masks off — is **REFUTED by
+measurement** (5.5% of affected members carry it vs 19%/10% of controls). Full
+worked example + the exact next measurement in `v5/RE_NOTES.md` head.
 
 ## ✅ v5: the PSID header can OVERSTATE the song count (+8 building) (2026-08-24, overnight)
 

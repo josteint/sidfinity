@@ -1,5 +1,58 @@
 # DMC V5 — RE notes (Phase A complete)
 
+## 🔎 NEXT LEVER (2026-08-24) — 268 partials: we emit ONE $D418 TOO MANY
+
+The single biggest partial cluster in v5, and it is now cleanly isolated
+because `flat_div` finally records BOTH registers.
+
+**Fresh batch (2,031 roster members): 1,181 FULL / 693 partial.** Of the 693:
+
+| | members |
+|---|---:|
+| STREAM OUT OF STEP (orig reg != our reg) | **291 (42%)** |
+| ...of which family-4 | **273 (94%)** |
+| ...where OUR register is `$D418` | **268** |
+| same-register (a genuine value bug) | 402 |
+
+So on family-4 we emit a `$D418` where the orig emits a voice register — one
+EXTRA write per frame — and everything after is out of step. Worked example
+(Angee/Just_for_Her, first divergence 11990):
+
+    orig frame:  V1blk  18=3F  V2blk  18=3F  V3blk  16=54     (18 writes, 2x D418)
+    mine frame:  18=3F  V1blk  18=3F  V2blk  18=3F  V3blk 16   (19 writes, 3x D418)
+
+**WHAT IS KNOWN.** The count is not fixed: profiling the ORIG at frame 690
+shows THREE `$D418` stores, all from `$1651`, while the diverging frame 685 has
+two. So the orig skips the per-voice `$D418` on some frames, and the skip is
+the vib-REVERSAL bypass — the only paths that reach the voice step without
+passing `$1651`:
+
+    $15C9  JMP $1654   ; UP reversal, $1812 != 0
+    $15DA  JMP $1654   ; UP reversal, $1812 == 0   -> UP ALWAYS skips
+    $160F  JMP $1654   ; DOWN reversal, $1812 != 0 ; $15FE BEQ $1612 writes when == 0
+
+The composer models the UP reversal only (`d418_skip_vib_reversal` sets
+`vibrev` on the `inc vibdir,x` path).
+
+**WHAT IS REFUTED — do not re-run this.** The obvious completion (set `vibrev`
+on the DOWN reversal too, gated on step-doubling `$1812 = instr byte7 >> 4`,
+which the extract currently MASKS OFF as `vib_width = b[7] & 0x07`) does NOT
+explain the population. Measured over 200 members per group
+(`tmp/v5_vibdbl_probe.py`): a vib instrument with `byte7 >> 4 != 0` appears in
+only **5.5%** of the out-of-step members versus **19%** of the same-register
+partials and **10%** of currently-FULL members — i.e. it is LESS common in the
+affected group. Some other condition is skipping the write.
+
+**NEXT MEASUREMENT** (do this first, it is one command): on Just_for_Her at the
+diverging frame, find WHICH voice the orig skipped and why —
+`siddump --memwatch-on-write D418 <vibctr,vibdir,vibspd,$1812 for x=0..2>`
+(resolve the addresses with the member's base) and compare the three voices at
+frames 684/685 against frame 690 where all three wrote. That names the
+condition directly instead of inferring it from the disassembly's branch
+structure. NB `$1812,x` is a per-voice RUNTIME cell, not the instrument byte —
+the instrument byte only seeds it, which is one reason the static census above
+can be misleading.
+
 ## ✅ 2026-08-24 (overnight) — the `$90` marker is followed EXACTLY ONCE
 
 `capture_loop` refused 47 members. It is a `_WALK_CAP` seatbelt for a `$90`
