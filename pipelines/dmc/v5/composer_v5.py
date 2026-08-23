@@ -92,11 +92,11 @@ def _emit_data(m) -> str:
     d.append('filterlo:\n' + _byt([lo for lo, hi in m.filter] or [0]))
     d.append('filterhi:\n' + _byt([hi for lo, hi in m.filter] or [0]))
     # per-voice leftover note ($100F-$1011): the lead-in effects frame(s)
-    # read it before the first fetch (only observable when lo_spdctr>0).
-    # family-4: the curnote leftover lives at $1012-$1014 (f4_idle_notes) and
-    # is ALWAYS the lead-in freq (C-1).
-    _idle = m.f4_idle_notes if getattr(m, 'family4', False) else m.lo_notes
-    d.append('initnotes:\n' + _byt((list(_idle) + [0, 0, 0])[:3]))
+    # read it before the first fetch. ONE source — the extract reads it from
+    # whichever address that member's player keeps it at (the Jupiter41
+    # variant uses $1012-$1014), so the composer no longer asks which player
+    # this was (Principle §8).
+    d.append('initnotes:\n' + _byt((list(m.lo_notes) + [0, 0, 0])[:3]))
     return '\n'.join(d)
 
 
@@ -1060,14 +1060,11 @@ tmp40:    .dsb 1, 0
 state_end:
         .byt $00
 """
-    # family-4's filter mode is the static $1018 byte (f4_filtmode), not the
-    # family-3 lo_filtmode leftover (e.g. Jupiter41 = $30 → $D418 high nibble).
-    _filtmode = m.f4_filtmode if getattr(m, 'family4', False) else m.lo_filtmode
-    # family-4's filter cutoff starts at the file-image $1019 (f4_fcinit), swept by
-    # the default filter program; family-3 uses the lo_fchi leftover.
-    _fchi = m.f4_fcinit if getattr(m, 'family4', False) else m.lo_fchi
-    consts = (f'LEFT_FILTMODE = ${_filtmode:02X}\n'
-              f'LEFT_FCHI = ${_fchi:02X}\n'
+    # Filter mode + starting cutoff: ONE source each. The extract reads them
+    # from whichever address the member's player keeps them at, so these are
+    # plain leftovers here rather than a per-player choice (Principle §8).
+    consts = (f'LEFT_FILTMODE = ${m.lo_filtmode:02X}\n'
+              f'LEFT_FCHI = ${m.lo_fchi:02X}\n'
               f'LEFT_FCLO = ${m.lo_fclo:02X}\n'
               f'LEFT_SPDCTR = ${m.lo_spdctr:02X}\n'
               f'LEFT_MVOLFRAC = ${m.lo_mvolfrac:02X}\n')
@@ -1081,7 +1078,14 @@ state_end:
     # (the wave-step on the NEXT frame writes the real freq). The family-3
     # note-on writes FREQ=$0000 here; drop those 2 writes for family-4 so the
     # note-on emission order matches (note-on pass = SR/AD/CTRL only).
-    if getattr(m, 'family4', False):
+    # ---- PLAYER-MECHANISM KNOBS (Principle §8) -------------------
+    # These branches used to sit inside one `if m.family4:` gate — a flag
+    # naming the ORIGINATING PLAYER, read by emitters, which is exactly the
+    # shape §8 forbids. Each is now guarded by the MECHANISM it changes, so a
+    # future player exhibiting any one of them can set it alone, and the
+    # composer never learns which engine the music came from. The Jupiter41
+    # variant simply sets all thirteen (see the extract).
+    if int(getattr(m, 'play_skip_init', 2)) != 2:
         # PLAY-SKIP: family-3's play opens `LDA $1842 / BEQ / DEC $1842 / JMP
         # exit`, and its canon init ends `LDA #$02 / STA $1842` — so the first
         # two play() calls of a family-3 tune do nothing at all. family-4's play
@@ -1102,10 +1106,12 @@ state_end:
             '        lda #$02\n        sta playskip',
             '        lda #$00                ; family-4 play has no $1842 skip\n'
             '        sta playskip')
+    if getattr(m, 'noteon_skip_freq_clear', False):
         engine = engine.replace(
             '        sta notestart,x\n        lda #$00\n'
             '        sta $d400,y\n        sta $d401,y\n        inc secpos,x',
             '        sta notestart,x\n        inc secpos,x')
+    if int(getattr(m, 'dur_ctr_init', 1)) != 1:
         # family-4 init seeds the per-voice DURATION counter to 2 ($17E5,x=2);
         # the family-3 default is 1. The 2-phase ticks on even frames so the
         # first note-on lands at frame 2 (durctr 2->1->0). Preserve vactive=$01.
@@ -1113,6 +1119,7 @@ state_end:
             '        sta durctr,x\n        sta vactive,x',
             '        pha\n        lda #$02\n        sta durctr,x\n'
             '        pla\n        sta vactive,x')
+    if getattr(m, 'wave_speed_from_instr', False):
         # family-4 wave-SPEED counter: the instrument's byte 6 ($2293,y) >> 4 is
         # the wave-step advance period ($1845/$1848 in the orig). family-3 has no
         # speed (advances every frame). Without this the wave program sweeps every
@@ -1123,6 +1130,7 @@ state_end:
             '        sta wavespd,x\n        sta wavespc,x',
             '        ;; WAVESPD\n        lda instr+6,y\n        lsr\n        lsr\n'
             '        lsr\n        lsr\n        sta wavespd,x\n        sta wavespc,x')
+    if getattr(m, 'wave_speed_from_instr', False):
         # family-4 note-init first-step must use the SAME speed-gated advance as
         # the per-frame ws_adv: family-3 unconditionally advances (`inc wavepos`)
         # after the first step, but family-4's first step IS a real wave step
@@ -1138,6 +1146,7 @@ state_end:
             'ni_ws_adv:\n        inc wavepos,x\n        lda wavespd,x\n'
             '        sta wavespc,x\n'
             'ni_ws_done:\n        lda wavectrl,y')
+    if getattr(m, 'volovr_ad_zero', False):
         # family-4 vol-override note-on ($1352) writes AD=$00 (not the instrument
         # AD): the SR carries the vol level (volovr<<4 | instr_SR&$0f) and the AD
         # is forced to $00. family-3 keeps the instrument AD. Force AD=$00 on the
@@ -1146,9 +1155,11 @@ state_end:
             '        ora tmp40\n        sta $d406,y\n        jmp no_ad',
             '        ora tmp40\n        sta $d406,y\n        pla\n        lda #$00\n'
             '        sta $d405,y\n        jmp ni_voldone')
+    if getattr(m, 'volovr_ad_zero', False):
         engine = engine.replace(
             '        sta $d405,y\n        lda durrel,x',
             '        sta $d405,y\nni_voldone:\n        lda durrel,x')
+    if getattr(m, 'pulse_ctr_8bit', False):
         # family-4 pulse_run uses an 8-bit step counter ($1830 vs $23BC[pos+1]),
         # not the family-3 16-bit counter (pulselo[pos+1]:pulsehi[pos+1]). With the
         # 16-bit check, family-4's nonzero pulselo[pos+1] ($23A3) makes pwctr_hi(0)
@@ -1161,6 +1172,7 @@ state_end:
             '        lda pwctr_lo,x\n        cmp pulsehi,y\n        bne filter_run',
             '        inc pwctr_lo,x\n        lda pwctr_lo,x\n'
             '        cmp pulsehi,y\n        bne filter_run')
+    if getattr(m, 'noteload_no_d418', False):
         # family-4's note-LOAD writes only SR/AD/CTRL (C16) — NOT $D418. The orig's
         # note-load (TICK) doesn't touch $D418; the per-voice write_vol path emits it
         # for the non-loading voices. note_init2's $D418 is an extra write for fam-4.
@@ -1168,6 +1180,7 @@ state_end:
             '        lda filtmode\n        ora mvol0\n        sta $d418\n'
             '        lda instr_n,x',
             '        lda instr_n,x')
+    if getattr(m, 'filter_v3_only', False):
         # family-4 keeps V3 on the DEFAULT filter program (filterpos walks from 0,
         # swept continuously by filter_run); the orig never runs a per-instrument
         # filter init for V3 (it stays idle / inst 0). Force filtflag=0 so the
@@ -1187,6 +1200,7 @@ state_end:
             'f4_flt_v3:\n        sta filtflag\n'
             '        lda filtflag            ; restore Z (cpx clobbered it) for'
             ' the\n                                ; following `beq ni_nofilt`')
+    if getattr(m, 'filter_needs_cmd', False):
         # family-4: the V3 filter sweep is gated by $1857 (set by $F9), so it does
         # NOT run until the first $F9 fires (~frame 2-3). The composer otherwise
         # sweeps from frame 0 → the whole sweep is ~2 frames early. Set filtactive
@@ -1195,10 +1209,12 @@ state_end:
             '        and #$f0\n        sta filtmode\n        inc secpos,x',
             '        and #$f0\n        sta filtmode\n        lda #$01\n'
             '        sta filtactive\n        inc secpos,x')
+    if getattr(m, 'filter_needs_cmd', False):
         engine = engine.replace(
             '        cpx #$02                ; V3 only\n        bne glide_slide',
             '        cpx #$02                ; V3 only\n        bne glide_slide\n'
             '        lda filtactive\n        beq glide_slide')
+    if getattr(m, 'filter_d416_only', False):
         # family-4 FILTER (C-2): $D416-only = fchi($1019 sweep) + filtbase($1853);
         # no per-frame $D415 (init clear leaves it $00). $F8 sets the filter base
         # ($1853) not frqovr; $F9 (sd_f9, already family-4-shaped) sets $D417 res +
@@ -1207,11 +1223,13 @@ state_end:
         engine = engine.replace(
             '        iny\n        lda ($f8),y\n        sta frqovr',
             '        iny\n        lda ($f8),y\n        sta filtbase')
+    if getattr(m, 'filter_d416_only', False):
         engine = engine.replace(
             '        lda fclo\n        sta $d415\n        lda fchi\n'
             '        sta $d416\n        rts',
             '        lda fchi\n        clc\n        adc filtbase\n'
             '        sta $d416\n        rts')
+    if getattr(m, 'filter_d416_only', False):
         engine = engine.replace(
             '        lda fclo\n        clc\n        adc sclo\n        sta fclo\n'
             '        lda fchi\n        adc schi\n        sta fchi\n'
@@ -1226,6 +1244,7 @@ state_end:
             '        cmp filterhi,y\n        bne glide_slide\n'
             '        lda #$00\n        sta filtctr_lo\n'
             '        inc filterpos\n        inc filterpos')
+    if getattr(m, 'wave_step_carry', False):
         # family-4 melodic wave-step propagates the CARRY from (wavefreq+curnote)
         # into freqlo via `adc frqbias,x` with NO clc (the orig's $1688 lacks one):
         # when wavefreq+curnote >= 256 the freq is +1. frqbias is the $EF freq-lo
@@ -1238,6 +1257,7 @@ state_end:
             '        adc curnote,x\n        tay\n'
             '        lda freqlo,y\n        adc frqbias,x\n        sta freqlov,x\n'
             '        lda freqhi,y\n        adc #$00\n        sta freqhiv,x')
+    if getattr(m, 'vib_from_instr_bytes', False):
         # family-4 vibrato (note-on $138F; state machine $157C): onset delay = byte5
         # ($1806), period = byte6 & $0F ($1809 — the UP/DOWN step count; byte6's HIGH
         # nibble is the wave speed), width = byte7 & $07. Same byte map as family-3
@@ -1247,6 +1267,7 @@ state_end:
             '        sta vibspd,x',
             '        lda instr+6,y           ; family-4: vib period = byte6 & $0F\n'
             '        and #$0f\n        sta vibspd,x')
+    if getattr(m, 'd418_skip_vib_reversal', False):
         # family-4: the orig skips the per-voice $D418 write ONLY on a vib REVERSAL
         # frame — the oscillating path WRITES $D418 every frame ($15B0 BNE $1612)
         # EXCEPT when the counter hits the bound and the direction flips ($158F jumps
@@ -1255,6 +1276,7 @@ state_end:
         engine = engine.replace(
             'vib_on:\n        lda vibdel,x',
             'vib_on:\n        lda #$00\n        sta vibrev,x\n        lda vibdel,x')
+    if getattr(m, 'd418_skip_vib_reversal', False):
         # only the UP reversal unconditionally skips $D418 ($158F→$1654); the DOWN
         # reversal skips ONLY when step-doubling is on ($15FB: BEQ $1612 writes when
         # $1812=byte7>>4 == 0). Jupiter41's vib instruments have no step-doubling, so
@@ -1262,6 +1284,7 @@ state_end:
         engine = engine.replace(
             '        sta vibctr,x\n        inc vibdir,x',
             '        sta vibctr,x\n        inc vibrev,x\n        inc vibdir,x')
+    if getattr(m, 'd418_skip_vib_reversal', False):
         engine = engine.replace(
             'write_vol:\n        lda mvol0\n        ora filtmode\n        sta $d418',
             'write_vol:\n        lda vibspd,x\n        beq f4wv_w\n'

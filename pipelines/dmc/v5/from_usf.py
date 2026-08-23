@@ -165,11 +165,22 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     # family-4 (Jupiter41) player flag + leftovers (Phase C composer knobs)
     pf = usf.params.fields if usf.params and usf.params.fields else {}
     m.play_phases = str(pf.get('play_phases', '') or '')
-    if int(pf.get('family4', 0)):
-        m.family4 = True
-        m.f4_filtmode = int(pf.get('f4_filtmode', 0))
-        m.f4_fcinit = int(pf.get('f4_fcinit', 0))
-        m.f4_idle_notes = [int(pf.get('f4_note%d' % i, 0)) for i in range(3)]
+    # PLAYER-MECHANISM KNOBS (Principle §8) — each names the behaviour it
+    # changes; the composer branches on these, never on a player identity.
+    m.noteon_skip_freq_clear = bool(int(pf.get('noteon_skip_freq_clear', 0)))
+    m.wave_speed_from_instr = bool(int(pf.get('wave_speed_from_instr', 0)))
+    m.volovr_ad_zero = bool(int(pf.get('volovr_ad_zero', 0)))
+    m.pulse_ctr_8bit = bool(int(pf.get('pulse_ctr_8bit', 0)))
+    m.noteload_no_d418 = bool(int(pf.get('noteload_no_d418', 0)))
+    m.filter_v3_only = bool(int(pf.get('filter_v3_only', 0)))
+    m.filter_needs_cmd = bool(int(pf.get('filter_needs_cmd', 0)))
+    m.filter_d416_only = bool(int(pf.get('filter_d416_only', 0)))
+    m.d418_skip_vib_reversal = bool(int(pf.get('d418_skip_vib_reversal', 0)))
+    m.wave_step_carry = bool(int(pf.get('wave_step_carry', 0)))
+    m.vib_from_instr_bytes = bool(int(pf.get('vib_from_instr_bytes', 0)))
+    m.filter_prog_8bit = bool(int(pf.get('filter_prog_8bit', 0)))
+    m.play_skip_init = int(pf.get('play_skip_init', 2))
+    m.dur_ctr_init = int(pf.get('dur_ctr_init', 1))
 
     # ---- re-pack the shared wave table (idle program at index 0, then
     #      each instrument's program) and reassign pointers -------------
@@ -248,7 +259,7 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     #      its ADD/count pairs begin at position 0. ----------
     filt = []
     df = usf.default_filter
-    if getattr(m, 'family4', False) and df is not None and df.phases:
+    if getattr(m, 'filter_prog_8bit', False) and df is not None and df.phases:
         # family-4: 8-bit (add, count) program. add -> filterlo[2k]; count ->
         # filterhi[2k+1]; the other byte of each pair is unread by the 2-step
         # walk, so leave it 0. count 256 -> byte 0 (the engine's 8-bit counter
@@ -309,7 +320,7 @@ def usf_to_model(usf: UsfFile) -> V5Model:
             table.append((0x90, (s + 1) & 0xFF))
         return s
 
-    _f4 = getattr(m, 'family4', False)
+    _f4 = getattr(m, 'pulse_ctr_8bit', False)
     # Overflow-gated identical-pulse-program dedup (mirrors the wave-pool dedup,
     # ledger C8). A family-4 OFF-TABLE pulse program is large (a one-shot ramp
     # captured to _PHASE_CAP ~= 97 bytes), so many instruments sharing a few

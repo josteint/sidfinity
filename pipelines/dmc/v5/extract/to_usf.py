@@ -367,7 +367,7 @@ def _pulse_env_for(model, ptr, reach):
     note holds, so the captured prefix (which keeps the +2048 sweep) is faithful."""
     if not ptr:
         return None
-    if getattr(model, 'family4', False):
+    if getattr(model, 'pulse_ctr_8bit', False):
         try:
             return _capture_env(model.pulse, ptr, reach=reach, count8bit=True)
         except RuntimeError:
@@ -389,7 +389,7 @@ def _filter_env_for(model, ptr, reach):
     cleanly (all currently-FULL members) is untouched -> zero-regression by construction."""
     if not ptr:
         return None
-    if getattr(model, 'family4', False):
+    if getattr(model, 'filter_prog_8bit', False):
         try:
             return _capture_env_f4(model.filter, ptr, has_start=True, reach=reach)
         except RuntimeError:
@@ -481,9 +481,9 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
     default_filter = None
     if m.filter:
         try:                       # best-effort: a malformed idle table -> no
-            if getattr(m, 'family4', False):   # family-4: 8-bit (add,count) walk
+            if getattr(m, 'filter_prog_8bit', False):  # 8-bit (add,count) walk
                 idle = _capture_env_f4(m.filter, 0,
-                                       start_val=m.f4_fcinit, reach=reach)
+                                       start_val=m.lo_fchi, reach=reach)
             else:                   # default_filter (composer holds), not a
                 idle = _capture_env(    # member-wide error.
                     m.filter, 0, has_start=False,
@@ -510,7 +510,7 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
         try:
             idle_p = _capture_env(m.pulse, 0, has_start=False,
                                   start_val=0, reach=reach,
-                                  count8bit=getattr(m, 'family4', False))
+                                  count8bit=getattr(m, 'pulse_ctr_8bit', False))
         except RuntimeError:
             idle_p = None
         if idle_p and idle_p.phases:
@@ -530,11 +530,25 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
         params=Params(fields={
             **({'play_phases': m.play_phases}
                if getattr(m, 'play_phases', '') else {}),
-            **({'family4': 1, 'f4_filtmode': m.f4_filtmode,
-                'f4_fcinit': m.f4_fcinit,
-                'f4_note0': m.f4_idle_notes[0], 'f4_note1': m.f4_idle_notes[1],
-                'f4_note2': m.f4_idle_notes[2]}
-               if getattr(m, 'family4', False) else {}),
+            # PLAYER-MECHANISM KNOBS (Principle §8): named behaviours, not
+            # the originating player's name. Emitted only when they differ
+            # from the default, so a canon member's USF is unchanged.
+            **({'noteon_skip_freq_clear': 1} if getattr(m, 'noteon_skip_freq_clear', False) else {}),
+            **({'wave_speed_from_instr': 1} if getattr(m, 'wave_speed_from_instr', False) else {}),
+            **({'volovr_ad_zero': 1} if getattr(m, 'volovr_ad_zero', False) else {}),
+            **({'pulse_ctr_8bit': 1} if getattr(m, 'pulse_ctr_8bit', False) else {}),
+            **({'noteload_no_d418': 1} if getattr(m, 'noteload_no_d418', False) else {}),
+            **({'filter_v3_only': 1} if getattr(m, 'filter_v3_only', False) else {}),
+            **({'filter_needs_cmd': 1} if getattr(m, 'filter_needs_cmd', False) else {}),
+            **({'filter_d416_only': 1} if getattr(m, 'filter_d416_only', False) else {}),
+            **({'d418_skip_vib_reversal': 1} if getattr(m, 'd418_skip_vib_reversal', False) else {}),
+            **({'wave_step_carry': 1} if getattr(m, 'wave_step_carry', False) else {}),
+            **({'vib_from_instr_bytes': 1} if getattr(m, 'vib_from_instr_bytes', False) else {}),
+            **({'filter_prog_8bit': 1} if getattr(m, 'filter_prog_8bit', False) else {}),
+            **({'play_skip_init': int(getattr(m, 'play_skip_init', 2))}
+               if int(getattr(m, 'play_skip_init', 2)) != 2 else {}),
+            **({'dur_ctr_init': int(getattr(m, 'dur_ctr_init', 1))}
+               if int(getattr(m, 'dur_ctr_init', 1)) != 1 else {}),
         }),
         init=InitState(),
         instruments=instruments,

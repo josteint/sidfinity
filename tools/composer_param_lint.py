@@ -43,6 +43,37 @@ _ARTIC_RE = re.compile(r"_artic\(\s*'[a-z0-9_]+',\s*'([a-z0-9_]+)'")
 # idle_pulse_instr's only read took this form).
 _SUBP_RE = re.compile(r"\['params'\](?:\.get\(|\[)\s*'([a-z0-9_]+)'")
 
+# MODEL-MEDIATED PARAMS — the blind spot this lint had until 2026-08-23.
+#
+# A composer need not read `params.fields` at all: DMC v5's `from_usf` layer
+# reads the keys, stores them as MODEL attributes, and the composer branches on
+# `m.family4` / `m.play_phases`. Every regex above sees literal keys in the
+# COMPOSER file, so v5's entire params surface was invisible — the lint
+# reported "clean" while three of its four keys (`family4`, `f4_filtmode`,
+# `f4_fcinit`) were registered nowhere at all. A gate that cannot see a
+# consumer is not a gate for it.
+#
+# Cure: scan the READER too and attribute its keys to the composer they feed.
+# The binding is explicit rather than inferred from directory layout, so a new
+# arrangement has to be declared instead of silently escaping again.
+_MODEL_MEDIATED = {
+    'pipelines/dmc/v5/composer_v5.py': ['pipelines/dmc/v5/from_usf.py'],
+}
+
+
+def _reader_keys(src: str) -> set:
+    """Params keys read in a from_usf-style layer.
+
+    Finds whatever local name is bound to `usf.params.fields` (v5 calls it
+    `pf`) and collects the literal keys taken off it — precise, so an
+    unrelated `.get('x')` on some other dict cannot masquerade as a param.
+    """
+    keys = set()
+    for var in set(re.findall(r"(\w+)\s*=\s*usf\.params\.fields", src)):
+        keys |= set(re.findall(
+            rf"\b{re.escape(var)}(?:\.get\(|\[)\s*'([a-z0-9_]+)'", src))
+    return keys
+
 
 def main() -> int:
     reg = json.load(open(REGISTRY))
@@ -58,6 +89,10 @@ def main() -> int:
         _src = open(path).read()
         consumed[relf] = set(_KEY_RE.findall(_src)) | \
             set(_ARTIC_RE.findall(_src)) | set(_SUBP_RE.findall(_src))
+        for _rd in _MODEL_MEDIATED.get(relf, ()):
+            _rp = os.path.join(ROOT, _rd)
+            if os.path.exists(_rp):
+                consumed[relf] |= _reader_keys(open(_rp).read())
     # composer files with a params surface that are NOT registered at all
     for relf in ('pipelines/dmc/composer_asm.py',
                  'pipelines/dmc/v5/composer_v5.py',
@@ -70,6 +105,10 @@ def main() -> int:
         if not os.path.exists(path) or relf in reg_files:
             continue
         found = set(_KEY_RE.findall(open(path).read()))
+        for _rd in _MODEL_MEDIATED.get(relf, ()):
+            _rp = os.path.join(ROOT, _rd)
+            if os.path.exists(_rp):
+                found |= _reader_keys(open(_rp).read())
         if found:
             errors.append(
                 f'{relf} consumes params keys but has no registry section: '

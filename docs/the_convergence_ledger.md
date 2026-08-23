@@ -326,6 +326,12 @@ practice, not code to factor).
   nothing read its SHIPPED value; 10 carriers walked loop@0 instead of
   loop@N. Three "unrelated deep classes" were all downstream of the wrong
   wrap rows; the decisive measurement = the orig's otrk AT the wrap.
+- 11th occ (DMC v5 `_family4_config`, 2026-08-23): the SECOND-CONSTRUCTOR shape
+  again — the variant's config returned before BOTH the CIA measurement and the
+  C18 observation, so every family-4 member with the speed bit was built VBLANK:
+  37 members, ZERO FULL. TELL = a whole sub-population at zero coverage. REFLEX:
+  when a family has >1 constructor, every probe added to one is a bug in the
+  others until proven otherwise — grep the siblings when a probe lands.
 - FULL ENTRY: [`ledger/C9.md`](ledger/C9.md) — read it before applying.
 
 ### C10 — chip-global ($D415-$D418) automation that varies during the song
@@ -447,6 +453,10 @@ practice, not code to factor).
   cross-check (no-op when they agree ⇒ byte-identical). Pulsate: idle-seed read
   the wrong array → a freewheeling voice's +$9A note error; probe MIS-FIRED
   by-value while pc-watch showed the wave-step IN-TABLE.
+- A THREE-entry jump table on a CANON play body (2026-08-23, DMC v5): the extra
+  entry is a variant's appended effects-only routine, not a different family —
+  entry COUNT is not a discriminator, and the extra entry is a useful C18
+  observation handle.
 - FULL ENTRY: [`ledger/C13.md`](ledger/C13.md) — read it before applying.
 
 ### C14 — command-per-row tracker effects (note + fx + param per row)
@@ -516,6 +526,15 @@ practice, not code to factor).
   parity swap; parity P/R wrapper under a tight CIA latch, Knowledge_Posse) —
   full entry lists them. ⚠ the observer's watch PCs are f1-canon offsets —
   blind on f2 wrappers; a static skeleton probe covers the known f2 shape. When the wrapper is the SMC JSR-TABLE idiom, the per-call TARGET sequence is static ground truth — force same-target calls to ONE (majority) token; a single-call F/R misread otherwise starves a multi-step wave program one advance per cycle, invisible until the program's next value change (Hexzakk). Same failure via a DIRECT `LDX #v / JMP base+$591` wrapper call (an idle voice's ADVANCING arm entry misread as R) — static-flip the R token to F + force the arm mode (Mathematika_II, Radio_Napalm). F-PHASE PER-VOICE REPEAT (massive multispeed, PVCF/Sound_Test, STIL '11-speeder'): the effects branch runs `JSR SUB xk`, SUB advancing each voice's wave-step m× → V_i steps m*k/E-call in the interleaved order (a flat total would diverge); static-decode the nested JSR structure → `fphase_repeat` 'k:VxC,..', composer expands the F-token to outer×[voice×inner] wave-step calls (the C18 F-phase analog of C24 play_unit_repeat; sole carrier in 10,676).
+- ⚠ THE WRITE FOOTPRINT CAN LIE — classify by ENTRY-POINT REACHABILITY (2026-08-23,
+  DMC v5's 48 wrapper members, 0 of which had ever been FULL): there the
+  EFFECTS-ONLY pass emits 21 writes and the FULL play 18, and early full plays
+  emit NOTHING, so a footprint read gives no clean period while watching the
+  jump-table entries (base+3 full / base+6 effects) gives `P_F123_F123_F123_F123`
+  from call 0. USE THE DETECTED PLAYER BASE, not the PSID load address (a member
+  loading at $0FFF with its player at $1000 reads as 'no wrapper'). Check for a
+  PURE RATE DIVIDER first — non-full calls doing NOTHING need no phase support,
+  just a divided rate; none of the 48 qualified. Port = 9 new FULL, 0 regressed.
 - FULL ENTRY: [`ledger/C18.md`](ledger/C18.md) — read it before applying.
 
 ### C19 — hand-patched player WEDGE inside the canon body

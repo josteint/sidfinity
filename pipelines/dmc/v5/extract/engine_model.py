@@ -93,6 +93,30 @@ class V5Model:
     # effects-only pass on the others. '' = no wrapper. Observed by the
     # factory, never parsed from the wrapper's code.
     play_phases: str = ''
+    # ---- PLAYER-MECHANISM KNOBS (Principle §8) ----------------------
+    # These eleven fields replace a single `family4` flag that named the
+    # ORIGINATING PLAYER and gated ~190 lines of composer emitters. That is
+    # §8's shape verbatim — "the composer identifies the originating engine
+    # from USF content and dispatches to that engine's implementation" — and
+    # it broke §8's own constraint that such a tag is read by the DISPATCHER,
+    # never by an emitter. Each knob now names the MECHANISM it changes, so
+    # the composer emits from named behaviour rather than from a player's
+    # identity, and any future player exhibiting one of these can set it
+    # alone. The Jupiter41 variant simply sets all eleven.
+    play_skip_init: int = 2       # initial play() calls that do nothing
+    noteon_skip_freq_clear: bool = False  # note-on writes SR/AD/CTRL only
+    dur_ctr_init: int = 1         # per-voice duration-counter seed
+    wave_speed_from_instr: bool = False   # wave-step period = instr byte6>>4
+    volovr_ad_zero: bool = False  # vol-override note-on forces AD=$00
+    pulse_ctr_8bit: bool = False  # 8-bit pulse step counter (not 16-bit)
+    noteload_no_d418: bool = False        # note-load does not emit $D418
+    filter_v3_only: bool = False  # filter init gated to voice 3
+    filter_needs_cmd: bool = False        # filter sweep waits for the 1st cmd
+    filter_d416_only: bool = False        # $D416 (+base) only, never $D415
+    d418_skip_vib_reversal: bool = False  # skip $D418 on a vib-reversal frame
+    wave_step_carry: bool = False # wave-step carry propagates into freq hi
+    vib_from_instr_bytes: bool = False    # vib delay/period from instr b5/b6
+    filter_prog_8bit: bool = False        # filter program is 8-bit (add,count)
     # the Jupiter41 V5 variant (play +$95): same data, different player. The
     # composer emits the family-4 mechanics (2-phase $1016 timing, $D416-only
     # 8-bit filter + $D418 mode, $1012 leadin-curnote leftover). Phase C.
@@ -322,9 +346,34 @@ def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
     if getattr(cfg, 'family4', False):
         m.family4 = True
         d = cfg.base - 0x1000
+        # ---- the Jupiter41 variant, expressed as MECHANISM knobs (§8) ----
+        # Detection stays here in the EXTRACT (the dispatcher's job); what
+        # crosses into the USF and reaches the composer is the list of
+        # behaviours, never the player's name.
+        m.play_skip_init = 0            # its play has no $1842 skip counter
+        m.noteon_skip_freq_clear = True
+        m.dur_ctr_init = 2
+        m.wave_speed_from_instr = True
+        m.volovr_ad_zero = True
+        m.pulse_ctr_8bit = True
+        m.noteload_no_d418 = True
+        m.filter_v3_only = True
+        m.filter_needs_cmd = True
+        m.filter_d416_only = True
+        m.d418_skip_vib_reversal = True
+        m.wave_step_carry = True
+        m.vib_from_instr_bytes = True
+        m.filter_prog_8bit = True
+        # Its leftovers live at DIFFERENT addresses, but they mean the same
+        # things — so read them into the CANONICAL fields and let the composer
+        # have exactly one source for each. (This alone removed three
+        # `if family4` branches from the composer.)
         m.f4_idle_notes = [mem[0x1012 + d + v] for v in range(3)]
         m.f4_filtmode = mem[0x1018 + d]
         m.f4_fcinit = mem[0x1019 + d]
+        m.lo_notes = list(m.f4_idle_notes)
+        m.lo_filtmode = m.f4_filtmode
+        m.lo_fchi = m.f4_fcinit
         # STARTUP PHASE. family-4's play ($1095) does NOT use family-3's speed
         # counter at $1013 — it toggles `DEC $1016 / BMI` between MAIN (effects
         # only) and TICK (advance duration, fetch, then fall into MAIN). $1016
@@ -345,11 +394,12 @@ def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
         #   seed 1 -> play1 `dec`->0, no reload, speed(1) != spdctr(0) -> MAIN
         #             play2 `dec`->$FF, reload to speed -> spdctr == speed -> TICK
         # which is the orig's MAIN/TICK alternation with the same phase.
-        # (lo_notes (idle) is overridden by f4_idle_notes in the composer, so it
-        # stays zeroed; lo_fchi/lo_fclo/lo_filtmode are C-2's domain.)
+        # (`lo_notes` / `lo_filtmode` / `lo_fchi` were canonicalised from the
+        # family-4 addresses above — they used to be left zeroed here because
+        # the COMPOSER picked the f4_* fields instead. That selection was one
+        # of the §8 branches; one source per quantity replaces it.)
         m.lo_spdctr = mem[0x1016 + d]
         m.lo_mvolfrac = 0
-        m.lo_notes = [0, 0, 0]
     return m
 
 
