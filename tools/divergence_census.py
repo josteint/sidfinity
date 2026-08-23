@@ -187,6 +187,16 @@ def _partial_key(r):
     fd = r.get('flat_div')
     if fd and len(fd) >= 5:
         sub, pos, reg = fd[0], fd[1], fd[2]
+        # 6th element (when present) is MINE's register. A divergence where the
+        # two registers DIFFER is not a wrong value at `reg` — it is the two
+        # streams being out of step (a missing or extra write), which is a
+        # completely different bug class and wants its own cluster. Without it
+        # a row reads as e.g. "V1 freqlo mine=$3F" when we actually emitted
+        # $D418=$3F where the orig emitted a note.
+        if len(fd) >= 6 and fd[5] != reg:
+            return (f'${0xD400 + reg:04X}',
+                    f'{_reg_role(reg)} != mine {_reg_role(fd[5])}'
+                    f' @{_pos_bucket(pos)}  [STREAM OUT OF STEP]')
         return (f'${0xD400 + reg:04X}', f'{_reg_role(reg)} @{_pos_bucket(pos)}')
     first_diff = r.get('first_diff')
     if not first_diff:
@@ -204,6 +214,11 @@ def cluster_partials(rows, top, reps):
         print("(no verify partials)")
         return
     n_flat = sum(1 for r in parts if r.get('flat_div'))
+    n_reg = sum(1 for r in parts if len(r.get('flat_div') or []) >= 6)
+    if n_flat and not n_reg:
+        print("  NOTE: these rows predate flat_div's 6th element (mine's "
+              "register), so 'wrong value' and 'streams out of step' cannot "
+              "be told apart. Re-batch for reliable clusters.")
     print(f"=== verify-partial clusters by first writelog divergence "
           f"({len(parts)} partials; {n_flat} keyed on flat_div, "
           f"{len(parts) - n_flat} on trichotomy first_diff fallback) ===")
@@ -218,7 +233,9 @@ def cluster_partials(rows, top, reps):
         for r in by_key[(reg, role)][:reps]:
             fd = r.get('flat_div')
             if fd and len(fd) >= 5:
-                tail = (f"  pos={fd[1]} orig=${fd[3]:02X} mine=${fd[4]:02X}"
+                mreg = (f" @${0xD400 + fd[5]:04X}"
+                        if len(fd) >= 6 and fd[5] != fd[2] else "")
+                tail = (f"  pos={fd[1]} orig=${fd[3]:02X} mine=${fd[4]:02X}{mreg}"
                         f" (sub {fd[0]})")
             else:
                 fdd = r.get('first_diff') or []

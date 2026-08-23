@@ -121,8 +121,44 @@ def _capture_env(table: list, ptr: int, has_start: bool = True,
             if tgt in pos_phase:  # revisiting a captured phase = a real cycle
                 loop = pos_phase[tgt]
                 break
-            pos = tgt              # otherwise FOLLOW it (the target may be a
-            continue               # count slot the engine re-reads as a step)
+            pos = tgt             # otherwise FOLLOW it (the target may be a
+            # ⚠ THE ENGINE FOLLOWS EXACTLY ONE $90, then uses the target cell
+            # AS A VALUE without re-testing it. Canon v5 filter_run_v3:
+            #     $14A0  CMP #$90
+            #     $14A2  BNE $14AE          ; not a marker -> use it
+            #     $14A4  LDA $19C7,y        ; target
+            #     $14A7  STA $17F9          ; new filterpos
+            #     $14AA  TAY
+            #     $14AB  LDA $19C6,y        ; re-read AT THE TARGET
+            #     $14AE  STA $101F          ; ...and USE it. No second check.
+            # family-4's pulse/filter handler ($14B4) has the same shape, and
+            # the wave path is already documented as reading its start cell
+            # with no $90 check. So a target that is ITSELF $90 is a literal
+            # ADD value, not another jump.
+            #
+            # Chasing the chain instead (a bare `continue`) spun on members
+            # whose $90s form a cycle that lands on no captured phase, and the
+            # walk hit `_WALK_CAP` -> `unsupported:capture_loop`, refusing the
+            # whole member: 47 of them, and 46 reach the offending program from
+            # a played instrument, so they were not dead garbage slots.
+            if pos < len(table) and table[pos][0] == 0x90:
+                pos_phase[pos] = len(phases)
+                rate = (0x90 << 8) | table[pos][1]
+                if rate >= 0x8000:
+                    rate -= 0x10000
+                if pos + 1 >= len(table):
+                    break
+                clo, chi = table[pos + 1]
+                frames = (chi if chi != 0 else 256) if count8bit else \
+                    ((clo << 8) | chi) or 0x10000
+                phases.append((rate, frames))
+                cum += frames
+                pos += 2
+                if reach is not None and cum > reach:
+                    break
+                if frames >= 0x9000:
+                    break
+            continue
         if pos + 1 >= len(table):  # step without its count
             break
         pos_phase[pos] = len(phases)
@@ -196,6 +232,20 @@ def _capture_env_f4(table: list, ptr: int, start_val: int = 0,
                 loop = pos_phase[hi]
                 break
             pos = hi
+            # ONE $90 ONLY — same engine rule as `_capture_env` above (family-4
+            # pulse/filter handler at $14B4 falls through to use the target cell
+            # as the ADD value without re-testing it). A target that is itself
+            # $90 is a literal add, not another jump.
+            if pos < len(table) and table[pos][0] == 0x90:
+                if pos + 1 >= len(table):
+                    break
+                pos_phase[pos] = len(phases)
+                cnt = table[pos + 1][1]
+                phases.append((0x90 - 0x100, cnt if cnt != 0 else 256))
+                cum += phases[-1][1]
+                pos += 2
+                if reach is not None and cum > reach:
+                    break
             continue
         if pos + 1 >= len(table):
             break

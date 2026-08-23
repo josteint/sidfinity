@@ -264,8 +264,15 @@ def run_member(rel: str) -> dict:
                                 while mm < lim and fla[mm] == flb[mm]:
                                     mm += 1
                                 if mm < lim:
+                                    # [sub, pos, orig_reg, orig_val, mine_val,
+                                    #  MINE_REG] — the 6th element is
+                                    # load-bearing: without it a row cannot tell
+                                    # "same register, wrong value" from "the
+                                    # streams are out of step". Appended, so old
+                                    # 5-element rows still parse.
                                     flat_div = [sub, mm, fla[mm][0],
-                                                fla[mm][1], flb[mm][1]]
+                                                fla[mm][1], flb[mm][1],
+                                                flb[mm][0]]
                                     break
                 return subs, ok, first_diff, flat_div
 

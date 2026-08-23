@@ -1,5 +1,50 @@
 # DMC V5 — RE notes (Phase A complete)
 
+## ✅ 2026-08-24 (overnight) — the `$90` marker is followed EXACTLY ONCE
+
+`capture_loop` refused 47 members. It is a `_WALK_CAP` seatbelt for a `$90`
+chain that cycles without landing on a captured phase — and the first guess
+(unused instrument slots holding garbage) was REFUTED by measurement: 46 of the
+47 reach the offending program from a played instrument.
+
+The real cause is that `_capture_env` / `_capture_env_f4` CHASED `$90` chains
+(`pos = tgt; continue`), while the engine follows one marker and then uses the
+target cell as a VALUE. Canon v5 `filter_run_v3`:
+
+    $14A0  CMP #$90
+    $14A2  BNE $14AE          ; not a marker -> use it
+    $14A4  LDA $19C7,y        ; target
+    $14A7  STA $17F9          ; new filterpos
+    $14AA  TAY
+    $14AB  LDA $19C6,y        ; re-read AT THE TARGET
+    $14AE  STA $101F          ; ...and USE it. No second check.
+
+family-4's pulse/filter handler ($14B4) has the same shape. So a target that is
+itself `$90` is a literal ADD value, not another jump.
+
+⚠ THE WAVE WALKER ALREADY KNEW THIS. `_slice_wave` documents both engine facts
+("wave_step resolves a $90 marker by re-reading at the redirect target WITHOUT
+a second check — a marker pointing at another marker plays the second one's
+bytes raw"). Only the pulse/filter walkers chased chains, so this fix CONVERGES
+the three on one documented rule rather than inventing a fourth reading.
+
+MEASURED — exact exposure set (build all 2,151 before/after, MD5, verify the
+delta): 66 members changed, of which **30 newly build** and 33 changed bytes
+(13 of them previously FULL). Verdict: **7 new FULL · 0 REGRESSED · 23
+unsupported/error -> partial**. 3 members moved into the (deferred) table-
+overflow bucket because the corrected decode makes their programs slightly
+longer — backlog item 19. Smoke 6/6, corpus 12,595/12,595, regression green.
+
+⚠ ALSO FIXED, and it invalidates earlier clustering: the batch's `flat_div`
+recorded ORIG's register with MINE's VALUE and no mine-register, so a row could
+not distinguish "wrong value at this register" from "the streams are out of
+step". That is why partial clusters read as e.g. "V1 freqlo mine=$3F" — we were
+emitting `$D418=$3F` where the orig emitted a note. Both DMC batches now append
+mine's register as a 6th element, and `divergence_census` clusters those
+separately (`[STREAM OUT OF STEP]`) and prints a NOTE when reading pre-fix rows.
+The v5 RE_NOTES had flagged this in the morning ("fix the batch's field before
+clustering on it again"); it is now fixed.
+
 ## ✅ 2026-08-23 (later) — family-4's LEAD-IN OFF-TABLE FREQ (ledger C6)
 
 Three bugs in one capture, worked example + measurements in

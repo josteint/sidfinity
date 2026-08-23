@@ -120,8 +120,18 @@ def run_member(rel: str) -> dict:
                         while mm < lim and fla[mm] == flb[mm]:
                             mm += 1
                         if mm < lim:
+                            # [sub, pos, orig_reg, orig_val, mine_val, MINE_REG]
+                            # ⚠ mine's REGISTER is the 6th element and it is
+                            # load-bearing: without it a row cannot distinguish
+                            # "same register, wrong value" (a content bug) from
+                            # "different register" (the streams are out of step
+                            # — a missing or extra write). Clustering without it
+                            # reads e.g. "V1 freqlo mine=$3F" when what actually
+                            # happened is that we emitted $D418=$3F where the
+                            # orig emitted a note. Appended, so old 5-element
+                            # rows still parse.
                             flat_div = [sub, mm, fla[mm][0], fla[mm][1],
-                                        flb[mm][1]]
+                                        flb[mm][1], flb[mm][0]]
             return {'path': rel, 'status': 'full' if ok else 'partial',
                     'subs': subs, 'first_diff': first_diff,
                     'flat_div': flat_div}
