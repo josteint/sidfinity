@@ -214,16 +214,41 @@ def _hash_roots(roots) -> str:
     return h.hexdigest()[:16]
 
 
+def _declared_data_files(engine: str) -> list[str]:
+    """Non-code inputs inside the engine's declared dirs.
+
+    ⚠ A DERIVED SET CANNOT SEE DATA. It is a `sys.modules` snapshot, and
+    `sys.modules` holds Python modules — so switching an engine to a derived
+    set silently DROPPED `pipelines/dmc/docs/*.bin`, the canon player binaries
+    the DMC factory dispatches and probes against. That is precisely the file
+    class the toolchain fix was about, un-hashed again one commit later by the
+    fix that was supposed to make the key more accurate.
+
+    So the split is: DERIVED covers CODE (it alone can see function-local
+    imports), DECLARED covers DATA (no import mechanism can reveal a file the
+    code merely opens). Data files are few and change rarely, so taking all of
+    a family's declared data costs almost no precision.
+    """
+    out = []
+    for rel in DEPS.get(engine, []):
+        for f in _iter_files(ROOT / rel):
+            if f.suffix.lower() != '.py':
+                out.append(f.relative_to(ROOT).as_posix())
+    return out
+
+
 def resolve_roots(engine: str, consumer: str | None = None) -> tuple[list[str], str]:
     """(roots, provenance) for `engine`/`consumer`.
 
-    Prefers the derived set; falls back to the declared one. `_ALWAYS` is
-    unioned in either way.
+    Prefers the derived set; falls back to the declared one. `_ALWAYS` and the
+    declared DATA files are unioned in either way.
     """
     consumer = consumer or BATCH_CONSUMER.get(engine)
     d = _derived().get(engine, {})
     if consumer and consumer in d:
-        return sorted(set(d[consumer]) | set(_ALWAYS)), f'derived:{consumer}'
+        return (sorted(set(d[consumer]) | set(_ALWAYS)
+                       | set(_declared_data_files(engine))),
+                f'derived:{consumer}')
     try:
         return DEPS[engine], 'declared'
     except KeyError:
