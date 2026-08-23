@@ -1,5 +1,56 @@
 # DMC V5 — RE notes (Phase A complete)
 
+## 🔎 NEXT LEVER (2026-08-23) — the CANON shallow $D418 cluster is a TICK-PHASE bug
+
+After the family-4 startup lever (see `pipelines/dmc/family4/RE_NOTES.md`), the
+post-fix batch is **1,167/2,151 FULL**. Residue split by player branch:
+
+| branch | partials | dominant first divergence |
+|---|---:|---|
+| family-4 | 466 (69%) | voice FREQ-LO, deep (55 @10k+, 46 @1k-10k) |
+| canon f3/f5 | 207 | freq-hi deep (52 @10k+) + **a shallow $D418 cluster (26)** |
+
+**THE SHALLOW CANON CLUSTER — 26 members, first divergence at play position 0.**
+⚠ Its `flat_div` reads `orig=$1F mine=$A9/$AD/$E4/…`, which looks like we are
+writing 6502 OPCODES to $D418. We are not: the batch's `flat_div` records
+ORIG's register with MINE's value. The honest per-IRQ diagnosis
+(`pipelines/dmc/v5/build_one.py --localize`) shows the truth —
+`fpd=[0, [24,31], [6,169]]`: orig writes `$D418=$1F`, we write `$D406=$A9`.
+Fix the batch's field before clustering on it again.
+
+**WHAT IT ACTUALLY IS** (Astovel/Cyber_Brain, CIA `$0F5A` = 5 plays/frame):
+
+    orig play3:  18=1F 06=00 00=4B 01=3F 02=00 03=00 04=00 | (x3 voices)
+    mine play3:  06=A9 05=00 04=09 00=00 01=00 0D=A9 ...
+
+The orig's first real frames are PREP frames — per voice `$D418`, `SR=$00`,
+`ctrl=$00` — and the note-init lands LATER. Ours goes straight to the
+note-init (instrument SR `$A9`, ctrl `$09`). We are ONE TICK AHEAD, exactly the
+family-4 failure on the canon branch. It also explains the second symptom: our
+filtmode reaches `$30` (so `$D418=$3F`) a frame before the orig, which is still
+at `$10`/`$1F`.
+
+**GROUND TRUTH, measured** (`siddump --memwatch-on-write D418 1012,1013,1015`):
+
+    after init:   $1012 (speed reload) = $00   <- the record's speed, NOT the
+                                                  image's stale $01; the
+                                                  extract's speed=0 is CORRECT
+    $1013 (spdctr) = $01 for ~12 consecutive $D418 writes (~4 plays), THEN $00
+    $1015 (filtmode) = $10 -> $30 at the real note-init
+
+⚠ **THAT LAST LINE IS THE OPEN QUESTION.** Our model of canon play is
+`DEC $1013 / BPL / reload from $1012`, which from a leftover of 1 reaches 0
+after ONE play and stays there. The orig holds `$1013 = $01` across ~4 plays.
+So on this member the play routine is NOT decrementing every call — the
+strong suspicion is a play-vector WRAPPER (ledger C18 phase schedule) that
+CIA-multispeed canon members carry and we do not model, which would also
+explain the orig's per-frame `$D418` count pattern `[3,3,3,3,0]`.
+
+NEXT: disassemble THIS member's play vector rather than assuming canon offsets
+(the `dmc_state_addr` lesson — never name a canon address on a member whose
+geometry you have not checked), and confirm whether the 26 share the wrapper.
+
+
 Rep: `DEMOS/G-L/Katusha.sid` (family-3, 1461 + family-5 sibling 34 = the
 dominant V5 player). Phase A (full disassembly + annotation) DONE
 2026-06-14 → `pipelines/dmc/v5/disassembly.s`. Scope + plan in
