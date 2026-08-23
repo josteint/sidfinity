@@ -5,8 +5,21 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-23T21:01:45.030Z
+  modified: 2026-08-23T21:45:24.986Z
 ---
+
+## ✅ v5: the PSID header can OVERSTATE the song count (+8 building) (2026-08-24, overnight)
+
+8 members died `orderlist at $xxFC never ends` (7 of them Bayliss). Track
+pointers were fine — the header declares more songs than the record table
+holds, so record N past the end reads whatever follows: Xmas_Crazy declares 6,
+has 5, and record 5 reads `FC 08 FD 06 48 FE 43 FE` (TRACK COMMAND bytes) as
+pointers $08FC/$06FD/$FE48 into low RAM. The engine would play that as noise,
+so it is not a song (C7). The record loop now STOPS at the first record that
+will not decode; record 0 failing still raises. `n_songs` already existed for
+the C31 compilation case but nothing bounded a STANDALONE overstating header.
+Measured: 8 newly building, 0 broken, **0 byte-changed** (pure widening), all 8
+verify partial. 2 Goto80 members still fail at record 0 — different problem.
 
 ## ✅ v5 `$90` MARKER FOLLOWED ONCE (+30 building) + flat_div repaired (2026-08-24, overnight)
 
