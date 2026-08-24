@@ -136,6 +136,13 @@ Then:
 3. **Check `deprecated/` for prior attempts** before rewriting something from scratch.
 4. **Convergence ledger reflex** — the ledger's recognition layer (index + cards) is imported above; before choosing how to solve ANY non-trivial problem, CHECK it for a matching entry (a known class should be recognized from the in-context cards — actively check, don't trust passive recall); on a match READ the full entry at `docs/ledger/C<n>.md` before applying. Then follow its "How to use it": RECORD every solution on first sight (entry file + index row + recognition card; technique in the entry, occurrences in `project_<engine>`), CANONICALIZE on the 2nd occurrence. `/uready-review` is the periodic maintainer.
 
+5. **Check the backlog** — [`backlog.md`](backlog.md) at the repo root is the
+   numbered OPEN-WORK list: measured-but-unfinished investigations, each with
+   what was tried, what was refuted, and the next measurement. Items flagged
+   OWNER DECISION are parked deliberately (representation/schema changes behind
+   the approval gate) — read them, don't act on them. Done items are DELETED,
+   never renumbered, because other files cite them by number.
+
 ## Doing a Hubbard '85 engine migration
 
 Use the `migrate-hubbard-engine` skill at `.claude/skills/migrate-hubbard-engine/`. Short form:
