@@ -564,19 +564,32 @@ def _slice_wave(wave: list, start: int):
     # every previously-passing shape returns byte-identical (ctrl, freq,
     # loop) (in-program loop -> same loop index; back-jump before start ->
     # the same appended-tail rotation with loop 0).
-    pos = start
+    # THE WAVE POSITION IS A BYTE, so it WRAPS rather than running off the end:
+    #   $165B  LDY $17f3,x        ; per-voice wave position -- one byte
+    #   $165E  LDA $199e,y        ; ctrl[pos]
+    #   $1698  INC $17f3,x        ; advance, $FF -> $00
+    # A program with no $90 in the 256-cell table does not "run out" — it wraps
+    # to cell 0 and keeps stepping, and the `seen` cycle check below then closes
+    # it as the loop it really is. Walking `pos` unbounded instead raised
+    # `wave_slice no $90` on 4 members whose programs the player reads happily.
+    # Same 8-bit-position fact as the sector/track walks above (ledger C11/C2).
+    # Exposure measured before relaxing (per
+    # [[feedback_relaxing_an_error_kills_its_guards]] — `_assign_offtable_freq`
+    # has two `except` guards around this call that would otherwise go dead):
+    # exactly 5 of 2,031 members have a raising slice today and ALL 5 are
+    # already `unsupported`, so no building member's off-table capture changes.
+    pos = start & 0xFF
     first = True                             # wave_init: no marker check
     seen = {}
-    guard = 0
     while True:
-        guard += 1
-        if guard > 512:
-            raise RuntimeError(f'unsupported:wave_slice runaway @{start}')
         if pos >= n:
+            # only reachable when the table itself is truncated (a_wc/a_wf sit
+            # so high that fewer than 256 cells exist) — a genuine unreadable
+            # member, not the wrap case above
             raise RuntimeError(f'unsupported:wave_slice no $90 @{start}')
         c, f = wave[pos]
         if not first and c == 0x90:
-            pos = f                          # redirect; re-read, no recheck
+            pos = f & 0xFF                   # redirect; re-read, no recheck
             if pos >= n:
                 raise RuntimeError(f'unsupported:wave_slice no $90 @{start}')
             c, f = wave[pos]
@@ -585,7 +598,7 @@ def _slice_wave(wave: list, start: int):
         seen[pos] = len(ctrl)
         ctrl.append(c)
         freq.append(f)
-        pos += 1
+        pos = (pos + 1) & 0xFF
         first = False
 
 
