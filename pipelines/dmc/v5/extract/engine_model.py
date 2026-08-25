@@ -241,6 +241,34 @@ _CMD = {
 # (256 steps; every carrier measured so far is a song-end "note then endless
 # gate-offs" tail that no verify window reaches). Representing the lap itself
 # is ledger C32's endless-tail question, deliberately not answered here.
+# $FF ENDS A SECTOR ONLY AS A LOOKAHEAD, NEVER AS A DISPATCHED BYTE. The
+# dispatch CMP chain ($1162..$12A2) has no $FF case at all; the single $FF test
+# in the player is the peek `step_commit` takes immediately after committing a
+# ROW ($118C, and note_on's own copy at $1314):
+#
+#     INC $17d8,x / LDY $17d8,x / LDA ($f8),y   ; peek row_start + row_width
+#     CMP #$FF / BNE ...                        ; the only $FF test
+#     LDA #$00 / STA $17d8,x                    ; sector pos = 0
+#     STA $17e7,x / STA $17ea,x                 ; clear vol override + gate flag
+#     INC $17d5,x                               ; ADVANCE THE TRACK
+#
+# So a sector ending `... note, $FD nn, $FF` does NOT end: the trailing command
+# executes, the $FF falls through to $1289's 1-byte skip, and the voice RUNS ON
+# into the bytes that follow. Reading $FF as end wherever it appeared made those
+# sectors look like they terminated with orphan commands, which is what
+# `trailing_sector_cmds` was refusing.
+#
+# Rows (the events that reach step_commit) are note, $FE gate, $F4 gate_tie,
+# $FA slide and $FB glide; the widths in _CMD are exactly the peek offsets,
+# because cmd_FA pre-advances $17d8 by 2 and note_on advances by 1 after the
+# glide handler's 3.
+#
+# Exposure measured before landing: of 2,031 members exactly 3 have a
+# REFERENCED run-on sector and all 3 are already `unsupported`; 1 partial has a
+# referenced bare-$FF (empty) sector, which likewise runs on.
+_ROW_EVENTS = {'note', 'gate', 'gate_tie', 'slide', 'glide'}
+
+
 def _decode_sector(mem, ptr: int):
     out = []
     pos = 0
@@ -248,20 +276,22 @@ def _decode_sector(mem, ptr: int):
     while pos not in seen:
         seen.add(pos)
         b = mem[(ptr + pos) & 0xFFFF]
-        if b == 0xFF:
-            out.append(('end',))
-            return out, bytes(mem[ptr:ptr + pos + 1])
         if b < 0x80:
+            name, n = 'note', 1
             out.append(('note', b))
+        elif b in _CMD:
+            name, n = _CMD[b]
+            args = tuple(mem[(ptr + pos + 1 + k) & 0xFFFF] for k in range(n - 1))
+            out.append((name,) + args)
+        else:
+            # no command matched -> $1289's 1-byte no-op. An $FF read HERE is
+            # just such a byte: it is not a terminator unless peeked after a row.
             pos = (pos + 1) & 0xFF
             continue
-        if b not in _CMD:
-            pos = (pos + 1) & 0xFF          # 1-byte no-op, per $1289
-            continue
-        name, n = _CMD[b]
-        args = tuple(mem[(ptr + pos + 1 + k) & 0xFFFF] for k in range(n - 1))
-        out.append((name,) + args)
         pos = (pos + n) & 0xFF
+        if name in _ROW_EVENTS and mem[(ptr + pos) & 0xFFFF] == 0xFF:
+            out.append(('end',))            # the lookahead terminator
+            return out, bytes(mem[(ptr + k) & 0xFFFF] for k in range(pos + 1))
     # the position wrapped onto a byte already dispatched: an endless sector
     return out, bytes(mem[(ptr + k) & 0xFFFF] for k in range(256))
 

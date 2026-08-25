@@ -306,6 +306,7 @@ def _sector_rows(events: list) -> list:
     rows = []
     dur = 1
     pending = []                         # leading commands, in order
+    ended = False                        # saw the $FF lookahead terminator
     for e in events:
         cmd = e[0]
         if cmd in _PREFIX:
@@ -344,11 +345,22 @@ def _sector_rows(events: list) -> list:
                 + (f'glide={spd}', f'glide_to={_note_byte(tgt)}')))
             pending = []
         elif cmd == 'end':
+            ended = True
             break
         else:
             raise RuntimeError(f'unsupported:sector_cmd {cmd}')
-    if pending:                          # trailing commands before $FF
+    if pending and ended:
+        # Unreachable under the corrected decode: `$FF` only terminates a
+        # sector as the lookahead peeked straight after a ROW ($118C/$1314), so
+        # a terminated sector can never have commands left over. Kept as a
+        # tripwire in case the walk's end model is ever loosened again.
         raise RuntimeError(f'unsupported:trailing_sector_cmds {pending}')
+    # A sector that did NOT terminate CYCLES (its byte-wide position wrapped),
+    # so these commands are not orphans — they are the lead-in of the next lap,
+    # and the engine reaches them again with rows following. Our re-encoding
+    # terminates every sector with $FF, so the lap boundary is already the
+    # documented divergence point for this shape; dropping the commands here
+    # loses nothing further and lets the member build instead of being refused.
     return rows
 
 
