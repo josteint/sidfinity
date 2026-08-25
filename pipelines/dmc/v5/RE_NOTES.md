@@ -84,8 +84,35 @@ per-frame count is (voices reaching the fade tail) + (note-inits this frame),
 and the frames with too FEW writes are probably voices that never ran effects at
 all, not voices that took a bypass.
 
-**NEXT MEASUREMENT — ATTRIBUTE, DON'T INFER.** State sampling cannot separate
-these three producers. Use per-PC attribution:
+### ✅ 2026-08-25 (cont.) — THE ATTRIBUTION WAS RUN. It is the NOTE-INIT frame.
+
+`effect_chain_profiler --register D418` over Just_for_Her plays 600-700:
+
+  * **EVERY `$D418` write comes from `$1651`** — the per-voice fade tail. So on
+    family-4, unlike canon, `note_init2` does NOT write `$D418` at all. There is
+    exactly ONE producer, which kills correction 3's "note-init also writes it".
+  * A play emits **3 writes or 0**, never 1 or 2, across the whole window (75
+    plays with 3, 17 with 0). ⚠ MY OWN EARLIER COUNTS (1/2/4 per frame) WERE A
+    TRAP-C ARTIFACT: `--memwatch` reports per SIDDUMP FRAME, which holds 0, 1 or
+    2 play() calls. Count per PLAY invocation, never per frame.
+  * The 0-write plays line up with NOTE STARTS: p609 writes ctrl `$09,$09,$09`
+    (all three voices note-on) and emits no `$D418`; p610, the follow-up play,
+    likewise. A voice that starts a note runs `note_init2` and never reaches the
+    fade block, so it emits no `$D418`.
+
+**PREDICTION `d418 == 3 - (voices starting a note)` holds for 77 of 92 plays.**
+Residue: a third zero-play at a fixed offset in each 12-play cycle (603, 615,
+627, ... — normal ctrl writes, no `$09`, yet no `$D418`). That is the remaining
+unknown; it is periodic with the tempo, so suspect the family-4 `DEC $1016`
+MAIN/TICK toggle or the duration-counter path rather than an effect.
+
+⇒ THE COMPOSER BUG is that it emits the per-voice `$D418` on a frame where the
+voice note-inits. That is a much simpler condition than the vib reversal and it
+is not per-instrument at all — which is why every static instrument census
+missed it.
+
+**SUPERSEDED — the attribution below has now been done; kept for its method.**
+Use per-PC attribution:
 `tools/effect_chain_profiler.py hvsc85/MUSICIANS/A/Angee/Just_for_Her.sid
 --subtune 1 --register D418 --frames 680-695` to tag every `$D418` with the PC
 that wrote it ($1651 fade tail vs the note-init store), then for the frames that

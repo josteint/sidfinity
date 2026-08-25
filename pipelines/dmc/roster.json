@@ -3,8 +3,8 @@
 "generated_utc": "2026-08-23T18:34:25+00:00",
 "corpus": 10774,
 "fingerprints": {
-"dmc_v4": "6c2524e6a3796bf5",
-"dmc_v5": "771f039892e08218"
+"dmc_v4": "132d2ab2646e97d9",
+"dmc_v5": "8e69d92ba440656f"
 },
 "provenance": "routed 2026-08-23 17:47-19:40; stamped afterwards with the fingerprints of the SAME code \u2014 proof: the only commit in between (13c23a55) touched no detector file (v4/v5 factory.py, config.py, v4/compilation.py), so dmc_v4_config/dmc_v5_config were byte-identical throughout.",
 "restamps": [
@@ -19,6 +19,10 @@
 {
 "at": "13c23a553bb8f08e87b5ebc130a392b3f951dbc6",
 "closure_files": 17
+},
+{
+"at": "00471818517d8e0378593662ec4800f081bab5bd",
+"closure_files": 16
 }
 ]
 },
