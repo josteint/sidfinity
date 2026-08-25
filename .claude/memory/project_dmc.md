@@ -5,8 +5,42 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-25T20:02:47.502Z
+  modified: 2026-08-25T23:04:07.877Z
 ---
+
+## 📊 v5 OVERNIGHT 2026-08-25/26: 1,201/2,031 FULL (59.1%), error+wave_slice+trailing CLOSED
+
+Fresh full batch on the roster's 2,031 (`tmp/dmc_v5_r3_results.jsonl`, baseline
+kept at `tmp/dmc_v5_r3.pre_night.jsonl`): **1,201 full / 702 partial / 126
+unsupported / 0 error** (was 1,181 / 693 / 143 / 14). `batch_diff
+--fail-on-regression`: **0 REGRESSIONS**, 20 gains, 11 status changes. Full
+regression green, 0 regressed in every family.
+
+Three refusal classes closed, all by the SAME root cause — our decoder
+disagreeing with the player (ledger C34's 5th occurrence, the MIRROR IMAGE):
+`error` 14→0, `wave_slice` 4→0, `trailing_sector_cmds` 15→0. 33 members, 22
+straight to FULL. Detail in the entries below.
+
+**ALL REMAINING UNSUPPORTED IS ONE THING: the 126-member table-overflow bucket
+(backlog item 19)** — 94 pulse / 29 filter / 3 wave. It now has a THIRD option
+needing no schema change: the 256 cap is OUR COMPOSER'S own 8-bit cursor
+(`ldy pulsepos,x`), not the format's, and the Core Tenet licenses widening it
+(C8's "composer-side stream index" sibling). Sized: 4 pages, longest program 49
+cells. PARKED for the owner because the 3 voices can sit on different pages at
+once, so it needs per-voice indirection in the PER-FRAME pulse step — hot-path
+cost, which is C25's territory. Plus 2 `data_tables_off_image` refusals that are
+two DIFFERENT problems (one a real C26 unpacker that already builds via
+`post_init_sub`, one not this player at all).
+
+**THE TOP PARTIAL LEVER WAS MIS-DIAGNOSED THREE TIMES AND IS NOW SETTLED AS
+C18/C23** — see `v5/RE_NOTES.md`. It is NOT "one extra `$D418`" (our `$D418`
+emission matches the orig exactly: 102 plays compared, 0 differing), NOT the vib
+reversal (the worked example has NO vibrato at all), and NOT C16 write-order.
+The orig runs a NOTE-LOAD play (SR/AD/CTRL per voice, no `$D418`) that we do not
+produce; from there our stream is one play out of phase and every later flat
+position misaligns. ⚠ The "284 members with our register = `$D418`" census is an
+ARTEFACT of `flat_div` reporting whichever registers align at the first differing
+position — re-cluster by divergence SHAPE before sizing it again.
 
 ## ✅ v5: the ENTIRE `error` bucket was our decoder, not the data (2026-08-25)
 
