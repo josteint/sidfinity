@@ -139,6 +139,18 @@ def run_member(rel: str) -> dict:
             os.unlink(tmp)
     except TimeoutError:
         return {'path': rel, 'status': 'error', 'reason': 'timeout'}
+    except DMCV5Unsupported as e:
+        # A TYPED refusal is a refusal wherever it is raised. This was caught
+        # only around `dmc_v5_config` above, so a DMCV5Unsupported raised later
+        # — from the EXTRACT, inside build_from_cfg — fell through to the
+        # generic handler below and was recorded as `error`. That is the one
+        # status a residue census must be able to trust: `error` means "we
+        # crashed and do not know why", `unsupported` means "we looked and
+        # declined". Two members (the `data_tables_off_image` refusals) were
+        # sitting in the error bucket purely because of where the raise happened.
+        return {'path': rel, 'status': 'unsupported',
+                'reason': getattr(e, 'reason', None) or str(e).split(':')[0],
+                'detail': str(e)[:80]}
     except Exception as e:
         msg = str(e)
         if msg.startswith('unsupported:'):

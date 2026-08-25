@@ -106,10 +106,47 @@ Residue: a third zero-play at a fixed offset in each 12-play cycle (603, 615,
 unknown; it is periodic with the tempo, so suspect the family-4 `DEC $1016`
 MAIN/TICK toggle or the duration-counter path rather than an effect.
 
-⇒ THE COMPOSER BUG is that it emits the per-voice `$D418` on a frame where the
-voice note-inits. That is a much simpler condition than the vib reversal and it
-is not per-instrument at all — which is why every static instrument census
-missed it.
+⇒ (The note-init observation about the ORIGINAL is correct and worth keeping.
+But see the next section: our composer ALREADY reproduces it, so it is not the
+bug.)
+
+### ⛔ 2026-08-26 — IT IS NOT AN EXTRA `$D418` AT ALL. IT IS WRITE ORDER (C16).
+
+The "we emit ONE `$D418` too many" framing — which has driven this lever since
+2026-08-24 — is WRONG, and so was my own note-init conclusion above. Two
+measurements kill it:
+
+  * **Our `$D418` emission already matches the original exactly.** Comparing the
+    per-PLAY `$D418` counts of the ORIG against OUR REBUILD of Just_for_Her over
+    plays 560-700: **102 plays compared, 0 differing** — same plays emit 3, same
+    plays emit 0. The composer's `noteload_no_d418` + `d418_skip_vib_reversal`
+    already reproduce the note-init and reversal skips.
+  * **The first divergence is a SWAP, not an insertion.** `build_one --localize`
+    at flat play position 11990:
+
+        orig  0E=00 0F=F0 10=00 11=02 12=81 16=54  00=95 01=20 02=20 03=08 04=41  18=3F
+        mine  0E=00 0F=F0 10=00 11=02 12=81 16=54  18=3F  00=95 01=20 02=20 03=08 04=41
+
+    Identical writes; the orig puts `$D418` AFTER V1's register block and we put
+    it BEFORE. One position apart.
+
+⇒ THIS IS LEDGER **C16** (per-frame SID write-ORDER differs), whose canonical
+answer is to PARAMETRIZE the composer's EMISSION order — explicitly NOT to
+rewrite the player, and NOT to chase a missing effect. Precedent: FC's
+`nextvoice_write_order`.
+
+⚠ AND THE CENSUS THAT NAMED THIS LEVER IS AN ARTEFACT. "678 of 702 partials are
+out-of-step, 284 with our register = `$D418`" counts `flat_div`, which reports
+whichever registers happen to align at the first differing POSITION. Once any
+write is one slot out, every later position misaligns and the frequently-written
+`$D418` shows up by construction. The 284 is not 284 members with a `$D418` bug.
+Re-cluster this class by the SHAPE of the divergence (swap vs insert vs delete —
+compare the two windows as multisets) before sizing it again.
+
+⚠ Note the streams agree for 11990 writes and only then swap, so the order is
+not constant — something state-dependent flips it. That is the next question,
+and it is a C16 question ("which knob", per its entry) rather than a search for
+a missing effect.
 
 **SUPERSEDED — the attribution below has now been done; kept for its method.**
 Use per-PC attribution:
