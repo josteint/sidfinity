@@ -13,6 +13,30 @@ The GT2 / GoatTracker pipeline itself (the static parsers at `src/gt2_*.py`)
 is still active code, but its grading and HVSC-coverage tooling sit here
 because they're tied to the old comparison methodology.
 
+## ⚠ `data/grades.db` IS NO LONGER IN THIS REPO (removed 2026-08-25)
+
+Four scripts here still reference `data/grades.db` — `grade_db.py`,
+`hvsc_dashboard.py`, `update_readme.py` and `regression_test.py`. The file is
+gone from the working tree AND from git history, so nothing here runs as-is
+until you put it back.
+
+It was a 13 MB SQLite database (22,269 songs + 48,302 history rows) and it is
+NOT regenerable — `regression_test.py` calls it a FROZEN baseline, and the
+comparator that produced it (`src/sid_compare.py`'s jitter-tolerant grading)
+is itself deprecated. So it was preserved rather than deleted:
+
+    ~/gt2-grades-baseline.db          (verified: PRAGMA integrity_check = ok)
+
+To revive this tooling, copy it back:
+
+    cp ~/gt2-grades-baseline.db deprecated/gt2_grading/data/grades.db
+
+⚠ Do NOT commit it. It was removed because the repo carried ~2.4 GB of
+superseded database snapshots across its history (`hvsc84.db` × 128 versions,
+`hvsc84.csv` × 72, plus this and `phase0_register_roundtrip/data/validation.db`);
+scrubbing them took `.git` from 158 MB to 43 MB. Re-committing a binary DB
+that changes wholesale on every write recreates exactly that problem.
+
 ## What's here
 
 ```
