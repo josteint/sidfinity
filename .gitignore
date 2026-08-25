@@ -47,18 +47,18 @@ hvsc85/
 hvsc84.db
 
 # SCRUBBED FROM HISTORY 2026-08-25, and kept out so they cannot come back.
-# These four carried ~2.4 GB of raw history between them — each is a BINARY
-# blob rewritten WHOLESALE on every run, so git stored a complete new copy per
-# commit (hvsc84.db × 128 versions, hvsc84.csv × 72). Removing them took .git
-# from 158 MB to 43 MB. The two that were still live remain ON DISK and working
-# — just untracked, so a FRESH CLONE will not have them and grades.db is NOT
-# regenerable; copy both by hand when moving hosts. See the READMEs in
-# deprecated/gt2_grading/ and deprecated/phase0_register_roundtrip/.
-# The general lesson, for any FUTURE artifact: a wholesale-rewritten binary
-# does not belong in git — regenerate it, or keep it outside the tree.
+# `hvsc84.db` (128 versions) and `hvsc84.csv` (72) were REGENERATED artifacts:
+# each rebuild wrote a completely different 21 MB / 12 MB binary, so git stored
+# a whole new copy per commit — ~2.4 GB of raw history between them. Scrubbing
+# took .git from 158 MB to 43 MB. Both are superseded by the git-tracked
+# hvsc85.parquet (~3 MB).
+#
+# The rule this encodes is about REGENERATED files, not about size: a binary
+# rewritten wholesale on every run does not belong in git. A one-off artifact
+# committed ONCE is fine — which is why gt2_grading/data/grades.db and
+# phase0_register_roundtrip/data/validation.db are deliberately NOT listed
+# here; they are frozen historical records, tracked on purpose.
 hvsc84.csv
-deprecated/gt2_grading/data/grades.db
-deprecated/phase0_register_roundtrip/data/validation.db
 
 # SQLite write-ahead-log sidecars — created whenever a .db above is opened,
 # transient, and meaningless without their parent database.

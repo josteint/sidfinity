@@ -4,21 +4,22 @@ The earliest pipeline: dump SID registers frame-by-frame, convert to a symbolic 
 
 Superseded by the USF pipeline which works at the musical level (notes, instruments, patterns) instead of raw register dumps. The register-level approach produced byte-identical output but had no musical understanding — useless for ML training.
 
-## ⚠ `data/validation.db` IS PRESENT BUT UNTRACKED (since 2026-08-25)
+## `data/validation.db` — a frozen historical record, tracked on purpose
 
-The file is on disk (60,572 rows in `results` — the stored outcome of the
-original full-HVSC validation run) and `validate_hvsc.py` reads it normally.
-It is simply **no longer in git**, and `.gitignore` keeps it that way.
+12 MB SQLite, 60,572 rows in `results`: one per HVSC file, the recorded outcome
+of the original full-corpus validation run that established the 100% lossless
+register-level roundtrip claim above.
 
-Scrubbed from the entire history along with `hvsc84.db` × 128 versions,
-`hvsc84.csv` × 72 and `gt2_grading/data/grades.db`: each is a binary rewritten
-WHOLESALE on every run, so git stored a complete new copy per commit — ~2.4 GB
-of raw history between them, and `.git` went from 158 MB to 43 MB without them.
+Kept in git deliberately. `validate_hvsc.py` takes `--db` and CREATES a fresh
+database, so the tooling runs without it — what would be lost is the
+MEASUREMENT itself, and re-running it would need the whole deprecated
+register-level pipeline back on its feet.
 
-⚠ A fresh clone will NOT have this file. Less critical than its gt2_grading
-counterpart — `validate_hvsc.py` takes `--db` and CREATES the database, so the
-tooling runs either way; what a clone lacks is the recorded RESULTS. Copy it
-across by hand when moving hosts; do not `git add -f` it.
+⚠ It was briefly removed on 2026-08-25 during a history scrub and then
+restored, so it appears only in recent history. That scrub targeted
+`hvsc84.db` (128 versions) and `hvsc84.csv` (72) — REGENERATED artifacts where
+every rebuild stored a whole new copy. This file is the opposite case: written
+once, never rewritten. Do not remove it on size grounds.
 
 - `sid_symbolic.py` — register CSV to/from symbolic format
 - `sid_builder.py` — build PSID v2 from register CSV

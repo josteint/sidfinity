@@ -13,24 +13,24 @@ The GT2 / GoatTracker pipeline itself (the static parsers at `src/gt2_*.py`)
 is still active code, but its grading and HVSC-coverage tooling sit here
 because they're tied to the old comparison methodology.
 
-## ⚠ `data/grades.db` IS PRESENT BUT UNTRACKED (since 2026-08-25)
+## `data/grades.db` — a frozen historical record, tracked on purpose
 
-The file is on disk and the four scripts that read it — `grade_db.py`,
-`hvsc_dashboard.py`, `update_readme.py`, `regression_test.py` — work normally.
-It is simply **no longer in git**, and `.gitignore` keeps it that way.
+13 MB SQLite: 22,269 songs + 48,302 history rows, read by `grade_db.py`,
+`hvsc_dashboard.py`, `update_readme.py` and `regression_test.py`.
 
-It was scrubbed from the entire history (along with `hvsc84.db` × 128 versions,
-`hvsc84.csv` × 72, and `phase0_register_roundtrip/data/validation.db`) because
-each is a binary rewritten WHOLESALE on every run, so git stored a complete new
-copy per commit — ~2.4 GB of raw history between them. Removing them took
-`.git` from 158 MB to 43 MB.
+It is **kept in git deliberately**, despite the size, because it is NOT
+regenerable: `regression_test.py` calls it a FROZEN baseline, and the
+comparator that produced it (`src/sid_compare.py`'s jitter-tolerant grading) is
+itself deprecated. Nothing can rebuild these numbers — they are the measured
+record of what the pre-USF pipeline achieved against HVSC.
 
-⚠ **A fresh clone will NOT have this file, and it is NOT regenerable** —
-`regression_test.py` calls it a FROZEN baseline, and the comparator that
-produced it (`src/sid_compare.py`'s jitter-tolerant grading) is itself
-deprecated. 13 MB; 22,269 songs + 48,302 history rows. Copy it across by hand
-when moving hosts, and do not `git add -f` it: that recreates the bloat this
-was done to remove.
+⚠ It was briefly removed on 2026-08-25 during a history scrub and then
+restored, so it appears only in recent history. That scrub targeted
+`hvsc84.db` (128 versions) and `hvsc84.csv` (72) — REGENERATED artifacts where
+every rebuild stored a whole new copy, ~2.4 GB of raw history between them.
+This file is the opposite case: written once, never rewritten. **Do not "clean
+it up" on size grounds** — one 13 MB blob committed once costs the repo 13 MB
+forever, which is the price of keeping an unreproducible measurement.
 
 ## What's here
 
