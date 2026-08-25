@@ -67,6 +67,7 @@ before quoting the number (measured 2026-08-22).
 - [Timestamped tool logging](feedback_timestamped_tool_logging.md) — OWNER DIRECTIVE: dev tools print timestamped flushed phase lines (`src.tslog`); silent long phases read as hangs. Wire into any tool you touch.
 - [Background jobs via harness](feedback_background_jobs_harness.md) — long batches MUST use Bash `run_in_background: true`, never `nohup&`; never pipe a backgrounded command through `tail` (empty output reads as stalled). Sanity-check result mtime.
 - [Old-vs-new code compare = worktree](feedback_old_code_compare_worktree.md) — compare current vs pre-change behavior in a git WORKTREE, never `git stash` in the main tree (a stash/pop across a timed-out command stranded edits at old code).
+- [Relaxing an error kills its guards](feedback_relaxing_an_error_kills_its_guards.md) — before making code stop raising, grep for who CATCHES it: `except`-shaped guards go dead silently, no test fails. One took a FULL member down.
 - [No self-matching waiters](feedback_no_self_matching_waiters.md) — TRIPWIRE. NEVER `while pgrep -f 'PATTERN'` (matches the waiter's OWN argv). Wait for `<task-notification>`; identify your procs before any kill.
 - [No co-author in commits](feedback_no_coauthor.md) — never add `Co-Authored-By`
 - [Do the actual work](feedback_do_the_work.md) — implement ALL optimizations, don't punt

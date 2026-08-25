@@ -5,8 +5,51 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-23T23:23:46.784Z
+  modified: 2026-08-25T20:02:47.502Z
 ---
+
+## ✅ v5: the ENTIRE `error` bucket was our decoder, not the data (2026-08-25)
+
+All 14 `error` rows triaged and cleared. None was corrupt data — the sector /
+orderlist walks disagreed with the player in three ways, each read straight off
+`v5/disassembly.s` (ledger **C34, 5th occurrence — the MIRROR IMAGE**: the
+decoder REFUSING what the player ACCEPTS):
+
+1. **An unlisted `>=$80` sector byte is the dispatch chain's 1-byte NO-OP**
+   (`$12A2 CMP #$F6 / BNE $1289` → `INC $17d8,x / JMP $1158`). We raised
+   `unknown sector cmd`. 7 members. It emits nothing, so dropping it is lossless.
+2. **Both stream positions are BYTES** (`$1158 LDY $17d8,x`, `$10FC LDY
+   $17d5,x`) and wrap mod 256 — a stream with no `$FF` in its window CYCLES.
+   Walking linearly past 256 invented terminators the player can never reach
+   (Sid_Extension's real `$FF` is at offset 278) and ran off memory
+   (`IndexError`). Goto80/Hairy's three tracks are each exactly one page.
+3. **`n_sectors = secp_hi - secp_lo` is not a count.** The two tables are
+   independently-relocated operands (4 bytes apart in the reference player) and
+   the engine indexes both with an unchecked byte. Bound by REACHABILITY (C2).
+   Two members' delta is NEGATIVE; one orderlist references sector 32 against a
+   26-entry delta (the `KeyError`s).
+
+RESULT: 11 build (3 FULL: Nebula/Tune_1, Wizard_Oxygen/Experimental_Techno,
+plus Sid_Extension held), 2 refuse cleanly under a new `data_tables_off_image`
+reason (C26-shaped: 9/12 operands outside the image — Ed/We_Were_All_Kids +
+Piirainen_Antti/Left_Ear_Bleedin_Ear_Left, still open), 1 (Praiser/Padge) joins
+the parked `filter_table_overflow` bucket. Zero regressions.
+
+⚠ Relaxing the decoder silently killed TWO guards here (the overstated-song-
+count drop and the unreferenced-sector placeholder), one of which took FULL
+member Kordiaukis/Rotting_Christ down — the general discipline is
+[[feedback_relaxing_an_error_kills_its_guards]]; this round is its worked
+instance. Both are now positive conditions (the endless track carries a `wrap`
+tag `to_usf` reads as an ordinary loop).
+
+Gate: decode-only exposure sweep over all 2,031 members (26 change: 14 error,
+11 partial, 1 full) + byte-identity old-vs-new over 181 members incl. the whole
+50-member portfolio (175 identical, 0 newly failing, the 1 FULL diff verified
+still FULL) + both v4 `hetero_v5` members unchanged and FULL + the C5 depth
+check on the 5 changed partials (**deeper 2 · shallower 0 · unchanged 18** —
+the metric a full/partial score cannot see). Tools left in
+`tmp/v5_error_triage.py`, `v5_error_probe{2,3}.py`, `v5_decode_exposure.py`,
+`v5_byte_gate.py`, `tmp/_depth_check.py`.
 
 ## 📊 v5 OVERNIGHT CLOSEOUT (2026-08-24): 1,181/2,031 FULL, and the next lever named
 

@@ -1078,6 +1078,27 @@
     4. THE DEEP TAIL (`@>=4k` clusters) — per-member effect work, the
        long grind.
 
+    ==== ✅ THE `error` BUCKET IS CLOSED (2026-08-25) ====
+    All 14 v5 `error` rows were OUR DECODER disagreeing with the player, not
+    corrupt data — ledger C34's 5th occurrence (the MIRROR IMAGE: refusing what
+    the player accepts). Unlisted command byte = the dispatch chain's 1-byte
+    no-op fall-through; both stream positions are 8-BIT and wrap (an
+    unterminated stream cycles, it does not run on); and `n_sectors =
+    secp_hi - secp_lo` is not a count (independently-relocated operands — bound
+    by reachability, C2). 11 build (3 FULL), 1 joins item 19's overflow bucket,
+    2 refuse cleanly under a new `data_tables_off_image` reason. 0 regressions
+    (byte-identity gate over 181 members incl. the full portfolio).
+    ⚠ STILL OPEN, small and self-contained: those 2 refusals —
+    Ed/We_Were_All_Kids + Piirainen_Antti/Left_Ear_Bleedin_Ear_Left have 9 of 12
+    data-table operands OUTSIDE the file image with all three track pointers
+    reading $0000. That is ledger C26's shape (init unpacks the song into RAM)
+    but only PARTLY — C26 requires EVERY operand outside before it will read
+    post-init RAM, and mixed members stay refused. Deciding them means either
+    extending C26's all-or-nothing gate or proving the detector false-positives.
+    ⚠ Two guards written as `except` around the decode died silently when it
+    stopped raising (one took a FULL member down) — discipline recorded in
+    .claude/memory/feedback_relaxing_an_error_kills_its_guards.md.
+
     ==== TOOLING GAP vs v4 (build when the failure classes justify it,
          and PARAMETRISE rather than duplicate — a 4th copy of a
          dispatch is what produced the C20 harness bug) ====
@@ -1099,6 +1120,11 @@
       pulse_table_overflow  81 members, pool 267 / 411 / 981  (min/median/max)
       filter_table_overflow 21 members, pool 297 / 395 / 591
       wave_table_overflow    1 member,  pool 796
+    ⚠ RE-COUNT 2026-08-25 from the live batch store + the error-bucket fix:
+      pulse 94 · filter 28 (+1: Praiser/Padge arrived here from the `error`
+      bucket once its sectors decoded) · wave 2 = 124, not 103. The population
+      grows as upstream refusals are cleared, so re-measure when picking this up
+      rather than trusting either number.
     Sizes are AFTER identical-program dedup. The cap of 256 is REAL and is the
     ORIGINAL's cap too (the engine indexes with a byte: pulsepos/filterpos/
     wavepos) — and every measured member's own m.wave/m.pulse/m.filter is

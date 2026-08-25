@@ -388,7 +388,10 @@ def _orderlist(events: list) -> Orderlist:
             t = e[1]
             transpose = t - 256 if t >= 128 else t   # signed
             byte_pos += 2
-        elif e[0] == 'loop':
+        elif e[0] in ('loop', 'wrap'):
+            # 'wrap' = the track ran out of its 256-byte window and the player's
+            # byte-wide position rolled onto an already-dispatched offset. Same
+            # musical meaning as a stated $FF loop to that offset.
             tgt = e[1]                                # raw byte offset
             loop_to, loop_reestablish = byte_map.get(tgt, (0, False))
         elif e[0] == 'end':

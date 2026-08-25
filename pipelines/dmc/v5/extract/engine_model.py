@@ -159,30 +159,47 @@ def _rd16(mem, a):
 
 
 # ----- orderlist (track) decode: $FF loop / $FE end / $FD,$FC transpose --
+# THE TRACK POSITION IS A BYTE. disassembly.s track_fetch ($10F2):
+#   $10FC  LDY $17d5,x        ; per-voice track position -- ONE BYTE
+#   $10FF  LDA ($f8),y
+# and every advance is `INC $17d5,x`, so the position wraps $FF -> $00. A track
+# is therefore at most a 256-byte window and CANNOT run on past it: one with no
+# $FF/$FE in that window cycles forever rather than "never ending". The old
+# 512-entry linear guard walked straight past the wrap and raised on data the
+# player reads perfectly well (Goto80/Hairy's three tracks are exactly one page
+# each). Revisiting a position IS the wrap, so it is recorded as a loop to that
+# byte offset -- which is what the player does.
 def _decode_orderlist(mem, ptr: int):
     out = []
     pos = 0
-    guard = 0
-    while guard < 512:
-        guard += 1
-        b = mem[ptr + pos]
+    seen = set()
+    while pos not in seen:
+        seen.add(pos)
+        b = mem[(ptr + pos) & 0xFFFF]
         if b == 0xFF:
-            out.append(('loop', mem[ptr + pos + 1]))
+            out.append(('loop', mem[(ptr + pos + 1) & 0xFFFF]))
             return out, bytes(mem[ptr:ptr + pos + 2])
         if b == 0xFE:
             out.append(('end',))
             return out, bytes(mem[ptr:ptr + pos + 1])
         if b == 0xFD:
-            out.append(('transpose', mem[ptr + pos + 1]))
-            pos += 2
+            out.append(('transpose', mem[(ptr + pos + 1) & 0xFFFF]))
+            pos = (pos + 2) & 0xFF
             continue
         if b == 0xFC:
-            out.append(('transpose', (-mem[ptr + pos + 1]) & 0xFF))
-            pos += 2
+            out.append(('transpose', (-mem[(ptr + pos + 1) & 0xFFFF]) & 0xFF))
+            pos = (pos + 2) & 0xFF
             continue
-        out.append(('sector', b))
-        pos += 1
-    raise RuntimeError(f'orderlist at ${ptr:04X} never ends')
+        out.append(('sector', b))       # ANY byte < $FC -- $10FF's BPL sends
+        pos = (pos + 1) & 0xFF          # <$80 to sector_ptr, and $80-$FB falls
+                                        # through the CMP chain to the same place
+    # The position wrapped onto a byte already dispatched: an ENDLESS track.
+    # Musically this is a loop to that byte offset, and `to_usf._orderlist`
+    # treats it as one — but it is tagged distinctly because `extract` needs to
+    # tell a track that STATES its loop from one that merely runs out of window:
+    # the latter is what a garbage tune-table record looks like.
+    out.append(('wrap', pos))
+    return out, bytes(mem[(ptr + k) & 0xFFFF] for k in range(256))
 
 
 # ----- sector decode: notes (<$80) + commands ($F1-$FE) + $FF end -------
@@ -202,27 +219,51 @@ _CMD = {
 }
 
 
+# Two facts read off disassembly.s sector_dispatch ($1158), both of which the
+# first version of this walk got wrong -- it refused data the player consumes
+# without complaint (14 members died in the batch as `error`, 2026-08-25):
+#
+#  * AN UNRECOGNISED >=$80 BYTE IS A 1-BYTE NO-OP. The CMP chain ends at
+#      $12A2  CMP #$F6 / BNE $1289
+#      $1289  INC $17d8,x / JMP $1158     <- advance ONE byte, re-dispatch
+#    so a byte matching no command is skipped, emits no write and consumes no
+#    duration. Dropping it from our event list is therefore lossless.
+#  * THE SECTOR POSITION IS A BYTE ($1158 LDY $17d8,x; advances are
+#    `INC $17d8,x`), so it wraps $FF -> $00. A sector is at most a 256-byte
+#    window; one with no $FF inside that window CYCLES. Walking `pos` linearly
+#    past 256 read bytes the player can never reach -- finding phantom
+#    terminators beyond offset 255, and running off the end of memory
+#    (IndexError) on the last sector of a file.
+#
+# ⚠ KNOWN LIMIT: a cycling sector is decoded to the events of one lap, and
+# `from_usf._encode_sector` terminates every sector with $FF -- so the rebuild
+# ENDS where the original would loop. The two agree until the lap runs out
+# (256 steps; every carrier measured so far is a song-end "note then endless
+# gate-offs" tail that no verify window reaches). Representing the lap itself
+# is ledger C32's endless-tail question, deliberately not answered here.
 def _decode_sector(mem, ptr: int):
     out = []
     pos = 0
-    guard = 0
-    while guard < 4096:
-        guard += 1
-        b = mem[ptr + pos]
+    seen = set()
+    while pos not in seen:
+        seen.add(pos)
+        b = mem[(ptr + pos) & 0xFFFF]
         if b == 0xFF:
             out.append(('end',))
             return out, bytes(mem[ptr:ptr + pos + 1])
         if b < 0x80:
             out.append(('note', b))
-            pos += 1
+            pos = (pos + 1) & 0xFF
             continue
         if b not in _CMD:
-            raise RuntimeError(f'unknown sector cmd ${b:02X} @ ${ptr+pos:04X}')
+            pos = (pos + 1) & 0xFF          # 1-byte no-op, per $1289
+            continue
         name, n = _CMD[b]
-        args = tuple(mem[ptr + pos + 1 + k] for k in range(n - 1))
+        args = tuple(mem[(ptr + pos + 1 + k) & 0xFFFF] for k in range(n - 1))
         out.append((name,) + args)
-        pos += n
-    raise RuntimeError(f'sector at ${ptr:04X} never ends')
+        pos = (pos + n) & 0xFF
+    # the position wrapped onto a byte already dispatched: an endless sector
+    return out, bytes(mem[(ptr + k) & 0xFFFF] for k in range(256))
 
 
 def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
@@ -244,6 +285,31 @@ def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
     a_fl = _rd16(mem, cfg.op_filter_lo)
     a_fh = _rd16(mem, cfg.op_filter_hi)
     end = s['load'] + len(s['payload'])
+
+    # THE OPERANDS ARE NOT TABLE ADDRESSES AT ALL. On a couple of members the
+    # detector's play-body signature matches but the data-table operands point
+    # nowhere near the file image (Ed/We_Were_All_Kids and Piirainen_Antti/
+    # Left_Ear_Bleedin_Ear_Left: 9 of 12 outside, all three track pointers read
+    # $0000). Decoding proceeds from garbage and the member dies somewhere
+    # arbitrary downstream — it reported as a crash rather than as "we can't
+    # read this one", which is worse than useless in a residue census.
+    #
+    # This is ledger C26's shape (init unpacks the song into RAM, so the image
+    # holds no tables) but only PARTLY: C26 requires EVERY operand outside the
+    # image before it will read from post-init RAM, and mixed members stay
+    # refused. So refuse — cleanly, and named — rather than guess. A member with
+    # `post_init_sub` is already being read from post-init RAM (C26/C31), where
+    # the file-image bounds do not apply, so it is exempt.
+    if getattr(cfg, 'post_init_sub', None) is None:
+        load = s['load']
+        tables = (a_order, a_secp_lo, a_secp_hi, a_instr, a_flo, a_fhi,
+                  a_wc, a_wf, a_pl, a_ph, a_fl, a_fh)
+        outside = sum(1 for a in tables if not load <= a < end)
+        if outside >= 6 and not load <= a_order < end:
+            from pipelines.dmc.v5.factory import DMCV5Unsupported
+            raise DMCV5Unsupported(
+                f'data_tables_off_image: {outside}/12 table operands outside '
+                f'${load:04X}-${end:04X} (orderlist ${a_order:04X})')
 
     # region sizes from address deltas (the packer lays tables contiguously:
     # instr | wave_ctrl | wave_freq | pulse_lo | pulse_hi | filter_lo |
@@ -271,7 +337,20 @@ def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
     # zero-fills RAM identically), and _capture_env bounds reachability per ptr.
     n_filter = min(256, 0x10000 - a_fl, 0x10000 - a_fh)
     n_instr = (a_wc - a_instr) // 8
-    n_sectors = a_secp_hi - a_secp_lo
+    # The lo/hi ADDRESS DELTA IS NOT THE SECTOR COUNT. Both tables are reached
+    # through operands the packer relocates independently (sector_ptr $114D:
+    # `LDA $196e,y` / `LDA $1972,y` — four bytes apart in the reference player),
+    # and the engine indexes both with an unchecked byte, so the delta says
+    # nothing about how many sectors a song has. Used as a bound it both
+    # OVERSTATES (tail entries decoded as sectors) and UNDERSTATES (an orderlist
+    # referencing sector 32 with a delta of 26 — the KeyError the batch reported).
+    # Bound by REACHABILITY instead, per ledger C2: keep the delta as the
+    # baseline so every member whose songs stay inside it is byte-identical, and
+    # extend to cover whatever the tracks actually reference. A byte index caps
+    # the whole thing at 256. Absurd deltas (negative, or tens of thousands) come
+    # from members whose table operands are not table addresses at all — those
+    # are refused below, before this matters.
+    n_sectors = min(256, max(0, a_secp_hi - a_secp_lo))
 
     m = V5Model(
         freq_lo=[mem[a_flo + i] for i in range(96)],
@@ -330,6 +409,19 @@ def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
             if sub == 0:
                 raise
             break
+        # ⚠ THAT GUARD USED TO FIRE VIA THE RAISE ABOVE. `_decode_orderlist` no
+        # longer raises on a track that never terminates — the player's position
+        # is a byte, so such a track simply cycles — which silently disabled the
+        # overstated-song-count protection: a garbage record's three cycling
+        # "tracks" were accepted as a real song, and the sector numbers scraped
+        # out of them dragged in junk patterns (Bayliss/Guns_n_Ghosts: 12 real
+        # sectors became 67, referencing index 246 against a 43-entry table).
+        # The condition the raise stood for is exactly "the track never states an
+        # end", which is now the 'wrap' tag, so test for it directly. Record 0 is
+        # exempt: a genuinely endless track there is the member's real music
+        # (Goto80/Hairy's three tracks are each exactly one page).
+        if sub and any(ev and ev[-1][0] == 'wrap' for ev in st.orderlists):
+            break
         m.subtunes.append(st)
     # mirror subtune 0 onto the top-level fields (single-subtune readers)
     m.orderlists = m.subtunes[0].orderlists
@@ -345,13 +437,29 @@ def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
     # is refused. Members whose sectors all decode are byte-unchanged.
     referenced = {b for st in m.subtunes for ol in st.orderlists
                   for ev in ol if ev[0] == 'sector' for b in [ev[1]]}
+    # extend past the delta to whatever the tracks reach (see n_sectors above)
+    if referenced:
+        n_sectors = min(256, max(n_sectors, max(referenced) + 1))
     for i in range(n_sectors):
-        sp = mem[a_secp_lo + i] | (mem[a_secp_hi + i] << 8)
+        sp = (mem[(a_secp_lo + i) & 0xFFFF]
+              | (mem[(a_secp_hi + i) & 0xFFFF] << 8))
         try:
             ev, raw = _decode_sector(mem, sp)
         except RuntimeError:
             if i in referenced:
                 raise
+            ev, raw = [], b''
+        # KEEP THE PLACEHOLDER VALVE ALIVE. The tolerance above was written for
+        # a decoder that RAISED on junk; now that nothing raises, an unplayed
+        # tail entry silently becomes a real pattern instead — and a garbage one
+        # ending in state commands trips `trailing_sector_cmds`, which took a
+        # FULL member (Kordiaukis/Rotting_Christ, unreferenced sector 16) down
+        # with it. The signal a sector is junk rather than music is that it never
+        # reaches an $FF: the player would cycle its 256-byte window forever.
+        # Combined with "no track plays it", that is the same set the old decoder
+        # refused, so this restores its behaviour exactly. A REFERENCED sector is
+        # kept however it decodes — that one is audible.
+        if i not in referenced and not (ev and ev[-1][0] == 'end'):
             ev, raw = [], b''
         m.sectors.append(ev)
         m.sector_raw.append(raw)
