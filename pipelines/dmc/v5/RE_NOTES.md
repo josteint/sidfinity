@@ -43,7 +43,57 @@ only **5.5%** of the out-of-step members versus **19%** of the same-register
 partials and **10%** of currently-FULL members — i.e. it is LESS common in the
 affected group. Some other condition is skipping the write.
 
-**NEXT MEASUREMENT** (do this first, it is one command): on Just_for_Her at the
+### ⚠ 2026-08-25 — THREE CORRECTIONS TO THE ABOVE, all measured
+
+Do not act on the "vib reversal" framing as written; two of its load-bearing
+claims are false, and the third (the counting model) does not fit the data.
+
+**1. "The only paths bypassing `$1651` are `$15C9`/`$15DA`/`$160F`" IS WRONG.**
+`$1651 STA $D418` sits in the fade block's common tail at `$1612`, and FOUR more
+sites jump over it straight to the wave step — all in the GLIDE region that runs
+BEFORE vibrato:
+
+    $1528  JMP $1654   ; glide UP step   ($183C/$183F += $17F7,x)
+    $1555  JMP $1654   ; glide DOWN step ($183C/$183F -= $17F7,x)
+    $1569  JMP $1654   ; glide ARRIVAL   (curnote = target, clear accum+speed)
+    $1579  JMP $1654   ; accumulator clear, gated on $17F4,x != 0  ($156C)
+
+The dispatch is `$14EE LDA $17F7,x / BNE $14F6` (glide active -> glide paths) /
+`$14F3 JMP $156C` (no glide -> $17F4 test -> vib). So ANY voice running a glide
+skips its `$D418`, which is far more common than a vib reversal — and that alone
+explains why the static `byte7>>4` census came out at 5.5%: it was censusing the
+wrong mechanism.
+
+**2. THE WORKED EXAMPLE CANNOT BE A VIB CASE AT ALL.** On Angee/Just_for_Her,
+`--memwatch-on-write D418` over the whole run shows `$1809` (vib period),
+`$1806` (delay), `$1836` (direction) and `$1812` (step increment) are **$00 for
+all three voices in all 1,728 sampled events** — vibrato never executes on this
+member, so every vib-concerned path reaches the fade via `$1581`. Any hypothesis
+tested on this member must not involve the vib reversal.
+NB `$1812,x = (instr byte & $F0) >> 3` (`$13A2-$13AA`), i.e. nonzero exactly
+when `byte7>>4 != 0` — so the refuted static census did test the right BYTE, just
+for the wrong mechanism.
+
+**3. THE COUNTING MODEL IS WRONG: `$D418` IS NOT ONE-PER-VOICE.** Predicting
+`d418_per_frame == 3 - (glide_active OR $17F4 != 0)` holds for 510 of 626 frames
+and FAILS for 116 — including frames with only 1-2 writes where every skip
+condition is zero, and **one frame with FOUR writes against three voices**. More
+writes than voices means `$D418` is also emitted outside the per-voice fade tail
+(canon's `note_init2` writes `$D418 = vol|filtmode` at note start). So the true
+per-frame count is (voices reaching the fade tail) + (note-inits this frame),
+and the frames with too FEW writes are probably voices that never ran effects at
+all, not voices that took a bypass.
+
+**NEXT MEASUREMENT — ATTRIBUTE, DON'T INFER.** State sampling cannot separate
+these three producers. Use per-PC attribution:
+`tools/effect_chain_profiler.py hvsc85/MUSICIANS/A/Angee/Just_for_Her.sid
+--subtune 1 --register D418 --frames 680-695` to tag every `$D418` with the PC
+that wrote it ($1651 fade tail vs the note-init store), then for the frames that
+come up short, establish which voices ran `run_effects` at all. Only then choose
+the composer condition. (The measurement below was the previous plan and is
+superseded — it samples vib state, which this member does not use.)
+
+**SUPERSEDED MEASUREMENT** (kept so it is not re-run): on Just_for_Her at the
 diverging frame, find WHICH voice the orig skipped and why —
 `siddump --memwatch-on-write D418 <vibctr,vibdir,vibspd,$1812 for x=0..2>`
 (resolve the addresses with the member's base) and compare the three voices at

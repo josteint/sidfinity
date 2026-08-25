@@ -1088,13 +1088,29 @@
     by reachability, C2). 11 build (3 FULL), 1 joins item 19's overflow bucket,
     2 refuse cleanly under a new `data_tables_off_image` reason. 0 regressions
     (byte-identity gate over 181 members incl. the full portfolio).
-    ⚠ STILL OPEN, small and self-contained: those 2 refusals —
-    Ed/We_Were_All_Kids + Piirainen_Antti/Left_Ear_Bleedin_Ear_Left have 9 of 12
-    data-table operands OUTSIDE the file image with all three track pointers
-    reading $0000. That is ledger C26's shape (init unpacks the song into RAM)
-    but only PARTLY — C26 requires EVERY operand outside before it will read
-    post-init RAM, and mixed members stay refused. Deciding them means either
-    extending C26's all-or-nothing gate or proving the detector false-positives.
+    ⚠ STILL OPEN, small and self-contained: those 2 refusals. MEASURED
+    2026-08-25 (post-init RAM vs file image, per operand) — and they are NOT the
+    same problem, which the shared `data_tables_off_image` reason hides:
+      * Piirainen_Antti/Left_Ear_Bleedin_Ear_Left IS a C26 unpacker. Its
+        out-of-image operands are a clean page-aligned family ($4000 instr /
+        $4100 wave_ctrl / $4200 wave_freq / $4300-$4400 pulse / $4500-$4600
+        filter / $4700 orderlist) and ALL hold real data post-init. The two
+        in-image operands are the PLAYER'S OWN freq tables at base+$119/$179 —
+        song data proper is 9-of-10 out (the 10th, secp_lo $115A, is in-image
+        but all zeros). So C26's "EVERY operand outside" gate should arguably
+        read "every SONG-DATA table", not every operand.
+        Setting `cfg.post_init_sub = 0` already makes it BUILD — but only to a
+        weak partial (state_match True, play_match 0: diverges at the very first
+        play write, orig $D400=$00 vs our $D418=$1F). Loosening a boundary the
+        ledger states explicitly, for one member that then diverges at write 0,
+        is not a call to make unattended. Worth 30 min when someone is awake:
+        either the post-init snapshot is taken at the wrong moment or this is
+        not really a v5 member.
+      * Ed/We_Were_All_Kids is NOT this player. Its operands are incoherent
+        ($D89D orderlist, $F985/$F8B1 secp, $0202/$0403 freq, $0F4B wave) — not
+        a relocation, not an unpack target — and `_postinit_window` cannot even
+        run its init. Treat as a detector false positive; the honest fix is a
+        detection-side reject, not an extract accommodation.
     ⚠ Two guards written as `except` around the decode died silently when it
     stopped raising (one took a FULL member down) — discipline recorded in
     .claude/memory/feedback_relaxing_an_error_kills_its_guards.md.
@@ -1152,13 +1168,58 @@
     every test and gate, and even in autonomous/overnight sessions". C8 calls
     it "a representation change, not a packing tweak" and deferred it.
 
-    QUESTION FOR THE OWNER: grow v5's representation to carry positions,
-    converging on v4's `wave_table_pos` form?
-    RECOMMENDATION: yes, and converge on v4's rather than minting a second
-    form — same musical fact (a program's position in a shared table, which the
-    engine sonifies through off-table reads), and v4 has paid the design cost.
-    ⚠ C8's entry says 71 family-4 members; re-measured 2026-08-23 it is 103
-    across pulse/filter/wave — update the entry when this is picked up.
+    ==== ⚠ A THIRD OPTION, found 2026-08-25 — and it needs NO schema change ====
+    Both options above assume the 256 cap is the FORMAT's. It is not, for OUR
+    rebuild: the cap is our own composer's 8-bit cursor —
+
+        ldy pulsepos,x        (composer_v5.py, ni_pulse + the per-frame step)
+        lda pulsehi,y
+        inc pulsepos,x
+
+    — and `from_usf` raises `unsupported:*_table_overflow` purely because THAT
+    index is a byte. The CORE TENET is explicit that the composer may invent any
+    runtime architecture that reproduces the write stream, so widening this
+    cursor removes the cap with nothing added to the USF and no owner gate.
+    This is C8's own "capacity of a COMPOSER-side stream index" sibling (it
+    widened the DMC track cursor to 16-bit for exactly this reason), which the
+    entry records but item 19 never connected to the pulse/filter pools.
+
+    SIZING (tmp/v5_pool_measure.py, 2026-08-25): pool max ~981 entries => 4
+    pages of 256; longest SINGLE program 49 cells (bounded by `_PHASE_CAP`=48),
+    so no program need straddle a page. Gate on `len(tbl) > 256` and every
+    member that builds today emits byte-identical code (C8's 4th-widening
+    discipline; proof = a corpus-wide MD5 rebuild).
+
+    ⚠ WHY I DID NOT JUST DO IT (parked deliberately, 2026-08-25 night): the
+    3 voices can be mid-program on DIFFERENT pages simultaneously, so a single
+    SMC'd read operand cannot serve them — it needs either a per-voice zp
+    pointer (`lda (zp),y`) or a per-voice page select, in the PER-FRAME pulse
+    step. That is added cost on the hot path for all 3 voices, which is exactly
+    what ledger C25 says must fit the tightest CIA latch we ship under. It is a
+    real re-architecture of the composer's hot path, not a knob, and it wants
+    the owner awake — but it is AUTONOMOUS work once approved, unlike (a).
+
+    QUESTION FOR THE OWNER — now a THREE-way choice, not two:
+      (a) carry each program's ORIGINAL table position in the USF (emit-and-walk,
+          converging on v4's `wave_table_pos`/`wave_start` form). SCHEMA
+          ADDITION => owner gate. Most faithful; also the only option that
+          preserves position for members where an off-table read SONIFIES the
+          live pulse/filter position.
+      (b) do nothing; 124 members stay unsupported.
+      (c) WIDEN/PAGE THE COMPOSER'S OWN CURSOR. No schema change, no USF change,
+          gated to overflow-only so non-overflow members stay byte-identical.
+          Does NOT preserve original positions, so it is wrong for any member
+          whose off-table reads sonify pulsepos/filterpos — census that set
+          first; the rest (the large majority) only need the pool to FIT.
+    RECOMMENDATION: (c) for the bulk, with (a) reserved for the sonified-position
+    minority — (c) is cheaper, needs no representation decision, and C8 already
+    blesses the shape. If you prefer one mechanism for both, (a) alone also works
+    and converges on v4's existing form rather than minting a second one.
+    ⚠ C8's entry says 71 family-4 members; re-measured 2026-08-25 it is 126
+    across pulse/filter/wave (94 pulse + 28 filter + 2 wave, +2 arrivals from the
+    cleared error/trailing buckets: Praiser/Padge, Player_One/Valtavirtaa) —
+    update the entry when this is picked up. The population GROWS as upstream
+    refusals clear, so re-measure rather than trusting any number here.
 
 20. DMC v5 PLAYER VARIANT behind ~106 `player_code_mismatch` rejects —
     NOT blocked on you, just BIGGER than one overnight session. Parked with the
