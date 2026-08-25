@@ -480,8 +480,20 @@ def _instrument_to_usf(ins, model: V5Model, reach: int | None = None):
 def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
     # one Pattern per global sector (shared across voices); each voice
     # carries the Patterns its orderlist references.
+    #
+    # BUILD ONLY THE REFERENCED ONES. Every voice attaches `sector_pat[s]` for
+    # the sectors ITS orderlist names (below), so a pattern no orderlist names
+    # is built and then thrown away — but `_sector_rows` can REFUSE while
+    # building it, and that refusal killed the whole member. 12 of the 15
+    # `trailing_sector_cmds` members are exactly this: their trailing commands
+    # sit on sectors no track ever plays, so the engine never executes them and
+    # there is nothing musical to lose (C7). A sector pointer table routinely
+    # carries unplayed junk — un-relocated compilation leftovers (C31), packer
+    # padding — and none of it should be able to refuse a member.
+    referenced = {s for st in (m.subtunes or [m]) for ol in st.orderlists
+                  for e in ol if e[0] == 'sector' for s in [e[1]]}
     sector_pat = {i: Pattern(id=i, length=0, rows=_sector_rows(ev))
-                  for i, ev in enumerate(m.sectors)}
+                  for i, ev in enumerate(m.sectors) if i in referenced}
     for p in sector_pat.values():
         p.length = sum(r.duration for r in p.rows)
 
