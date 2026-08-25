@@ -60,6 +60,11 @@ hvsc84.csv
 deprecated/gt2_grading/data/grades.db
 deprecated/phase0_register_roundtrip/data/validation.db
 
+# SQLite write-ahead-log sidecars — created whenever a .db above is opened,
+# transient, and meaningless without their parent database.
+*.db-shm
+*.db-wal
+
 # verify.py capture cache (regenerated on demand)
 .verify_cache.pkl
 
