@@ -4,21 +4,21 @@ The earliest pipeline: dump SID registers frame-by-frame, convert to a symbolic 
 
 Superseded by the USF pipeline which works at the musical level (notes, instruments, patterns) instead of raw register dumps. The register-level approach produced byte-identical output but had no musical understanding — useless for ML training.
 
-## ⚠ `data/validation.db` IS NO LONGER IN THIS REPO (removed 2026-08-25)
+## ⚠ `data/validation.db` IS PRESENT BUT UNTRACKED (since 2026-08-25)
 
-`validate_hvsc.py` takes `--db validation.db` and CREATES it, so the scripts
-here still run — but the stored RESULTS of the original 60,572-file HVSC
-validation run are no longer in the working tree or in git history. Preserved
-outside the repo instead of deleted:
+The file is on disk (60,572 rows in `results` — the stored outcome of the
+original full-HVSC validation run) and `validate_hvsc.py` reads it normally.
+It is simply **no longer in git**, and `.gitignore` keeps it that way.
 
-    ~/phase0-validation.db            (verified: PRAGMA integrity_check = ok,
-                                       60,572 rows in `results`)
+Scrubbed from the entire history along with `hvsc84.db` × 128 versions,
+`hvsc84.csv` × 72 and `gt2_grading/data/grades.db`: each is a binary rewritten
+WHOLESALE on every run, so git stored a complete new copy per commit — ~2.4 GB
+of raw history between them, and `.git` went from 158 MB to 43 MB without them.
 
-Removed as part of taking `.git` from 158 MB to 43 MB — the history carried
-~2.4 GB of superseded database snapshots (`hvsc84.db` × 128 versions,
-`hvsc84.csv` × 72, plus this and `gt2_grading/data/grades.db`). If you restore
-it, keep it OUT of git: a binary DB rewritten wholesale on every run is what
-caused the bloat.
+⚠ A fresh clone will NOT have this file. Less critical than its gt2_grading
+counterpart — `validate_hvsc.py` takes `--db` and CREATES the database, so the
+tooling runs either way; what a clone lacks is the recorded RESULTS. Copy it
+across by hand when moving hosts; do not `git add -f` it.
 
 - `sid_symbolic.py` — register CSV to/from symbolic format
 - `sid_builder.py` — build PSID v2 from register CSV

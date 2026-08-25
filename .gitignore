@@ -50,8 +50,9 @@ hvsc84.db
 # These four carried ~2.4 GB of raw history between them — each is a BINARY
 # blob rewritten WHOLESALE on every run, so git stored a complete new copy per
 # commit (hvsc84.db × 128 versions, hvsc84.csv × 72). Removing them took .git
-# from 158 MB to 43 MB. The two that were still live are preserved outside the
-# repo (~/gt2-grades-baseline.db, ~/phase0-validation.db); see the READMEs in
+# from 158 MB to 43 MB. The two that were still live remain ON DISK and working
+# — just untracked, so a FRESH CLONE will not have them and grades.db is NOT
+# regenerable; copy both by hand when moving hosts. See the READMEs in
 # deprecated/gt2_grading/ and deprecated/phase0_register_roundtrip/.
 # The general lesson, for any FUTURE artifact: a wholesale-rewritten binary
 # does not belong in git — regenerate it, or keep it outside the tree.
