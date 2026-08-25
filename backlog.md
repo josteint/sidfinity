@@ -1242,32 +1242,10 @@
     ("dispatch on the PLAY-body signature") is what makes it safe to attempt:
     a loosened dispatch cannot false-FULL, build+verify judges.
 
-21. DMC v5 `trailing_sector_cmds` — 15 members, needs a REPRESENTATION call.
-    Parked 2026-08-24 by the overnight session.
-
-    A sector ends with state-setting commands and no note to attach them to:
-    measured pendings are `set_dur` (8 members), `set_instr` (4), `fade_out`,
-    `srr`. The ENGINE executes them — they mutate voice state that persists
-    into the NEXT sector that voice plays — so dropping them silently loses a
-    musical fact, and `_sector_rows()` currently refuses the whole member.
-
-    WHY IT IS NOT A ONE-LINER: `_sector_rows(events)` is a PURE function of one
-    sector, and patterns are content-DEDUPED into a shared pool. The trailing
-    state affects whichever pattern follows in that voice's orderlist, which
-    differs per orderlist position — so the carry is a property of the
-    SEQUENCE, not of the pattern. Materializing it into the next pattern's
-    first row would re-create exactly the "sticky state baked into per-context
-    effective copies" that ledger C32 exists to undo.
-
-    OPTIONS:
-      (a) let the PATTERN carry its own trailing commands (a trailing
-          zero-duration row, or a pattern-level trailing-flags field) — keeps
-          dedup honest because the commands really are in that pattern's byte
-          stream. Needs a NoteRow/duration-0 semantic or a new field => owner.
-      (b) prove the commands are DEAD and drop them: for every orderlist
-          position whose pattern has trailing commands, check the next pattern's
-          first row STATES the same field (then inheritance never sees the
-          stale value). Measurable per member; lossless where it holds, and the
-          rest stay refused. No schema change.
-    RECOMMENDATION: measure (b) first — it may clear most of the 15 with no
-    representation change at all, and it tells you how many genuinely need (a).
+21. (DELETED 2026-08-26 — CLOSED. `trailing_sector_cmds` is 0 of 15: 14 FULL,
+    1 (Player_One/Valtavirtaa) moved into item 19's overflow bucket. Its
+    option (b) — "prove the trailing commands are DEAD and drop them" — was
+    REFUTED at its premise: $FF ends a v5 sector only as the lookahead peeked
+    after a ROW, so a sector ending in commands does not end at all and there
+    is no next sector for the state to survive into. Technique recorded in
+    ledger C34's 5th occurrence; numbers in project_dmc.md.)
