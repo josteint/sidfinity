@@ -143,10 +143,40 @@ write is one slot out, every later position misaligns and the frequently-written
 Re-cluster this class by the SHAPE of the divergence (swap vs insert vs delete —
 compare the two windows as multisets) before sizing it again.
 
-⚠ Note the streams agree for 11990 writes and only then swap, so the order is
-not constant — something state-dependent flips it. That is the next question,
-and it is a C16 question ("which knob", per its entry) rather than a search for
-a missing effect.
+### ⇒ 2026-08-26 (final, per-IRQ trace) — IT IS A MISSING NOTE-LOAD PLAY (C18/C23)
+
+Tracing the literal per-PLAY register sequence around the flip settles it, and
+it is not a `$D418` knob either. `writelog_per_irq_capture`, plays 681-686:
+
+    orig p681:  18 06 00 01 02 03 04 18 0D 07 08 09 0A 0B 18 14 0E 0F 10 11 12 16
+    mine p681:  18    00 01 02 03 04 18    07 08 09 0A 0B 18    0E 0F 10 11 12 16
+    orig p682:  06 05 04 0D 0C 0B 17 14 13 12 16
+    mine p682:  00 01 02 03 04 07 08 09 0A 0B 0E 0F 10 11 12 16
+    orig p683:  00 01 02 03 04 07 08 09 0A 0B 0E 0F 10 11 12 16
+    mine p683:  18 00 01 02 03 04 18 07 08 09 0A 0B 18 0E 0F 10 11 12 16
+
+Two facts:
+  * At p681 the orig writes the SR registers (`06`/`0D`/`14`) that we omit —
+    the hard-restart prep.
+  * At p682 the orig runs a play whose whole shape is SR/AD/CTRL per voice plus
+    `$D417`/`$D416` and NO `$D418` — family-4's NOTE-LOAD (TICK) play, exactly
+    the shape `noteload_no_d418`'s comment describes. We emit an ordinary
+    effects play there instead.
+
+So the original has a play WE DO NOT PRODUCE. From p683 on our stream is one
+play out of phase, and every later flat position misaligns — which is where the
+"extra `$D418`" and the "swap" both come from. Both were symptoms.
+
+⇒ This is the C18 / C23 family (per-call play phases and the per-member
+note-init/deferred ambiguity), NOT C16 and NOT a `$D418` effect. The machinery
+already exists: `play_phases` tokens plus the C23 discipline of classifying the
+per-IRQ write FOOTPRINT all-or-nothing per member. The next step is to classify
+family-4's per-play footprints into {full play, note-load play} and check whether
+the composer's phase schedule can express the note-load play as its own token.
+
+⚠ Read C18 and C23 in FULL before starting — C23's own entry warns that a
+high-multispeed member's per-IRQ capture can MERGE two play()s into one bucket,
+which is exactly the kind of artefact that would corrupt this classification.
 
 **SUPERSEDED — the attribution below has now been done; kept for its method.**
 Use per-PC attribution:
