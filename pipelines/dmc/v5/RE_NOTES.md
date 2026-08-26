@@ -29,6 +29,44 @@ VALUE+freq members:
     frequency — a note that never loaded, or an accumulator left clear.
   * remaining 19 are unrelated values (wrong note / wrong table entry).
 
+### The `delta=+1` sub-class, mechanism identified (Bakewell/Illusions)
+
+Worked example, first divergence at flat play position 74 (play ~4, so very
+early) — the ONLY difference in the window is V1 freq lo, orig `$82` vs our
+`$83`, with freq hi `$0F` on both:
+
+    orig  0B=09 17=F4 14=89 13=00 12=09 16=5E 00=82 01=0F 02=00 03=05 04=41 07=00
+    mine  0B=09 17=F4 14=89 13=00 12=09 16=5E 00=83 01=0F 02=00 03=05 04=41 07=00
+
+Established:
+  * The freq TABLE is not the problem — it round-trips through the USF with 0
+    differing entries, and entry 46 is exactly `($0F,$82)`, the value the orig
+    writes. We are writing table+1.
+  * The mechanism IS already modelled. family-4's wave step is
+
+        $1680  CLC
+        $1681  ADC $1012,x     ; wavefreq + curnote — SETS THE CARRY if >= 256
+        $1684  TAY
+        $1685  LDA $1719,y     ; freqlo[y]
+        $1688  ADC $1842,x     ; + frqbias, INHERITING that carry  <-- the +1
+        $1691  ADC #$00        ; freqhi + carry
+
+    and the composer's `wave_step_carry` block emits exactly this shape. The
+    flag is a blanket family-4 default, and it IS set for this member.
+
+⇒ So the carry differs because OUR INPUTS differ. For the table index to
+coincide (same entry 46, same freq hi) while the carry differs, our
+`wavefreq[step] + curnote` must exceed the orig's by exactly 256 — i.e. the two
+sums agree mod 256 but not in magnitude. Some combination of our wave-step freq
+offset and our `curnote` is wrong in a way the mod-256 index hides.
+
+**NEXT MEASUREMENT:** watch both inputs at the diverging write, on BOTH sides —
+`siddump --memwatch-on-write D400 <curnote $1012,x>` on the original, and the
+same against our rebuild's label (get it from `assemble(..., return_labels=True)`;
+v5 has no `state_addr` equivalent yet). That names which input is wrong in one
+step. Do NOT infer it from the wave program alone: the index agrees mod 256, so
+a static comparison of the decoded program will look correct.
+
 ⚠ **TWO CENSUSES BEFORE THIS ONE WERE ARTEFACTS. Do not repeat either.**
   1. The `flat_div` register census ("284 members emit an extra `$D418`") counts
      whichever registers align at the first differing POSITION; once any write is
