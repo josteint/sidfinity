@@ -1190,7 +1190,57 @@
     member that builds today emits byte-identical code (C8's 4th-widening
     discipline; proof = a corpus-wide MD5 rebuild).
 
-    ⚠ WHY I DID NOT JUST DO IT (parked deliberately, 2026-08-25 night): the
+    ==== ✅ (c) IS FULLY DE-RISKED AND SPECIFIED (2026-08-26) — ready to build ====
+    Everything that made (c) risky has now been MEASURED, and the answers are
+    all favourable. What remains is implementation, not investigation.
+
+    1. THE CYCLE-BUDGET FEAR WAS OVERSTATED. 119 of the 126 overflow members are
+       VBLANK (19,656 cycles/play). Only 7 are CIA, tightest latch 4,913. The
+       per-voice page re-establish costs ~20-30 cycles/voice/frame (~60-90 per
+       play), i.e. ~0.4% of a vblank budget and ~2% of the tightest CIA one. C25
+       is satisfied with room to spare; if the 7 ever disagree, gate them off.
+    2. THE POSITION-SONIFYING SET IS 6 MEMBERS, AND THEY MUST BE REFUSED, NOT
+       APPROXIMATED (C8's own rule). `pulsepos`/`filterpos` live at base+$7F6..
+       $7F9, which an off-table freq read can reach. Census over all 126: exactly
+       6 carry such a read (Psychomusicdelirkill, Mirror, Valtavirtaa, Poolover,
+       Psychodelic_Killer, Underdeveloped — indices 125-128 / 223). Those keep
+       the original layout or stay unsupported; the other 120 only need the pool
+       to FIT and are unconditionally safe for (c).
+    3. THE PACKING RULE IS PROVEN AND CHEAP. The `$90` marker stores
+       `(s+1+2*lp) & $FF`, which the engine loads straight into `pulsepos` — an
+       8-bit OFFSET. So if a program (hence its loop target) sits entirely inside
+       one 256-byte page, paging is transparent and NO data-format change is
+       needed: `page = ptr >> 8`, `offset = ptr & $FF`. Programs are <= ~97 bytes
+       (`_PHASE_CAP` 48), so a page always holds at least two; the only packing
+       constraint is "do not straddle".
+    4. SIZES: pulse n=94 min/med/max 257/409/981 (78 <= 512); filter n=29
+       259/313/533 (28 <= 512); wave n=3 272/694/796. So 4 pages covers
+       everything, 2 pages covers 107 of 126. Shaving the pool instead is NOT an
+       option — the medians are far past 256.
+
+    IMPLEMENTATION SHAPE (what a fresh session should write):
+      * `from_usf`: pad the pool so no program straddles a 256-byte boundary;
+        keep `add_env` otherwise unchanged. Carry each program's page.
+      * instrument record is 8 bytes (`ad,sr,wave_ptr,pulse_ptr,filter_ptr,
+        vib_delay,vib_speed,vib_width`) with note-init `lda instr+3,y / sta
+        pulsepos,x`. Add a PARALLEL page table indexed by instrument number —
+        do NOT grow the record (stride 8 is load-bearing: `asl asl asl`) and do
+        NOT bit-pack into `vib_width`'s spare bits (works, but opaque).
+      * composer: page-align `pulselo/pulsehi/filterlo/filterhi/wavectrl/
+        wavefreq`; per-voice `pulsepg,x` / `wavepg,x` set at note-init; SMC the
+        operand hi-bytes at the head of each per-voice block (pulse_run has 6
+        read sites, filter 8 incl. the family-4 variants at composer_v5 ~1238).
+        `filterpos` is GLOBAL (V3-only) so its page changes only when the
+        program is SET — no per-frame cost there.
+      * GATE on `len(tbl) > 256` so every member that builds today emits
+        byte-identical code; prove it with a corpus-wide MD5 rebuild, which is
+        C8's 4th-widening discipline.
+
+    ⚠ NOT STARTED — deliberately. It is a multi-hour change across packing,
+    record layout and the per-frame asm path, and it wants a fresh session
+    rather than the tail of a long one. Nothing above needs re-deriving.
+
+    ⚠ WHY IT WAS PARKED IN THE FIRST PLACE (2026-08-25 night): the
     3 voices can be mid-program on DIFFERENT pages simultaneously, so a single
     SMC'd read operand cannot serve them — it needs either a per-voice zp
     pointer (`lda (zp),y`) or a per-voice page select, in the PER-FRAME pulse
