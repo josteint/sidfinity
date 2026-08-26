@@ -101,7 +101,11 @@ a static comparison of the decoded program will look correct.
      divergence is a `$D416` VALUE at flat position 48014. Trap C, plainly.
   THE VERDICT COMPARES THE FLAT CONCATENATION, SO THE CENSUS MUST TOO.
 
-## 🔎 NEXT LEVER (2026-08-24) — 268 partials: we emit ONE $D418 TOO MANY
+## ⛔ SUPERSEDED LEVER (2026-08-24) — "268 partials: we emit ONE $D418 TOO MANY"
+
+> REFUTED 2026-08-26. Our $D418 emission matches the original exactly, and the
+> "268" is a `flat_div` artefact. The live lever is the head of this file.
+> Kept only for the corrections recorded beneath it.
 
 The single biggest partial cluster in v5, and it is now cleanly isolated
 because `flat_div` finally records BOTH registers.
@@ -379,7 +383,9 @@ An UNBLOCKING lever — score it by depth, not full/partial (ledger C5).
   carriers BEFORE building the fix (C19's rule) is what stopped it.
   `tmp/f4_unitrepeat_census.py` is the probe if anyone wants those 4.
 
-## 🔎 NEXT LEVER (2026-08-23) — the CANON shallow $D418 cluster is a TICK-PHASE bug
+## ⛔ SUPERSEDED LEVER (2026-08-23) — "the CANON shallow $D418 cluster"
+
+> Overtaken by the 2026-08-26 census at the head of this file. Kept for method.
 
 After the family-4 startup lever (see `pipelines/dmc/family4/RE_NOTES.md`), the
 post-fix batch is **1,167/2,151 FULL**. Residue split by player branch:
