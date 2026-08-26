@@ -625,9 +625,6 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
             **({'wave_step_carry': 1} if getattr(m, 'wave_step_carry', False) else {}),
             **({'vib_from_instr_bytes': 1} if getattr(m, 'vib_from_instr_bytes', False) else {}),
             **({'filter_prog_8bit': 1} if getattr(m, 'filter_prog_8bit', False) else {}),
-            # an off-table freq read sonifies the LIVE pulsepos/filterpos —
-            # the paged-pool rebuild must refuse (backlog item 19 / C8)
-            **({'offtable_live_pos': 1} if getattr(m, 'offtable_live_pos', False) else {}),
             **({'play_skip_init': int(getattr(m, 'play_skip_init', 2))}
                if int(getattr(m, 'play_skip_init', 2)) != 2 else {}),
             **({'dur_ctr_init': int(getattr(m, 'dur_ctr_init', 1))}
@@ -676,6 +673,21 @@ def write_v5_usf(cfg: DMCV5Config, out_dir: str,
                  hvsc_root: str = 'hvsc85') -> str:
     m = extract(cfg, hvsc_root=hvsc_root)
     usf = model_to_usf(m, reach=_verify_window_frames(cfg, hvsc_root))
+    # offtable_live_pos refusal AT THE EXTRACT BOUNDARY (ledger C8 sixth
+    # widening / backlog item 19): this member's off-table freq read sonifies
+    # the LIVE pulsepos/filterpos, so its captured static values are snapshots
+    # of a moving byte — a paged rebuild would approximate, and C8's rule is
+    # refuse. The decision lives HERE because both facts it needs are known
+    # here and nowhere downstream: the live-window hit is extract-side (player
+    # state-block addresses, never in the USF — the USF carries music only),
+    # and would-the-pool-overflow comes from from_usf's size mirror (which
+    # usf_to_model self-checks against its real packer on every build).
+    if getattr(m, 'offtable_live_pos', False):
+        from pipelines.dmc.v5.from_usf import defused_pool_overflow
+        over = defused_pool_overflow(usf)
+        if over:
+            raise RuntimeError(
+                f'unsupported:offtable_live_pos ({"+".join(over)} pool overflow)')
     base = os.path.splitext(os.path.basename(cfg.sid_path))[0]
     out = os.path.join(out_dir, base + '.usf')
     write_file(usf, out)

@@ -1144,10 +1144,13 @@
 
     REMAINING (the only open part): 4 members whose off-table freq read
     sonifies the LIVE pulsepos/filterpos — refused as
-    `unsupported:offtable_live_pos` (extract stamps the params key from the
-    family-correct state windows; NB the 2026-08-26 de-risk census's "6" was
-    measured with the family-3 window applied to family-4 members, where
-    $17F6-$17F9 is glide state — the 2 misflagged members build honestly):
+    `unsupported:offtable_live_pos` AT THE EXTRACT BOUNDARY (`write_v5_usf`
+    + from_usf's self-checked `defused_pool_overflow` size mirror; the
+    capture-validity fact never enters the USF — a first-cut params key was
+    reverted the same day). Family-correct state windows; NB the 2026-08-26
+    de-risk census's "6" was measured with the family-3 window applied to
+    family-4 members, where $17F6-$17F9 is glide state — the 2 misflagged
+    members build honestly:
       Brizz/Hardvibes_tune_1, Daf/Psychomusicdelirkill, Player_One/Valtavirtaa,
       Praiser/Psychodelic_Killer (all family-4).
     Serving them needs the live position preserved = option (a) (emit-and-walk

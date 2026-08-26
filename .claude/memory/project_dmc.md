@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-26T17:27:16.975Z
+  modified: 2026-08-26T18:08:58.455Z
 ---
 
 ## ✅ v5 TABLE-OVERFLOW BUCKET CLOSED 2026-08-26 (backlog 19c / C8 sixth widening): 126 → 10 FULL + 112 partial + 4 refused
@@ -30,9 +30,12 @@ family's existing top partial class, not a paging artifact), **4 refused**
 Valtavirtaa, Psychodelic_Killer — their off-table freq read sonifies the LIVE
 pulsepos/filterpos; serving them = backlog 19's remaining option-(a) OWNER
 DECISION). NB the de-risk census's "6 refuse" was a window artifact (f3
-window applied to f4 = glide state); the extract now stamps
-`offtable_live_pos` from the family-correct windows (f3 base+$7F6-$7F9, f4
-base+$800-$803) — 10 currently-FULL members carry the (inert) key too.
+window applied to f4 = glide state); the family-correct windows are f3
+base+$7F6-$7F9, f4 base+$800-$803. The refusal fires AT THE EXTRACT BOUNDARY
+(`write_v5_usf` + from_usf's self-checked `defused_pool_overflow` size
+mirror) — the capture-validity fact never enters the USF (a first-cut params
+key was reverted the same day; the 10 FULL live-read carriers' .usf are
+untouched).
 ⚠ code_hash changed → ALL prior v5 rows stale; re-batch before quoting
 family totals (the head count below is now the stale baseline).
 

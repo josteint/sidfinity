@@ -294,8 +294,10 @@ practice, not code to factor).
   (no program straddles a page; pulse/filter never start at in-page offset 0)
   + per-voice page-select SMC (`instpg` stride-8 table; patch value =
   `>array + page`, NEVER the bare page number); REFUSE the members whose
-  off-table read sonifies the LIVE pulsepos/filterpos (`offtable_live_pos`,
-  family-correct state windows — the f3 window applied to f4 flags glide
+  off-table read sonifies the LIVE pulsepos/filterpos — at the EXTRACT
+  boundary (`write_v5_usf` + the self-checked `defused_pool_overflow` size
+  mirror; the capture-validity fact never enters the USF), with the
+  family-correct state windows (the f3 window applied to f4 flags glide
   state instead).
 - FULL ENTRY: [`ledger/C8.md`](ledger/C8.md) — read it before applying.
 

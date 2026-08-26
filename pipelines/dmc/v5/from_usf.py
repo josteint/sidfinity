@@ -20,6 +20,61 @@ _FORCE_PAGED = False    # dev knob (tests only): run the paged packer even when
                         # every pool fits, to exercise the machinery on FULL members
 
 NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+
+
+def defused_pool_overflow(usf: UsfFile) -> 'list[str]':
+    """Which de-fused pools would exceed the 256-entry byte cursor.
+
+    SIZE-ONLY mirror of `usf_to_model`'s `_build_pools` (same program
+    lengths, same overflow-gated identical-program dedup — no layout
+    detail). `usf_to_model` asserts this mirror against its real pools on
+    EVERY build, so the two cannot drift silently.
+
+    Exists so the EXTRACT can decide the `offtable_live_pos` refusal before
+    the .usf is ever written (`write_v5_usf`): whether a member's off-table
+    freq read sonifies the live pulsepos/filterpos is extract-side knowledge
+    (it needs the player's state-block addresses), and a capture-validity
+    fact like that never belongs IN the USF — the USF carries music only.
+    """
+    over = []
+
+    def _wkey(ctrl, freq, loop):
+        n = len(ctrl)
+        return (tuple(c & 0xFF for c in ctrl),
+                tuple(f & 0xFF for f in (list(freq) + [0] * n)[:n]), loop)
+
+    ip = usf.wave_programs.get(0)
+    keys = ([_wkey(ip['ctrl'], ip['freq'], ip.get('loop', 0))]
+            if (ip and ip['ctrl']) else [])
+    keys += [_wkey(i.waveform, i.wave_freq, i.loop) for i in usf.instruments]
+    size = sum(len(k[0]) + 1 for k in keys)
+    if size > 256:                       # overflow-gated dedup, like the packer
+        size = sum(len(k[0]) + 1 for k in dict.fromkeys(keys))
+    if size > 256:
+        over.append('wave')
+
+    def _ebytes(env):
+        return 2 + 2 * len(env.phases) if env.phases else 4
+
+    for nm, dflt, dflt_empty, envs in (
+            ('pulse', usf.default_pulse, 1,
+             [i.pulse_env for i in usf.instruments if i.pulse_env]),
+            ('filter', usf.default_filter, 3,
+             [i.filter_env for i in usf.instruments if i.filter_env])):
+        base = (2 * len(dflt.phases) + 1 if dflt is not None and dflt.phases
+                else dflt_empty)
+        size = base + sum(_ebytes(e) for e in envs)
+        if size > 256:
+            seen = set()
+            size = base
+            for e in envs:
+                k = (e.start, tuple(e.phases), e.loop)
+                if k not in seen:
+                    seen.add(k)
+                    size += _ebytes(e)
+        if size > 256:
+            over.append(nm)
+    return over
 _NOTE_IDX = {n: i for i, n in enumerate(NOTE_NAMES)}
 
 
@@ -187,7 +242,6 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     m.wave_step_carry = bool(int(pf.get('wave_step_carry', 0)))
     m.vib_from_instr_bytes = bool(int(pf.get('vib_from_instr_bytes', 0)))
     m.filter_prog_8bit = bool(int(pf.get('filter_prog_8bit', 0)))
-    m.offtable_live_pos = bool(int(pf.get('offtable_live_pos', 0)))
     m.play_skip_init = int(pf.get('play_skip_init', 2))
     m.dur_ctr_init = int(pf.get('dur_ctr_init', 1))
 
@@ -416,17 +470,19 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     # 256 entries cannot be addressed by the un-paged layout. Re-lay it out
     # page-padded (pass 2) and record each instrument's page triple for the
     # composer's per-voice page-select SMC. Non-overflow members never reach
-    # pass 2 and stay byte-identical.
-    if any(len(t) > 256 for t in (wave, pulse, filt)):
-        over = [nm for nm, t in (('wave', wave), ('pulse', pulse),
-                                 ('filter', filt)) if len(t) > 256]
-        if getattr(m, 'offtable_live_pos', False):
-            # An off-table freq read of this member sonifies the LIVE
-            # pulsepos/filterpos (item 19 census): the captured static byte is
-            # a snapshot of a moving value, so a paged rebuild would ship a
-            # knowingly-wrong approximation. Refuse (ledger C8's rule).
-            raise RuntimeError(
-                f'unsupported:offtable_live_pos ({"+".join(over)} pool overflow)')
+    # pass 2 and stay byte-identical. (The offtable_live_pos refusal happens
+    # UPSTREAM, at the extract boundary in write_v5_usf — the fact it needs is
+    # extract-side and deliberately not in the USF; a live-pos USF handed
+    # straight to this function builds paged and lets verify judge it.)
+    over = [nm for nm, t in (('wave', wave), ('pulse', pulse),
+                             ('filter', filt)) if len(t) > 256]
+    mirror = defused_pool_overflow(usf)
+    if set(over) != set(mirror):
+        # drift tripwire: the size-only mirror the extract's refusal relies on
+        # must agree with the real packer, every build
+        raise RuntimeError(
+            f'defused_pool_overflow mirror drifted: packer={over} mirror={mirror}')
+    if over:
         wave, pulse, filt, ptrs = _build_pools(paged=True)
         m.instr_pages = [(w >> 8, p >> 8, f >> 8) for (w, p, f) in ptrs]
 
