@@ -1,5 +1,47 @@
 # DMC V5 — RE notes (Phase A complete)
 
+## 🔎 2026-08-26 — THE RESIDUE, RE-CENSUSED PROPERLY: it is FREQUENCY VALUES
+
+Everything below about a "$D418 lever" is superseded. A flat-stream shape
+census over a 150-member stratified sample of the 702 partials
+(`tmp/v5_shape_census2.py`, classified 150/150) says:
+
+| bucket (shape of the first FLAT divergence) | share |
+|---|---:|
+| **VALUE** — right registers, right order, WRONG VALUE | **58%** |
+| MISSING — orig writes registers we do not | 23% |
+| MIXED | 15% |
+| LENGTH — one stream just ends earlier | 3% |
+| **REORDER (C16)** | **0%** |
+
+Diverging register ROLE, orig side: **frequency dominates** — v1.freqlo 35,
+v3.freqlo 29, v2.freqlo 15, v1.freqhi 13, v2.freqhi 7, v3.freqhi 5 = **104 of
+150**. `fchi` 16. **`$D418` is 4.** Depth: median 3.7% into the song, and 50 of
+150 diverge inside the FIRST 1%.
+
+⇒ The v5 residue is a WRONG FREQUENCY VALUE, usually early — not a phase, not a
+write-order, and not $D418. Two coherent sub-patterns inside the 57
+VALUE+freq members:
+
+  * **`delta=+1` — 14 members (25%)**: our freq-lo is EXACTLY ONE higher than
+    the orig's. An off-by-one in an accumulator/rounding, not a wrong note.
+  * **`mine==0` — 14 members (25%)**: we write $00 where the orig writes a real
+    frequency — a note that never loaded, or an accumulator left clear.
+  * remaining 19 are unrelated values (wrong note / wrong table entry).
+
+⚠ **TWO CENSUSES BEFORE THIS ONE WERE ARTEFACTS. Do not repeat either.**
+  1. The `flat_div` register census ("284 members emit an extra `$D418`") counts
+     whichever registers align at the first differing POSITION; once any write is
+     one slot out, the frequently-written `$D418` appears by construction.
+  2. My own first shape census (`tmp/v5_shape_census.py`, KEPT as the worked
+     example) compared the two captures PER PLAY — but a rebuild routinely has a
+     different NUMBER of plays than the original (Confused_Again: 1946 vs 1962
+     over 40s with byte-identical per-voice write totals), so play *k* on one
+     side is not the same musical moment as play *k* on the other. It reported
+     that member as "missing the whole v3 block at play 17"; its real first
+     divergence is a `$D416` VALUE at flat position 48014. Trap C, plainly.
+  THE VERDICT COMPARES THE FLAT CONCATENATION, SO THE CENSUS MUST TOO.
+
 ## 🔎 NEXT LEVER (2026-08-24) — 268 partials: we emit ONE $D418 TOO MANY
 
 The single biggest partial cluster in v5, and it is now cleanly isolated
