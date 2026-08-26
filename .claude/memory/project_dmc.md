@@ -5,8 +5,24 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-26T20:17:33.538Z
+  modified: 2026-08-26T22:30:01.462Z
 ---
+
+## 📊 v5 FRESH FULL BATCH 2026-08-27 (overnight): 1,211/2,031 FULL (59.6%), verdicts CURRENT, mass-write synced
+
+The post-live-position-form re-batch of all 2,027 stale rows reproduced every
+verdict under the committed code: **1,211 full / 818 partial / 2 unsupported
+(`data_tables_off_image`) / 0 error**; `batch_diff --fail-on-regression` vs
+the pre-night baseline: 0 regressions, 0 flips — the ⚠STALE-VERDICTS flag is
+CLEARED. Mass-write: 1,211/1,211 written, 0 errors, 12/12 stored-pair
+rebuild audit clean; corpus 12,681/12,681 parses. ⚠ PORTFOLIO RE-DERIVATION
+DEFERRED: `select_regression_portfolio --engine dmc_v5` produced a 10-member
+set from a feature basis far coarser than the standing 50 (its census knows
+only master_vol/multi_subtune/pulse_table/sector_growth/track dims — none of
+the f4 mechanism knobs, CIA, C18 phases, paged pools, live-position) —
+REVERTED to the 50; enrich `dmc_v5_features` in the registry before trusting
+a re-derivation (open item; the 50 also lacks a paged/live-position carrier,
+so add coverage when enriching).
 
 ## ✅ v5 LIVE-POSITION FORM (owner-approved 2026-08-26): offtable_live_pos class EMPTY, v5 unsupported = 2
 
