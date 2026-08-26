@@ -51,10 +51,13 @@ class V5Model:
     instruments: list = field(default_factory=list)  # list[V5Instrument]
     # An off-table freq read SONIFIES the live pulse/filter position (the
     # engine's pulsepos/filterpos state block is reachable from the freq
-    # tables). The captured static byte is only a snapshot of a moving value,
-    # so the paged-pool rebuild (which changes our positions) must REFUSE such
-    # members rather than approximate (ledger C8 / backlog item 19 census).
+    # tables). The captured static byte is only a snapshot of a moving value.
+    # Before the paged-pool rebuild ships such a member, the read is MEASURED
+    # at its actual read moments (ledger C11 event-driven doctrine,
+    # `measure_live_window_reads`): never-fires -> inert, constant -> serve
+    # the measured value, inconstant -> refuse (C8: don't approximate).
     offtable_live_pos: bool = False
+    offtable_live_reads: set = field(default_factory=set)  # {(kind, idx)}
     wave: list = field(default_factory=list)         # list[(ctrl, freq)]
     pulse: list = field(default_factory=list)        # list[(lo, hi)]
     filter: list = field(default_factory=list)       # list[(lo, hi)]
@@ -590,6 +593,91 @@ def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
     return m
 
 
+# family-4 freq-table read sites (canon $1000-based PCs of the `LDA/CMP
+# $1719,y` / `$1779,y` instructions — every consumer of the freq tables, per
+# family4/disassembly.s; ledger C11's "ALL read sites" rule): wave-step,
+# note-init first step, note-fetch base reload, vib-step setup, glide-arrival
+# compares. Relocated by (base - $1000) at measurement time.
+_F4_FREQ_READ_SITES = {'lo': (0x1685, 0x1452),
+                       'hi': (0x168E, 0x1458, 0x13B8, 0x118E, 0x150E, 0x153B)}
+
+
+def measure_live_window_reads(cfg, m, hvsc_root: str):
+    """GROUND-TRUTH read-moment census of the off-table reads that land on the
+    live pulsepos/filterpos block (`m.offtable_live_reads`).
+
+    The reach model enumerates (instrument x played-note x transpose), which
+    OVER-approximates: a live-window record may never actually be read, or be
+    read only at moments when the live byte holds one constant value (ledger
+    C11's event-driven doctrine — measure stability AT THE READ, not over a
+    time window; the 2026-08-26 census: of 4 refused members, 1 never reads,
+    1 reads a constant, only 2 are genuinely live).
+
+    Watches every family-4 freq-table read site over each subtune's full
+    verify window via `siddump --pc-watch ... --pc-watch-abs` (libsidplayfp
+    ground truth; execution-discriminated per C36) and returns
+    `(overrides, inconstant)`: `overrides` maps (kind, idx) -> the single
+    value every read observed; `inconstant` holds (kind, idx) keys that
+    observed >= 2 values (no static byte can serve them). A key in neither is
+    never read — its captured value is inert. Returns None when the member's
+    player has no site map (only family-4 carriers exist today)."""
+    import re
+    import subprocess
+    if not getattr(cfg, 'family4', False) or not m.offtable_live_reads:
+        return None
+    root = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+    d = cfg.base - 0x1000
+    sites = {}                                   # relocated pc-hex -> kind
+    for kind, pcs in _F4_FREQ_READ_SITES.items():
+        for pc in pcs:
+            sites[f'{(pc + d) & 0xFFFF:04X}'] = kind
+    live_idx = {kind: {i for k, i in m.offtable_live_reads if k == kind}
+                for kind in ('lo', 'hi')}
+    win_lo, win_hi = 0x1800 + d, 0x1804 + d      # pulsepos x3 + filterpos
+    sid = os.path.join(hvsc_root, cfg.sid_path)
+    try:
+        from seed_disassembly import parse_psid
+        n_songs = parse_psid(sid)['songs']
+    except Exception:
+        n_songs = 1
+    try:
+        from src.songlengths import load_database, get_durations
+        db = load_database(os.path.join(hvsc_root, 'DOCUMENTS',
+                                        'Songlengths.md5'))
+        durs = get_durations(sid, db)
+    except Exception:
+        durs = None
+    seen: dict = {}                              # (kind, idx) -> set(values)
+    ev_re = re.compile(r'PW:([0-9A-F]+):[0-9A-F]+:[0-9A-F]+:([0-9A-F]+):'
+                       r'\d+:[^:|]*:([0-9A-F]+)')
+    for sub in range(n_songs):
+        dur = (durs[sub] if durs and sub < len(durs) else 110) * 1.1 + 2
+        out = subprocess.run(
+            [os.path.join(root, 'tools', 'siddump'), sid,
+             '--subtune', str(sub + 1),         # siddump subtunes are 1-BASED
+             '--pc-watch', ','.join(sites), '0-0',
+             '--pc-watch-abs', f'{win_lo:04X}-{win_hi:04X}',
+             '--duration', str(int(dur))],
+            capture_output=True, text=True, timeout=1800).stdout
+        for pc, y, absw in ev_re.findall(out):
+            kind = sites.get(pc)
+            if kind is None:
+                continue
+            idx = int(y, 16)
+            if idx not in live_idx[kind]:
+                continue
+            a = (0x1719 if kind == 'lo' else 0x1779) + d
+            src = (a + idx) & 0xFFFF
+            off = src - win_lo
+            w = [absw[i:i + 2] for i in range(0, len(absw), 2)]
+            if 0 <= off < len(w):
+                seen.setdefault((kind, idx), set()).add(int(w[off], 16))
+    overrides = {k: next(iter(v)) for k, v in seen.items() if len(v) == 1}
+    inconstant = {k for k, v in seen.items() if len(v) > 1}
+    return overrides, inconstant
+
+
 def _slice_wave(wave: list, start: int):
     """Return (ctrl, freq, loop) for the wave program at `start`. `loop` is the
     relative index the $90 marker jumps back to. (Shared with to_usf — kept here
@@ -687,12 +775,14 @@ def _assign_offtable_freq(mem, a_flo: int, a_fhi: int, m,
     def _mark_live(idx: int) -> None:
         # The read's source lands on the engine's LIVE pulsepos/filterpos
         # block: the captured byte is a snapshot of a moving value. Stamp the
-        # model so the paged-pool rebuild refuses (C8: refuse, don't
-        # approximate); the static capture itself is unchanged.
-        if live_range and any(
-                live_range[0] <= (a + idx) & 0xFFFF < live_range[1]
-                for a in (a_flo, a_fhi)):
-            m.offtable_live_pos = True
+        # model (bool + the (kind, idx) set — the read-moment measurement in
+        # `measure_live_window_reads` consumes the set); the static capture
+        # itself is unchanged here.
+        if live_range:
+            for kind, a in (('lo', a_flo), ('hi', a_fhi)):
+                if live_range[0] <= (a + idx) & 0xFFFF < live_range[1]:
+                    m.offtable_live_pos = True
+                    m.offtable_live_reads.add((kind, idx))
 
     # per-instrument melodic steps: list of (step_index, freq_offset)
     inst_steps = {}

@@ -1142,20 +1142,28 @@
     portfolio + live-pos FULL carriers) 60/60 MD5-identical. Verify counts in
     project_dmc.md (head entry 2026-08-26).
 
-    REMAINING (the only open part): 4 members whose off-table freq read
-    sonifies the LIVE pulsepos/filterpos — refused as
-    `unsupported:offtable_live_pos` AT THE EXTRACT BOUNDARY (`write_v5_usf`
-    + from_usf's self-checked `defused_pool_overflow` size mirror; the
-    capture-validity fact never enters the USF — a first-cut params key was
-    reverted the same day). Family-correct state windows; NB the 2026-08-26
-    de-risk census's "6" was measured with the family-3 window applied to
-    family-4 members, where $17F6-$17F9 is glide state — the 2 misflagged
-    members build honestly:
-      Brizz/Hardvibes_tune_1, Daf/Psychomusicdelirkill, Player_One/Valtavirtaa,
-      Praiser/Psychodelic_Killer (all family-4).
-    Serving them needs the live position preserved = option (a) (emit-and-walk
-    with original table positions in the USF, v4's `wave_table_pos` form) —
-    SCHEMA ADDITION, OWNER DECISION, parked.
+    REMAINING (the only open part): 2 members whose off-table freq read
+    sonifies the LIVE pulsepos/filterpos with INCONSTANT read-moment values —
+    refused as `unsupported:offtable_live_pos` AT THE EXTRACT BOUNDARY
+    (`write_v5_usf` + from_usf's self-checked `defused_pool_overflow` size
+    mirror; the capture-validity fact never enters the USF — a first-cut
+    params key was reverted the same day):
+      Daf/Psychomusicdelirkill (idx 136 reads $02/$04/$08),
+      Player_One/Valtavirtaa (idx 136 reads $09/$0B) — both family-4.
+    The refusal is decided by the READ-MOMENT census
+    (`measure_live_window_reads`, C11's event-driven ladder over all 8
+    family-4 freq read sites): of the original 4 refused, Hardvibes_tune_1
+    NEVER performs its enumerated read (inert -> builds) and
+    Psychodelic_Killer always observes one constant $0D (measured override ->
+    builds); both landed in the partial queue on other family-4 residue.
+    (NB the de-risk census's "6" was a window artifact — f3 window applied
+    to f4 members = glide state; those 2 also build honestly.)
+    Serving the remaining 2 needs the live position preserved = option (a)
+    (emit-and-walk with original table positions in the USF, v4's
+    `wave_table_pos` form — or a derivable position SHADOW seeded from the
+    orig table pointer, the C11 sectpos playbook; both need the orig
+    per-instrument table position in the USF) — SCHEMA ADDITION, OWNER
+    DECISION, parked.
 
     ---- historical context (superseded by the above) ----
     Originally: 103 members, blocked on a REPRESENTATION decision

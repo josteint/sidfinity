@@ -5,8 +5,24 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-26T18:08:58.455Z
+  modified: 2026-08-26T18:55:44.797Z
 ---
+
+## ✅ v5 offtable_live_pos NARROWED same day (C11 read-moment ladder): 4 refused → 2 refused, 2 freed
+
+The owner pointed at C11's live-redirect precedents; the read-moment census
+(`measure_live_window_reads` in v5 extract — `siddump --pc-watch` over all 8
+family-4 freq read sites incl. glide compares, per subtune, full verify
+window) split the 4: Hardvibes_tune_1's enumerated reads NEVER fire (reach
+model over-enumerates → inert, builds), Psychodelic_Killer's idx-231 read
+observes $0D every time (measured override, builds — both now ordinary
+family-4 partials, divergences unrelated to the live window), while
+Psychomusicdelirkill + Valtavirtaa observe 2-3 distinct values at idx 136 =
+genuinely live → stay refused (reason now names the inconstant key). Serving
+those 2 = orig table position in the USF (option (a) / C11 sectpos-style
+shadow) — owner-gated. v5 still has NO redirect machinery (C11 note); the
+ladder is refusal-scoped, zero-regression by construction (runs only for
+would-be-refused members; byte gate 60/60).
 
 ## ✅ v5 TABLE-OVERFLOW BUCKET CLOSED 2026-08-26 (backlog 19c / C8 sixth widening): 126 → 10 FULL + 112 partial + 4 refused
 

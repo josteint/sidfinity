@@ -58,7 +58,8 @@ _WALK_CAP = 5000          # max table reads before declaring the bytes corrupt.
                           # program's own loop/hold/end + _PHASE_CAP).
 from src.usf.writer import write_file
 from pipelines.dmc.v5.config import DMCV5Config
-from pipelines.dmc.v5.extract.engine_model import extract, V5Model, _slice_wave
+from pipelines.dmc.v5.extract.engine_model import (
+    extract, V5Model, _slice_wave, measure_live_window_reads)
 
 NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
@@ -673,21 +674,46 @@ def write_v5_usf(cfg: DMCV5Config, out_dir: str,
                  hvsc_root: str = 'hvsc85') -> str:
     m = extract(cfg, hvsc_root=hvsc_root)
     usf = model_to_usf(m, reach=_verify_window_frames(cfg, hvsc_root))
-    # offtable_live_pos refusal AT THE EXTRACT BOUNDARY (ledger C8 sixth
-    # widening / backlog item 19): this member's off-table freq read sonifies
-    # the LIVE pulsepos/filterpos, so its captured static values are snapshots
-    # of a moving byte — a paged rebuild would approximate, and C8's rule is
-    # refuse. The decision lives HERE because both facts it needs are known
-    # here and nowhere downstream: the live-window hit is extract-side (player
-    # state-block addresses, never in the USF — the USF carries music only),
-    # and would-the-pool-overflow comes from from_usf's size mirror (which
-    # usf_to_model self-checks against its real packer on every build).
+    # offtable_live_pos handling AT THE EXTRACT BOUNDARY (ledger C8 sixth
+    # widening + C11 event-driven doctrine / backlog item 19): this member's
+    # off-table freq read lands on the LIVE pulsepos/filterpos block, so the
+    # file-image capture is a snapshot of a moving byte. MEASURE the read at
+    # its actual read moments (libsidplayfp) before deciding: a read that
+    # never fires is inert (the reach model over-enumerates), a read that
+    # observes ONE value is served by that measured value, and only a read
+    # that observes several values is genuinely live -> REFUSE (C8: don't
+    # approximate). The decision lives HERE because its facts are known here
+    # and nowhere downstream: the live-window hit + read sites are extract-
+    # side (player state-block addresses, never in the USF — the USF carries
+    # music only), and would-the-pool-overflow comes from from_usf's size
+    # mirror (which usf_to_model self-checks against its real packer).
     if getattr(m, 'offtable_live_pos', False):
         from pipelines.dmc.v5.from_usf import defused_pool_overflow
         over = defused_pool_overflow(usf)
         if over:
-            raise RuntimeError(
-                f'unsupported:offtable_live_pos ({"+".join(over)} pool overflow)')
+            meas = measure_live_window_reads(cfg, m, hvsc_root)
+            if meas is None:
+                raise RuntimeError(
+                    f'unsupported:offtable_live_pos ({"+".join(over)} pool '
+                    f'overflow; no read-site map for this player)')
+            overrides, inconstant = meas
+            if inconstant:
+                raise RuntimeError(
+                    f'unsupported:offtable_live_pos ({"+".join(over)} pool '
+                    f'overflow; inconstant read-moment values at '
+                    f'{sorted(inconstant)})')
+            if overrides:
+                # serve each read the single value it always observes
+                for ins in m.instruments:
+                    recs = []
+                    for off, note, lo, hi in ins.offtable_freq:
+                        idx = (off + note) & 0xFF
+                        lo = overrides.get(('lo', idx), lo)
+                        hi = overrides.get(('hi', idx), hi)
+                        recs.append((off, note, lo, hi))
+                    ins.offtable_freq = sorted(set(recs))
+                usf = model_to_usf(m, reach=_verify_window_frames(cfg,
+                                                                  hvsc_root))
     base = os.path.splitext(os.path.basename(cfg.sid_path))[0]
     out = os.path.join(out_dir, base + '.usf')
     write_file(usf, out)
