@@ -60,6 +60,27 @@ coincide (same entry 46, same freq hi) while the carry differs, our
 sums agree mod 256 but not in magnitude. Some combination of our wave-step freq
 offset and our `curnote` is wrong in a way the mod-256 index hides.
 
+⛔ **REFUTED — DO NOT RE-RUN: "our wave program is one step ahead; defer the
+note-init wave landing".** The reasoning was tempting and wrong. Watching the
+ORIGINAL at the diverging write (`--memwatch-on-write D400 1012,1013,1014,
+1842,1843,1844`) shows the orig itself writes `$82` then `$83` on consecutive
+frames with `curnote=$33` and `frqbias=$00` throughout: `wavefreq+curnote =
+$FB+$33 = $12E` >= 256, so the orig's `$83` IS the carry-propagated value one
+step later. That reads as "we are one wave step ahead", and it agrees with the
+separate observation that our note-load play lands freq where the orig's lands
+AD/SR. Both point the same way — and the experiment still fails.
+
+Tested directly (composer patched to `jmp ni_pulse` before the note-init wave
+step, so the first step defers to the next play, then reverted):
+
+    Illusions      partial, play_match 74     -> UNCHANGED (74)
+    Just_for_Her   partial, play_match 11990  -> WORSE (57)
+
+So the note-init wave landing is NOT the cause: Illusions' first divergence is
+not produced by it at all, and family-4's canon behaviour really does land the
+step at note-init. Two agreeing observations still did not make a cause — the
+oracle (build it and compare) is what settled it, in ten minutes.
+
 **NEXT MEASUREMENT:** watch both inputs at the diverging write, on BOTH sides —
 `siddump --memwatch-on-write D400 <curnote $1012,x>` on the original, and the
 same against our rebuild's label (get it from `assemble(..., return_labels=True)`;
