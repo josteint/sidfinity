@@ -11,6 +11,7 @@ labels. Proves the extract captures the music. Verdict: write-log.
 from __future__ import annotations
 
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -26,6 +27,18 @@ def _byt(data) -> str:
         out.append('        .byt ' + ', '.join(f'${b & 0xFF:02X}'
                                                for b in data[i:i + 16]))
     return '\n'.join(out) if out else '        .byt $00'
+
+
+def _paged_pools(m) -> set:
+    """Which of the 3 programmable pools exceed the engine's 8-bit position
+    (ledger C8 sixth widening / backlog item 19c). from_usf's pass-2 packer
+    guarantees no program straddles a 256-byte page, so the position stays an
+    in-page offset and only the read operands' HI byte (the page) varies —
+    selected per voice by the SMC patch stubs `_apply_pool_paging` splices."""
+    if getattr(m, 'force_paged', False):   # from_usf._FORCE_PAGED (tests only)
+        return {'wave', 'pulse', 'filter'}
+    return {nm for nm, t in (('wave', m.wave), ('pulse', m.pulse),
+                             ('filter', m.filter)) if len(t) > 256}
 
 
 def _emit_data(m) -> str:
@@ -84,13 +97,31 @@ def _emit_data(m) -> str:
             ext_hi[idx] = hi
     d.append('freqlo:\n' + _byt(ext_lo))
     d.append('freqhi:\n' + _byt(ext_hi))
-    # the 3 programmable 2-byte tables (split lo/hi parallel arrays)
-    d.append('wavectrl:\n' + _byt([c for c, f in m.wave]))
-    d.append('wavefreq:\n' + _byt([f for c, f in m.wave]))
-    d.append('pulselo:\n' + _byt([lo for lo, hi in m.pulse]))
-    d.append('pulsehi:\n' + _byt([hi for lo, hi in m.pulse]))
-    d.append('filterlo:\n' + _byt([lo for lo, hi in m.filter] or [0]))
-    d.append('filterhi:\n' + _byt([hi for lo, hi in m.filter] or [0]))
+    # the 3 programmable 2-byte tables (split lo/hi parallel arrays). A PAGED
+    # pool's arrays are page-aligned so `>label + page` addresses page k of the
+    # pool exactly (the SMC stubs store that sum into the read operands).
+    paged = _paged_pools(m)
+    _align = ('        .dsb (256 - (* & 255)) & 255, $00'
+              '   ; page-align (paged pool)\n')
+
+    def _pool(nm, lab, data):
+        return (_align if nm in paged else '') + f'{lab}:\n' + _byt(data)
+    d.append(_pool('wave', 'wavectrl', [c for c, f in m.wave]))
+    d.append(_pool('wave', 'wavefreq', [f for c, f in m.wave]))
+    d.append(_pool('pulse', 'pulselo', [lo for lo, hi in m.pulse]))
+    d.append(_pool('pulse', 'pulsehi', [hi for lo, hi in m.pulse]))
+    d.append(_pool('filter', 'filterlo', [lo for lo, hi in m.filter] or [0]))
+    d.append(_pool('filter', 'filterhi', [hi for lo, hi in m.filter] or [0]))
+    if paged:
+        pages = getattr(m, 'instr_pages', None)
+        if pages is None or len(pages) != len(m.instruments):
+            raise RuntimeError(
+                'paged pools without instr_pages — build the model through '
+                'from_usf.usf_to_model (its pass-2 packer records the pages)')
+        pg = []
+        for (w, p, f) in pages:
+            pg += [w, p, f, 0, 0, 0, 0, 0]     # stride 8 = the instr record
+        d.append('instpg:\n' + _byt(pg))       # indexed by instr_n*8 (Y)
     # per-voice leftover note ($100F-$1011): the lead-in effects frame(s)
     # read it before the first fetch. ONE source — the extract reads it from
     # whichever address that member's player keeps it at (the Jupiter41
@@ -988,6 +1019,128 @@ sid_write:
 """
 
 
+_POOL_TABLES = {'wave': ('wavectrl', 'wavefreq'),
+                'pulse': ('pulselo', 'pulsehi'),
+                'filter': ('filterlo', 'filterhi')}
+
+
+def _apply_pool_paging(engine: str, state: str, m) -> 'tuple[str, str]':
+    """Splice the paged-pool machinery into the FINAL engine text (after all
+    mechanism-knob replaces, so variant-substituted read sites are seen).
+
+    Ledger C8 sixth widening (backlog item 19c): a pool past 256 entries keeps
+    its 8-bit per-voice position as an IN-PAGE offset (from_usf's packer never
+    lets a program straddle a page) and the page moves into the read operands'
+    HI byte. The three voices can sit on different pages at once, so the
+    operands are SMC-patched per voice: at note_init2 (the new instrument's
+    pages, from the stride-8 `instpg` table while Y still holds instr_n*8) and
+    at each read block's entry (eff_steady / wave_step / filter_run) from the
+    per-voice `wavepg,x`/`pulsepg,x` (filterpos is GLOBAL and V3-only, so one
+    `filtpg` byte set only when a program is SET). All three registers live in
+    the cleared state block, so a re-init lands every voice back on page 0 and
+    the entry stubs re-patch before the first read.
+    """
+    paged = _paged_pools(m)
+    # per-voice page registers inside state0..state_end (init clears -> page 0)
+    st_anchor = 'pulsepos: .dsb 3, 0'
+    if st_anchor not in state:
+        raise RuntimeError('paged pools: state-block anchor moved')
+    state = state.replace(
+        st_anchor,
+        st_anchor + '\n'
+        'wavepg:   .dsb 3, 0\n'
+        'pulsepg:  .dsb 3, 0\n'
+        'filtpg:   .dsb 1, 0')
+    tbl_of = {}                       # array label -> pool name
+    for nm, labels in _POOL_TABLES.items():
+        if nm in paged:
+            for la in labels:
+                tbl_of[la] = nm
+    site_re = re.compile(r'^\s+(lda|cmp)\s+(' + '|'.join(tbl_of) + r'),y\b')
+    # read-site region -> which page register serves it
+    region_of = {'wave': {'note_init2': 'NI', 'wave_step': 'WS'},
+                 'pulse': {'note_init2': 'NI', 'eff_steady': 'PR'},
+                 'filter': {'note_init2': 'NI', 'filter_run': 'FR'}}
+    anchors = {'note_init2:', 'eff_steady:', 'filter_run:', 'glide_slide:',
+               'wave_step:', 'gate_logic:'}
+    region = None
+    out, groups, n = [], {}, 0        # groups: (grp, array label) -> [labels]
+    for line in engine.split('\n'):
+        stripped = line.strip()
+        if stripped in anchors:
+            region = stripped[:-1]
+        mm = site_re.match(line)
+        if mm:
+            arr = mm.group(2)
+            grp = region_of[tbl_of[arr]].get(region)
+            if grp is None:
+                raise RuntimeError(
+                    f'paged pool {tbl_of[arr]}: read site in unexpected '
+                    f'region {region!r}: {stripped!r}')
+            lab = f'zpg{n}'
+            n += 1
+            groups.setdefault((grp, arr), []).append(lab)
+            out.append(f'{lab}:')
+        out.append(line)
+    engine = '\n'.join(out)
+
+    def patch(grp, pool, pgsrc):
+        """Store `>array + page` into every (grp, array) site's operand HI
+        byte. The page registers hold the raw PAGE NUMBER (0..n), so each
+        array group adds its own base hi byte — the arrays are page-aligned,
+        so `>array + page` addresses page `page` of that array exactly."""
+        s, found = '', False
+        for arr in _POOL_TABLES[pool]:
+            labs = groups.get((grp, arr), [])
+            if not labs:
+                continue
+            found = True
+            s += (f'        lda {pgsrc}\n        clc\n'
+                  f'        adc #>{arr}\n'
+                  + ''.join(f'        sta {la}+2\n' for la in labs))
+        return s, found
+
+    # --- note_init2: patch the ni read sites for the NEW instrument --------
+    # (Y still holds instr_n*8 here — instpg is stride-8 like the record)
+    ni = ''
+    if 'wave' in paged:
+        s, _ = patch('NI', 'wave', 'wavepg,x')
+        ni += '        lda instpg,y\n        sta wavepg,x\n' + s
+    if 'pulse' in paged:
+        s, _ = patch('NI', 'pulse', 'pulsepg,x')
+        ni += '        lda instpg+1,y\n        sta pulsepg,x\n' + s
+    if 'filter' in paged:
+        # FL=0 = "no restart": the running program (and its page) continues
+        s, _ = patch('NI', 'filter', 'filtpg')
+        ni += ('        lda filtflag\n        beq zpgnof\n'
+               '        lda instpg+2,y\n        sta filtpg\n'
+               + s + 'zpgnof:\n')
+    ni_anchor = '        ;; first wave-table step\n'
+    if ni_anchor not in engine:
+        raise RuntimeError('paged pools: note_init2 anchor moved')
+    engine = engine.replace(ni_anchor, ni_anchor + ni, 1)
+    # --- steady read blocks: re-patch at entry (any voice may have jumped
+    #     here without passing note_init2 this frame) -----------------------
+    if 'pulse' in paged:
+        s, found = patch('PR', 'pulse', 'pulsepg,x')
+        if not found:
+            raise RuntimeError('paged pulse pool: no pulse_run read sites')
+        engine = engine.replace('eff_steady:\n', 'eff_steady:\n' + s, 1)
+    if 'wave' in paged:
+        s, found = patch('WS', 'wave', 'wavepg,x')
+        if not found:
+            raise RuntimeError('paged wave pool: no wave_step read sites')
+        engine = engine.replace('wave_step:\n', 'wave_step:\n' + s, 1)
+    if 'filter' in paged:
+        s, found = patch('FR', 'filter', 'filtpg')
+        if not found:
+            raise RuntimeError('paged filter pool: no filter_run read sites')
+        i = engine.index('filter_run:')
+        j = engine.index('        ldy filterpos', i)
+        engine = engine[:j] + s + engine[j:]
+    return engine, state
+
+
 def emit_v5_asm(m, origin: int = 0x1000) -> str:
     state = """
 ;; ===================== state block =====================
@@ -1306,6 +1459,10 @@ state_end:
         engine = engine.replace(
             '        sta playskip\n        rts',
             '        sta playskip\n' + cia_init + '        rts')
+    # paged pools (C8 sixth widening) — LAST, so the site scan sees the final
+    # (knob-substituted) engine text. No paged pool => both strings unchanged.
+    if _paged_pools(m):
+        engine, state = _apply_pool_paging(engine, state, m)
     return consts + engine + '\n' + _emit_data(m) + '\n' + state
 
 

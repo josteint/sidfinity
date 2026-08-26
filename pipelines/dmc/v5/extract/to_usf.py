@@ -625,6 +625,9 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
             **({'wave_step_carry': 1} if getattr(m, 'wave_step_carry', False) else {}),
             **({'vib_from_instr_bytes': 1} if getattr(m, 'vib_from_instr_bytes', False) else {}),
             **({'filter_prog_8bit': 1} if getattr(m, 'filter_prog_8bit', False) else {}),
+            # an off-table freq read sonifies the LIVE pulsepos/filterpos —
+            # the paged-pool rebuild must refuse (backlog item 19 / C8)
+            **({'offtable_live_pos': 1} if getattr(m, 'offtable_live_pos', False) else {}),
             **({'play_skip_init': int(getattr(m, 'play_skip_init', 2))}
                if int(getattr(m, 'play_skip_init', 2)) != 2 else {}),
             **({'dur_ctr_init': int(getattr(m, 'dur_ctr_init', 1))}

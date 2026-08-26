@@ -1129,7 +1129,33 @@
       divergence_census entry, and all three MANDATORY docs (SCOPE.md,
       52 KB RE_NOTES.md, annotated disassembly.s).
 
-19. DMC v5 TABLE OVERFLOW — 103 members, blocked on a REPRESENTATION decision
+19. DMC v5 TABLE OVERFLOW — ✅ OPTION (c) BUILT 2026-08-26 (ledger C8 sixth
+    widening). What remains of this item is only the REFUSED live-position
+    minority below; everything else in the historical text is DONE.
+
+    LANDED: the paged composer cursor — `from_usf` pass-2 packer (page-padded
+    pools, no program straddles a page, pulse/filter never start at in-page
+    offset 0; per-instrument page triples on `m.instr_pages`) + composer
+    page-select SMC (page-aligned arrays, stride-8 `instpg` table, patch value
+    `>array + page` at note_init2 / eff_steady / wave_step / filter_run).
+    Gated on `len(pool) > 256`; byte-gate vs HEAD (tmp/v5_byte_gate.py,
+    portfolio + live-pos FULL carriers) 60/60 MD5-identical. Verify counts in
+    project_dmc.md (head entry 2026-08-26).
+
+    REMAINING (the only open part): 4 members whose off-table freq read
+    sonifies the LIVE pulsepos/filterpos — refused as
+    `unsupported:offtable_live_pos` (extract stamps the params key from the
+    family-correct state windows; NB the 2026-08-26 de-risk census's "6" was
+    measured with the family-3 window applied to family-4 members, where
+    $17F6-$17F9 is glide state — the 2 misflagged members build honestly):
+      Brizz/Hardvibes_tune_1, Daf/Psychomusicdelirkill, Player_One/Valtavirtaa,
+      Praiser/Psychodelic_Killer (all family-4).
+    Serving them needs the live position preserved = option (a) (emit-and-walk
+    with original table positions in the USF, v4's `wave_table_pos` form) —
+    SCHEMA ADDITION, OWNER DECISION, parked.
+
+    ---- historical context (superseded by the above) ----
+    Originally: 103 members, blocked on a REPRESENTATION decision
     (owner-approval gate). Parked 2026-08-24 by the overnight session.
 
     MEASURED (tmp/v5_overflow_probe.json):

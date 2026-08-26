@@ -289,6 +289,14 @@ practice, not code to factor).
   SPLIT per subtune-component (`_split_wave_pools`: component idle at pos 0,
   init SMC-patches the 4 wave-step read operands via wpooltab[cursong]);
   fires only where the single pool overflowed = previously a hard error.
+  6th widening (2026-08-26, v5 table-overflow bucket, backlog item 19c):
+  PAGE the composer's own pulse/filter/wave cursor — from_usf pass-2 packer
+  (no program straddles a page; pulse/filter never start at in-page offset 0)
+  + per-voice page-select SMC (`instpg` stride-8 table; patch value =
+  `>array + page`, NEVER the bare page number); REFUSE the members whose
+  off-table read sonifies the LIVE pulsepos/filterpos (`offtable_live_pos`,
+  family-correct state windows — the f3 window applied to f4 flags glide
+  state instead).
 - FULL ENTRY: [`ledger/C8.md`](ledger/C8.md) — read it before applying.
 
 ### C9 — a runtime parameter py65 can't read → measure it from the writelog

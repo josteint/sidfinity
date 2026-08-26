@@ -5,8 +5,36 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-25T23:04:07.877Z
+  modified: 2026-08-26T17:27:16.975Z
 ---
+
+## ✅ v5 TABLE-OVERFLOW BUCKET CLOSED 2026-08-26 (backlog 19c / C8 sixth widening): 126 → 10 FULL + 112 partial + 4 refused
+
+The whole `*_table_overflow` unsupported bucket (126 members, the last v5
+unsupported class) now BUILDS via the PAGED composer cursor — option (c),
+no schema/USF change. Full design + the traps in ledger C8's sixth-widening
+section (`docs/ledger/C8.md`); implementation: `from_usf.py` two-pass
+`_build_pools` (page-padded pass 2, `m.instr_pages`) + `composer_v5.py`
+`_apply_pool_paging` (page-aligned arrays, stride-8 `instpg`, per-voice SMC —
+patch value `>array + page`, NOT the bare page). Gated `len(pool) > 256`;
+byte-gate 60/60 MD5-identical vs HEAD (`tmp/v5_byte_gate.py`, portfolio + the
+10 FULL live-pos carriers). Force-paged validation: 6/6 diverse FULLs stay
+FULL (`from_usf._FORCE_PAGED`).
+
+Results (`tmp/v5_overflow_verify.jsonl`, rows appended to the live store):
+**10 FULL** (4× Astovel, Highest_Fall, Better_Off_Alone, Tivoli, Virus,
+Emersons_Horn_Pipe, Take_That_Core), **112 partial** (median depth 0 — nearly
+all family-4, sitting on the known C18/C23 note-load phase lever, i.e. the
+family's existing top partial class, not a paging artifact), **4 refused**
+`unsupported:offtable_live_pos` (Hardvibes_tune_1, Psychomusicdelirkill,
+Valtavirtaa, Psychodelic_Killer — their off-table freq read sonifies the LIVE
+pulsepos/filterpos; serving them = backlog 19's remaining option-(a) OWNER
+DECISION). NB the de-risk census's "6 refuse" was a window artifact (f3
+window applied to f4 = glide state); the extract now stamps
+`offtable_live_pos` from the family-correct windows (f3 base+$7F6-$7F9, f4
+base+$800-$803) — 10 currently-FULL members carry the (inert) key too.
+⚠ code_hash changed → ALL prior v5 rows stale; re-batch before quoting
+family totals (the head count below is now the stale baseline).
 
 ## 📊 v5 OVERNIGHT 2026-08-25/26: 1,201/2,031 FULL (59.1%), error+wave_slice+trailing CLOSED
 

@@ -330,6 +330,11 @@
    "category": "temporal-dispatch",
    "licensed_by": "C18 (per-call phase schedule)",
    "note": "MIGRATED to the typed Environment.play_phases field (trichotomy \u00a74.3) on 2026-08-23 \u2014 ledger C33. The key is still read as a FALLBACK because ~5.4k stored .usf carry the old params form; delete this row once they are regenerated."
+  },
+  "offtable_live_pos": {
+   "category": "mechanism-knob",
+   "licensed_by": "ledger C8 (paged-pool refusal gate, backlog item 19 census 2026-08-26)",
+   "note": "an off-table freq read sonifies the LIVE pulsepos/filterpos; the paged-pool rebuild refuses instead of approximating (read only in the overflow branch)"
   }
  }
 }

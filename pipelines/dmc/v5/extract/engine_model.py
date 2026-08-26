@@ -49,6 +49,12 @@ class V5Model:
     # (off-table freq reads ride per-instrument `V5Instrument.offtable_freq`;
     # the old contiguous freq_overrun window was removed 2026-06-21.)
     instruments: list = field(default_factory=list)  # list[V5Instrument]
+    # An off-table freq read SONIFIES the live pulse/filter position (the
+    # engine's pulsepos/filterpos state block is reachable from the freq
+    # tables). The captured static byte is only a snapshot of a moving value,
+    # so the paged-pool rebuild (which changes our positions) must REFUSE such
+    # members rather than approximate (ledger C8 / backlog item 19 census).
+    offtable_live_pos: bool = False
     wave: list = field(default_factory=list)         # list[(ctrl, freq)]
     pulse: list = field(default_factory=list)        # list[(lo, hi)]
     filter: list = field(default_factory=list)       # list[(lo, hi)]
@@ -567,10 +573,20 @@ def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
     # that index and the rebuild played $00 where the orig played the byte.
     # Canon members are unaffected (their `lo_notes` is identical either side of
     # the block), so moving the call is byte-identical for family-3/5.
+    # Live-position window (backlog item 19 census): the per-voice pulsepos +
+    # global filterpos of the member's own player — family-3/5 keeps them at
+    # base+$7F6..$7F9, family-4 at base+$800..$803 ($1800,x / $1803 in the
+    # $1000-based disassembly). Both are state-block addresses, fixed relative
+    # to the player base regardless of how the data tables were packed.
+    _d = cfg.base - 0x1000
+    _live = ((0x1800 + _d, 0x1804 + _d)
+             if getattr(cfg, 'family4', False)
+             else (cfg.base + 0x7F6, cfg.base + 0x7FA))
     _assign_offtable_freq(mem, a_flo, a_fhi, m,
                           clear_range=(_init_clear_range(mem, cfg.base)
                                        if getattr(cfg, 'family4', False)
-                                       else None))
+                                       else None),
+                          live_range=_live)
     return m
 
 
@@ -657,7 +673,8 @@ def _init_clear_range(mem, base: int) -> 'tuple[int, int] | None':
 
 
 def _assign_offtable_freq(mem, a_flo: int, a_fhi: int, m,
-                          clear_range: 'tuple[int, int] | None' = None) -> None:
+                          clear_range: 'tuple[int, int] | None' = None,
+                          live_range: 'tuple[int, int] | None' = None) -> None:
     """Set `offtable_freq` on each instrument: per (wave step, effective note)
     the explicit (lo,hi) frequency the step produces when its note-relative
     index `(wave_freq[step] + note) & $FF` runs past the 96-entry freq table.
@@ -667,6 +684,16 @@ def _assign_offtable_freq(mem, a_flo: int, a_fhi: int, m,
     the arpeggio, not bytes-at-offset. The lead-in idle program at index 0 IS
     captured, in the second pass below — which is why this must be called after
     `m.lo_notes` has been resolved to the member's real leftover addresses."""
+    def _mark_live(idx: int) -> None:
+        # The read's source lands on the engine's LIVE pulsepos/filterpos
+        # block: the captured byte is a snapshot of a moving value. Stamp the
+        # model so the paged-pool rebuild refuses (C8: refuse, don't
+        # approximate); the static capture itself is unchanged.
+        if live_range and any(
+                live_range[0] <= (a + idx) & 0xFFFF < live_range[1]
+                for a in (a_flo, a_fhi)):
+            m.offtable_live_pos = True
+
     # per-instrument melodic steps: list of (step_index, freq_offset)
     inst_steps = {}
     for ins in m.instruments:
@@ -722,6 +749,7 @@ def _assign_offtable_freq(mem, a_flo: int, a_fhi: int, m,
                     cn = (n + t) & 0xFF
                     idx = (off + cn) & 0xFF
                     if idx > 95:
+                        _mark_live(idx)
                         recs.add((off, cn, mem[(a_flo + idx) & 0xFFFF],
                                   mem[(a_fhi + idx) & 0xFFFF]))
         ins.offtable_freq = sorted(recs)
@@ -785,5 +813,6 @@ def _assign_offtable_freq(mem, a_flo: int, a_fhi: int, m,
                     cn = (n + t) & 0xFF
                     idx = (off + cn) & 0xFF
                     if idx > 95:
+                        _mark_live(idx)
                         recs.add((off, cn, _at(a_flo + idx), _at(a_fhi + idx)))
         m.instruments[0].offtable_freq = sorted(recs)

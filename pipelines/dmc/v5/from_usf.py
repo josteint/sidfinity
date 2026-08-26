@@ -16,6 +16,9 @@ from __future__ import annotations
 from src.usf.types import UsfFile, Pitch
 from pipelines.dmc.v5.extract.engine_model import V5Model, V5Instrument
 
+_FORCE_PAGED = False    # dev knob (tests only): run the paged packer even when
+                        # every pool fits, to exercise the machinery on FULL members
+
 NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 _NOTE_IDX = {n: i for i, n in enumerate(NOTE_NAMES)}
 
@@ -184,35 +187,9 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     m.wave_step_carry = bool(int(pf.get('wave_step_carry', 0)))
     m.vib_from_instr_bytes = bool(int(pf.get('vib_from_instr_bytes', 0)))
     m.filter_prog_8bit = bool(int(pf.get('filter_prog_8bit', 0)))
+    m.offtable_live_pos = bool(int(pf.get('offtable_live_pos', 0)))
     m.play_skip_init = int(pf.get('play_skip_init', 2))
     m.dur_ctr_init = int(pf.get('dur_ctr_init', 1))
-
-    # ---- re-pack the shared wave table (idle program at index 0, then
-    #      each instrument's program) and reassign pointers -------------
-    wave = []
-
-    # Dedup identical (ctrl, freq, loop) wave programs into one pooled copy. The
-    # single-byte wavepos caps the pool at 256 bytes; un-shared per-instrument
-    # programs overflow it on many-instrument tunes (wave_table_overflow). Sharing
-    # is byte-identical for the write stream — each note re-inits wavepos to the
-    # instrument's ptr and reads the same sequence, and the absolute $90 target
-    # loops to the shared copy's own loop point — so this is pure packing. Mirrors
-    # the V4 composer_asm pool dedup (ledger C8), ported to the V5 from_usf path.
-    _wseen: dict = {}
-
-    def add_wave(ctrl, freq, loop):
-        n = len(ctrl)
-        cb = tuple(c & 0xFF for c in ctrl)
-        fb = tuple(f & 0xFF for f in (list(freq) + [0] * n)[:n])
-        key = (cb, fb, loop)
-        if _dedup and key in _wseen:
-            return _wseen[key]
-        s = len(wave)
-        for c, f in zip(cb, fb):
-            wave.append((c, f))
-        wave.append((0x90, (s + loop) & 0xFF))       # V5 marker: freq = abs target
-        _wseen[key] = s
-        return s
 
     # Share identical (ctrl, freq, loop) programs ONLY when the un-shared pool
     # would overflow the 256-byte single-byte wavepos. Non-overflow members keep
@@ -228,165 +205,243 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     _idle_n = (len(ip['ctrl']) + 1) if (ip and ip['ctrl']) else 0
     _dedup = _idle_n + sum(len(i.waveform) + 1 for i in usf.instruments) > 256
 
-    if ip and ip['ctrl']:
-        add_wave(ip['ctrl'], ip['freq'], ip.get('loop', 0))
-
-    # ---- synthesize the de-fused pulse/filter tables from the per-
-    #      instrument envelopes (null entry 0, then each envelope's program;
-    #      a $90 terminal so the program holds its loop/last phase and
-    #      doesn't bleed into the next). The engine walks each instrument's
-    #      own copy, so keep-running continuations stay faithful. ----------
-    # ---- pulse table position 0 = the per-voice DEFAULT (idle) PW program when
-    #      present (pulse_run runs it from pulsepos=0). When ABSENT, keep the
-    #      single null (0,0) entry — NOT a 3-entry hold: pulse_run was never
-    #      gated, so the single (0,0) with its benign OOB-count read is exactly
-    #      the 891-FULL behavior; the 3-entry hold shifts the de-fused table and
-    #      regressed 135 members (see RE_NOTES dead-end). The idle has no start
-    #      entry (PW continues from the cleared 0). ----------
-    pulse = []
-    dp = usf.default_pulse
-    if dp is not None and dp.phases:
-        for rate, frames in dp.phases:
-            a = rate & 0xFFFF
-            pulse.append(((a >> 8) & 0xFF, a & 0xFF))                  # ADD
-            pulse.append(((frames >> 8) & 0xFF, frames & 0xFF))        # count
-        lp = dp.loop if dp.loop is not None else len(dp.phases) - 1
-        pulse.append((0x90, (2 * lp) & 0xFF))                          # loop onto a phase
-    else:
-        pulse = [(0, 0)]                                               # null pos 0 (891 behavior)
-
-    # ---- filter table position 0 = the V3 DEFAULT (idle) filter program, run
-    #      from frame 0 (filterpos starts at 0). The real default_filter sweep
-    #      when present, else a (0,0) HOLD (zero-ADD, count==0 = 65536-frame
-    #      hold, $90 self-loop) so the composer can run filter_run for V3 every
-    #      frame without an out-of-bounds count read. The idle program has NO
-    #      start entry (it continues from the init.sid.filter priming cutoff) —
-    #      its ADD/count pairs begin at position 0. ----------
-    filt = []
-    df = usf.default_filter
-    if getattr(m, 'filter_prog_8bit', False) and df is not None and df.phases:
-        # family-4: 8-bit (add, count) program. add -> filterlo[2k]; count ->
-        # filterhi[2k+1]; the other byte of each pair is unread by the 2-step
-        # walk, so leave it 0. count 256 -> byte 0 (the engine's 8-bit counter
-        # wraps). $90 loops to position 2*lp.
-        for add, count in df.phases:
-            filt.append((add & 0xFF, 0))
-            filt.append((0, count & 0xFF))
-        lp = df.loop if df.loop is not None else len(df.phases) - 1
-        filt.append((0x90, (2 * lp) & 0xFF))
-    elif df is not None and df.phases:
-        for rate, frames in df.phases:
-            a = rate & 0xFFFF
-            filt.append(((a >> 8) & 0xFF, a & 0xFF))                # ADD
-            filt.append(((frames >> 8) & 0xFF, frames & 0xFF))      # count
-        lp = df.loop if df.loop is not None else len(df.phases) - 1
-        filt.append((0x90, (2 * lp) & 0xFF))                        # loop onto a phase
-    else:
-        filt = [(0, 0), (0, 0), (0x90, 0)]                          # hold at pos 0
-
-    def add_env(table, env):
-        s = len(table)
-        table.append(((env.start >> 8) & 0xFF, env.start & 0xFF))   # init pair
-        for rate, frames in env.phases:
-            a = rate & 0xFFFF
-            table.append(((a >> 8) & 0xFF, a & 0xFF))               # step
-            table.append(((frames >> 8) & 0xFF, frames & 0xFF))     # count
-        if env.phases:
-            lp = env.loop if env.loop is not None else len(env.phases) - 1
-            table.append((0x90, (s + 1 + 2 * lp) & 0xFF))      # loop onto a step
-        else:
-            # Static env (no sweep): HOLD the start value. A bare `$90 -> start`
-            # makes the engine's run-loop re-read the START pair as an ADD step
-            # (ramping +start.hi per frame — the dominant V5 pulse/filter bug).
-            # Instead sit on a zero-ADD with a count==0 (= 65536-frame wrap), so
-            # the value is held; the $90 loops back onto that zero-ADD.
-            table.append((0x00, 0x00))            # s+1: zero ADD (held)
-            table.append((0x00, 0x00))            # s+2: count 0 -> 65536-frame hold
-            table.append((0x90, (s + 1) & 0xFF))  # s+3: loop onto the zero ADD
-        return s
-
-    def add_env_f4(table, env):
-        # family-4 8-bit (add, count) layout: filterlo[s] = start cutoff (the
-        # engine's $1019 = filterlo[byte4] re-init), then the sweep at s+1:
-        # filterlo[2k+1] = add, filterhi[2k+2] = count; $90 loops to phase lp.
-        # The de-fused per-instrument copy (ledger C8); fptr is the composer's
-        # own re-packed index, never serialized.
-        s = len(table)
-        table.append((env.start & 0xFF, 0))               # filterlo[s] = start
-        for add, count in env.phases:
-            table.append((add & 0xFF, 0))                 # filterlo = add
-            table.append((0, count & 0xFF))               # filterhi = count (256->0)
-        if env.phases:
-            lp = env.loop if env.loop is not None else len(env.phases) - 1
-            table.append((0x90, (s + 1 + 2 * lp) & 0xFF))
-        else:
-            table.append((0x00, 0x00))                    # zero-ADD hold
-            table.append((0x00, 0x00))                    # count 0 -> 256-frame hold
-            table.append((0x90, (s + 1) & 0xFF))
-        return s
-
-    _f4 = getattr(m, 'pulse_ctr_8bit', False)
-    # Overflow-gated identical-pulse-program dedup (mirrors the wave-pool dedup,
-    # ledger C8). A family-4 OFF-TABLE pulse program is large (a one-shot ramp
-    # captured to _PHASE_CAP ~= 97 bytes), so many instruments sharing a few
-    # programs overflow the 256-byte single-byte pulsepos when un-shared (Jupiter41:
-    # 16 insts, 5 distinct programs -> 356 bytes un-shared, 209 shared). When the
-    # un-shared pool would overflow, share identical (start, phases, loop) programs:
-    # byte-identical for the write stream (each note re-inits pulsepos to the program
-    # start and reads the same sequence). Gated to overflow-only — non-overflow
-    # members keep their exact un-shared layout (pulse sharing is position-dependent
-    # like wave, via the absolute $90 markers), so this is zero-regression by
-    # construction (never touches a member that already builds).
     def _env_bytes(env):
         return 2 + 2 * len(env.phases) if env.phases else 4
-    _pulse_undedup = len(pulse) + sum(_env_bytes(i.pulse_env)
-                                      for i in usf.instruments if i.pulse_env)
-    _pulse_dedup = _pulse_undedup > 256
-    _pseen: dict = {}
 
-    def add_pulse(env):
-        key = (env.start, tuple(env.phases), env.loop)
-        if _pulse_dedup and key in _pseen:
-            return _pseen[key]
-        s = add_env(pulse, env)
-        _pseen[key] = s
-        return s
+    # ---- pool construction, two-pass (ledger C8 sixth widening — the paged
+    #      composer cursor, backlog item 19 option (c)). Pass 1 (paged=False)
+    #      is the historical layout, byte-for-byte: every member whose pools
+    #      fit 256 entries keeps it. Only when a pool overflows is pass 2 run,
+    #      which lays the SAME programs out page-padded: a program (incl. its
+    #      $90 marker) never straddles a 256-byte page, so the engine's 8-bit
+    #      position stays a valid in-page offset, the $90 marker's `& $FF`
+    #      target stays correct, and only the read operands' HI byte (the
+    #      page) changes — selected per voice by the composer's SMC patches.
+    def _build_pools(paged: bool):
+        def _pad(table, proglen, no_zero_off):
+            if not paged:
+                return
+            if proglen > 256:
+                # a single program can never span two pages (unreachable:
+                # _PHASE_CAP bounds captures at ~97 bytes)
+                raise RuntimeError(f'unsupported:prog_too_long {proglen}')
+            off = len(table) & 0xFF
+            if off and off + proglen > 256:
+                table.extend([(0, 0)] * (256 - off))
+            if no_zero_off and table and (len(table) & 0xFF) == 0:
+                # the engine reads pulse_ptr/filter_ptr LOW byte as its
+                # "restart?" flag (0 = no restart) — never place a real
+                # program at an in-page offset of 0
+                table.append((0, 0))
 
-    # Overflow-gated FILTER-pool dedup — same as the pulse/wave pools (ledger C8). A
-    # correctly-captured off-table filter program is large, so many instruments over
-    # few programs overflow the 256-byte filterpos un-shared; share identical programs
-    # when the un-shared pool would overflow. Gated to overflow-only -> zero-regression.
-    _filter_undedup = len(filt) + sum(_env_bytes(i.filter_env)
-                                      for i in usf.instruments if i.filter_env)
-    _filter_dedup = _filter_undedup > 256
-    _fseen: dict = {}
+        # ---- re-pack the shared wave table (idle program at index 0, then
+        #      each instrument's program) and reassign pointers -------------
+        wave = []
+        # Dedup identical (ctrl, freq, loop) wave programs into one pooled
+        # copy (see the gate note above): each note re-inits wavepos to the
+        # instrument's ptr and reads the same sequence, and the absolute $90
+        # target loops to the shared copy's own loop point.
+        _wseen: dict = {}
 
-    def add_filter(env):
-        key = (env.start, tuple(env.phases), env.loop)
-        if _filter_dedup and key in _fseen:
-            return _fseen[key]
-        s = add_env_f4(filt, env) if _f4 else add_env(filt, env)
-        _fseen[key] = s
-        return s
+        def add_wave(ctrl, freq, loop):
+            n = len(ctrl)
+            cb = tuple(c & 0xFF for c in ctrl)
+            fb = tuple(f & 0xFF for f in (list(freq) + [0] * n)[:n])
+            key = (cb, fb, loop)
+            if _dedup and key in _wseen:
+                return _wseen[key]
+            _pad(wave, n + 1, False)
+            s = len(wave)
+            for c, f in zip(cb, fb):
+                wave.append((c, f))
+            wave.append((0x90, (s + loop) & 0xFF))   # V5 marker: freq = abs target
+            _wseen[key] = s
+            return s
 
-    for inst in usf.instruments:
-        wptr = add_wave(inst.waveform, inst.wave_freq, inst.loop)
-        pptr = add_pulse(inst.pulse_env) if inst.pulse_env else 0
-        fptr = add_filter(inst.filter_env) if inst.filter_env else 0
+        if ip and ip['ctrl']:
+            add_wave(ip['ctrl'], ip['freq'], ip.get('loop', 0))
+
+        # ---- synthesize the de-fused pulse/filter tables from the per-
+        #      instrument envelopes (null entry 0, then each envelope's program;
+        #      a $90 terminal so the program holds its loop/last phase and
+        #      doesn't bleed into the next). The engine walks each instrument's
+        #      own copy, so keep-running continuations stay faithful. ----------
+        # ---- pulse table position 0 = the per-voice DEFAULT (idle) PW program when
+        #      present (pulse_run runs it from pulsepos=0). When ABSENT, keep the
+        #      single null (0,0) entry — NOT a 3-entry hold: pulse_run was never
+        #      gated, so the single (0,0) with its benign OOB-count read is exactly
+        #      the 891-FULL behavior; the 3-entry hold shifts the de-fused table and
+        #      regressed 135 members (see RE_NOTES dead-end). The idle has no start
+        #      entry (PW continues from the cleared 0). ----------
+        pulse = []
+        dp = usf.default_pulse
+        if dp is not None and dp.phases:
+            for rate, frames in dp.phases:
+                a = rate & 0xFFFF
+                pulse.append(((a >> 8) & 0xFF, a & 0xFF))              # ADD
+                pulse.append(((frames >> 8) & 0xFF, frames & 0xFF))    # count
+            lp = dp.loop if dp.loop is not None else len(dp.phases) - 1
+            pulse.append((0x90, (2 * lp) & 0xFF))                      # loop onto a phase
+        else:
+            pulse = [(0, 0)]                                           # null pos 0 (891 behavior)
+
+        # ---- filter table position 0 = the V3 DEFAULT (idle) filter program, run
+        #      from frame 0 (filterpos starts at 0). The real default_filter sweep
+        #      when present, else a (0,0) HOLD (zero-ADD, count==0 = 65536-frame
+        #      hold, $90 self-loop) so the composer can run filter_run for V3 every
+        #      frame without an out-of-bounds count read. The idle program has NO
+        #      start entry (it continues from the init.sid.filter priming cutoff) —
+        #      its ADD/count pairs begin at position 0. ----------
+        filt = []
+        df = usf.default_filter
+        if getattr(m, 'filter_prog_8bit', False) and df is not None and df.phases:
+            # family-4: 8-bit (add, count) program. add -> filterlo[2k]; count ->
+            # filterhi[2k+1]; the other byte of each pair is unread by the 2-step
+            # walk, so leave it 0. count 256 -> byte 0 (the engine's 8-bit counter
+            # wraps). $90 loops to position 2*lp.
+            for add, count in df.phases:
+                filt.append((add & 0xFF, 0))
+                filt.append((0, count & 0xFF))
+            lp = df.loop if df.loop is not None else len(df.phases) - 1
+            filt.append((0x90, (2 * lp) & 0xFF))
+        elif df is not None and df.phases:
+            for rate, frames in df.phases:
+                a = rate & 0xFFFF
+                filt.append(((a >> 8) & 0xFF, a & 0xFF))            # ADD
+                filt.append(((frames >> 8) & 0xFF, frames & 0xFF))  # count
+            lp = df.loop if df.loop is not None else len(df.phases) - 1
+            filt.append((0x90, (2 * lp) & 0xFF))                    # loop onto a phase
+        else:
+            filt = [(0, 0), (0, 0), (0x90, 0)]                      # hold at pos 0
+
+        def add_env(table, env):
+            s = len(table)
+            table.append(((env.start >> 8) & 0xFF, env.start & 0xFF))  # init pair
+            for rate, frames in env.phases:
+                a = rate & 0xFFFF
+                table.append(((a >> 8) & 0xFF, a & 0xFF))           # step
+                table.append(((frames >> 8) & 0xFF, frames & 0xFF))  # count
+            if env.phases:
+                lp = env.loop if env.loop is not None else len(env.phases) - 1
+                table.append((0x90, (s + 1 + 2 * lp) & 0xFF))  # loop onto a step
+            else:
+                # Static env (no sweep): HOLD the start value. A bare `$90 -> start`
+                # makes the engine's run-loop re-read the START pair as an ADD step
+                # (ramping +start.hi per frame — the dominant V5 pulse/filter bug).
+                # Instead sit on a zero-ADD with a count==0 (= 65536-frame wrap), so
+                # the value is held; the $90 loops back onto that zero-ADD.
+                table.append((0x00, 0x00))            # s+1: zero ADD (held)
+                table.append((0x00, 0x00))            # s+2: count 0 -> 65536-frame hold
+                table.append((0x90, (s + 1) & 0xFF))  # s+3: loop onto the zero ADD
+            return s
+
+        def add_env_f4(table, env):
+            # family-4 8-bit (add, count) layout: filterlo[s] = start cutoff (the
+            # engine's $1019 = filterlo[byte4] re-init), then the sweep at s+1:
+            # filterlo[2k+1] = add, filterhi[2k+2] = count; $90 loops to phase lp.
+            # The de-fused per-instrument copy (ledger C8); fptr is the composer's
+            # own re-packed index, never serialized.
+            s = len(table)
+            table.append((env.start & 0xFF, 0))               # filterlo[s] = start
+            for add, count in env.phases:
+                table.append((add & 0xFF, 0))                 # filterlo = add
+                table.append((0, count & 0xFF))               # filterhi = count (256->0)
+            if env.phases:
+                lp = env.loop if env.loop is not None else len(env.phases) - 1
+                table.append((0x90, (s + 1 + 2 * lp) & 0xFF))
+            else:
+                table.append((0x00, 0x00))                    # zero-ADD hold
+                table.append((0x00, 0x00))                    # count 0 -> 256-frame hold
+                table.append((0x90, (s + 1) & 0xFF))
+            return s
+
+        _f4 = getattr(m, 'pulse_ctr_8bit', False)
+        # Overflow-gated identical-pulse-program dedup (mirrors the wave-pool dedup,
+        # ledger C8). A family-4 OFF-TABLE pulse program is large (a one-shot ramp
+        # captured to _PHASE_CAP ~= 97 bytes), so many instruments sharing a few
+        # programs overflow the 256-byte single-byte pulsepos when un-shared (Jupiter41:
+        # 16 insts, 5 distinct programs -> 356 bytes un-shared, 209 shared). When the
+        # un-shared pool would overflow, share identical (start, phases, loop) programs:
+        # byte-identical for the write stream (each note re-inits pulsepos to the program
+        # start and reads the same sequence). Gated to overflow-only — non-overflow
+        # members keep their exact un-shared layout (pulse sharing is position-dependent
+        # like wave, via the absolute $90 markers), so this is zero-regression by
+        # construction (never touches a member that already builds).
+        _pulse_undedup = len(pulse) + sum(_env_bytes(i.pulse_env)
+                                          for i in usf.instruments if i.pulse_env)
+        _pulse_dedup = _pulse_undedup > 256
+        _pseen: dict = {}
+
+        def add_pulse(env):
+            key = (env.start, tuple(env.phases), env.loop)
+            if _pulse_dedup and key in _pseen:
+                return _pseen[key]
+            _pad(pulse, _env_bytes(env), True)
+            s = add_env(pulse, env)
+            _pseen[key] = s
+            return s
+
+        # Overflow-gated FILTER-pool dedup — same as the pulse/wave pools (ledger C8). A
+        # correctly-captured off-table filter program is large, so many instruments over
+        # few programs overflow the 256-byte filterpos un-shared; share identical programs
+        # when the un-shared pool would overflow. Gated to overflow-only -> zero-regression.
+        _filter_undedup = len(filt) + sum(_env_bytes(i.filter_env)
+                                          for i in usf.instruments if i.filter_env)
+        _filter_dedup = _filter_undedup > 256
+        _fseen: dict = {}
+
+        def add_filter(env):
+            key = (env.start, tuple(env.phases), env.loop)
+            if _filter_dedup and key in _fseen:
+                return _fseen[key]
+            _pad(filt, _env_bytes(env), True)
+            s = add_env_f4(filt, env) if _f4 else add_env(filt, env)
+            _fseen[key] = s
+            return s
+
+        ptrs = []
+        for inst in usf.instruments:
+            wptr = add_wave(inst.waveform, inst.wave_freq, inst.loop)
+            pptr = add_pulse(inst.pulse_env) if inst.pulse_env else 0
+            fptr = add_filter(inst.filter_env) if inst.filter_env else 0
+            ptrs.append((wptr, pptr, fptr))
+        return wave, pulse, filt, ptrs
+
+    wave, pulse, filt, ptrs = _build_pools(paged=False)
+    if _FORCE_PAGED:                       # dev knob: exercise pass 2 on a
+        wave, pulse, filt, ptrs = _build_pools(paged=True)   # fitting member
+        m.instr_pages = [(w >> 8, p >> 8, f >> 8) for (w, p, f) in ptrs]
+        m.force_paged = True
+    # pulsepos / filterpos / wavepos are byte-indexed in the engine: a pool past
+    # 256 entries cannot be addressed by the un-paged layout. Re-lay it out
+    # page-padded (pass 2) and record each instrument's page triple for the
+    # composer's per-voice page-select SMC. Non-overflow members never reach
+    # pass 2 and stay byte-identical.
+    if any(len(t) > 256 for t in (wave, pulse, filt)):
+        over = [nm for nm, t in (('wave', wave), ('pulse', pulse),
+                                 ('filter', filt)) if len(t) > 256]
+        if getattr(m, 'offtable_live_pos', False):
+            # An off-table freq read of this member sonifies the LIVE
+            # pulsepos/filterpos (item 19 census): the captured static byte is
+            # a snapshot of a moving value, so a paged rebuild would ship a
+            # knowingly-wrong approximation. Refuse (ledger C8's rule).
+            raise RuntimeError(
+                f'unsupported:offtable_live_pos ({"+".join(over)} pool overflow)')
+        wave, pulse, filt, ptrs = _build_pools(paged=True)
+        m.instr_pages = [(w >> 8, p >> 8, f >> 8) for (w, p, f) in ptrs]
+
+    for inst, (wptr, pptr, fptr) in zip(usf.instruments, ptrs):
         v = inst.vibrato
         m.instruments.append(V5Instrument(
             id=inst.id, ad=inst.adsr[0], sr=inst.adsr[1],
-            wave_ptr=wptr, pulse_ptr=pptr, filter_ptr=fptr,
+            wave_ptr=wptr & 0xFF, pulse_ptr=pptr & 0xFF,
+            filter_ptr=fptr & 0xFF,
             vib_delay=v.onset, vib_speed=v.speed, vib_width=v.amplitude,
             offtable_freq=list(getattr(inst, 'offtable_freq', []) or [])))
 
     m.wave = wave
     m.pulse = pulse
     m.filter = filt
-    # pulsepos / filterpos / wavepos are byte-indexed in the engine
-    for nm, tbl in (('wave', wave), ('pulse', pulse), ('filter', filt)):
-        if len(tbl) > 256:
-            raise RuntimeError(f'unsupported:{nm}_table_overflow {len(tbl)}')
 
     # ---- sectors: content-dedup the patterns of ALL subtunes' voices into
     #      one shared global pool; remap orderlist entries to it -----------
