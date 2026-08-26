@@ -401,11 +401,12 @@ practice, not code to factor).
   as progress. TELLs: a cluster whose (orig,mine) values are EOR-$0F
   complements = redirect row naming the complement var; "voice drops one
   update at a pattern boundary" = init-cleared seed; per-(inst,off,note)-
-  stable dynamic byte = event-driven capture; a refusal keyed on ENUMERATED
-  reach must measure READ OCCURRENCE first (v5 pulsepos ladder,
-  `measure_live_window_reads`: never-read = inert / constant-at-read =
-  measured override / inconstant = refuse — 2 of 4 refused members freed
-  2026-08-26). Diagnostic (a/b/c): wnote
+  stable dynamic byte = event-driven capture; a POSITION-VALUED signal over
+  a LINEAR walk (v5 pulse_position/filter_position, 2026-08-26) needs no
+  layout preservation — serve `own cursor + (orig start − own start)`, the
+  delta constant per instrument (`pulse_table_pos` field + OFSIG name;
+  validity gate = every measured read value inside a captured program
+  region, `measure_live_window_reads`). Diagnostic (a/b/c): wnote
   matches + var matches ⇒ add a redirect row; wnote differs ⇒ wavepos layout;
   var differs ⇒ non-tracking accumulator (hard). ALL read sites must honor a
   redirect (incl. the glide-ARRIVAL compare — served via the same map, gated,

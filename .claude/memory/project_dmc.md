@@ -5,8 +5,25 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-26T18:55:44.797Z
+  modified: 2026-08-26T20:17:33.538Z
 ---
+
+## ✅ v5 LIVE-POSITION FORM (owner-approved 2026-08-26): offtable_live_pos class EMPTY, v5 unsupported = 2
+
+The owner rejected both the stated-table proposal and the ladder's baked
+constants; the landed form is C11's named-signal doctrine on the LINEAR-walk
+insight: OFSIG grew `pulse_position`/`filter_position`, instruments carry
+one-byte `pulse_table_pos`/`filter_table_pos` (wave_table_pos siblings), and
+the composer serves the read as `own cursor + (orig start − own start)` —
+delta constant per instrument, paging intact, v5's first live-signal serve
+(`_apply_offtable_live`: iopd/pposd/fposd + otv/otc subs at every freq read
+site, carry-preserving). Validity gate = every measured read value inside a
+captured program region (`measure_live_window_reads`, now returns the raw
+observation map). All 4 carriers build as ordinary partials
+(Psychodelic_Killer's divergence byte-identical to the constant build = serve
+proven; PMK/Valtavirtaa now diverge on ctrl-gate/PW residue, not the reads).
+Backlog item 19 DELETED (closed). Gates: byte gate 60/60, corpus 12,595,
+spec lint clean. **v5 unsupported = 2 (`data_tables_off_image` only).**
 
 ## ✅ v5 offtable_live_pos NARROWED same day (C11 read-moment ladder): 4 refused → 2 refused, 2 freed
 

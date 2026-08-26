@@ -670,50 +670,96 @@ def _verify_window_frames(cfg: DMCV5Config, hvsc_root: str) -> int:
     return int(win_s * 50) + 200        # + small margin over the play window
 
 
+def _emit_live_position_form(m, usf, seen: dict, over: list):
+    """Rewrite `usf` into the live-position form (see the caller comment):
+    live-window record slots become named `LiveSignal`s and every
+    env-carrying instrument gains its original table start position. Raises
+    the refusal when an observed read value falls outside every captured
+    program region (the delta-serve validity condition)."""
+    import dataclasses
+    from src.usf.types import LiveSignal
+    # (kind, idx) -> (signal name, 1-based voice | None)
+    sig_of = {(k, i): (name, voice)
+              for (k, i, name, voice) in m.offtable_live_reads}
+    # captured program regions per table: [start, start + 1 + 2*phases]
+    regions = {'pulse_position': [], 'filter_position': []}
+    for um, mm in zip(usf.instruments, m.instruments):
+        if um.pulse_env is not None and mm.pulse_ptr:
+            regions['pulse_position'].append(
+                (mm.pulse_ptr, mm.pulse_ptr + 1 + 2 * len(um.pulse_env.phases)))
+        if um.filter_env is not None and mm.filter_ptr:
+            regions['filter_position'].append(
+                (mm.filter_ptr, mm.filter_ptr + 1 + 2 * len(um.filter_env.phases)))
+    for key, vals in seen.items():
+        name = sig_of.get(key, (None,))[0]
+        bad = [v for v in vals
+               if name and not any(lo <= v <= hi for lo, hi in regions[name])]
+        if bad:
+            raise RuntimeError(
+                f'unsupported:offtable_live_pos ({"+".join(over)} pool '
+                f'overflow; {name} read at idx {key[1]} observed '
+                f'{sorted(bad)} outside every captured program region)')
+    out = []
+    for um, mm in zip(usf.instruments, m.instruments):
+        recs = []
+        for off, note, lo, hi in um.offtable_freq:
+            idx = (off + note) & 0xFF
+            s = sig_of.get(('lo', idx))
+            if s:
+                lo = LiveSignal(*s)
+            s = sig_of.get(('hi', idx))
+            if s:
+                hi = LiveSignal(*s)
+            recs.append((off, note, lo, hi))
+        out.append(dataclasses.replace(
+            um, offtable_freq=recs,
+            pulse_table_pos=(mm.pulse_ptr
+                             if um.pulse_env is not None and mm.pulse_ptr
+                             else None),
+            filter_table_pos=(mm.filter_ptr
+                              if um.filter_env is not None and mm.filter_ptr
+                              else None)))
+    return dataclasses.replace(usf, instruments=out)
+
+
 def write_v5_usf(cfg: DMCV5Config, out_dir: str,
                  hvsc_root: str = 'hvsc85') -> str:
     m = extract(cfg, hvsc_root=hvsc_root)
     usf = model_to_usf(m, reach=_verify_window_frames(cfg, hvsc_root))
     # offtable_live_pos handling AT THE EXTRACT BOUNDARY (ledger C8 sixth
-    # widening + C11 event-driven doctrine / backlog item 19): this member's
-    # off-table freq read lands on the LIVE pulsepos/filterpos block, so the
-    # file-image capture is a snapshot of a moving byte. MEASURE the read at
-    # its actual read moments (libsidplayfp) before deciding: a read that
-    # never fires is inert (the reach model over-enumerates), a read that
-    # observes ONE value is served by that measured value, and only a read
-    # that observes several values is genuinely live -> REFUSE (C8: don't
-    # approximate). The decision lives HERE because its facts are known here
-    # and nowhere downstream: the live-window hit + read sites are extract-
-    # side (player state-block addresses, never in the USF — the USF carries
-    # music only), and would-the-pool-overflow comes from from_usf's size
-    # mirror (which usf_to_model self-checks against its real packer).
+    # widening + C11 / backlog item 19, live-position form owner-approved
+    # 2026-08-26): this member's off-table freq read lands on the LIVE
+    # pulsepos/filterpos block — the read SONIFIES a table position, so the
+    # honest representation is a NAMED live signal (`pulse_position(vN)` /
+    # `filter_position()`) plus each instrument's ORIGINAL table start
+    # (`pulse_table_pos`/`filter_table_pos`, the wave_table_pos siblings).
+    # The composer serves the read from its OWN live cursor + the
+    # (original - own) start delta: the walks advance in lockstep (same
+    # phases), so the delta is constant per instrument.
+    #
+    # VALIDITY GATE, measured (C11: measure at the read): the delta model
+    # holds only while the original's cursor is inside the CAPTURED program
+    # region (past _PHASE_CAP truncation our cursor parks while the
+    # original walks on). `measure_live_window_reads` observes every read
+    # over the full verify window; every observed value must lie inside
+    # some captured region of its table, else REFUSE. (2026-08-26 census:
+    # all 4 carriers pass — incl. the two whose values are inconstant, the
+    # very case no static byte could serve.)
+    #
+    # This lives HERE because its facts are known here and nowhere
+    # downstream: the live-window hit + read sites are extract-side (player
+    # state-block addresses), and would-the-pool-overflow comes from
+    # from_usf's size mirror (self-checked against its real packer).
     if getattr(m, 'offtable_live_pos', False):
         from pipelines.dmc.v5.from_usf import defused_pool_overflow
         over = defused_pool_overflow(usf)
         if over:
-            meas = measure_live_window_reads(cfg, m, hvsc_root)
-            if meas is None:
+            seen = measure_live_window_reads(cfg, m, hvsc_root)
+            if seen is None:
                 raise RuntimeError(
                     f'unsupported:offtable_live_pos ({"+".join(over)} pool '
                     f'overflow; no read-site map for this player)')
-            overrides, inconstant = meas
-            if inconstant:
-                raise RuntimeError(
-                    f'unsupported:offtable_live_pos ({"+".join(over)} pool '
-                    f'overflow; inconstant read-moment values at '
-                    f'{sorted(inconstant)})')
-            if overrides:
-                # serve each read the single value it always observes
-                for ins in m.instruments:
-                    recs = []
-                    for off, note, lo, hi in ins.offtable_freq:
-                        idx = (off + note) & 0xFF
-                        lo = overrides.get(('lo', idx), lo)
-                        hi = overrides.get(('hi', idx), hi)
-                        recs.append((off, note, lo, hi))
-                    ins.offtable_freq = sorted(set(recs))
-                usf = model_to_usf(m, reach=_verify_window_frames(cfg,
-                                                                  hvsc_root))
+            usf = _emit_live_position_form(m, usf, seen, over)
     base = os.path.splitext(os.path.basename(cfg.sid_path))[0]
     out = os.path.join(out_dir, base + '.usf')
     write_file(usf, out)

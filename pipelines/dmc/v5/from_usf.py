@@ -13,7 +13,7 @@ entries remapped to it; sticky dur/instrument are re-emitted on change
 """
 from __future__ import annotations
 
-from src.usf.types import UsfFile, Pitch
+from src.usf.types import UsfFile, Pitch, LiveSignal
 from pipelines.dmc.v5.extract.engine_model import V5Model, V5Instrument
 
 _FORCE_PAGED = False    # dev knob (tests only): run the paged packer even when
@@ -494,6 +494,34 @@ def usf_to_model(usf: UsfFile) -> V5Model:
             filter_ptr=fptr & 0xFF,
             vib_delay=v.onset, vib_speed=v.speed, vib_width=v.amplitude,
             offtable_freq=list(getattr(inst, 'offtable_freq', []) or [])))
+
+    # ---- live-position form (owner-approved 2026-08-26, ledger C8/C11):
+    #      a record slot naming `pulse_position(vN)` / `filter_position()`
+    #      is served at runtime from the composer's own live cursor plus the
+    #      (original - own) table-start delta — constant per instrument
+    #      because both walks advance in lockstep. Collect the (kind, idx)
+    #      -> signal map and the per-instrument deltas (mod 256: under
+    #      paging the cursor's low byte minus its own start low byte is the
+    #      in-program offset either way). Absent -> nothing changes. -------
+    live_map = {}
+    for inst in usf.instruments:
+        for off, note, lo, hi in (getattr(inst, 'offtable_freq', None) or []):
+            idx = (off + note) & 0xFF
+            if isinstance(lo, LiveSignal):
+                live_map[('lo', idx)] = (lo.name, lo.voice)
+            if isinstance(hi, LiveSignal):
+                live_map[('hi', idx)] = (hi.name, hi.voice)
+    if live_map:
+        m.offtable_live = live_map
+        m.instr_odelta = []
+        for inst, (wptr, pptr, fptr) in zip(usf.instruments, ptrs):
+            dp = ((inst.pulse_table_pos - (pptr & 0xFF)) & 0xFF
+                  if getattr(inst, 'pulse_table_pos', None) is not None
+                  and inst.pulse_env is not None else 0)
+            df = ((inst.filter_table_pos - (fptr & 0xFF)) & 0xFF
+                  if getattr(inst, 'filter_table_pos', None) is not None
+                  and inst.filter_env is not None else 0)
+            m.instr_odelta.append((dp, df))
 
     m.wave = wave
     m.pulse = pulse

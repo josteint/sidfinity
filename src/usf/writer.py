@@ -606,6 +606,10 @@ def _write_instrument(i: Instrument) -> list[str]:
         lines.append(f'  offtable_freq: {entries}')
     if getattr(i, 'wave_table_pos', None) is not None:
         lines.append(f'  wave_table_pos: {i.wave_table_pos}')
+    if getattr(i, 'pulse_table_pos', None) is not None:
+        lines.append(f'  pulse_table_pos: {i.pulse_table_pos}')
+    if getattr(i, 'filter_table_pos', None) is not None:
+        lines.append(f'  filter_table_pos: {i.filter_table_pos}')
     if getattr(i, 'record_offset', None) is not None:
         lines.append(f'  record_offset: {i.record_offset}')
     if getattr(i, 'wave_start', None) is not None:

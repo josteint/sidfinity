@@ -73,7 +73,8 @@ LIVE_SIGNAL_NAMES = (
     'speed_counter', 'filter_claim', 'filter_cutoff', 'filter_step',
     'filter_frame', 'filter_base', 'filter_size', 'filter_duration',
     'filter_repeat', 'filter_stop', 'filter_res',
-    'sector_position', 'wave_position', 'tempo', 'master_volume',
+    'sector_position', 'wave_position', 'pulse_position', 'filter_position',
+    'tempo', 'master_volume',
 )
 
 
@@ -834,6 +835,16 @@ class Instrument:
     # equals the value the original sonifies. None = not carried (the
     # composer packs the pool however it likes).
     wave_table_pos: Optional[int] = None
+    # The instrument's start position in the editor's SHARED pulse / filter
+    # table (the number the composer typed — §8 arrangement, wave_table_pos
+    # siblings). Audible ONLY when an off-table freq read sonifies the live
+    # pulse/filter table position (DMC v5 family-4 $1800-$1803): the position's
+    # VALUE is the original layout, so the composer serves such a read from
+    # its own live cursor plus the (original - own) start delta — the walks
+    # advance in lockstep (same phases), so the delta is constant per
+    # instrument. None = not carried (no read sonifies the position).
+    pulse_table_pos: Optional[int] = None
+    filter_table_pos: Optional[int] = None
     # The instrument's ORIGINAL record byte-offset (orig inst# * 11). Audible
     # ONLY when an off-table freq read sonifies a voice's instrument-record
     # offset ($174D, idx 166-168). The composer normally derives it from the

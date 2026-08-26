@@ -87,7 +87,11 @@ def _emit_data(m) -> str:
         for offset, note, lo, hi in getattr(ins, 'offtable_freq', []) or []:
             idx = (offset + note) & 0xFF
             if idx > 95:
-                ov[idx] = (lo, hi)
+                # a LiveSignal slot is served at runtime by the live-position
+                # redirect (`_apply_offtable_live`), never from this table —
+                # its cell is unread, keep 0
+                ov[idx] = (lo if isinstance(lo, int) else 0,
+                           hi if isinstance(hi, int) else 0)
     if ov:
         top = max(ov)
         ext_lo += [0] * (top + 1 - len(ext_lo))
@@ -122,6 +126,19 @@ def _emit_data(m) -> str:
         for (w, p, f) in pages:
             pg += [w, p, f, 0, 0, 0, 0, 0]     # stride 8 = the instr record
         d.append('instpg:\n' + _byt(pg))       # indexed by instr_n*8 (Y)
+    if getattr(m, 'offtable_live', None):
+        # per-instrument (orig - own) table-start deltas for the
+        # live-position redirect: [pulse, filter, 0*6] — stride 8 = the
+        # instr record, indexed by instr_n*8 (Y) like instpg
+        od = getattr(m, 'instr_odelta', None)
+        if od is None or len(od) != len(m.instruments):
+            raise RuntimeError(
+                'offtable_live without instr_odelta — build the model '
+                'through from_usf.usf_to_model')
+        rows = []
+        for (dp, df) in od:
+            rows += [dp, df, 0, 0, 0, 0, 0, 0]
+        d.append('iopd:\n' + _byt(rows))
     # per-voice leftover note ($100F-$1011): the lead-in effects frame(s)
     # read it before the first fetch. ONE source — the extract reads it from
     # whichever address that member's player keeps it at (the Jupiter41
@@ -1019,6 +1036,82 @@ sid_write:
 """
 
 
+def _apply_offtable_live(engine: str, state: str, m) -> 'tuple[str, str]':
+    """Splice the live-position redirect (owner-approved 2026-08-26; ledger
+    C11's named-signal doctrine + the C8 sixth-widening refusal it replaces).
+
+    A `pulse_position(vN)` / `filter_position()` record slot means an
+    off-table freq read sonifies the engine's LIVE pulse/filter table
+    cursor. The cursor's VALUE is the original layout, but both walks
+    advance in lockstep (same phases), so
+        original cursor = own cursor + (original start - own start)
+    with the delta constant per instrument (`iopd`, loaded into per-voice
+    `pposd,x` / global `fposd` at note-init exactly where the cursors
+    restart). Every freq-table read site goes through a serve subroutine:
+    a mapped index returns cursor+delta, everything else falls through to
+    the plain table read. Carry is preserved across the subroutine (the
+    family-4 wave-step chains its carry into `adc frqbias,x`).
+    """
+    lm = getattr(m, 'offtable_live', None) or {}
+    st_anchor = 'pulsepos: .dsb 3, 0'
+    if st_anchor not in state:
+        raise RuntimeError('offtable_live: state-block anchor moved')
+    state = state.replace(
+        st_anchor,
+        st_anchor + '\n'
+        'pposd:    .dsb 3, 0\n'
+        'fposd:    .dsb 1, 0\n'
+        'ottmpa:   .dsb 1, 0\n'
+        'ottmpb:   .dsb 1, 0')
+    # note-init delta loads (Y still = instr_n*8, beside the cursor restarts)
+    a1 = '        beq ni_nopulse\n        sta pulsepos,x\nni_nopulse:'
+    if a1 not in engine:
+        raise RuntimeError('offtable_live: ni pulse anchor moved')
+    engine = engine.replace(
+        a1, '        beq ni_nopulse\n        sta pulsepos,x\n'
+            '        lda iopd,y\n        sta pposd,x\nni_nopulse:', 1)
+    a2 = 'ni_nofilt:'
+    if a2 not in engine:
+        raise RuntimeError('offtable_live: ni filter anchor moved')
+    engine = engine.replace(
+        a2, '        lda iopd+1,y\n        sta fposd\nni_nofilt:', 1)
+
+    subs = ''
+    for kind, table, k in (('flo', 'freqlo', 'lo'), ('fhi', 'freqhi', 'hi')):
+        entries = sorted((idx, name, voice)
+                         for (kk, idx), (name, voice) in lm.items()
+                         if kk == k)
+        if not entries:
+            continue
+        n_lda = engine.count(f'        lda {table},y')
+        n_cmp = engine.count(f'        cmp {table},y')
+        if n_lda + n_cmp == 0:
+            raise RuntimeError(f'offtable_live: no {table} read sites')
+        engine = engine.replace(f'        lda {table},y',
+                                f'        jsr otv_{kind}')
+        engine = engine.replace(f'        cmp {table},y',
+                                f'        jsr otc_{kind}')
+        lines = [f'otv_{kind}:', '        php']
+        for j, (idx, name, voice) in enumerate(entries):
+            lines += [f'        cpy #{idx}', f'        beq otv_{kind}_{j}']
+        lines += [f'        lda {table},y', '        plp', '        rts']
+        for j, (idx, name, voice) in enumerate(entries):
+            if name == 'pulse_position':
+                src, dl = f'pulsepos+{voice - 1}', f'pposd+{voice - 1}'
+            else:
+                src, dl = 'filterpos', 'fposd'
+            lines += [f'otv_{kind}_{j}:', f'        lda {src}',
+                      '        clc', f'        adc {dl}',
+                      '        plp', '        rts']
+        if n_cmp:
+            lines += [f'otc_{kind}:', '        sta ottmpa',
+                      f'        jsr otv_{kind}', '        sta ottmpb',
+                      '        lda ottmpa', '        cmp ottmpb',
+                      '        rts']
+        subs += '\n'.join(lines) + '\n'
+    return engine + subs, state
+
+
 _POOL_TABLES = {'wave': ('wavectrl', 'wavefreq'),
                 'pulse': ('pulselo', 'pulsehi'),
                 'filter': ('filterlo', 'filterhi')}
@@ -1459,6 +1552,10 @@ state_end:
         engine = engine.replace(
             '        sta playskip\n        rts',
             '        sta playskip\n' + cia_init + '        rts')
+    # live-position redirect (before the paging scan — it rewrites freq-table
+    # reads only, which paging never touches). No live map => unchanged.
+    if getattr(m, 'offtable_live', None):
+        engine, state = _apply_offtable_live(engine, state, m)
     # paged pools (C8 sixth widening) — LAST, so the site scan sees the final
     # (knob-substituted) engine text. No paged pool => both strings unchanged.
     if _paged_pools(m):

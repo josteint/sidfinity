@@ -418,6 +418,14 @@ instrument_field: "waveform" ":" byte_list                              -> inst_
                 // pool at these positions so its wave-position state equals
                 // the sonified value.
                 | "wave_table_pos" ":" INT                              -> inst_wave_table_pos
+                // The instrument's start position in the editor's SHARED
+                // pulse / filter table (arrangement, like wave_table_pos).
+                // Carried only when an off-table freq read sonifies the live
+                // pulse/filter table position; the composer derives the
+                // (orig - own) position delta and serves the read from its
+                // own live cursor plus the delta.
+                | "pulse_table_pos" ":" INT                             -> inst_pulse_table_pos
+                | "filter_table_pos" ":" INT                            -> inst_filter_table_pos
                 // ORIG instrument-record offset (orig inst# * 11) for a
                 // compilation's renumbered instrument whose ioff a note sonifies
                 | "record_offset" ":" INT                               -> inst_record_offset
@@ -464,6 +472,7 @@ OFSIG.2: "transpose" | "freq_base_lo" | "freq_base_hi"
        | "filter_step" | "filter_frame" | "filter_base" | "filter_size"
        | "filter_duration" | "filter_repeat" | "filter_stop"
        | "filter_res" | "sector_position" | "wave_position"
+       | "pulse_position" | "filter_position"
        | "tempo" | "master_volume"
 VOICEREF.2: "v" /[1-3]/
 

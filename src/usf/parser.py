@@ -390,6 +390,12 @@ class _T(Transformer):
     def inst_wave_table_pos(self, items):
         return ('wave_table_pos', int(items[0]))
 
+    def inst_pulse_table_pos(self, items):
+        return ('pulse_table_pos', int(items[0]))
+
+    def inst_filter_table_pos(self, items):
+        return ('filter_table_pos', int(items[0]))
+
     def inst_record_offset(self, items):
         return ('record_offset', int(items[0]))
 

@@ -615,12 +615,13 @@ def measure_live_window_reads(cfg, m, hvsc_root: str):
 
     Watches every family-4 freq-table read site over each subtune's full
     verify window via `siddump --pc-watch ... --pc-watch-abs` (libsidplayfp
-    ground truth; execution-discriminated per C36) and returns
-    `(overrides, inconstant)`: `overrides` maps (kind, idx) -> the single
-    value every read observed; `inconstant` holds (kind, idx) keys that
-    observed >= 2 values (no static byte can serve them). A key in neither is
-    never read — its captured value is inert. Returns None when the member's
-    player has no site map (only family-4 carriers exist today)."""
+    ground truth; execution-discriminated per C36) and returns the raw
+    observation map {(kind, idx): set(observed values)} — a key that never
+    appears was never read (its captured value is inert); the caller
+    (`write_v5_usf`) checks every observed value lies inside a captured
+    program region (the delta-serve validity condition) before emitting the
+    live-position form. Returns None when the member's player has no site
+    map (only family-4 carriers exist today)."""
     import re
     import subprocess
     if not getattr(cfg, 'family4', False) or not m.offtable_live_reads:
@@ -632,7 +633,7 @@ def measure_live_window_reads(cfg, m, hvsc_root: str):
     for kind, pcs in _F4_FREQ_READ_SITES.items():
         for pc in pcs:
             sites[f'{(pc + d) & 0xFFFF:04X}'] = kind
-    live_idx = {kind: {i for k, i in m.offtable_live_reads if k == kind}
+    live_idx = {kind: {r[1] for r in m.offtable_live_reads if r[0] == kind}
                 for kind in ('lo', 'hi')}
     win_lo, win_hi = 0x1800 + d, 0x1804 + d      # pulsepos x3 + filterpos
     sid = os.path.join(hvsc_root, cfg.sid_path)
@@ -673,9 +674,7 @@ def measure_live_window_reads(cfg, m, hvsc_root: str):
             w = [absw[i:i + 2] for i in range(0, len(absw), 2)]
             if 0 <= off < len(w):
                 seen.setdefault((kind, idx), set()).add(int(w[off], 16))
-    overrides = {k: next(iter(v)) for k, v in seen.items() if len(v) == 1}
-    inconstant = {k for k, v in seen.items() if len(v) > 1}
-    return overrides, inconstant
+    return seen
 
 
 def _slice_wave(wave: list, start: int):
@@ -775,14 +774,22 @@ def _assign_offtable_freq(mem, a_flo: int, a_fhi: int, m,
     def _mark_live(idx: int) -> None:
         # The read's source lands on the engine's LIVE pulsepos/filterpos
         # block: the captured byte is a snapshot of a moving value. Stamp the
-        # model (bool + the (kind, idx) set — the read-moment measurement in
-        # `measure_live_window_reads` consumes the set); the static capture
-        # itself is unchanged here.
+        # model with (kind, idx, signal, voice) — both live windows are laid
+        # out [pulsepos v1-3, filterpos], so the offset names the signal; the
+        # static capture itself is unchanged here (`write_v5_usf` decides
+        # live-form emission / refusal from the read-moment measurement).
         if live_range:
             for kind, a in (('lo', a_flo), ('hi', a_fhi)):
-                if live_range[0] <= (a + idx) & 0xFFFF < live_range[1]:
+                src = (a + idx) & 0xFFFF
+                if live_range[0] <= src < live_range[1]:
                     m.offtable_live_pos = True
-                    m.offtable_live_reads.add((kind, idx))
+                    off = src - live_range[0]
+                    if off < 3:
+                        m.offtable_live_reads.add(
+                            (kind, idx, 'pulse_position', off + 1))
+                    else:
+                        m.offtable_live_reads.add(
+                            (kind, idx, 'filter_position', None))
 
     # per-instrument melodic steps: list of (step_index, freq_offset)
     inst_steps = {}
