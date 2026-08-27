@@ -52,9 +52,28 @@ SIDS_TYPES: dict[str, str] = {
     'is_psid': 'INTEGER', 'psid_version': 'INTEGER', 'load_addr': 'INTEGER',
     'init_addr': 'INTEGER', 'play_addr': 'INTEGER', 'n_subtunes': 'INTEGER',
     'start_subtune': 'INTEGER', 'title': 'VARCHAR', 'author': 'VARCHAR',
-    'released': 'VARCHAR', 'engine': 'VARCHAR', 'songlength_s': 'DOUBLE',
+    'released': 'VARCHAR', 'engine': 'VARCHAR', 'engines': 'VARCHAR',
+    'songlength_s': 'DOUBLE',
     'excluded': 'INTEGER', 'exclusion_reason': 'VARCHAR',
 }
+# `engine`  = sidid's FIRST match — unchanged, so every existing query keeps
+#             working (`engine LIKE 'DMC%'` still selects the DMC corpus).
+# `engines` = EVERY match, '|'-separated, from `sidid -m`. We ran sidid in
+#             single-match mode until 2026-08-27, where the C loop breaks on
+#             the first hit — so the answer was whichever signature came first
+#             in sidid.cfg and everything else was discarded. 48.2% of HVSC
+#             matches more than one player, and two useful things were in the
+#             part we threw away: SUB-VERSIONS (`(DMC_V4.x)` 5,394 carriers,
+#             `(DMC_V5.x)` 2,254, and the same shape for FC / Music_Assembler /
+#             Soundmonitor / JCH) and HETEROGENEOUS files (Freespace_2075 ->
+#             `DMC + (DMC_V4.x) + Music_Assembler + (Music_Assembler/MC)`,
+#             which is exactly its real content). Query with
+#             `engines LIKE '%(DMC_V5.x)%'`; a bare-name test wants delimiters
+#             (`'|' || engines || '|' LIKE '%|DMC|%'`) since names nest.
+#             ⚠ It is a PRIOR, not an oracle — sidid is byte-pattern matching
+#             with 41 signatures <= 8 bytes, and a packed file matches the
+#             CRUNCHER not the player. Our own play-body dispatch is the oracle
+#             where it exists (agreement 7,429 : 11 on DMC v4-vs-v5).
 SIDS_COLUMNS = list(SIDS_TYPES)
 # integer/float columns that need '' <-> None and numeric coercion in the CSV
 # intermediate used by write_all.

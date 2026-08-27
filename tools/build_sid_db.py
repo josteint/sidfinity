@@ -91,28 +91,46 @@ def parse_psid_header(data: bytes) -> dict:
 # Engine classification (from cached sidid dump)
 # ---------------------------------------------------------------------------
 
-def load_engine_map(dump_path: Path) -> dict[str, str]:
-    """Parse sidid output (one line per file) into {rel_path: engine}.
+def load_engine_map(dump_path: Path) -> dict[str, list[str]]:
+    """Parse sidid output into {rel_path: [engine, ...]}, match order preserved.
 
     Lines look like:
       MUSICIANS/U/Ultrasyd/Havskatt.sid              Geir_Tjelta/SIDDuzz'It
       MUSICIANS/H/Hubbard_Rob/Commando.sid           Rob_Hubbard
+
+    ⚠ MULTI-MATCH CONTINUATION LINES. The dump is produced with `sidid -m`
+    ("scan each file for multiple signatures"), and sidid prints the SECOND and
+    later matches of a file with an EMPTY name field —
+    `printf("%-56s %s\\n", fullname, id->name)` after `fullname[0] = 0` — i.e.
+    56 spaces then the player. So a line starting with whitespace continues the
+    previous file. A parser keyed on "every line begins with a path" drops every
+    extra match SILENTLY and reports a tidy one-engine-per-file world (it did,
+    on the first attempt at this analysis). 48.2% of HVSC matches more than one
+    player, so that is not a corner case.
+
+    No sidid player name contains whitespace (checked across all 788 entries in
+    sidid.cfg), so `rsplit` is safe on the path side — which matters because our
+    de-truncation patch lets long paths run PAST the 56-column field, making a
+    fixed-column split wrong for exactly the members the patch recovered.
     """
     if not dump_path.exists():
         return {}
-    out: dict[str, str] = {}
+    out: dict[str, list[str]] = {}
+    cur: str | None = None
     with dump_path.open() as f:
         for line in f:
             line = line.rstrip('\n')
-            if not line or line.startswith('Using') or line.startswith('---'):
+            if not line.strip() or line.startswith(('Using', '---')):
                 continue
-            # path is whitespace-separated; engine is the trailing token(s).
-            # First token = path, rest = engine label.
-            parts = line.split(None, 1)
+            if line[0].isspace():                    # another match, same file
+                if cur is not None:
+                    out[cur].append(line.strip())
+                continue
+            parts = line.rsplit(None, 1)
             if len(parts) != 2:
                 continue
-            path, engine = parts[0], parts[1].strip()
-            out[path] = engine
+            cur = parts[0]
+            out.setdefault(cur, []).append(parts[1].strip())
     return out
 
 
@@ -383,7 +401,11 @@ def main(argv: list[str] | None = None) -> int:
             'md5': file_md5,
             'size': st.st_size,
             'mtime': st.st_mtime,
-            'engine': engine_map.get(rel),
+            # `engine` stays sidid's FIRST match so every existing query is
+            # unaffected; `engines` carries all of them (see sid_db.SIDS_TYPES).
+            'engine': (engine_map.get(rel) or [None])[0],
+            'engines': ('|'.join(engine_map[rel])
+                        if engine_map.get(rel) else None),
             'songlength_s': songlengths.get(file_md5),
             'excluded': 1 if excl_reason else 0,
             'exclusion_reason': excl_reason,

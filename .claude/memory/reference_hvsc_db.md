@@ -59,8 +59,24 @@ RE-CHECK IT AFTER A COLLECTION UPDATE, since an update pack landing in
 `.d64`/`.d71`/`.d81`/`.dfi` HVSC bonus disk images (SIDs inside a disk image,
 not extracted files).
 
-**⚠⚠ WE RUN SIDID IN SINGLE-MATCH MODE AND THROW AWAY HALF ITS OUTPUT
-(2026-08-27).** `sidid -m` = "scan each file for multiple signatures"; without
+**✅ FIXED 2026-08-27 — `engines` column + `tools/gen_sidid_dump.py`.** The
+catalogue now carries `engine` (sidid's FIRST match, byte-identical to before —
+verified 0 differences over all 59,826 classified files, so every existing
+query is unaffected) and **`engines`** (all matches, `|`-separated). Regenerate
+with `python3 tools/gen_sidid_dump.py`, never a bare sidid command: the three
+rules (`-m`, drop `*.sidfinity.sid`, drop the trailing summary) used to live
+only in the output file's header, and the script also FAILS if the
+de-truncation patch has regressed. Query `engines LIKE '%(DMC_V5.x)%'`; use
+delimiters for a bare name (`'|' || engines || '|' LIKE '%|DMC|%'`).
+Post-change census: 28,431 multi-engine files; `DMC|(DMC_V4.x)` 5,460,
+`DMC|(DMC_V5.x)` 2,270, bare `DMC` 2,964, `DMC_V6.x` 16 — plus new facts the
+single-match view could not show, e.g. `DMC|(DMC_V4.x)|Rayden_Digi_V1` (13) and
+`DMC|Digi-Organizer` (10) = DIGI players packed beside DMC.
+
+The finding that prompted it:
+
+**⚠⚠ WE RAN SIDID IN SINGLE-MATCH MODE AND THREW AWAY HALF ITS OUTPUT
+(until 2026-08-27).** `sidid -m` = "scan each file for multiple signatures"; without
 it the C loop does `if (!multiscan) break;` on the first hit, so `engine` is
 whichever signature happens to come first in `sidid.cfg`. Re-scanned HVSC with
 `-m`: **28,198 of 58,457 matched files (48.2%) match MORE THAN ONE player**
