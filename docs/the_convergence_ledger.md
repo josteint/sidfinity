@@ -97,7 +97,7 @@ practice, not code to factor).
 | off-table read sonifies a "positional" byte counter (sector position / stream offset) · per-event deltas derive from row kind + stated commands → live shadow, stated-command flags = §8 arrangement (DMC sectpos) | C11 | logged |
 | off-table read sonifies the live WAVE POSITION ($177A) · composer pool offsets ≠ orig's → layout-preserving pool packing from per-instrument editor wave-table positions (`wave_table_pos`, §8 arrangement) + gated redirect row (DMC wavepos) | C11 | logged |
 | accumulated per-step rounding drift in a round-trip · USF stores DELTAS (durations), player sums them to ABSOLUTE positions · a min/floor on each delta drifts over a long song · short tunes pass, long tunes length_fail · keep deltas EXACT (allow 0) | C12 | logged |
-| engine variant dispatch · player jump-table init offset shifted but play body at canonical offset · "no_jumptable"/code-mismatch reject · dispatch on the PLAY-body signature not init (we emit our own init) | C13 | logged |
+| engine variant dispatch · player jump-table init offset shifted but play body at canonical offset · "no_jumptable"/code-mismatch reject · dispatch on the PLAY-body signature not init (we emit our own init) · THE DUAL: a jump-table HEAD SHAPE is not a player identity — validate the operand sites you CONSUME, detect the minority POSITIVELY, and never use a full-body compare as the identity test (it refuses wedged members that build) | C13 | logged |
 | command-per-row tracker effect (note + fx + param per row) · porta/vibrato/arp/filter/tempo on a row · NOT per-instrument · how to represent in NoteRow · DMC custom-build TEMPO MAILBOX (V3 instr cmd >= $10 = speed reload; probe + gated [$05,N] prefix event) | C14 | recurring (FC + GoatTracker V1 + DMC) |
 | INAUDIBLE writes · idle/gate-off voice freewheels · "audio-equivalence" verdict relaxation | C15 | ⛔ REMOVED (user decision 2026-07-01): every SID gets STRICT write-stream match, always — never propose relaxing the verdict during per-engine work. If an idle-freewheel divergence blocks a member, REPRODUCE the writes (core tenet permits reproducing the mechanism). Design parked in `the_move-1_plan.md` as a Move-1-era-ONLY consideration. |
 | per-frame WRITE-ORDER differs · orig batches note-on writes (SR/AD/CTRL) separately from wave-step writes (freq/PW/CTRL) or uses a different voice interleave · rebuild emits a different order · NOT a wholesale composer rewrite — PARAMETRIZE the composer's EMISSION order (precedent: FC `nextvoice_write_order`) | C16 | logged |
@@ -111,7 +111,7 @@ practice, not code to factor).
 | play-body UNIT-repeat · play body runs ONE of its 4 units (v0/v1/v2/filter-tail) N× per play() (JSR-to-N-call stub; JMP-tail form re-runs the filter tail) · "double-speed voice" · OR a unit REMOVED (count 0: INX inserted before the JSR — a two-voice build; one voice's writes wholly absent from frame 1) · unified play_unit_repeat=[v0,v1,v2,filter] list · distinct from play_repeat (whole play()) + C18 play_phases (whole calls) · static byte-probe (C19 method) | C24 | recurring |
 | whole-play N-repeat (WHOLE play() body run N× per VBI = double-speed TUNE) via a play-VECTOR wrapper · perfect play-stream PREFIX + clean ~N× length tail on a VBLANK tune · `JSR T ×N :RTS` or `JSR T; JMP T` · `_detect_play_repeat` must FOLLOW a base+3 JMP indirection into the wrapper — or a JSR-FIRST wrapper sitting AT base+3 itself — never short-circuit on play==base+3 alone | C24 | note (recurring 12×) |
 | composer play body OVERRUNS a tight CIA latch · perfect play-stream prefix + length tail ~0.5% (rate drift, no content divergence) · common-path cost creep (per-row compare chains growing with each round's shadow additions) · fast-path the common case O(1) · the rebuild's play must FIT the smallest latch it ships under | C25 | logged |
-| song data ABSENT from file image · init generates/unpacks tables in RAM · operands point outside the loaded image · extract from POST-INIT RAM (py65), all-or-nothing signature · banking-wrapper JT-less base from the wrapper JSR target | C26 | logged |
+| song data ABSENT from file image · init generates/unpacks tables in RAM · operands point outside the loaded image · extract from POST-INIT RAM (py65) · the operand COUNT is a proxy — MEASURE "the init wrote it" (pre/post snapshot diff), all-or-nothing misses in-player tables · snapshot AT THE LANDING · banking-wrapper JT-less base from the wrapper JSR target | C26 | recurring (2×) |
 | multi-SID (2SID/3SID) · N chips, one player each behind a dispatch wrapper · players run sequentially -> merged log = [chip1][chip2] · extract/compose/verify each with single-chip machinery, chip-TAGGED (reg=chip*$20+reg) · voices number through chips, addresses are pipeline constants not USF | C27 | logged |
 | multi-SID VERDICT · rebuild is per-chip correct but the merged chip-tagged stream diverges on a CROSS-CHIP adjacency (chip1 vs chip2 write order) · cross-chip order is physically UNobservable (independent hardware, Trap-B analogue) · split by reg//0x20, require each chip's substream to pass · compare_instruction_stream(n_chips=N) · do NOT chase cycle precision / straddle-free capture | C28 | logged |
 | PLAYED sector reads the EMULATOR ENVIRONMENT · $FF loop → $0000 live zp sonified · truncated-copy wrapper → power-on-RAM secp byte → KERNAL-tail window + patched psiddrv vectors + 16-bit wrap · sector-POINTER fetch itself off-image (track byte indexes past the pointer tables → power-on $FF hi-byte mislocates the sector, `_undefined_secp_reads` pre-pass) · gate = any played sector leaving defined RAM (`_offimage_sectors`) · CPU-EYE capture `siddump --peek-post-init` (`_cpu_peek`) · py65 pattern-seed (`_poweron_fill`) · overlay ONLY undefined bytes · NULL-POINTER LOOP TARGET: patched $FF handler reads loop-otrk via a zp pointer that is $0000 → reads ZERO PAGE (measure from LIBSIDPLAYFP not py65 — they differ) · LIVE-STACK window: below-SP bytes are deterministic PER READ SITE — the end-of-row PEEK and the row FETCH run at different call depths and see DIFFERENT stale bytes (same address!); serve each site its own measured map (`_dispatch_depth_serve` fetch + `_PEEK_DEPTH_MAP` peek, r137/b); lap-2 pairs by PLAYIDX; a garbage row can DOUBLE command prefixes — width flags are COUNTS (Deprave FULL, r137d) · ORDERLIST-POINTER itself in banked ROM ($F256 KERNAL) → `_offimage_track_ptrs` overlays it (STATIC ROM only; zp track-ptr = dynamic residue) · SCAN↔WALK: the off-image scans must mirror `_walk_track`'s post-transpose "next byte is a sector # even if >= $80" · PLAY-HEAD PORT RE-BANK: played code's own `LDA #imm/STA $01` overrides iomap(play) — ROM-range windows served per-ROM on the EFFECTIVE port (skip-zero-unpacker zeros read BASIC error text otherwise) | C29 | recurring (6×) |
@@ -484,6 +484,23 @@ practice, not code to factor).
   entry is a variant's appended effects-only routine, not a different family —
   entry COUNT is not a discriminator, and the extra entry is a useful C18
   observation handle.
+- THE DUAL (2026-08-27, DMC v5 family-4): a jump-table HEAD SHAPE is not a
+  player identity either. Admission on `JMP base+$40 / JMP base+$95` alone,
+  with NO body check, then applying a fixed operand-site map, read a `STA`
+  opcode byte + its operand low byte as "orderlist $D89D" on the one member
+  (Ed/We_Were_All_Kids, 2.0% byte-identical vs the other 649's 47-100%)
+  wearing that head over a different program. Split the two questions:
+  VALIDATE WHAT YOU CONSUME (does each operand site hold its instruction? 12
+  byte compares, exact) and detect the minority POSITIVELY (a structural
+  init signature with patched/relocated operands wildcarded). ⚠ do NOT reach
+  for a full-body compare as the identity test — 22 wedged/re-assembled
+  family-4 members run to 202/286 opcode mismatches and are all currently
+  BUILDING partials, so a strict compare (or any percentage threshold)
+  regresses them; the non-arbitrary line is ALL TWELVE sites wrong (647
+  match 12/12, the two worst 10/12 and 11/12, the impostor 0/12). ⚠ a head
+  shape can hide a different LINEAGE, not just a different build — Ed's
+  player runs family-3/5 SEMANTICS at family-4 OFFSETS, so the fix was its
+  own site map + the CANON knobs.
 - FULL ENTRY: [`ledger/C13.md`](ledger/C13.md) — read it before applying.
 
 ### C14 — command-per-row tracker effects (note + fx + param per row)
@@ -930,9 +947,20 @@ practice, not code to factor).
   fill); the file's data area is ~zeros; the tune plays fine. Init
   generates/unpacks the song data into RAM at runtime.
 - CANONICAL: read what the ENGINE reads — run the member's own init under
-  py65 and extract every table from POST-INIT RAM. Detection is
-  all-or-nothing (EVERY operand outside the image ⇒ unpacker; mixed stays
-  refused). Skip the packing-order layout check for this class.
+  py65 and extract every table from POST-INIT RAM. Skip the packing-order
+  layout check for this class.
+- ⚠ THE OPERAND COUNT IS A PROXY, NOT THE HYPOTHESIS (2nd occ, v5 2026-08-27):
+  "EVERY operand outside the image" systematically MISSES an unpacker whose
+  tables live INSIDE the player body (freq tables relocate with the base;
+  a page-aligned sector set's LO table is a zero block in the player tail).
+  MEASURE the claim instead — diff RAM before init (power-on pattern +
+  psiddrv's $0000-$03FF wipe + image) against after, and require every
+  OFF-IMAGE table address to have been WRITTEN. That also separates an
+  unpacker from a MISIDENTIFIED player, whose operands are not addresses and
+  which writes none of them. Snapshot AT THE PLAYER LANDING (pre the player's
+  own init, which overwrites the leftovers read as priming); refuse if py65
+  can't run the init — never fall back to the empty image. ONE definition of
+  the gate, shared by probe and refusal, or they drift.
 - FULL ENTRY: [`ledger/C26.md`](ledger/C26.md) — read it before applying.
 
 ### C27 — multi-SID (2SID/3SID): N chips, one player per chip

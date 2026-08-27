@@ -1,5 +1,93 @@
 # DMC V5 family-4 — reverse-engineering notes (Phase A, in progress)
 
+## ⚠ 2026-08-27 — THE FAMILY-4 HEAD IS WORN BY **TWO** PLAYERS
+
+`_detect_v5` classifies a member as family-4 on the jump table alone —
+`JMP base+$40 / JMP base+$95` — and nothing else, unlike the family-3/5 branch
+which masked-compares every play-reachable instruction against a committed
+reference. That head is not a player identity. Census over all 650 HVSC members
+wearing it, byte-identity to the Jupiter41 player over `$1042-$16FF`:
+
+| carriers | identity | what it is |
+|---:|---|---|
+| 649 | 47-100% | the Jupiter41 family-4 player (628 of them 0 opcode mismatches over the 700 play-reachable instructions; the rest carry C19 wedges / are re-assembled, up to 286 mismatches — **all of them currently BUILDING partials**) |
+| 1 | **2.0%** | `MUSICIANS/E/Ed/We_Were_All_Kids` — a different program (see below) |
+
+Applying `FAMILY4_SITES` to the impostor landed every operand mid-instruction:
+the "orderlist address `$D89D`" is the `STA` opcode byte `$9D` at `$1047` plus
+the `$D8` low byte of *its* operand. It surfaced as a `data_tables_off_image`
+refusal naming an address that was never an address.
+
+**The guard now shipped** (`factory._family4_player`, ledger C13): Jupiter41
+stays the DEFAULT and is only required to hold **at least one** of its twelve
+operand-site instructions — 647 members match 12/12, the two most re-assembled
+match 10/12 and 11/12 (a wedge at their filter sites), the impostor 0/12. A
+strict body compare was measured and REJECTED as the identity test: it would
+refuse 22 members that build today.
+
+## Ed's hand-built V5 player — family-3/5 SEMANTICS at family-4 OFFSETS
+
+`MUSICIANS/E/Ed/We_Were_All_Kids.sid` (Eddie Svärd, 2001; sole carrier in
+HVSC — its sibling `Ed/Choices.sid` is yet *another* hand-built Ed player, ~2%
+identical to this one, and correctly refused as `player_code_mismatch`).
+
+Despite the family-4 head it is NOT a family-4 build. Read off
+`tools/seed_disassembly.py` output:
+
+- canon **track** commands: `$FF` loop (read next byte as the new position),
+  `$FE` stop (clears the voice-active flag at `$1006,x`), `$FD` transpose,
+  `$FC` negative transpose (`EOR #$FF / CLC / ADC #$01`)
+- canon **sector** commands: `$F3` vol, `$F4` gate-tie, `$F5` gate-toggle,
+  `$F9` filter, `$FA` slide (3 bytes), `$FD` dur, `$FE` gate — NOT family-4's
+  `$EF`/`$F0`
+- canon 8-byte instrument records, canon interleaved tune record
+  (`lo,hi` x3, then speed at +6 and master vol at +7), 96-entry freq table
+- curnote at the canon `base+$0F`, voice-active flags at `base+$06`
+
+so the extract uses its own site map (`config.ED_KIDS_SITES`) with the CANON
+mechanism knobs. State/layout, `$1000`-based:
+
+| what | address | note |
+|---|---|---|
+| voice-active flags | `$1006,x` | init writes 1 |
+| curnote | `$100F,x` | canon offset; file leftovers `$3A $2C $27` |
+| play lead-in counter | `$1096` | SMC immediate of `LDA #imm` at `$1095`; init seeds **4** (`LDA #$04 / STA $1096`) — its first FOUR play() calls emit nothing (family-3 seeds 2, family-4 has no counter) |
+| speed | `$10D6` | `CMP` source immediate (`#$01`), matches tune record +6 |
+| speed counter | `$10D8` | SMC `CMP #imm`; `DEC / BPL / reload` MAIN/TICK toggle |
+| `$D415` init value | `$10BA` | SMC immediate, `$00` |
+| `$D416` init value | `$10BF` | SMC immediate, `$0A` |
+| `$D417` res nibble | `$10C4` | SMC immediate, poked by the `$F9` handler |
+| `$D417` routing bits | `$10CA` | SMC immediate, **accumulated per voice** |
+| master vol | `$12BA` | SMC immediate, init seeds `$0F` from the record |
+| track ptr lo/hi | `$16D8,x` / `$16DB,x` | |
+| track pos / sector pos | `$16DE,x` / `$16E1,x` | |
+| dur reload / dur ctr | `$16E4,x` / `$16E7,x` | |
+| transpose | `$16ED,x` | |
+| freq lo / hi | `$1618` / `$1678` | 96 entries |
+| sector ptr lo / hi | `$176C` / `$1784` | 24 sectors |
+| instruments | `$179C` | 8 bytes each |
+| wave ctrl / freq | `$184C` / `$18A8` | |
+| pulse lo / hi | `$1904` / `$1929` | |
+| filter lo / hi | `$194E` / `$1975` | |
+| tune record | `$1E8F` | tracks `$1E97`, `$1EBE`, `$1F04` |
+
+**Status: BUILDS, partial.** The lead-in is exact (4 empty play() chunks, then
+the first note) and the note-init writes reproduce the original byte for byte
+(`$D406=$7E $D405=$00 $D404=$09` on V1, and so on) — which is what validates the
+site map. Remaining residue, in order:
+
+1. **`$D417` emission (the first divergence).** Ed accumulates the routing bits
+   per voice in the `$10CA` immediate and writes `$D417` ONCE per play from the
+   filter tail (`LDA #res / ASL x4 / ORA #route / STA $D417`, orig `$F7`); the
+   canon composer writes `$D417` inside the `$F9` handler, i.e. at each
+   note-init (three `$F4` writes per frame). This is the DMC V4 `d417_shadow`
+   mechanism appearing in V5 — a routing SHADOW plus a play-tail emit, so a new
+   mechanism knob, not a re-order.
+2. **ctrl waveform bit + pulse width** (`ctrl $55` vs `$45`, PW `$0160` vs
+   `$02F0`) from frame 7 on — the wave/pulse stepping mechanics.
+3. a one-byte `$D413` (V3 AD) difference on the first note-init frame.
+
+
 ## ✅ SESSION 2026-08-23 — THE LEAD-IN OFF-TABLE FREQ (ledger C6), THREE BUGS
 
 The 2026-08-22 entry below fixed the lead-in PHASE (how many idle plays run

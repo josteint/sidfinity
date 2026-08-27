@@ -509,11 +509,42 @@ def v5_diagnose(sid_path: str, hvsc_root: str = 'hvsc85') -> dict:
     return {**out, 'status': 'ok'}
 
 
+def _family4_player(mem, base):
+    """WHICH player wears the family-4 head (`JMP base+$40 / JMP base+$95`)
+    at `base`? Returns (name, sites) or (None, None).
+
+    The head shape is NOT a player identity — `_detect_v5` checks nothing else
+    before handing the caller FAMILY4_SITES, and one HVSC member wears it over
+    a completely different program, whose "table operands" are a `STA` opcode
+    byte plus its operand low byte. Ledger C13: dispatch on the play BODY, and
+    detect the minority POSITIVELY rather than by flipping the default.
+
+    So: Ed's player is recognised by the structural signature of its init
+    (every patched/relocated operand byte wildcarded — one carrier in HVSC),
+    and Jupiter41 stays the default, guarded only by "at least one of its
+    twelve operand sites holds the instruction it is supposed to". Measured
+    over all 650 family-4-head members: 647 match 12/12, two re-assembled ones
+    10/12 and 11/12 (a wedge at their filter sites), the impostor 0/12 — so
+    nothing currently building is refused and no threshold is tuned."""
+    from pipelines.dmc.v5.config import (ED_KIDS_INIT_SKEL, ED_KIDS_SITES,
+                                         FAMILY4_SITES, FAMILY4_SITE_OPS)
+    at = base + 0x40
+    if all(p is None or (at + i < 0x10000 and mem[at + i] == p)
+           for i, p in enumerate(ED_KIDS_INIT_SKEL)):
+        return 'ed_kids', ED_KIDS_SITES
+    delta = base - 0x1000
+    if any(mem[(pc + delta - 1) & 0xFFFF] == FAMILY4_SITE_OPS[f]
+           for f, pc in FAMILY4_SITES.items()):
+        return 'jupiter41', FAMILY4_SITES
+    return None, None
+
+
 def _family4_config(sid_path, mem, s, jt_addr,
                     hvsc_root: str = 'hvsc85') -> DMCV5Config:
-    """Build the config for the family-4 (Jupiter41) V5 variant. Same data
-    format as family-3, relocated, with a different player — so the extract
-    reuses the V5 decode at the family-4 operand sites (FAMILY4_SITES + delta).
+    """Build the config for a V5 player wearing the family-4 head (init +$40 /
+    play +$95). Two are known — Jupiter41 (same data format as family-3,
+    different player) and Ed's hand-built one (family-3/5 semantics at its own
+    code offsets); both reuse the V5 decode at their own operand sites.
 
     ⚠ THIS IS A SECOND BUILD PATH, AND IT WAS DEFAULTING PROBED PARAMS —
     ledger C9's recurring shape ("a SECOND build path that defaults probed
@@ -521,9 +552,14 @@ def _family4_config(sid_path, mem, s, jt_addr,
     latch nor the C18 phase schedule, so every family-4 member with the PSID
     speed bit was built as VBLANK: 37 members, of which ZERO were FULL. A
     defaulted rate is silently wrong MUSIC, not a refusal."""
-    from pipelines.dmc.v5.config import FAMILY4_SITES
     base = jt_addr                              # family-4 base = the jump table
     delta = base - 0x1000
+    player, sites = _family4_player(mem, base)
+    if player is None:
+        raise DMCV5Unsupported(
+            'player_code_mismatch',
+            f'family-4 head at ${base:04X}, unknown player '
+            f'(0/12 operand sites)')
     full = os.path.join(hvsc_root, sid_path)
     cia_period = 0
     if s['play'] != jt_addr + 3 and (s.get('speed', 0) & 1):
@@ -532,10 +568,11 @@ def _family4_config(sid_path, mem, s, jt_addr,
             raise DMCV5Unsupported('cia_multispeed', f"play=${s['play']:04X}")
     d = DMCV5Config(sid_path=sid_path,
                     name=os.path.splitext(os.path.basename(sid_path))[0],
-                    base=base, family4=True, cia_period=cia_period,
+                    base=base, family4=player == 'jupiter41',
+                    ed_variant=player == 'ed_kids', cia_period=cia_period,
                     play_phases=_observe_play_phases(
                         full, s['start'] - 1, s['play'], base) or '')
-    for f, pc in FAMILY4_SITES.items():
+    for f, pc in sites.items():
         setattr(d, f, pc + delta)
     return d
 

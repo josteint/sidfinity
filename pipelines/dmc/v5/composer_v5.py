@@ -1345,12 +1345,18 @@ state_end:
         # why it is worth fixing rather than leaving. (It is also why the fix is
         # invisible in the FULL counts: the phase seed above is what moves them.)
         #
-        # NB no USF field is needed: the skip count is DERIVABLE from the player
-        # variant, which the USF already carries. family-4 -> 0, family-3 -> the
-        # canon 2.
+        # The COUNT is emitted, not a hardcoded zero: it used to substitute
+        # `lda #$00` unconditionally, which is right for family-4 (no counter
+        # at all) but silently wrong for any other lead-in length. Ed's
+        # hand-built player has the same counter as family-3 with a different
+        # seed (`LDA #$04 / STA $1096` — its first FOUR plays emit nothing).
+        # Byte-identical for both existing populations: family-4 sets 0 and
+        # family-3 never reaches this branch.
+        n = int(getattr(m, 'play_skip_init', 2)) & 0xFF
         engine = engine.replace(
             '        lda #$02\n        sta playskip',
-            '        lda #$00                ; family-4 play has no $1842 skip\n'
+            f'        lda #${n:02x}                ; player lead-in: '
+            f'{n} silent play() call(s)\n'
             '        sta playskip')
     if getattr(m, 'noteon_skip_freq_clear', False):
         engine = engine.replace(

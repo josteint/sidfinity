@@ -581,6 +581,32 @@ def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
         # of the §8 branches; one source per quantity replaces it.)
         m.lo_spdctr = mem[0x1016 + d]
         m.lo_mvolfrac = 0
+    elif getattr(cfg, 'ed_variant', False):
+        # Ed's hand-built player (sole HVSC carrier). It wears the family-4
+        # HEAD but runs family-3/5 SEMANTICS — canon track + sector command
+        # bytes, canon 8-byte instrument records, canon interleaved tune
+        # record, curnote at the canon base+$0F — so every mechanism knob keeps
+        # its family-3/5 default and only two things differ.
+        d = cfg.base - 0x1000
+        from pipelines.dmc.v5.config import (ED_KIDS_SKIP_IMM,
+                                             ED_KIDS_SKIP_SHAPE,
+                                             ED_KIDS_STATE)
+        # (1) THE LEAD-IN. Its play head is `LDA #imm / BEQ real / DEC imm-slot
+        # / RTS` with the immediate seeded by the init (`LDA #$04 / STA $1096`),
+        # so the first FOUR play() calls emit nothing where family-3 emits none
+        # for two. PROBED off the init, never assumed (ledger C19) — the shape
+        # is checked so a different build falls back to the family-3 default.
+        if all(mem[pc + d] == op for pc, op in ED_KIDS_SKIP_SHAPE):
+            m.play_skip_init = mem[ED_KIDS_SKIP_IMM + d]
+        # (2) THE LEFTOVER ADDRESSES. Its speed counter and its initial
+        # $D415/$D416 values live as SELF-MODIFIED IMMEDIATES inside the play
+        # body, not in the canon $1013 / $1015-$1017 block — which on this
+        # member is the embedded title text, and reading it there gave a
+        # 5-frame phantom startup delay plus a nonsense filter prime.
+        for f, pc in ED_KIDS_STATE.items():
+            setattr(m, f, mem[pc + d])
+        m.lo_filtmode = 0          # its $D418 carries no filter-mode nibble
+        m.lo_mvolfrac = 0
     # Off-table arpeggio frequencies, per instrument (the off-table-read form;
     # see _assign_offtable_freq).
     #

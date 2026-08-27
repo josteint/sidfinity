@@ -5,8 +5,61 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-26T22:30:01.462Z
+  modified: 2026-08-27T05:41:39.679Z
 ---
+
+## ✅ v5 UNSUPPORTED CLEARED 2026-08-27: both `data_tables_off_image` refusals resolved, v5 unsupported = 0
+
+⚠ VERDICTS NOW STALE: this round edits `v5/factory.py`, `v5/config.py`,
+`v5/extract/engine_model.py` and `v5/composer_v5.py`, so every dmc_v5 row from
+the overnight batch below is code_hash-invalid. Re-batch before quoting counts.
+Regression scope was reasoned + measured, not assumed: both changes fire ONLY
+for members the extract would otherwise REFUSE, so neither can regress a FULL —
+proven by a 92-member byte gate (the 50-member v5 portfolio + 29 family-4 + 20
+family-3/5 + both refusals): 91/91 rebuilt `.sid` MD5-identical, the only
+changes being the two intended members. Full `tools/regression.py` green.
+
+The two refusals had NOTHING in common but their symptom (9/12 table operands
+outside the image). Both diagnoses were measurements, not readings of the count:
+
+- **`Piirainen_Antti/Left_Ear_Bleedin_Ear_Left` — a real C26 unpacker.** A
+  family-4 player at `$0900` whose appended init wrapper (`$1950`) pastes the
+  song out of the image: instruments `$4000`, wave `$4100`/`$4200`, pulse
+  `$4300`/`$4400`, filter `$4500`/`$4600`, orderlist `$4700`, sector-hi
+  `$C018`, sectors at `$6000,$6100,…`. V4's all-or-nothing gate (EVERY operand
+  off-image) structurally cannot see it: its 3 in-image operands are the two
+  freq tables (INSIDE the player body, they relocate with the base) and the
+  sector-LO table (a zero block in the player tail — page-aligned sectors ⇒ all
+  low bytes `$00`). Cure = measure the C26 claim itself (ledger C26, 2nd occ):
+  diff pre-init RAM against post-init and require every off-image table address
+  to have been WRITTEN. Now builds: state match, 345,932-write overlap, residue
+  = a spurious per-voice `$D418=$1F`.
+- **`Ed/We_Were_All_Kids` — a MISIDENTIFIED player** (ledger C13, the dual of
+  "dispatch on the play body"). V5 admits family-4 on `JMP base+$40 /
+  JMP base+$95` alone, no body check, then applies `FAMILY4_SITES`; this member
+  wears that head over a hand-built program (2.0% byte-identical vs the other
+  649's 47-100%), so "orderlist `$D89D`" was the `STA` opcode byte `$9D` plus
+  its own operand's `$D8`. Census of all 650 family-4-head members decided the
+  guard: a strict body compare would refuse 22 wedged/re-assembled members that
+  BUILD today (up to 286 opcode mismatches), so the line is instead ALL TWELVE
+  operand sites wrong (647 match 12/12, worst legit 10/12, impostor 0/12).
+  Ed's player then got its OWN site map rather than a refusal — it runs
+  family-3/5 SEMANTICS at family-4 offsets (canon track + sector commands,
+  8-byte instrument records, curnote at base+`$0F`), detected positively by a
+  wildcard-masked signature of its init (1 carrier in HVSC under that head).
+  Two variant facts: lead-in `play_skip_init=4` probed off `LDA #$04 /
+  STA $1096` (the composer's substitution was hardcoding `#$00` — now emits the
+  count), and its speed counter + initial `$D415`/`$D416` live as SMC
+  immediates at base+`$D8`/`$BA`/`$BF`, not in the canon `$1013`/`$1015-$17`
+  block (which on this member is the embedded title text: a 5-frame phantom
+  startup delay + a nonsense filter prime). Now BUILDS as a partial with an
+  exact 4-play lead-in and byte-exact note-inits; residue + full state map in
+  `pipelines/dmc/family4/RE_NOTES.md` (head): `$D417` wants the V4-style
+  routing SHADOW written once per play, then wave/pulse stepping.
+
+⚠ FOUND EN ROUTE, NOT ACTED ON: 11 `MUSICIANS/K/Kosa/*` members share one
+DMC-derived player at `init +$60 / play +$D1` and are routed to NO pipeline.
+Same audit is owed to every other offset-only dispatch.
 
 ## 📊 v5 FRESH FULL BATCH 2026-08-27 (overnight): 1,211/2,031 FULL (59.6%), verdicts CURRENT, mass-write synced
 
