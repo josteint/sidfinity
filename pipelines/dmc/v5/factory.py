@@ -256,6 +256,103 @@ def _load(sid_path: str, post_init_sub: 'int | None' = None):
     return mem, s
 
 
+# ---------------------------------------------------------------------------
+# ledger C26 — the song data is NOT in the file image (the init generates it)
+# ---------------------------------------------------------------------------
+_TABLE_OPS = ('op_orderlist', 'op_secp_lo', 'op_secp_hi', 'op_instr',
+              'op_freq_lo', 'op_freq_hi', 'op_wave_ctrl', 'op_wave_freq',
+              'op_pulse_lo', 'op_pulse_hi', 'op_filter_lo', 'op_filter_hi')
+
+
+def data_tables_off_image(mem, s, d):
+    """The data-table addresses `d`'s operand sites resolve to that lie
+    OUTSIDE the loaded image — returned only when that pattern is strong
+    enough to mean the song cannot be read from the image at all: MOST
+    operands outside AND the orderlist among them. `[(field, addr), ...]`
+    or None.
+
+    ONE definition, shared by the C26 probe below and the extract's
+    `data_tables_off_image` refusal, so the two cannot drift apart: the
+    probe must consider exactly the members the refusal would otherwise
+    kill, or it either misses carriers or pays py65 for the whole family."""
+    lo, hi = s['load'], s['load'] + len(s['payload'])
+    addrs = [(f, mem[getattr(d, f)] | (mem[getattr(d, f) + 1] << 8))
+             for f in _TABLE_OPS]
+    off = [(f, a) for f, a in addrs if not lo <= a < hi]
+    order = dict(addrs)['op_orderlist']
+    return off if len(off) >= 6 and not lo <= order < hi else None
+
+
+def _preinit_image(s):
+    """The RAM the CPU sees BEFORE init — libsidplayfp's power-on pattern,
+    psiddrv's $0000-$03FF wipe, then the loaded image. The baseline that
+    makes "the init WROTE this address" decidable from two snapshots."""
+    from pipelines.dmc.v4.extract.engine_model import _poweron_fill
+    mem = bytearray(0x10000)
+    _poweron_fill(mem)
+    for a in range(0x400):
+        mem[a] = 0
+    for i, b in enumerate(s['payload']):
+        if s['load'] + i < 0x10000:
+            mem[s['load'] + i] = b
+    return mem
+
+
+def postinit_view(s):
+    """The RAM the engine reads when the init GENERATES the song data.
+
+    Snapshotted AT THE PLAYER LANDING when the init reaches one — that is
+    the exact analogue of the file image an ordinary in-image member is
+    extracted from (post-unpack, but before the player's own init overwrites
+    the leftover state the extract reads as priming; see `_postinit_window`).
+    Falls back to running the init to completion for an unpacker that never
+    lands on a player head, and to None when py65 cannot run the init at all
+    (C9 territory — the caller refuses rather than reading the empty image).
+    """
+    from pipelines.dmc.v4.extract.engine_model import _postinit_window
+    for stop in (True, False):
+        post = _postinit_window(s, 0, 0x10000, stop_at_player=stop)
+        if post is not None:
+            return bytearray(post)
+    return None
+
+
+def _data_post_init(s, mem, d) -> bool:
+    """Does this member's init GENERATE its song data (ledger C26)?
+
+    V4's gate for this class counts operands and is all-or-nothing — EVERY
+    data-table operand must point outside the loaded image. That refuses a
+    genuine unpacker whose freq tables live INSIDE the player body (they
+    relocate with it, so they are in-image by construction) or whose
+    sector-LO table is a zero block in the player tail (every sector
+    page-aligned => every low byte $00).
+    `MUSICIANS/P/Piirainen_Antti/Left_Ear_Bleedin_Ear_Left` is exactly that
+    shape: 9 of 12 operands point at RAM the file never loads, the other 3
+    are those in-player tables, and the wrapper's init pastes the song out
+    to $4000-$4700 / $6000+.
+
+    So decide by MEASUREMENT rather than by counting: run the init and
+    require that every off-image table address was WRITTEN by it. That is
+    the C26 claim stated literally, and it is exactly what separates an
+    unpacker from a MISIDENTIFIED player — whose "table addresses" are not
+    addresses at all (Ed/We_Were_All_Kids reads a `STA` opcode byte plus its
+    operand low byte as "$D89D") and which writes none of them.
+
+    NB the snapshot runs the START song's init; a multi-song member that
+    unpacks DIFFERENT data per subtune would need one view per subtune (no
+    such carrier exists — the one carrier has a single song)."""
+    off = data_tables_off_image(mem, s, d)
+    if not off:
+        return False
+    post = postinit_view(s)
+    if post is None:
+        return False
+    pre = _preinit_image(s)
+    return all(any(post[(a + k) & 0xFFFF] != pre[(a + k) & 0xFFFF]
+                   for k in range(16))
+               for _f, a in off)
+
+
 def _detect_v5(mem, s):
     """Locate the V5 player from its 2-entry jump table. entry0 = init
     target, entry1 = play target. The PLAY routine is the reliable anchor:
@@ -473,6 +570,8 @@ def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc85',
     if layout == 'family4':
         d = _family4_config(sid_path, mem, s, jt_addr, hvsc_root)
         d.n_songs, d.post_init_sub = n_songs, post_init_sub
+        if post_init_sub is None:
+            d.data_post_init = _data_post_init(s, mem, d)
         return d
     delta = base - 0x1000
 
@@ -527,4 +626,6 @@ def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc85',
               'op_pulse_hi', 'op_filter_lo', 'op_filter_hi'):
         setattr(d, f, getattr(d, f) + delta)
     d.op_orderlist = it + 7
+    if post_init_sub is None:
+        d.data_post_init = _data_post_init(s, mem, d)
     return d

@@ -115,7 +115,8 @@ def main():
     ts(f'BUILD PATH   base=${cfg.base:04X}  variant={variant}')
     ts(f'             cia_period=${cfg.cia_period:04X}  header songs={songs}'
        f'  n_songs={getattr(cfg, "n_songs", None)}'
-       f'  post_init_sub={getattr(cfg, "post_init_sub", None)}')
+       f'  post_init_sub={getattr(cfg, "post_init_sub", None)}'
+       f'  data_post_init={getattr(cfg, "data_post_init", False)}')
 
     td = tempfile.mkdtemp(prefix='dmcv5_')
     with phase('extract -> USF'):

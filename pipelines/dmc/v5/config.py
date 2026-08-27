@@ -50,6 +50,13 @@ class DMCV5Config:
                                  # whose play vector runs the full play only
                                  # every Nth call and an effects-only pass on
                                  # the others. '' = no wrapper (canon).
+    data_post_init: bool = False  # INIT-UNPACKER member (ledger C26): the
+                                 # song data is absent from the file image —
+                                 # the init GENERATES/relocates it into RAM,
+                                 # so every table read comes from post-init
+                                 # RAM instead. Measured by the factory (the
+                                 # off-image table addresses must actually be
+                                 # WRITTEN by the init), never assumed.
     post_init_sub: 'int | None' = None  # RELOCATED sub-player (C31+C26): the
                                  # wrapper copies it into RAM, so every memory
                                  # read uses the RAM left by THIS subtune's

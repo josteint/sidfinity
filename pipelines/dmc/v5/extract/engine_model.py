@@ -141,10 +141,17 @@ class V5Model:
     sid_model: int = 6581   # PSID header SID model (write-log-blind; audible)
 
 
-def _load(path: str, post_init_sub: 'int | None' = None):
+def _load(path: str, post_init_sub: 'int | None' = None,
+          data_post_init: bool = False):
     """File image as a 64K map; `post_init_sub` swaps in the RAM left by that
     subtune's init (snapshot at the landing) for a RELOCATED compilation
-    sub-player (ledger C31 + C26) — mirrors the V4 extract's view."""
+    sub-player (ledger C31 + C26) — mirrors the V4 extract's view.
+
+    `data_post_init` is the other C26 shape: an INIT-UNPACKER member, whose
+    song data the init generates/relocates into RAM (so the image holds
+    nothing at the table addresses). The factory MEASURED that — see
+    `factory._data_post_init` — so a failure to reproduce the snapshot here
+    is a refusal, never a silent fall back to the empty image."""
     import sys
     sys.path.insert(0, os.path.join(os.path.dirname(__file__),
                                     '..', '..', '..', '..', 'tools'))
@@ -160,6 +167,13 @@ def _load(path: str, post_init_sub: 'int | None' = None):
                                 stop_at_player=True)
         if post is not None:
             mem = bytearray(post)
+    elif data_post_init:
+        from pipelines.dmc.v5.factory import DMCV5Unsupported, postinit_view
+        post = postinit_view(s)
+        if post is None:
+            raise DMCV5Unsupported('data_post_init_unrunnable',
+                                   'py65 could not run the unpacker init')
+        mem = post
     return mem, s
 
 
@@ -309,7 +323,8 @@ def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
     from pipelines.dmc.v4.extract.engine_model import (_hdr_clock,
                                                        _hdr_sid_model)
     mem, s = _load(os.path.join(hvsc_root, cfg.sid_path),
-                   getattr(cfg, 'post_init_sub', None))
+                   getattr(cfg, 'post_init_sub', None),
+                   getattr(cfg, 'data_post_init', False))
 
     a_order = _rd16(mem, cfg.op_orderlist)
     a_secp_lo = _rd16(mem, cfg.op_secp_lo)
@@ -327,28 +342,31 @@ def extract(cfg, hvsc_root: str = 'hvsc85') -> V5Model:
 
     # THE OPERANDS ARE NOT TABLE ADDRESSES AT ALL. On a couple of members the
     # detector's play-body signature matches but the data-table operands point
-    # nowhere near the file image (Ed/We_Were_All_Kids and Piirainen_Antti/
-    # Left_Ear_Bleedin_Ear_Left: 9 of 12 outside, all three track pointers read
-    # $0000). Decoding proceeds from garbage and the member dies somewhere
-    # arbitrary downstream — it reported as a crash rather than as "we can't
-    # read this one", which is worse than useless in a residue census.
+    # nowhere near the file image (Ed/We_Were_All_Kids: 9 of 12 outside, all
+    # three track pointers read $0000). Decoding proceeds from garbage and the
+    # member dies somewhere arbitrary downstream — it reported as a crash
+    # rather than as "we can't read this one", which is worse than useless in
+    # a residue census.
     #
-    # This is ledger C26's shape (init unpacks the song into RAM, so the image
-    # holds no tables) but only PARTLY: C26 requires EVERY operand outside the
-    # image before it will read from post-init RAM, and mixed members stay
-    # refused. So refuse — cleanly, and named — rather than guess. A member with
-    # `post_init_sub` is already being read from post-init RAM (C26/C31), where
-    # the file-image bounds do not apply, so it is exempt.
-    if getattr(cfg, 'post_init_sub', None) is None:
-        load = s['load']
-        tables = (a_order, a_secp_lo, a_secp_hi, a_instr, a_flo, a_fhi,
-                  a_wc, a_wf, a_pl, a_ph, a_fl, a_fh)
-        outside = sum(1 for a in tables if not load <= a < end)
-        if outside >= 6 and not load <= a_order < end:
-            from pipelines.dmc.v5.factory import DMCV5Unsupported
+    # The other reading of the same symptom is ledger C26 — the init GENERATES
+    # the song data, so the image legitimately holds nothing at the table
+    # addresses. The two are told apart by MEASUREMENT, not by counting
+    # operands: `factory._data_post_init` runs the init and checks whether the
+    # off-image addresses are actually WRITTEN. If they are, `data_post_init`
+    # is set and `_load` above already swapped in that post-init RAM, so this
+    # refusal must not fire; if they are not, the operands are not addresses
+    # and we refuse — cleanly, and named — rather than guess. A member with
+    # `post_init_sub` is likewise already being read from post-init RAM
+    # (C26/C31), where the file-image bounds do not apply.
+    if (getattr(cfg, 'post_init_sub', None) is None
+            and not getattr(cfg, 'data_post_init', False)):
+        from pipelines.dmc.v5.factory import (DMCV5Unsupported,
+                                              data_tables_off_image)
+        off = data_tables_off_image(mem, s, cfg)
+        if off:
             raise DMCV5Unsupported(
-                f'data_tables_off_image: {outside}/12 table operands outside '
-                f'${load:04X}-${end:04X} (orderlist ${a_order:04X})')
+                f'data_tables_off_image: {len(off)}/12 table operands outside '
+                f"${s['load']:04X}-${end:04X} (orderlist ${a_order:04X})")
 
     # region sizes from address deltas (the packer lays tables contiguously:
     # instr | wave_ctrl | wave_freq | pulse_lo | pulse_hi | filter_lo |
