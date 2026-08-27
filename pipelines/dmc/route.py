@@ -302,7 +302,15 @@ def route(rel: str, hvsc_root: str | None = None,
         cfg5 = dmc_v5_config(rel, hvsc_root=root)
         r.claims.append('v5')
         if 'v4' not in r.claims:
-            r.variant = 'family4' if getattr(cfg5, 'family4', False) else 'f3'
+            # Name the PLAYER, not a boolean: three wear a V5 head. `f3` is
+            # the canonical family-3/5 body; `family4` the Jupiter41 variant;
+            # `ed_kids` a hand-built player that wears the family-4 HEAD over
+            # family-3/5 SEMANTICS (ledger C13 — a head shape is not a player
+            # identity). Left as `f3` it would read as canonical and hide the
+            # only member the ed site map serves.
+            r.variant = ('family4' if getattr(cfg5, 'family4', False)
+                         else 'ed_kids' if getattr(cfg5, 'ed_variant', False)
+                         else 'f3')
             r.base = int(getattr(cfg5, 'base', 0)) or None
     except Exception as e:                       # noqa: BLE001
         r.refusals['v5'] = _reason(e)
@@ -409,6 +417,104 @@ def build_roster(members: list, engines: dict, want_paths: bool = False,
     return rows
 
 
+# Which batch store holds each roster group's verdicts. `None` = the group has
+# NO store, i.e. its members carry no verdict at all and appear in no coverage
+# number anywhere (DMC's v6 today: extract exists, composer never started).
+# A group MISSING from this map is reported too, loudly — an unregistered
+# pipeline/variant is the same bug one step earlier.
+_VERDICT_STORES = {
+    ('v4', 'canonical'): 'dmc_v4',
+    ('v4', 'family2'): 'dmc_v4_family2',
+    ('v5', 'f3'): 'dmc_v5',          # one store covers every v5 variant
+    ('v5', 'family4'): 'dmc_v5',
+    ('v5', 'ed_kids'): 'dmc_v5',
+    ('v6', None): None,
+}
+_UNREGISTERED = object()
+
+
+def verdict_gaps(rows: list) -> list:
+    """Members this roster CLAIMS that have no verdict row anywhere.
+
+    THE GAP NOTHING ELSE CAN SEE. A batch reports `full / len(rows)` and its
+    rows are its OWN file, so a member the detector claims but that was never
+    batched lowers no percentage, fails no gate and appears in no census.
+    `summarise` above reports roster membership; each batch reports its own
+    rows; the two were never compared. `roster_staleness` does not cover it —
+    that watches the routing CODE, not membership-vs-verdicts.
+
+    Measured 2026-08-27: DMC f1/f2 had stood at "5,445/5,445 + 2,924/2,924 =
+    100%, family closed" while 50 roster-claimed members had NO row at all —
+    the roster was regenerated the day AFTER the last f1/f2 batch and the v4
+    detector's claim grew by 50. Batching them returned 5 full / 37 partial /
+    3 error, so neither family was closed and both published figures were
+    denominator artifacts.
+
+    Cheap by construction: reads the roster (already in memory) and each
+    store's key set. Returns one dict per group with a gap, worst first.
+    """
+    from src.batch_results import STORES, load_latest, store
+    groups: dict = collections.defaultdict(list)
+    for r in rows:
+        if r.get('pipeline'):
+            groups[(r['pipeline'], r.get('variant'))].append(r['rel'])
+    seen: dict = {}
+    out = []
+    for key, members in sorted(groups.items()):
+        sid = _VERDICT_STORES.get(key, _UNREGISTERED)
+        kind = None
+        if sid is _UNREGISTERED:
+            kind = 'unregistered'          # nobody declared where its verdicts live
+        elif sid is None:
+            kind = 'no_store'              # declared to have none (v6)
+        else:
+            if sid not in seen:
+                st = store(sid) if sid in STORES else None
+                seen[sid] = (set(load_latest(st.path, st.id_key))
+                             if st and os.path.exists(st.path) else None)
+            have = seen[sid]
+            if have is None:
+                kind = 'no_results_file'
+            else:
+                members = [m for m in members if m not in have]
+                kind = 'unverified' if members else None
+        if kind:
+            out.append({'group': key, 'store': sid if sid is not _UNREGISTERED
+                        else None, 'kind': kind, 'missing': sorted(members)})
+    out.sort(key=lambda d: -len(d['missing']))
+    return out
+
+
+_GAP_LABEL = {
+    'unverified': 'claimed by the detector, never batched — no verdict row',
+    'no_store': 'routed to a pipeline with NO results store (0 verdicts)',
+    'no_results_file': 'store registered but its results file does not exist',
+    'unregistered': 'group absent from route._VERDICT_STORES — nobody '
+                    'declared where its verdicts live',
+}
+
+
+def report_verdict_gaps(rows: list) -> int:
+    """Print `verdict_gaps` and return the number of members affected."""
+    gaps = verdict_gaps(rows)
+    n = sum(len(g['missing']) for g in gaps)
+    if not gaps:
+        print('\n✅ every claimed member has a verdict row')
+        return 0
+    print(f'\n⚠ CLAIMED BUT UNVERIFIED — {n} member(s) with no verdict row. '
+          f'A batch\'s denominator is its OWN rows, so these lower no '
+          f'percentage and appear in no census:')
+    for g in gaps:
+        p, v = g['group']
+        print(f'  {len(g["missing"]):5d}  {p}/{v or "-":<10} '
+              f'{_GAP_LABEL[g["kind"]]}')
+        for m in g['missing'][:5]:
+            print(f'            {m}')
+        if len(g['missing']) > 5:
+            print(f'            ... +{len(g["missing"]) - 5} more')
+    return n
+
+
 def summarise(rows: list, meta: dict | None = None) -> None:
     stale = roster_staleness(meta or {})
     if stale:
@@ -464,6 +570,7 @@ def summarise(rows: list, meta: dict | None = None) -> None:
             for r in sorted(het, key=lambda r: r['rel']):
                 print(f'  {r["rel"]}   owner={r["pipeline"]}  '
                       f'path={r["build_path"]}')
+    report_verdict_gaps(rows)
     # The roster's whole contract: every member lands in exactly one bucket.
     assert nclaimed + nunc == total, 'roster does not partition the corpus'
 
@@ -478,6 +585,10 @@ def main() -> int:
     ap.add_argument('--jobs', type=int, default=None)
     ap.add_argument('--summary', action='store_true',
                     help='re-summarise an existing roster without re-routing')
+    ap.add_argument('--gaps', action='store_true',
+                    help='ONLY report roster-claimed members that have no '
+                         'verdict row (the closeout check; seconds, no '
+                         're-routing). Exit 1 if any.')
     ap.add_argument('--restamp', action='store_true',
                     help='refresh the roster fingerprints if the MEASURED '
                          'routing closure is unchanged by content (else refuse)')
@@ -490,6 +601,10 @@ def main() -> int:
     _RESULTS = [os.path.join(ROOT, 'tmp', n) for n in
                 ('dmc_f1_85_results.jsonl', 'dmc_f2_85_results.jsonl',
                  'dmc_v5_r3_results.jsonl')]
+
+    if args.gaps:
+        _meta, rows = load_roster(args.out)
+        return 1 if report_verdict_gaps(rows) else 0
 
     if args.restamp:
         return restamp(args.out)

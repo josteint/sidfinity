@@ -512,13 +512,19 @@ Measured 2026-08-27 — DMC f1/f2 had stood at "5,445/5,445 + 2,924/2,924 = 100%
 family closed" while **50 roster-claimed members had no verdict row at all**
 (the roster was regenerated the day AFTER the last batch and the v4 detector's
 claim grew); batching them returned 37 partial + 3 error, i.e. neither family
-was closed. So at every closeout, DIFF the family's claimed member list against
-`set(load_latest(store))` and report members with no row — nothing does this
-today (`route.summarise` reports roster membership, each batch reports its own
-rows, and the two are never compared; `roster_staleness` watches the routing
-CODE, not membership-vs-verdicts). Same shape one step further out: a member
-routed to a pipeline with no entry in `src/batch_results.STORES` (DMC's 16 `v6`
-members) has zero verdicts and appears in no coverage line anywhere.
+was closed. The check is now mechanical for DMC —
+**`python3 pipelines/dmc/route.py --gaps`** (seconds, no re-routing, exit 1 on
+any gap; also printed by `--summary` beside the coverage table). It diffs each
+roster group's claimed members against `set(load_latest(store))` and reports
+four kinds: `unverified` (claimed, never batched), `no_store` (routed to a
+pipeline with no entry in `src/batch_results.STORES` — DMC's 16 `v6` members,
+zero verdicts, in no coverage line anywhere), `no_results_file`, and
+`unregistered` (a pipeline/variant absent from `route._VERDICT_STORES`, i.e.
+nobody declared where its verdicts live — the same bug one step earlier).
+**RUN IT AT EVERY CLOSEOUT, and add the equivalent for any family that grows a
+roster.** Note what it is NOT: `roster_staleness` watches the routing CODE, and
+`code_hash` watches whether a row is current — neither can see a member that
+has no row at all.
 
 **Reading a batch results jsonl — always via `src/batch_results.load_latest`.**
 The file is APPEND-ONLY (a resume, or a `code_hash` invalidation, appends fresh
