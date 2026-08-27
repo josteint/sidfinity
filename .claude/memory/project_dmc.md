@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-27T05:41:39.679Z
+  modified: 2026-08-27T15:04:35.096Z
 ---
 
 ## ✅ v5 UNSUPPORTED CLEARED 2026-08-27: both `data_tables_off_image` refusals resolved, v5 unsupported = 0
@@ -57,9 +57,34 @@ outside the image). Both diagnoses were measurements, not readings of the count:
   `pipelines/dmc/family4/RE_NOTES.md` (head): `$D417` wants the V4-style
   routing SHADOW written once per play, then wave/pulse stepping.
 
-⚠ FOUND EN ROUTE, NOT ACTED ON: 11 `MUSICIANS/K/Kosa/*` members share one
-DMC-derived player at `init +$60 / play +$D1` and are routed to NO pipeline.
-Same audit is owed to every other offset-only dispatch.
+⚠ CORRECTION to this round's first write-up (and to commit a537d8c6's closing
+line): the `MUSICIANS/K/Kosa/*` members it flagged are NOT unrouted DMC. sidid
+classifies them `Kosa_Protracker` (13 in HVSC, no `engine_docs` row = never
+researched) — a separate small unmigrated family, one of ~50. They were read as
+"DMC, routed nowhere" because a roster `.get()` miss looks identical to
+`pipeline=None`, and their lineage was inferred from a 23-byte masked init
+skeleton, which is far too weak to establish one.
+
+⚠ WHAT IS REALLY THERE — **309 UNROUTED DMC MEMBERS (2.9% of the roster's
+10,774)**, all sidid-classified `DMC`, which NEITHER the v4 nor the v5 factory
+recognises: 179 `v4=no_jumptable | v5=player_code_mismatch`, 70 both
+`no_jumptable`, 40 `v4=nonstandard_vectors`, rest long-tail. 122 of them carry
+the CANONICAL DMC entry (init=base, play=base+3) — the head is fine, the body
+matches no known player.
+
+**These are invisible to every coverage number we quote**, because each
+family's denominator is the members ITS factory accepted: "v5 1,211/2,031
+(59.6%)" and "f1 5,445/5,445 = 100%" both exclude them. The honest DMC-wide
+denominator is 10,774. Nothing surfaces them — not a census, not regression,
+not a batch. This session's two members were the OTHER side of the same
+blind spot (admitted on a head shape, checked nothing, refused with a nonsense
+reason); at least those were visible as `unsupported`.
+
+Tractability, measured (relocation-invariant fingerprint = the map of
+`STA/STA,x/STA,y $D4xx` offsets from load): 309 members -> 182 distinct
+players; 10 clusters of >=5 cover 106 members (34%, biggest 20/18/17), 154 are
+singletons. So ~10 unrecognised player variants are worth a look, over a real
+long tail — not one big win, not nothing.
 
 ## 📊 v5 FRESH FULL BATCH 2026-08-27 (overnight): 1,211/2,031 FULL (59.6%), verdicts CURRENT, mass-write synced
 
