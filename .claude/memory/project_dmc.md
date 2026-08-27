@@ -5,8 +5,45 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
-  modified: 2026-08-27T15:04:35.096Z
+  modified: 2026-08-27T15:53:16.187Z
 ---
+
+## ⛔ 2026-08-27 — **f1 AND f2 ARE NOT CLOSED**: 50 claimed members had NO verdict row; 40 of them are non-FULL
+
+Measured, not inferred. The roster claims 5,474 canonical (f1) and 2,944
+family2 (f2) members; the batch stores hold 5,445 and 2,924 rows — **50
+members are claimed by the v4 detector and have no verdict at all** (30 f1 /
+20 f2, exactly the `build_path=None` set, since build_path is folded IN from
+the results). Batched them:
+
+| family | roster | had rows | unbatched | of those: full / partial / error | honest coverage |
+|---|---:|---:|---:|---|---|
+| f1 (canonical) | 5,474 | 5,445 | 30 | 5 / 23 / 2 | **5,450/5,474 = 99.6%** |
+| f2 (family2)   | 2,944 | 2,924 | 20 | 5 / 14 / 1 | **2,929/2,944 = 99.5%** |
+
+So the standing "5,445/5,445 + 2,924/2,924 = 100% FULL" is a **denominator
+artifact**: the batch's denominator is the rows in its own file. 37 partials
+and 3 errors were hiding behind it. Errors: 2× `base_override_not_player`
+(Tanks_3000 $1000, Last_Amazon $2000), 1× multi-SID
+`chips disagree on player params` (Popel_Premiere_Intr0h_2SID). Fresh rows in
+`tmp/v4_unbatched_{can,f2}_results.jsonl` — FOLD THEM INTO THE STORES at the
+next f1/f2 batch (they are separate files, so the stores still under-report).
+
+**MECHANISM** (not a one-off): the roster was regenerated 2026-08-23, AFTER the
+last f1/f2 batches (2026-08-22), and the v4 detector's claim grew by 50. The
+batch DOES source its member list from the roster, so a re-run picks them up —
+but nothing ever said to re-run. `route.summarise` reports roster membership,
+each batch reports its own rows, and **nothing compares the two**. A member can
+join a family and never be verified while the family reports 100%. That is the
+missing mechanical check; `roster_staleness` does not cover it (it watches the
+routing CODE, not membership-vs-verdicts).
+
+⚠ SAME SHAPE, THIRD PLACE: **16 members route to `v6`**, which has no entry in
+`src/batch_results.STORES` at all (extract exists, composer never started).
+Zero verdicts, and they appear in no coverage line anywhere.
+
+**DMC-wide invisible tally: 375 of 10,774 (3.5%)** — 309 unrouted + 50 claimed
+but unbatched + 16 routed to a pipeline that does not exist.
 
 ## ✅ v5 UNSUPPORTED CLEARED 2026-08-27: both `data_tables_off_image` refusals resolved, v5 unsupported = 0
 

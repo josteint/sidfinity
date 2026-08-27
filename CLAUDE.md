@@ -505,6 +505,21 @@ change auto-re-verifies exactly the members it could have affected — no more
 `pipelines/<family>/mass_write.py` tools likewise skip (and warn about) any FULL row whose
 code_hash is stale, so they never write an unverified build to disk.
 
+**⚠ THE DENOMINATOR IS THE CLAIMED MEMBERSHIP, NOT THE ROWS IN THE FILE.** A
+batch reports `full / len(rows)`, so a member the detector CLAIMS but that was
+never batched is invisible: it lowers no percentage and appears in no census.
+Measured 2026-08-27 — DMC f1/f2 had stood at "5,445/5,445 + 2,924/2,924 = 100%,
+family closed" while **50 roster-claimed members had no verdict row at all**
+(the roster was regenerated the day AFTER the last batch and the v4 detector's
+claim grew); batching them returned 37 partial + 3 error, i.e. neither family
+was closed. So at every closeout, DIFF the family's claimed member list against
+`set(load_latest(store))` and report members with no row — nothing does this
+today (`route.summarise` reports roster membership, each batch reports its own
+rows, and the two are never compared; `roster_staleness` watches the routing
+CODE, not membership-vs-verdicts). Same shape one step further out: a member
+routed to a pipeline with no entry in `src/batch_results.STORES` (DMC's 16 `v6`
+members) has zero verdicts and appears in no coverage line anywhere.
+
 **Reading a batch results jsonl — always via `src/batch_results.load_latest`.**
 The file is APPEND-ONLY (a resume, or a `code_hash` invalidation, appends fresh
 rows beside the old), so one member routinely has several rows with different
