@@ -8,6 +8,41 @@ metadata:
   modified: 2026-08-27T15:53:16.187Z
 ---
 
+## 🔎 2026-08-27 — sidid ALREADY KNOWS v4-vs-v5, and reframes the 309 unrouted
+
+`sidid -m` (multi-signature mode, which our catalogue generator does NOT use —
+see [[reference_hvsc_db]]) carries a finer signature beside the family name:
+`(DMC_V4.x)` 5,394 carriers, `(DMC_V5.x)` 2,254, `DMC_V6.x` 16. Cross-tabulated
+against our roster's routing:
+
+| sidid sub-signature | our routing | members |
+|---|---|---:|
+| v4 | v4 | 5,399 |
+| (bare DMC) | v4 | 2,985 |
+| v5 | v5 | 2,014 |
+| **v5** | **unrouted** | **240** |
+| **v4** | **unrouted** | **42** |
+| v4+v5 | v4 | 23 |
+| v5 | **v4** | **11** |
+| v6 | v6 | 16 |
+
+Two conclusions:
+
+1. **The 309 unrouted are NOT sidid mislabels.** sidid gives a sub-version for
+   286 of them (240 v5 / 42 v4 / 4 both); only 23 are bare `DMC`. They are
+   genuine family members whose specific player OUR factory refuses. Use the
+   sub-signature as the candidate generator when attacking that bucket —
+   240 of them say "v5" and should be read alongside v5's
+   `player_code_mismatch` refusals.
+2. **11 members where sidid says v5 and we route v4** — a small, checkable
+   disagreement list, and the only place the two identifiers conflict at all
+   (7,429 agree). Note `Grid_Zone_Remix` and `Last_Amazon` are ALSO the two
+   members `route.summarise` flags as AMBIGUOUS (claimed by both factories),
+   and both are in the 50 unbatched set: `MUSICIANS/B/Bayliss_Richard/`
+   `Childs_Play` · `Flat_Beat` · `Grid_Zone_Remix` · `Last_Amazon` ·
+   `Mega_Strike_tune_1` · `Russian_Toilette`, `MUSICIANS/S/Simon_Laszlo/`
+   `Overdrive`, `MUSICIANS/T/The_Magical_Garfield/IRQ_2` (+3 more).
+
 ## ⛔ 2026-08-27 — **f1 AND f2 ARE NOT CLOSED**: 50 claimed members had NO verdict row; 40 of them are non-FULL
 
 Measured, not inferred. The roster claims 5,474 canonical (f1) and 2,944
