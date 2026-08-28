@@ -8,6 +8,19 @@ metadata:
   modified: 2026-08-27T15:53:16.187Z
 ---
 
+## ✅ 2026-08-28 — v6 COUNTS NOW: `dmc_v6` store + accounting batch, --gaps FULLY CLEAN
+
+Backlog 25's first step: registered the `dmc_v6` store and built
+`pipelines/dmc/v6/family_batch.py` — an ACCOUNTING batch (no composer exists;
+RE done, see v6/RE_NOTES.md) that records each of the 16 members
+`unsupported: no_composer` under the current fingerprint. The family now reads
+**0/16** in every consumer of the store registry instead of being invisible,
+and `route.py --gaps` reports ✅ clean in BOTH directions for the first time
+— every claimed member has a verdict row, every row is claimed. When the v6
+composer lands, swap `run_member` for the real chain (v5's batch is the
+template); the accounting rows self-invalidate via the closure hash.
+Remaining in item 25: the migration itself.
+
 ## 🪞 2026-08-28 — THE MIRROR GAP: a verdict row nothing owns (C20 palimpsest, 1 carrier)
 
 ✅ RESOLVED same day (backlog item 24 deleted), and the answer was NEITHER fork:

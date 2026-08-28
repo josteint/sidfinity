@@ -442,16 +442,19 @@ def build_roster(members: list, engines: dict, want_paths: bool = False,
 
 # Which batch store holds each roster group's verdicts. `None` = the group has
 # NO store, i.e. its members carry no verdict at all and appear in no coverage
-# number anywhere (DMC's v6 today: extract exists, composer never started).
-# A group MISSING from this map is reported too, loudly — an unregistered
-# pipeline/variant is the same bug one step earlier.
+# number anywhere. A group MISSING from this map is reported too, loudly — an
+# unregistered pipeline/variant is the same bug one step earlier.
 _VERDICT_STORES = {
     ('v4', 'canonical'): 'dmc_v4',
     ('v4', 'family2'): 'dmc_v4_family2',
     ('v5', 'f3'): 'dmc_v5',          # one store covers every v5 variant
     ('v5', 'family4'): 'dmc_v5',
     ('v5', 'ed_kids'): 'dmc_v5',
-    ('v6', None): None,
+    # v6 has no COMPOSER yet, but it has a store: its accounting batch
+    # (pipelines/dmc/v6/family_batch.py) records every member
+    # `unsupported: no_composer`, so the family reads 0/16 instead of being
+    # invisible.
+    ('v6', None): 'dmc_v6',
 }
 _UNREGISTERED = object()
 

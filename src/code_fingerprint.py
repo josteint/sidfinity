@@ -117,6 +117,7 @@ _SHARED = list(_ALWAYS)
 DEPS: dict[str, list[str]] = {
     'dmc_v4':         ['pipelines/dmc'] + _SHARED,
     'dmc_v5':         ['pipelines/dmc'] + _SHARED,
+    'dmc_v6':         ['pipelines/dmc'] + _SHARED,
     'fc_standard':    ['pipelines/future_composer'] + _SHARED,
     'goattracker_v1': ['pipelines/goattracker/v1'] + _SHARED,
     'basic_program':  ['pipelines/basic_program'] + _SHARED,
@@ -132,6 +133,7 @@ DEPS: dict[str, list[str]] = {
 BATCH_CONSUMER: dict[str, str] = {
     'dmc_v4':          'dmc_family_batch',
     'dmc_v5':          'dmc_v5_family_batch',
+    'dmc_v6':          'dmc_v6_family_batch',
     'fc_standard':     'fc_family_batch',
     'goattracker_v1':  'goattracker_v1_family_batch',
     'basic_program':   'basic_program_batch',

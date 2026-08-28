@@ -98,6 +98,14 @@ STORES: dict[str, Store] = {
     'basic_program':   Store('basic_program',
                              'tmp/basic_program_research/family_batch.jsonl',
                              'basic_program', 'path'),
+    # v6 has NO composer yet (extract + player RE exist; see
+    # pipelines/dmc/v6/RE_NOTES.md). The store exists anyway so its 16 members
+    # COUNT — every coverage number is computed from results files, so a
+    # family without one is invisible rather than 0% (they were the last
+    # `no_store` bucket in `route.py --gaps`). Its batch records each member
+    # `unsupported: no_composer` until the composer is built.
+    'dmc_v6':          Store('dmc_v6', 'tmp/dmc_v6_results.jsonl',
+                             'dmc_v6', 'path'),
 }
 
 

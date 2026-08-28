@@ -1247,10 +1247,19 @@
     emitted 6502 are new.
 
     So this is a small, well-prepared migration (16 members, all single-subtune,
-    standard entry) rather than an investigation — and until it exists, those 16
-    are the only DMC members with no possible verdict. First step: a v6 store in
-    `batch_results.STORES` + `pipelines/dmc/v6/family_batch.py`, so they at
-    least COUNT as unbuilt instead of being invisible.
+    standard entry) rather than an investigation.
+
+    ✅ FIRST STEP DONE 2026-08-28: `dmc_v6` store registered
+    (tmp/dmc_v6_results.jsonl) + `pipelines/dmc/v6/family_batch.py`, an
+    ACCOUNTING batch recording each member `unsupported: no_composer` under the
+    current dmc_v6 fingerprint. The family now reads **0/16** instead of being
+    invisible, and `route.py --gaps` is fully clean for the first time. When the
+    composer is built, replace `run_member` with the real chain (v5's batch is
+    the template) — the store id and file name stay, and the accounting rows
+    auto-invalidate (the composer lands inside the hashed closure).
+
+    REMAINING: the migration itself — v6 extract/to_usf completion + a v6
+    composer.
 
 26. RIP THE HVSC DISK MAGS WITH OUR OWN PIPELINE — a CAPABILITY DEMO for near
     the end of the project. ⚠⚠ PARKED HARD, ON PURPOSE. This is not corpus
