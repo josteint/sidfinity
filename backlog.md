@@ -1337,8 +1337,49 @@
     wrapping (init/play vectors) before anything in this pipeline can touch
     them, and `build_sid_db`'s walk would need to learn about them.
 
-    OPEN QUESTION worth answering FIRST and cheaply once depacking exists: are
-    the "17 exclusives" actually absent from HVSC? HVSC's curators normally rip
-    anniversary-disk music into the collection, so "exclusive" may mean
-    exclusive-at-release and nothing more. If they are all already present as
-    `.sid`, this item shrinks to a curiosity and can be closed.
+    ⚠⚠ ANSWERED 2026-08-28, AND IT LARGELY CLOSES THE CASE FOR THE 20-YEARS
+    DISK. The "17 exclusives" are almost certainly ALREADY IN HVSC as `.sid`:
+
+      * `DOCUMENTS/Update_Announcements/20160712.txt` — Update #65, dated the
+        same day the disk's own directory art carries ("q. 12/07/2016") —
+        says "we felt also the need to produce a music disk with EXCLUSIVE
+        content to celebrate 20 HVSC birthdays".
+      * The catalogue holds **exactly 17** SIDs credited `2016 ... HVSC`
+        (16 `2016 HVSC` + 1 `2016 Maniacs of Noise/HVSC`) — an exact match to
+        the disk's own "m.17 exclusives!" claim.
+      * The convention is visible on the 2006 disk too (`2006 ... HVSC`
+        credits), so "YYYY HVSC" in `released` is how HVSC marks
+        anniversary-disk material once it enters the collection.
+
+    NOT proven per-tune — the disk files are packed, so no fingerprint is
+    possible without depacking, and that is the ONLY thing that would settle
+    it. But an exact count match against an explicit claim of 17 is hard to
+    explain otherwise. (Checked and found unhelpful: `Update65.hvs` records
+    only REPLACE/MOVE/DELETE — new files just ship in the update tree, so
+    absence there proves nothing; and STIL has no entries for these tunes.)
+
+    THE 10-YEARS DISK IS LESS CLEAR: 37 `musicN` files against **29** tunes
+    credited `2006 ... HVSC`. That disk never advertised a count, so it most
+    likely mixed exclusive with pre-existing material, and the 8-file gap may
+    be differently-credited, non-exclusive, or not one-tune-per-file. That gap
+    is the only part of this item with unexplained content behind it.
+
+    ⚠ AND IT INVERTS THE ITEM'S OWN PREMISE. The parking rationale was that the
+    subsongs span many engines we have not migrated — which is TRUE and
+    measurable: the 46 anniversary-disk tunes across both years span **17
+    distinct engines**, GoatTracker_V2.x 15, DMC 5, Geir_Tjelta/SIDDuzz'It 4,
+    Laxity_NewPlayer_V21 3, then Roland_Hermans / OdinTracker / GoatTracker_V1
+    / John_Player / JCH_NewPlayer / Cyberlogic_SoundStudio 2 each, and
+    TFMX / CheeseCutter / Asterion / Adam_Gilmore / TFX / SidFactory / Virtuoso
+    once. Most are unmigrated. But that diversity is ALREADY AVAILABLE TO US in
+    usable `.sid` form — depacking the disks would not reach a single engine
+    the catalogue does not already expose. So waiting for broader engine
+    coverage no longer buys this item anything.
+
+    NET: the strongest motivation (unique music nothing else has) is refuted
+    for the 20-Years disk and weakened for the 10-Years one. What survives is
+    the 8-file 2006 gap and completeness. RECOMMEND: keep parked, but as a
+    curiosity rather than a corpus-growth item; if it is ever picked up, do the
+    10-Years gap FIRST (identify which 8 of the 37 have no `2006 ... HVSC`
+    counterpart) — that is the only part where new content might exist, and it
+    needs the depacker just the same.
