@@ -1,30 +1,11 @@
 {
 "meta": {
-"generated_utc": "2026-08-23T18:34:25+00:00",
+"generated_utc": "2026-08-27T22:23:34+00:00",
 "corpus": 10774,
 "fingerprints": {
-"dmc_v4": "132d2ab2646e97d9",
-"dmc_v5": "8e69d92ba440656f"
-},
-"provenance": "routed 2026-08-23 17:47-19:40; stamped afterwards with the fingerprints of the SAME code \u2014 proof: the only commit in between (13c23a55) touched no detector file (v4/v5 factory.py, config.py, v4/compilation.py), so dmc_v4_config/dmc_v5_config were byte-identical throughout.",
-"restamps": [
-{
-"at": "13c23a553bb8f08e87b5ebc130a392b3f951dbc6",
-"closure_files": 17
-},
-{
-"at": "13c23a553bb8f08e87b5ebc130a392b3f951dbc6",
-"closure_files": 17
-},
-{
-"at": "13c23a553bb8f08e87b5ebc130a392b3f951dbc6",
-"closure_files": 17
-},
-{
-"at": "00471818517d8e0378593662ec4800f081bab5bd",
-"closure_files": 16
+"dmc_v4": "0fc5b452b87c5690",
+"dmc_v5": "f034007df8b2c184"
 }
-]
 },
 "rows": [
 {
@@ -4028,7 +4009,7 @@
 "rel": "MUSICIANS/A/Albartus_Jan/Piano_Fun_93.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "single",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$1000 init=$2800 play=$0000"
@@ -6977,7 +6958,7 @@
 "rel": "MUSICIANS/A/Andy/Jumping_Jack.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "single",
 "base": 17408,
 "refusals": {
 "v5": "DMCV5Unsupported: player_code_mismatch: opcode at $10A1"
@@ -7003,7 +6984,7 @@
 "rel": "MUSICIANS/A/Andy/Justincase_part_6.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "single",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$1000 init=$2800 play=$0000"
@@ -20132,7 +20113,7 @@
 "rel": "MUSICIANS/B/Bayliss_Richard/Dark_Destroyer_2117.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 6400,
 "refusals": {
 "v5": "DMCV5Unsupported: player_code_mismatch: opcode at $10A1"
@@ -21067,7 +21048,7 @@
 "rel": "MUSICIANS/B/Bayliss_Richard/Flubble_and_Squij.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 6144,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$1000 init=$17E0 play=$17E3"
@@ -21690,7 +21671,7 @@
 "rel": "MUSICIANS/B/Bayliss_Richard/Grid_Zone_Remix.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "hetero_v5",
 "base": 33280,
 "refusals": {},
 "claims": [
@@ -21806,7 +21787,7 @@
 "rel": "MUSICIANS/B/Bayliss_Richard/Heavy_Metal_Deluxe.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "hetero_v5",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$1000 init=$1CD0 play=$1CD3"
@@ -23638,7 +23619,7 @@
 "rel": "MUSICIANS/B/Bayliss_Richard/Music_Match_3.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "compilation",
 "base": 28672,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$7000 init=$7C95 play=$7CEA"
@@ -25390,7 +25371,7 @@
 "rel": "MUSICIANS/B/Bayliss_Richard/Santas_Christmas_Delivery.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "compilation",
 "base": 20480,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$5000 init=$5C20 play=$5C23"
@@ -25572,7 +25553,7 @@
 "rel": "MUSICIANS/B/Bayliss_Richard/Sharkz_II.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "compilation",
 "base": 36864,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$8100 init=$8FA0 play=$8FA3"
@@ -25897,7 +25878,7 @@
 "rel": "MUSICIANS/B/Bayliss_Richard/Space_Eggs.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 36352,
 "refusals": {
 "v5": "DMCV5Unsupported: player_code_mismatch: opcode at $10A1"
@@ -26131,7 +26112,7 @@
 "rel": "MUSICIANS/B/Bayliss_Richard/Stealth_4.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "single",
 "base": 24576,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$6000 init=$75F0 play=$75F3"
@@ -26209,7 +26190,7 @@
 "rel": "MUSICIANS/B/Bayliss_Richard/Strike_Team_Delta.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "compilation",
 "base": 32256,
 "refusals": {
 "v5": "DMCV5Unsupported: player_code_mismatch: opcode at $10A1"
@@ -26599,7 +26580,7 @@
 "rel": "MUSICIANS/B/Bayliss_Richard/Tanx.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "compilation",
 "base": 24576,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$6000 init=$6F10 play=$6F13"
@@ -28681,7 +28662,7 @@
 "rel": "MUSICIANS/B/Behdad_Arman/Party_Party.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 21504,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$5400 init=$5400 play=$5403"
@@ -44121,7 +44102,7 @@
 "rel": "MUSICIANS/D/Daf/Alioth.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 20480,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$5000 init=$637E play=$63DF"
@@ -48947,7 +48928,7 @@
 "rel": "MUSICIANS/D/Doxx/Eargasm.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "single",
 "base": 32768,
 "refusals": {
 "v5": "DMCV5Unsupported: player_code_mismatch: opcode at $10A1"
@@ -53003,7 +52984,7 @@
 "rel": "MUSICIANS/E/Ed/Solved_Track.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: player_code_mismatch: opcode at $10A1"
@@ -53187,7 +53168,7 @@
 {
 "rel": "MUSICIANS/E/Ed/We_Were_All_Kids.sid",
 "pipeline": "v5",
-"variant": "family4",
+"variant": "ed_kids",
 "build_path": null,
 "base": 4096,
 "refusals": {
@@ -67821,7 +67802,7 @@
 "rel": "MUSICIANS/I/Inside/Laced_Tiles.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "compilation",
 "base": 57344,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$E000 init=$FCE3 play=$FCE0"
@@ -90051,7 +90032,7 @@
 "rel": "MUSICIANS/P/PVCF/Centric.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 10752,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$1800 init=$B110 play=$B113"
@@ -95867,7 +95848,7 @@
 "rel": "MUSICIANS/P/Praiser/Upside_Down.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 32768,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$2620 init=$2620 play=$2623"
@@ -97632,7 +97613,7 @@
 "rel": "MUSICIANS/P/Psych858o/No_Bounds.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 2304,
 "refusals": {
 "v5": "DMCV5Unsupported: player_code_mismatch: opcode at $10A1"
@@ -102230,7 +102211,7 @@
 "rel": "MUSICIANS/R/Rayden/1970s_style_Hammond_Organ.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$0801 init=$2800 play=$0000"
@@ -102243,7 +102224,7 @@
 "rel": "MUSICIANS/R/Rayden/4_Ever_Young_2SID.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "multisid",
 "base": 3072,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$0840 init=$0980 play=$0000"
@@ -102295,7 +102276,7 @@
 "rel": "MUSICIANS/R/Rayden/Boot_Zak_v2.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: player_code_mismatch: opcode at $10A1"
@@ -102373,7 +102354,7 @@
 "rel": "MUSICIANS/R/Rayden/Cyclones_Birthday.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$0820 init=$2800 play=$0000"
@@ -102515,7 +102496,7 @@
 "rel": "MUSICIANS/R/Rayden/Fast_Moving.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$0820 init=$2800 play=$0000"
@@ -102567,7 +102548,7 @@
 "rel": "MUSICIANS/R/Rayden/Im_So_Excited-I_Just.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$0801 init=$2800 play=$0000"
@@ -102606,7 +102587,7 @@
 "rel": "MUSICIANS/R/Rayden/Knusprig_Sampl_Checka.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$0C00 init=$2000 play=$0000"
@@ -102645,7 +102626,7 @@
 "rel": "MUSICIANS/R/Rayden/Lost_Patrol_v2.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$0820 init=$2800 play=$0000"
@@ -102658,7 +102639,7 @@
 "rel": "MUSICIANS/R/Rayden/Lost_Super_Scrotum_Elefantiasis.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$0820 init=$2800 play=$0000"
@@ -102723,7 +102704,7 @@
 "rel": "MUSICIANS/R/Rayden/Morbital.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$0820 init=$2800 play=$0000"
@@ -102736,7 +102717,7 @@
 "rel": "MUSICIANS/R/Rayden/Morbital_plus.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$0820 init=$0D00 play=$0000"
@@ -102866,7 +102847,7 @@
 "rel": "MUSICIANS/R/Rayden/Panzer_im_Kopp.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: player_code_mismatch: opcode at $10A1"
@@ -102996,7 +102977,7 @@
 "rel": "MUSICIANS/R/Rayden/Smooth_Mumu_Operating.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: player_code_mismatch: opcode at $10A1"
@@ -103061,7 +103042,7 @@
 "rel": "MUSICIANS/R/Rayden/Trinkhoffs_and_Doenerpuste.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$0820 init=$2800 play=$0000"
@@ -103919,7 +103900,7 @@
 "rel": "MUSICIANS/R/Riot/Enzyme.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "compilation",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: player_code_mismatch: opcode at $10A1"
@@ -108360,7 +108341,7 @@
 "rel": "MUSICIANS/S/Sax/Digi_Music.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "single",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$1000 init=$2A30 play=$0000"
@@ -129050,7 +129031,7 @@
 "rel": "MUSICIANS/T/Tonka/Millennium_Assault.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "hetero_masm",
 "base": 36864,
 "refusals": {
 "v5": "DMCV5Unsupported: player_code_mismatch: opcode at $10A1"
@@ -130750,7 +130731,7 @@
 "rel": "MUSICIANS/W/Warrior/Amoeba.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "compilation",
 "base": 4096,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$0FA0 init=$0FA0 play=$0FA3"
@@ -134247,7 +134228,7 @@
 "rel": "MUSICIANS/Y/Yoko/All_That_She_Wants.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "single",
 "base": 32768,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$8000 init=$8D00 play=$0000"
@@ -134351,7 +134332,7 @@
 "rel": "MUSICIANS/Y/Yoko/Dreaming_2.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "single",
 "base": 33792,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$8400 init=$9600 play=$0000"
@@ -134533,7 +134514,7 @@
 "rel": "MUSICIANS/Y/Yoko/Lafayette_5.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "single",
 "base": 32768,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$8000 init=$8F00 play=$0000"
@@ -134728,7 +134709,7 @@
 "rel": "MUSICIANS/Y/Yoko/Paradize_3.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "single",
 "base": 32768,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$8000 init=$8F00 play=$0000"
@@ -134884,7 +134865,7 @@
 "rel": "MUSICIANS/Y/Yoko/Rythme_Is_a_Dancer_digi.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "single",
 "base": 32768,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$8000 init=$8F00 play=$0000"
@@ -135014,7 +134995,7 @@
 "rel": "MUSICIANS/Y/Yoko/Turn_it_on.sid",
 "pipeline": "v4",
 "variant": "family2",
-"build_path": null,
+"build_path": "single",
 "base": 32768,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$8000 init=$8F00 play=$0000"
@@ -136561,7 +136542,7 @@
 "rel": "MUSICIANS/Z/Zyron/Bouncy_Balls.sid",
 "pipeline": "v4",
 "variant": "canonical",
-"build_path": null,
+"build_path": "single",
 "base": 40960,
 "refusals": {
 "v5": "DMCV5Unsupported: no_jumptable: load=$5500 init=$AD00 play=$AD03"
