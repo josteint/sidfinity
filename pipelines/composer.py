@@ -3552,6 +3552,18 @@ def _digi_player_registry() -> dict:
     hint, bank-table base, ...). Composer reads this when a USF has
     digi subtunes — see `_emit_combined_sid_bp` and the dispatch in
     `_emit_bitpack_bytes`.
+
+    ⚠ OWNER-REVIEWED TRIPWIRE (2026-08-16; backlog item 5): do NOT add a
+    second row. This registry meets the principle §8 test exactly — the
+    composer's choice of which 6502 to emit depends on USF content — and is
+    tolerated only as a LIBRARY OF ONE (sole corpus carrier: 4k-era Chimera).
+    The SECOND digi engine migrated must PARAMETRIZE instead: a real
+    technique enum (`digi { technique: wavetoggle_1bit | volume_4bit,
+    rate: N }`) with the composer SYNTHESIZING the player from it. DigiCode's
+    addresses are composer layout and must never be reachable from USF, even
+    by name. (An earlier note justified this registry via ledger C7 category
+    C — that was wrong: C7-C covers the PCM sample DATA, not the player
+    choice; corrected 2026-08-20 in tools/composer_params.json.)
     """
     from pipelines.hubbard.engine_constants import CHIMERA_DIGI
     return {

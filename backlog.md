@@ -35,8 +35,11 @@
      like `digi { technique: wavetoggle_1bit | volume_4bit, rate: N }`,
      composer synthesizes the player), NEVER add registry row two.
      DigiCode's addresses (dispatcher/player base) are composer layout
-     and must not be reachable from USF even by name. Also: fix the
-     registry note's false justification when next touching it.
+     and must not be reachable from USF even by name.
+     (The "fix the registry note's false justification" sub-task is DONE:
+     composer_params.json was corrected 2026-08-20, and 2026-08-28 the
+     tripwire itself was written into `_digi_player_registry`'s docstring
+     — the code site where row two would be added.)
 
 # ============================================================
 # (Items 9-14 were folded in on 2026-08-16 from an earlier handoff; the rest of
