@@ -501,6 +501,16 @@ practice, not code to factor).
   shape can hide a different LINEAGE, not just a different build — Ed's
   player runs family-3/5 SEMANTICS at family-4 OFFSETS, so the fix was its
   own site map + the CANON knobs.
+- THIRD FORM, same session: the head offsets chose the REFERENCE. A family-4
+  PLAYER wearing any non-family-4 head never reaches that branch, so it is
+  compared against the family-3/5 reference and refused at the play entry
+  where the two players genuinely differ — 43 DMC v5 unrouted members, median
+  96.0% identical to the family-4 player. RULE for any N-reference
+  dispatcher: **the head selects a CANDIDATE, never THE reference** — on a
+  failed compare, try the others before refusing. ⚠ their zero-page pointer
+  ALSO differs, which reads as a masked-compare bug (zp is state); testing
+  that "obvious" fix matched 3 of 50 — the zp difference is a symptom of
+  being a different player, and fixing it would have hidden the finding.
 - FULL ENTRY: [`ledger/C13.md`](ledger/C13.md) — read it before applying.
 
 ### C14 — command-per-row tracker effects (note + fx + param per row)
