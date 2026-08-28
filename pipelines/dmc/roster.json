@@ -10,6 +10,10 @@
 {
 "at": "aa0203ec64887f657273b4fdaf1d7432eb6dd9d7",
 "closure_files": 17
+},
+{
+"at": "aa0203ec64887f657273b4fdaf1d7432eb6dd9d7",
+"closure_files": 17
 }
 ]
 },
@@ -120597,15 +120601,16 @@
 },
 {
 "rel": "MUSICIANS/S/Surgeon/Nice_Dream_2SID.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v4",
+"variant": "canonical",
 "build_path": "multisid",
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: player_code_mismatch: first diff at $1235",
 "v5": "DMCV5Unsupported: player_code_mismatch: opcode at $10A1"
 },
-"claims": []
+"claims": [
+"v4"
+]
 },
 {
 "rel": "MUSICIANS/S/Surgeon/Night_Dreams.sid",

@@ -13,8 +13,7 @@
 # Items 19-21 need an OWNER DECISION (representation / schema); the rest are
 # unfinished work that needs no permission. Items 22 + 24 also need an OWNER
 # DECISION, but NOT on representation: 22 is a decision about COST (landing it
-# re-invalidates every DMC verdict and forces a ~13 h re-batch), and 24 is a
-# fork where the two possible causes need opposite actions. Item 26 is a
+# re-invalidates every DMC verdict and forces a ~13 h re-batch). Item 26 is a
 # different kind again — PARKED HARD by the owner with a trigger (broad engine
 # coverage, i.e. near the end of the project); it needs no decision, just time.
 
@@ -1250,30 +1249,18 @@
     head (`AD 19 11 F0 19 AD 1C 11 38 ED 19 11 ...`, e.g.
     `CreaMD/Awesomeness`).
 
-24. DMC: `Surgeon/Nice_Dream_2SID` — A VERDICT ROW NOTHING OWNS (found
-    2026-08-28 by the new `route.py --gaps` mirror check; 1 carrier corpus-wide).
-    ⚠ OWNER DECISION, because the two possible causes need OPPOSITE actions.
-
-    It is recorded FULL as a `multisid` member under a now-dead `code_hash`,
-    its `.usf` + `.sidfinity.sid` are on disk (Aug 22), and `dmc_v4_config`
-    REFUSES it today: `player_code_mismatch: first diff at $1235`. It was
-    already unrouted in the pre-overnight roster, so this predates the
-    2026-08-27/28 work. Ledger C20's stale-FULL palimpsest, and it was
-    invisible from every direction at once — the mass-write SKIPS it (stale
-    hash; it prints `WARNING: skipped 1 FULL rows`), that writer's orphan
-    removal only iterates members it knows about, the roster claims it for
-    nobody, and no census counts it.
-
-    THE QUESTION: did v4's detector TIGHTEN at some point (a regression worth
-    finding — this is a 2SID / ledger-C27 member, and a detector that quietly
-    stopped claiming a member it once built FULL would not be visible anywhere
-    else either), or did the member legitimately leave the family, in which
-    case its artifacts are orphans and should be DELETED?
-
-    NEXT MEASUREMENT: `git log -S` / bisect `pipelines/dmc/v4/factory.py` over
-    the window between its FULL row's `code_hash` and now, and dump the orig's
-    bytes at `$1235` against the canon player to see WHAT the compare trips on.
-    Cheap — one member, one site.
+24. (DELETED 2026-08-28 — RESOLVED, and it was NEITHER of the item's two
+    forks. Not a detector regression, not a member that left the family: the
+    ROUTER only probed the single-player `dmc_v4_config`, whose base detection
+    landed on CHIP 2's player ($3000) and failed the chipless masked compare on
+    a normal chip-2 register relocation (`STA $D425,Y` vs canon `$D405,Y` =
+    "first diff at $1235"). The batch dispatches `dmc_v4_config_2sid` FIRST,
+    which masks exactly that — so it had built and verified the member FULL
+    while the roster called it unclaimed (C20 4th layer: a consumer taking a
+    different build path than the verifier — here the consumer is the ROUTER).
+    Fixed: route() falls back to the 2SID probe on a v4 refusal; member
+    re-verified FULL under current code (159,469 writes, state match) and
+    re-batched with the current hash. --gaps mirror is clean again.)
 
 25. DMC v6 — 16 MEMBERS ROUTED TO A PIPELINE THAT CANNOT BUILD THEM.
     `route.py --gaps` reports them as `no_store`: they are claimed (sidid

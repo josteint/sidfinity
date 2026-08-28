@@ -296,6 +296,29 @@ def route(rel: str, hvsc_root: str | None = None,
         r.base = int(getattr(cfg, 'base', 0)) or None
     except Exception as e:                       # noqa: BLE001 - router must not die
         r.refusals['v4'] = _reason(e)
+        # MULTI-SID (ledger C27): the single-player probe can land on the WRONG
+        # CHIP'S player and refuse it for being chip-relocated. Nice_Dream_2SID:
+        # chip 1's jump table points into the 2SID dispatch wrapper, so base
+        # detection found chip 2 at $3000 and the chipless masked compare died
+        # on `STA $D425,Y` vs canon `STA $D405,Y` — a normal chip-2 relocation
+        # the 2SID path masks. The BATCH dispatches `dmc_v4_config_2sid` FIRST,
+        # so it built and verified the member FULL while the roster called it
+        # unclaimed — the C20 palimpsest the --gaps mirror check surfaced. The
+        # router must probe the same paths the batch dispatches (C20 4th layer:
+        # a consumer taking a different build path than the verifier).
+        try:
+            from pipelines.dmc.v4.factory import dmc_v4_config_2sid
+            cfgs = dmc_v4_config_2sid(rel, hvsc_root=root)
+            if cfgs:
+                r.claims.append('v4')
+                del r.refusals['v4']
+                c0 = cfgs[0]
+                r.variant = ('family2'
+                             if getattr(c0, 'sector_format', 'v4') == 'family2'
+                             else 'canonical')
+                r.base = int(getattr(c0, 'base', 0)) or None
+        except Exception:                        # noqa: BLE001
+            pass                                 # keep the single-player refusal
 
     try:
         from pipelines.dmc.v5.factory import dmc_v5_config

@@ -10,6 +10,20 @@ metadata:
 
 ## 🪞 2026-08-28 — THE MIRROR GAP: a verdict row nothing owns (C20 palimpsest, 1 carrier)
 
+✅ RESOLVED same day (backlog item 24 deleted), and the answer was NEITHER fork:
+the ROUTER was the mis-dispatching consumer. `route()` only probed the
+single-player `dmc_v4_config`; its base detection landed on CHIP 2's player
+($3000 — chip 1's jump table points into the 2SID wrapper) and the chipless
+masked compare refused a normal chip-2 register relocation (`STA $D425,Y` vs
+canon `$D405,Y`). `dmc_v4_config_2sid` accepts the member today, always did;
+the batch dispatches it first, which is how the FULL verdict existed. Fix =
+route() falls back to the 2SID probe on a v4 refusal (the router must probe
+the same paths the batch dispatches — C20 4th layer). Member re-verified FULL
+under current code (identical numbers), re-batched with the current hash,
+roster row patched to v4/canonical. Unrouted 309 → 308; --gaps mirror clean
+(only the 16 v6 remain = item 25). ⚠ The other 17 multisid members were
+claimed only by LUCK of chip-1 layout — the fallback now covers that class.
+
 `--gaps` asked only "is every claimed member verified?". The mirror — "is every
 verdict still OWNED?" — catches a different animal, and there is one:
 
