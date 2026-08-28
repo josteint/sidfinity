@@ -11,7 +11,10 @@
 # project_dmc.md head + ledger C9 10th occ), cleanup_plan cites items 10 + 11.
 #
 # Items 19-21 need an OWNER DECISION (representation / schema); the rest are
-# unfinished work that needs no permission.
+# unfinished work that needs no permission. Items 22 + 24 also need an OWNER
+# DECISION, but NOT on representation: 22 is a decision about COST (landing it
+# re-invalidates every DMC verdict and forces a ~13 h re-batch), and 24 is a
+# fork where the two possible causes need opposite actions.
 
 5. REGISTRY REVIEW FLAGS (found by the first composer_param_lint runs):
    - digi_player (pipelines/composer.py): RE-ASSESSED 2026-08-16 — not
@@ -1141,6 +1144,17 @@
     C8/C11; numbers in project_dmc.md.)
 
 20. DMC v5 PLAYER VARIANT behind ~106 `player_code_mismatch` rejects —
+    ⚠ LARGELY SUPERSEDED 2026-08-28 by items 22 + 23, which identify the two
+    biggest clusters concretely. Its conclusion ("a genuine player VARIANT with
+    its own body layout, like family-4") was RIGHT about the shape and WRONG
+    about the remedy for most carriers: the $10A1 cluster does not need a new
+    reference binary at all — 43 of them ARE family-4 and just never reach that
+    branch (item 22), and ~30 more are the CANON body behind a lead-in wrapper
+    (item 23). What is left here after 22 + 23 is the $1385 x16 / $16C7 x16 /
+    $10CD x6 clusters and the singletons. NB its counts were taken over the
+    ~106 v5 rejects; items 22-23 measure all 309 UNROUTED (v4-and-v5 refused),
+    so the cluster sizes differ legitimately.
+
     NOT blocked on you, just BIGGER than one overnight session. Parked with the
     measurement so it can be picked up cleanly.
 
@@ -1168,3 +1182,113 @@
     after a ROW, so a sector ending in commands does not end at all and there
     is no next sector for the state to survive into. Technique recorded in
     ledger C34's 5th occurrence; numbers in project_dmc.md.)
+
+22. DMC: 43 UNROUTED MEMBERS ARE FAMILY-4 PLAYERS COMPARED AGAINST THE WRONG
+    REFERENCE (measured 2026-08-28; the biggest single lever in DMC right now).
+    ⚠ OWNER DECISION — not on representation, on COST: landing it re-invalidates
+    every DMC verdict and forces another full re-batch (~13 h wall on this box,
+    the one just completed). The change itself is small and C13-licensed.
+
+    MEASUREMENT. `v5_diagnose` over all 309 unrouted: 181 `player_code_mismatch`
+    / 121 `no_base` / 7 `init_skeleton`. Of the 181, **128 diverge at site
+    $10A1** (the play entry), so they were regrouped by the PLAY HEAD BYTES
+    there — 44 distinct heads. The largest, **43 members**, carries the family-4
+    play head VERBATIM (`A5 FA 48 A5 FB 48 CE 16 10 30 1E ...`) and 41 of them
+    are **median 96.0% byte-identical** to the Jupiter41 family-4 player over
+    its `$1095-$16FF` body — inside the genuine family-4 band (47-100%; the
+    We_Were_All_Kids impostor was 2.0%). They are family-4 players.
+
+    ROOT CAUSE (ledger C13, third occurrence — entry updated). `_detect_v5`
+    reaches the family-4 branch only when the jump table reads init `base+$40`
+    AND play `base+$95`. A family-4 player wearing any other head therefore has
+    base derived as `play-$A1` and is compared against the family-3/5
+    reference, which fails at the one site where the two players genuinely
+    differ. The head chose the reference; the body was never consulted.
+
+    FIX SHAPE: when the family-3/5 body compare fails, try the family-4
+    reference at the same base before refusing — "the head selects a CANDIDATE,
+    never THE reference". Safe by C13's rule: a loosened dispatch cannot
+    false-FULL, build+verify judges. Note detection != FULL (ledger C5): expect
+    these to land as partials first, and score by first-divergence DEPTH.
+
+    REFUTED, do not re-chase: those 43 also use different zero-page pointers
+    (`$FA`/`$FB` vs canon `$F8`/`$F9`), which reads exactly like a
+    masked-compare bug since zp is runtime state the compare already ignores
+    elsewhere. Re-running the whole body compare with EVERY zp operand treated
+    as don't-care matched only **3 of 50** — the other 43 still differ at
+    `$10A7` because they are a different player. The zp difference is a
+    SYMPTOM, not the cause; fixing it would have changed nothing and hidden
+    this finding.
+
+    LOOSE END: 2 of the 43 (`Booker/Droop_Intoo`, `Booker/Droop_O_Funk`) share
+    the head but score 5.7% — their `_detect_v5` base is non-page-aligned
+    ($2D37 / $24D8), i.e. the BASE derivation is wrong for them. Separate look.
+
+    Evidence: tmp/unrouted_{triage,diagnose,census,clusterA}.txt,
+    tmp/unrouted_diagnose.json. Numbers in project_dmc.md head.
+
+23. DMC: ~30 UNROUTED MEMBERS ARE THE CANON v5 BODY BEHIND A LEAD-IN WRAPPER
+    (measured 2026-08-28; same census as item 22). Composer support ALREADY
+    EXISTS — this is a detection-only gap.
+
+    Their play head is `A9 00 / F0 04 / CE <slot> / 60 / AA` followed by the
+    CANON v5 body (`A5 F8 48 A5 F9 48 ...`): an Ed-style lead-in skip counter
+    (`LDA #imm / BEQ real / DEC slot / RTS`) prepended to an otherwise
+    untouched player. That is exactly the mechanism landed 2026-08-27 for
+    `Ed/We_Were_All_Kids` — `play_skip_init`, probed off the init immediate,
+    with the composer emitting the count. So only `_detect_v5` has to see past
+    the wrapper (follow it to the real body, as `_resolve_init` already does
+    for a relocated init). Carriers e.g. `Ed/Bouncy_Funk`,
+    `Ed/A_Quoi_Ca_Sert`. Same re-batch cost as item 22, so land them together.
+
+    Two smaller clusters from the same grouping, for whoever picks this up:
+    **14 members** read all-zero at `base+$A1` (the player is not in the file
+    image at all — ledger C26 unpacker / relocating wrapper, e.g.
+    `Bakewell_Dwayne/Misfortune`), and **5 members** carry a further distinct
+    head (`AD 19 11 F0 19 AD 1C 11 38 ED 19 11 ...`, e.g.
+    `CreaMD/Awesomeness`).
+
+24. DMC: `Surgeon/Nice_Dream_2SID` — A VERDICT ROW NOTHING OWNS (found
+    2026-08-28 by the new `route.py --gaps` mirror check; 1 carrier corpus-wide).
+    ⚠ OWNER DECISION, because the two possible causes need OPPOSITE actions.
+
+    It is recorded FULL as a `multisid` member under a now-dead `code_hash`,
+    its `.usf` + `.sidfinity.sid` are on disk (Aug 22), and `dmc_v4_config`
+    REFUSES it today: `player_code_mismatch: first diff at $1235`. It was
+    already unrouted in the pre-overnight roster, so this predates the
+    2026-08-27/28 work. Ledger C20's stale-FULL palimpsest, and it was
+    invisible from every direction at once — the mass-write SKIPS it (stale
+    hash; it prints `WARNING: skipped 1 FULL rows`), that writer's orphan
+    removal only iterates members it knows about, the roster claims it for
+    nobody, and no census counts it.
+
+    THE QUESTION: did v4's detector TIGHTEN at some point (a regression worth
+    finding — this is a 2SID / ledger-C27 member, and a detector that quietly
+    stopped claiming a member it once built FULL would not be visible anywhere
+    else either), or did the member legitimately leave the family, in which
+    case its artifacts are orphans and should be DELETED?
+
+    NEXT MEASUREMENT: `git log -S` / bisect `pipelines/dmc/v4/factory.py` over
+    the window between its FULL row's `code_hash` and now, and dump the orig's
+    bytes at `$1235` against the canon player to see WHAT the compare trips on.
+    Cheap — one member, one site.
+
+25. DMC v6 — 16 MEMBERS ROUTED TO A PIPELINE THAT CANNOT BUILD THEM.
+    `route.py --gaps` reports them as `no_store`: they are claimed (sidid
+    `DMC_V6.x`, and `pipelines/dmc/v6/extract/` exists), but there is no entry
+    in `src/batch_results.STORES` for them because the v6 COMPOSER was never
+    started. Zero verdicts, and they appear in no coverage line anywhere.
+
+    Status per `pipelines/dmc/v6/RE_NOTES.md`: player RE first pass DONE
+    (2026-06-21) — full state-block map, orderlist / pattern-pointer / pattern
+    stream all documented from `DMC_V6_note`'s disassembly. Extract + composer
+    NOT started. The notes' own judgement is that V6's musical degrees of
+    freedom are the same DMC shape v5 already models, so the USF representation
+    should largely REUSE the v5 dimensions; only the binary lifter and the
+    emitted 6502 are new.
+
+    So this is a small, well-prepared migration (16 members, all single-subtune,
+    standard entry) rather than an investigation — and until it exists, those 16
+    are the only DMC members with no possible verdict. First step: a v6 store in
+    `batch_results.STORES` + `pipelines/dmc/v6/family_batch.py`, so they at
+    least COUNT as unbuilt instead of being invisible.
