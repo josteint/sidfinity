@@ -1292,3 +1292,53 @@
     are the only DMC members with no possible verdict. First step: a v6 store in
     `batch_results.STORES` + `pipelines/dmc/v6/family_batch.py`, so they at
     least COUNT as unbuilt instead of being invisible.
+
+26. THE HVSC DISK IMAGES — MUSIC THE CATALOGUE DOES NOT INDEX (inventoried
+    2026-08-28). ⚠ PARKED BY THE OWNER, WITH A TRIGGER: do not start this until
+    ENGINE COVERAGE IS BROADER. The expectation — and it is the whole reason to
+    wait — is that the subsongs inside span MANY engines we have not looked at
+    yet, so depacking them early just converts one unbuildable form (packed)
+    into another (an unmigrated engine). The work only pays once there is a
+    decent chance of building what comes out.
+
+    WHAT IS THERE. HVSC ships ten disk images at the root of the collection
+    which `tools/build_sid_db.py` never sees, because it walks for `.sid`:
+
+      10_Years_HVSC_2.d64    88 entries incl. **37 `musicN` PRGs** + articles
+      10_Years_HVSC_1.d64    13 entries (intro, note, 1 bonus tune)
+      10_Years_HVSC.d71/.d81 98 entries each — repackings of the same content
+      20_Years_HVSC.d64      20 entries: the main binary + **17 tunes**, and
+                             the directory art itself reads "m.17 exclusives!"
+      HVSC_Intro_41..44.d64  1 program each
+      10_Years_HVSC.dfi      NOT a disk image — header reads `DREAMLOAD FILE
+                             ARCHIVE`; needs its own parser
+
+    So ~54 tunes, against 61,157 already-extracted `.sid`. Small, but the
+    20-Years disk explicitly claims exclusives, and if those are genuinely not
+    in HVSC then nothing else has them in usable form.
+
+    THE BLOCKER, measured: it is ALL PACKED. sidid identifies **0 of the 37**
+    and **0 of the 17** as any player; the 20-Years main binary comes back
+    `Crunched:Exomizer`; the tune files' load addresses are nonsense ($CD23,
+    $3226, $551F). There is no shortcut — extraction needs depacking, either an
+    Exomizer decruncher (well documented; py65 could run the depacker) or
+    emulate-the-disk-and-rip. That is a capability the project does not have.
+
+    ALREADY DONE, so it is not redone: `tools/cbm_diskimg.py` reads D64/D71/D81
+    directories and extracts files by sector chain, validated against the BAM
+    disk names (`hvsc`, `>hvsc 20 years!<`, `hvsc-intro 42`, ...). It stops
+    exactly at the packed bytes.
+
+    WHEN PICKED UP, in order: (1) depack; (2) classify what falls out with
+    `sidid -m` — the catalogue now carries EVERY match in `engines`, so a
+    multi-engine or sub-version verdict is available immediately, which is
+    precisely the information this item is waiting on; (3) only then decide
+    what enters the corpus, and how — these are PRGs, not PSIDs, so they need
+    wrapping (init/play vectors) before anything in this pipeline can touch
+    them, and `build_sid_db`'s walk would need to learn about them.
+
+    OPEN QUESTION worth answering FIRST and cheaply once depacking exists: are
+    the "17 exclusives" actually absent from HVSC? HVSC's curators normally rip
+    anniversary-disk music into the collection, so "exclusive" may mean
+    exclusive-at-release and nothing more. If they are all already present as
+    `.sid`, this item shrinks to a curiosity and can be closed.
