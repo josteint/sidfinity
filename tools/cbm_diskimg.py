@@ -4,17 +4,38 @@
     python3 tools/cbm_diskimg.py hvsc85/*.d64            # list directories
     python3 tools/cbm_diskimg.py --extract DIR IMAGE...  # write every PRG out
 
-Exists for backlog item 26: HVSC ships ten disk images at the root of the
-collection (the 10-Years / 20-Years anniversary disk mags and the HVSC_Intro
-disks) which `tools/build_sid_db.py` does not index, because it walks for
-`.sid` files. They contain music — 37 `musicN` PRGs on 10_Years_HVSC_2.d64, and
-17 tunes on 20_Years_HVSC.d64 whose directory art advertises "17 exclusives!"
-— none of which is in the catalogue.
+WHY THIS EXISTS, AND WHY THERE IS NO BACKLOG ITEM FOR IT (2026-08-28).
+HVSC ships ten disk images at the root of the collection — the 10-Years /
+20-Years anniversary disk mags and the HVSC_Intro disks — which
+`tools/build_sid_db.py` does not index, because it walks for `.sid` files. They
+contain music: 37 `musicN` PRGs on `10_Years_HVSC_2.d64`, and 17 tunes on
+`20_Years_HVSC.d64` whose directory art advertises "17 exclusives!". That looks
+like a corpus-growth opportunity. It investigated out, and the owner dropped it;
+this docstring is the record so nobody re-derives it from scratch.
 
-⚠ Everything in them is PACKED, so this reader gets you the bytes and no
-further: sidid identifies 0 of the 37 and 0 of the 17 as any player, the
-20-Years main binary comes back `Crunched:Exomizer`, and the load addresses are
-nonsense ($CD23, $3226, ...). See item 26 for what picking this up involves.
+ 1. It is ALL PACKED. sidid identifies 0 of the 37 and 0 of the 17 as any
+    player, the 20-Years main binary comes back `Crunched:Exomizer`, and the
+    load addresses are nonsense ($CD23, $3226, ...). Extraction would need a
+    depacker (Exomizer decruncher, or emulate-the-disk-and-rip) — a capability
+    the project does not have. This reader stops exactly there.
+ 2. The "17 exclusives" are ALREADY IN HVSC. `DOCUMENTS/Update_Announcements/
+    20160712.txt` (Update #65, the same date the disk's directory art carries)
+    says HVSC produced an exclusive music disk for its 20th birthday, and the
+    catalogue holds EXACTLY 17 SIDs credited `2016 ... HVSC`. Same convention
+    on the 2006 disk. Not proven per-tune — only a depacker would settle that —
+    but an exact count match against an explicit claim of 17 is hard to explain
+    otherwise. (`Update65.hvs` is no help either way: it records only
+    REPLACE/MOVE/DELETE, so new files never appear in it. STIL has no entries.)
+ 3. The engine-diversity argument inverts. The 46 anniversary-disk tunes span
+    17 distinct engines (GoatTracker_V2.x 15, DMC 5, Geir_Tjelta/SIDDuzz'It 4,
+    Laxity_NewPlayer_V21 3, ...), most unmigrated — but they are already
+    available as ordinary `.sid`, so depacking reaches no engine the catalogue
+    does not already expose.
+
+The one loose end, if this is ever revisited: the 10-Years disk has 37 `musicN`
+files against only 29 tunes credited `2006 ... HVSC`. That disk never
+advertised a count, so it probably mixed exclusive with pre-existing material,
+but those 8 are the only place unexplained content could sit.
 
 VALIDATE ANY CHANGE against the BAM disk name — `10_Years_HVSC_2.d64` reads
 `hvsc` and `20_Years_HVSC.d64` reads `>hvsc 20 years!<`. Wrong track/sector
