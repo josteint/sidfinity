@@ -5,7 +5,13 @@
 "fingerprints": {
 "dmc_v4": "0fc5b452b87c5690",
 "dmc_v5": "f034007df8b2c184"
+},
+"restamps": [
+{
+"at": "aa0203ec64887f657273b4fdaf1d7432eb6dd9d7",
+"closure_files": 17
 }
+]
 },
 "rows": [
 {
