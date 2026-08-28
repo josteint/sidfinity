@@ -14,8 +14,7 @@
 #    Other files may cite an item by number — a citation to a gap means
 #    "resolved, see git history".
 #
-# Item 22 needs an OWNER DECISION — not on representation but on COST (landing
-# it re-invalidates every DMC verdict and forces a ~13 h re-batch). Item 26 is a
+# Item 26 is a
 # different kind again — PARKED HARD by the owner with a trigger (broad engine
 # coverage, i.e. near the end of the project); it needs no decision, just time.
 
@@ -1170,70 +1169,25 @@
     ("dispatch on the PLAY-body signature") is what makes it safe to attempt:
     a loosened dispatch cannot false-FULL, build+verify judges.
 
-22. DMC: 43 UNROUTED MEMBERS ARE FAMILY-4 PLAYERS COMPARED AGAINST THE WRONG
-    REFERENCE (measured 2026-08-28; the biggest single lever in DMC right now).
-    ⚠ OWNER DECISION — not on representation, on COST: landing it re-invalidates
-    every DMC verdict and forces another full re-batch (~13 h wall on this box,
-    the one just completed). The change itself is small and C13-licensed.
+23. DMC: THE ED-LINEAGE PLAYER ZOO among the unrouted (RESCOPED 2026-08-28 —
+    the original premise was WRONG and is recorded here so it is not re-tried).
+    This item used to claim ~30 members are "the CANON v5 body behind a
+    lead-in wrapper", so only detection needed to see past the wrapper.
+    MEASURED while landing item 22: FALSE. The cluster-B members (e.g.
+    `Ed/Bouncy_Funk`, `Ed/A_Quoi_Ca_Sert`, head `4C 40 xx / 4C A5 xx`, play
+    entry `A9 00 F0 04 CE <slot> 60 AA A5 F8 48 A5 F9 48 CE <spdctr> ...`)
+    share We_Were_All_Kids' PLAY-HEAD IDIOM but their bodies are ~3%
+    byte-identical to WWAK's player (and to canon v5) — each is another
+    hand-built Ed-lineage player, like WWAK and Choices before it. That is a
+    per-player site-map / reference job (a small migration each, or one
+    generalized Ed-lineage detector), NOT a detector tweak.
 
-    MEASUREMENT. `v5_diagnose` over all 309 unrouted: 181 `player_code_mismatch`
-    / 121 `no_base` / 7 `init_skeleton`. Of the 181, **128 diverge at site
-    $10A1** (the play entry), so they were regrouped by the PLAY HEAD BYTES
-    there — 44 distinct heads. The largest, **43 members**, carries the family-4
-    play head VERBATIM (`A5 FA 48 A5 FB 48 CE 16 10 30 1E ...`) and 41 of them
-    are **median 96.0% byte-identical** to the Jupiter41 family-4 player over
-    its `$1095-$16FF` body — inside the genuine family-4 band (47-100%; the
-    We_Were_All_Kids impostor was 2.0%). They are family-4 players.
-
-    ROOT CAUSE (ledger C13, third occurrence — entry updated). `_detect_v5`
-    reaches the family-4 branch only when the jump table reads init `base+$40`
-    AND play `base+$95`. A family-4 player wearing any other head therefore has
-    base derived as `play-$A1` and is compared against the family-3/5
-    reference, which fails at the one site where the two players genuinely
-    differ. The head chose the reference; the body was never consulted.
-
-    FIX SHAPE: when the family-3/5 body compare fails, try the family-4
-    reference at the same base before refusing — "the head selects a CANDIDATE,
-    never THE reference". Safe by C13's rule: a loosened dispatch cannot
-    false-FULL, build+verify judges. Note detection != FULL (ledger C5): expect
-    these to land as partials first, and score by first-divergence DEPTH.
-
-    REFUTED, do not re-chase: those 43 also use different zero-page pointers
-    (`$FA`/`$FB` vs canon `$F8`/`$F9`), which reads exactly like a
-    masked-compare bug since zp is runtime state the compare already ignores
-    elsewhere. Re-running the whole body compare with EVERY zp operand treated
-    as don't-care matched only **3 of 50** — the other 43 still differ at
-    `$10A7` because they are a different player. The zp difference is a
-    SYMPTOM, not the cause; fixing it would have changed nothing and hidden
-    this finding.
-
-    LOOSE END: 2 of the 43 (`Booker/Droop_Intoo`, `Booker/Droop_O_Funk`) share
-    the head but score 5.7% — their `_detect_v5` base is non-page-aligned
-    ($2D37 / $24D8), i.e. the BASE derivation is wrong for them. Separate look.
-
-    Evidence: tmp/unrouted_{triage,diagnose,census,clusterA}.txt,
-    tmp/unrouted_diagnose.json. Numbers in project_dmc.md head.
-
-23. DMC: ~30 UNROUTED MEMBERS ARE THE CANON v5 BODY BEHIND A LEAD-IN WRAPPER
-    (measured 2026-08-28; same census as item 22). Composer support ALREADY
-    EXISTS — this is a detection-only gap.
-
-    Their play head is `A9 00 / F0 04 / CE <slot> / 60 / AA` followed by the
-    CANON v5 body (`A5 F8 48 A5 F9 48 ...`): an Ed-style lead-in skip counter
-    (`LDA #imm / BEQ real / DEC slot / RTS`) prepended to an otherwise
-    untouched player. That is exactly the mechanism landed 2026-08-27 for
-    `Ed/We_Were_All_Kids` — `play_skip_init`, probed off the init immediate,
-    with the composer emitting the count. So only `_detect_v5` has to see past
-    the wrapper (follow it to the real body, as `_resolve_init` already does
-    for a relocated init). Carriers e.g. `Ed/Bouncy_Funk`,
-    `Ed/A_Quoi_Ca_Sert`. Same re-batch cost as item 22, so land them together.
-
-    Two smaller clusters from the same grouping, for whoever picks this up:
-    **14 members** read all-zero at `base+$A1` (the player is not in the file
-    image at all — ledger C26 unpacker / relocating wrapper, e.g.
-    `Bakewell_Dwayne/Misfortune`), and **5 members** carry a further distinct
-    head (`AD 19 11 F0 19 AD 1C 11 38 ED 19 11 ...`, e.g.
-    `CreaMD/Awesomeness`).
+    Post-item-22 residue census (tmp/f4_recovery.log, over the then-308
+    unrouted): 47 claimed:family4 (item 22's recovery), 148
+    player_code_mismatch, 113 no_jumptable. The Ed zoo is inside the 148;
+    the 14 no-player-in-image members (C26, e.g. `Bakewell_Dwayne/
+    Misfortune`) are inside the 113. Cluster reps + heads in
+    tmp/unrouted_bigcluster.txt.
 
 25. DMC v6 — 16 MEMBERS ROUTED TO A PIPELINE THAT CANNOT BUILD THEM.
     `route.py --gaps` reports them as `no_store`: they are claimed (sidid

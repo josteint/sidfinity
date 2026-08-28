@@ -382,8 +382,20 @@ def _detect_v5(mem, s):
                     cands.append((b, r[0], r[1]))
                     break
     for jt_addr, it, pt in cands:
-        # family-4 (Jupiter41) = standard jump table at load with play+$95
-        if jt_addr == s['load'] and it == jt_addr + 0x40 and pt == jt_addr + 0x95:
+        # family-4 (Jupiter41) = jump table with init+$40 / play+$95.
+        # ⚠ NOT "at load": this gate used to also require jt_addr == s['load'],
+        # which is a fact about the FILE, not the player — ~40 members ship
+        # data BEFORE the player (Kummatti_City loads at $0FD0, canonical
+        # family-4 head at $1000), failed the load check, fell through to the
+        # v5 branch (base = play−$A1) and were refused against the WRONG
+        # REFERENCE at the one site where the two players differ (ledger C13,
+        # third occurrence: the head selects a CANDIDATE, never THE
+        # reference). The jump table itself still reaches the candidate list
+        # via the play-vector candidate (play−3) or the scan, and
+        # `_family4_config`'s `_family4_player` guard (operand-site opcodes /
+        # the ed_kids skeleton) backstops a coincidental +$40/+$95 pair with
+        # a typed refusal instead of a garbage extraction.
+        if it == jt_addr + 0x40 and pt == jt_addr + 0x95:
             return None, None, jt_addr, 'family4'
         base = (pt - 0xA1) & 0xFFFF
         # only code+state relocate with base (the data tables are patched

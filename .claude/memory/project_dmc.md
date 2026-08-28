@@ -8,6 +8,32 @@ metadata:
   modified: 2026-08-27T15:53:16.187Z
 ---
 
+## ✅ 2026-08-28 (evening) — BACKLOG 22 LANDED: the family-4 "at load" gate, +47 claimed
+
+The C13-third-occurrence fix: `_detect_v5`'s family-4 gate required the jump
+table to sit AT THE LOAD ADDRESS — a fact about the FILE, not the player.
+~40 members ship data BEFORE the player (Kummatti_City loads at $0FD0, a
+CANONICAL family-4 head at $1000), failed that one conjunct, fell to the v5
+branch (base = play−$A1) and were refused against the wrong reference. Fix =
+drop the load conjunct; `_family4_player`'s operand-site/skeleton guard
+backstops coincidental +$40/+$95 pairs.
+
+Gates: dispatch diff over all 2,031 claimed v5 members = 0 flips; byte gate
+92/92 MD5-identical; regression green. Recovery census over the 308 unrouted:
+**47 newly claimed family4** (a few more than the triage's 43 — the
+head-grouping undercounted), 148 player_code_mismatch + 113 no_jumptable
+remain. Sample-verified 3: ordinary partials (state match, early play
+divergence) — C5's detection ≠ FULL, they join the grind. Unrouted 308 → 261.
+
+⚠ ITEM 23'S PREMISE REFUTED while measuring: cluster B ("canon v5 behind a
+lead-in wrapper") is actually MORE HAND-BUILT ED PLAYERS — WWAK's play-head
+idiom over ~3%-identical bodies. Rescoped in the backlog as the Ed-lineage
+zoo (per-player site maps, migration-sized).
+
+⚠ ALL DMC VERDICTS INVALIDATED by this edit (v5/factory.py is in both
+engines' closure) — the overnight chain (roster re-route + v5 + f2 + f1
+batches) is the standing cure; counts above predate it.
+
 ## ✅ 2026-08-28 — v6 COUNTS NOW: `dmc_v6` store + accounting batch, --gaps FULLY CLEAN
 
 Backlog 25's first step: registered the `dmc_v6` store and built
