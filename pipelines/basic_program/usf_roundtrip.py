@@ -675,12 +675,31 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
     else:
         # readers default all three to 0 — elide the zero values
         if pw_program:
-            fields['bp_pwprog_voices'] = sum(1 << (vc - 1) for vc in pw_program)   # bitmask of modulated voices
+            # voices whose program is too wide for the packed form go out as
+            # strings (below) and must NOT be in the bitmask — the reader
+            # would look for packed fields that do not exist.
+            _wide = {vc for vc, (_t, secs) in pw_program.items()
+                     if any(off > 255 for off, _l, _r in secs)}
+            if set(pw_program) - _wide:
+                fields['bp_pwprog_voices'] = sum(
+                    1 << (vc - 1) for vc in pw_program if vc not in _wide)   # bitmask of modulated voices
         if model.get('mod_start', 0):
             fields['bp_mod_start'] = model['mod_start']     # play-frame the sweep begins
         if model.get('mod_inc', 0):
             fields['bp_mod_inc'] = model['mod_inc']         # fractional tick rate (per play, /256)
         for vc, (tab, secs) in pw_program.items():
+            # The packed s{i} encoding holds the section offset in 8 bits (the
+            # reader masks `>> 16 & 0xFF`) — a wide-table program (offsets past
+            # 255, possible since the C8 capacity widening) would corrupt
+            # silently. Emit the STRING form instead for those; the reader
+            # checks `bp_sweep{vc}_values` FIRST for every voice, so this is
+            # read-compatible, and narrow programs keep their packed form
+            # byte-identical.
+            if any(off > 255 for off, _l, _r in secs):
+                fields[f'bp_sweep{vc}_values'] = ' '.join(f'${b:02X}' for b in tab)
+                fields[f'bp_sweep{vc}_sections'] = ' '.join(
+                    f'{off}:{ln}x{rep}' for off, ln, rep in secs)
+                continue
             fields[f'bp_pwprog{vc}_ntab'] = len(tab)        # value table (4 bytes per int)
             for i in range((len(tab) + 3) // 4):
                 ch = (tab[4 * i:4 * i + 4] + [0, 0, 0, 0])[:4]
@@ -1418,7 +1437,13 @@ def _compare_music(orig_wl, reb_sid, dur, loops, reb_dur=None, reb_init_len=0):
     m = _pref(oa, rb)
     r = {'match_all': m, 'len_all_a': len(oa), 'len_all_b': len(rb)}
     if m == min(len(oa), len(rb)) and len(oa) - len(rb) > 64:   # short exact prefix
-        ext = min(reb_dur * (len(oa) / max(len(rb), 1)) * 1.2 + 2, 240.0)
+        # ⚠ ceiling must EXCEED the window it extends: the old flat 240.0 cap
+        # (from the 120s-batch-cap era, ledger C20 eighth layer) made the
+        # "extension" SHORTER than reb_dur for honest windows past ~200s —
+        # Cascading at reb_dur=280s re-captured at 240s and could only fail.
+        # The rebuild's last write lies within the orig's window by
+        # construction, so dur + 60 is a true ceiling, not a cap.
+        ext = min(reb_dur * (len(oa) / max(len(rb), 1)) * 1.2 + 2, dur + 60.0)
         rb2 = _flatw(writelog_capture(reb_sid, 0, ext))[reb_init_len:]
         m2 = _pref(oa, rb2)
         r2 = {'match_all': m2, 'len_all_a': len(oa), 'len_all_b': len(rb2)}
@@ -1453,7 +1478,8 @@ def _compare_with_extend(orig_wl, reb_sid, dur, loops, reb_dur=None):
     # false-pass — the extra capture is the only cost.
     if r['match_all'] == min(a0, b0) and a0 - b0 > 64:             # only would-be length_fail
 
-        ext = min(reb_dur * (a0 / max(b0, 1)) * 1.2 + 2, 240.0)
+        # see _compare_music: the flat 240.0 ceiling undercut honest windows.
+        ext = min(reb_dur * (a0 / max(b0, 1)) * 1.2 + 2, dur + 60.0)
         r2 = compare_instruction_stream(orig_wl, writelog_capture(reb_sid, 0, ext), skip_init=False)
         if r2['match_all'] == r2['len_all_a']:            # whole orig reproduced as prefix
             return r2, True
@@ -1598,7 +1624,14 @@ def best_attempt(sid_rel, dur, title='bp'):
             res4 = _attempt_model(build_model(sid, dur, detect_song_end=True), sid, dur, orig_wl, title, gap_exact=gap_exact)
             if res4[0] == 'FULL':
                 return res4
-        if res[0] in ('overlap_diverge', 'length_fail'):   # free-running PW sweep modulation
+        if res[0] in ('overlap_diverge', 'length_fail', 'image_too_big'):
+            # free-running PW sweep modulation. image_too_big is a MODULATION
+            # SYMPTOM, not just a size failure: a per-tick PW staircase the
+            # base lift cannot strip fragments segmentation into thousands of
+            # unfoldable sub-steps (Cascading at its honest 288s window:
+            # 7,665 records = 54KB, vs 720 steps / 9.2KB once the sweep is
+            # captured), so the modulation rung must run for it too — the old
+            # gate stopped the ladder one rung short of the fix.
             res5 = _attempt_model(build_model(sid, dur, detect_modulation=True), sid, dur, orig_wl, title, gap_exact=gap_exact)
             if res5[0] == 'FULL':
                 return res5

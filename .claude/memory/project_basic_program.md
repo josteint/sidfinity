@@ -8,6 +8,25 @@ metadata:
   modified: 2026-08-12T04:31:39.282Z
 ---
 
+**2026-08-28 — CASCADING RECOVERED FULL (the pw-sweep carrier): three stale
+caps, not a missing representation.** Backlog item 14's per-note-instrument
+design was refuted by measurement (ramps are a ~19-shape library, several
+non-constant-rate; the song never folds — 635/720 unique note-sigs,
+through-composed). The real chain: (1) `_capture_pw_program`'s 255-byte table
+gate (C8 — our 8-bit offset+tick encoding; V1/V3 need 392/284B at the honest
+288s window) → per-section 16-bit pointers `pwsoflo/hi` + `($FD),y`, plus a
+latent rep>255 truncation fixed; (2) the ladder never ran the modulation rung
+on `image_too_big`, which IS the modulation symptom → gate widened; (3) both
+verify extenders' flat 240s ceiling (C20 8th-layer residue) SHRANK the
+extension below reb_dur=280s → ceiling now `dur+60`. USF: wide programs take
+the existing `bp_sweep{vc}` string form (packed form masks offsets to 8 bits);
+narrow members byte-identical, corpus 12,692/12,692. Cascading FULL
+27,152/27,152 + mass-written. Legion_of_One + Pepper_Spray: now REAL
+divergences (modulation model builds 3.2/8.3KB, all 4 channels incl. $D416;
+overlap_diverge m=1582/15999 Legion) — leads in backlog 14. ⚠ ALL 524 bp rows
+code_hash-stale (re-batch queued behind the DMC chain); portfolio re-derive
+after (pw dimension re-enters via Cascading).
+
 **2026-08-12 — THE 120s VERIFY-WINDOW CAP EPISODE (ledger C20 EIGHTH LAYER)
 — family re-baselined: 488/524 FULL, corpus in perfect sync.**
 Bright_Eyes_BASIC's byte-gate refusal (2026-08-11) unravelled to a systemic

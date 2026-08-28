@@ -123,42 +123,49 @@
     shape/range/period/quantize/phase) noted in docs/the_move-1_plan.md
     under "D1/D2 candidate unified form"; vibrato depth is D4 there.
 
-14. BASIC_PROGRAM RESIDUE LEADS — INVESTIGATED 2026-08-20 (diagnosis
-    only, run during the DMC closeout; logs tmp/cascading_*.log). The
-    two leads are ONE problem: the 3 image_too_big Bond_Alan loopers
-    (Cascading 4:20 / Legion_of_One 2:43 / Pepper_Spray 1:59) include
-    Cascading, the lost pw-sweep portfolio carrier.
-    ROOT CAUSE (measured on Cascading at its honest 288s window): the
-    lift explodes it to 7,665 sub-steps — each note's attack embeds an
-    IDENTICAL per-note PW-HI staircase ($x0..$x7) on ALL THREE voices
-    (the split materializes ~12 sub-steps/note), and because each
-    note's ABSOLUTE sweep phase differs, the step signatures never
-    repeat (579/627 unique even ignoring PW) -> _find_loop only closes
-    at intro 7649 (no real fold) -> 7.6k records overflow $CF00.
-    detect_modulation does NOT rescue it: _capture_pw_program is
-    FREE-RUNNING-only and captured just voice 2; V1/V3's retriggered
-    ramps stay materialized (verified: build_psid still image_too_big
-    under the modulation rung). The old pre-honest-window FULL was
-    brute materialization that happened to fit 120s.
-    DESIGN (the principled fix, C1): represent the per-note PW ramp as
-    an INSTRUMENT PWM program (SweepEnvelope, retriggered at note-on —
-    the USF Instrument.pwm form the other families already use):
-    (a) segmentation strips per-note PW writes that match a per-note-
-        periodic ramp (detect: the PW subsequence of every attack is
-        identical relative to note-on);
-    (b) the note's instrument carries pwm SweepEnvelope(start, step,
-        period) — likely ONE instrument for all notes here;
-    (c) the player emits the ramp per note (a small per-voice pw tick
-        in the play loop, like _emit_pw_mod_asm but note-retriggered);
-    (d) with PW stripped, sigs collapse -> _find_loop folds a real lap
-        -> image shrinks -> all 3 members + the pw-sweep portfolio
-        dimension come back (as a BETTER typed carrier than before).
-    Est. scope: a semantic_lift feature (strip + detect) + player emit
-    + usf_roundtrip instrument wiring; roughly a Phase-1-per-note-
-    instruments-sized change. Not landed (needed the DMC closeout to
-    finish first only for CPU; basic_program's fingerprint is separate
-    so it CAN land any time).
-    Round detail in .claude/memory/project_basic_program.md.
+14. BASIC_PROGRAM RESIDUE — the Bond_Alan loopers (PARTIALLY LANDED
+    2026-08-28; originally "investigated 2026-08-20, diagnosis only").
+
+    ✅ LANDED — **Cascading FULL at its honest 288s window + mass-written**
+    (27,152/27,152 writes), recovering the lost pw-sweep portfolio carrier.
+    The 2026-08-20 design (per-note instrument SweepEnvelope) turned out
+    UNNECESSARY, and its premises measured false: the ramps are a ~19-shape
+    LIBRARY (several non-constant-rate), and the song does NOT fold even
+    with PW ignored (635/720 unique note-sigs — through-composed play-once).
+    What was actually wrong, three stale caps in sequence (each masked the
+    next):
+      (1) `_capture_pw_program`'s `len(tab) <= 255` gate — OUR 8-bit
+          offset+tick encoding, not the signal (ledger C8: whose cap is
+          it?). V1/V3 at 288s need 392/284-byte tables. Fix = per-section
+          16-BIT pointers (`pwsoflo/hi` -> `($FD),y`), sections still
+          X-indexed <=255. Also fixed a latent rep>255 truncation (min(255)
+          while advancing by the full run).
+      (2) the best_attempt ladder never ran the modulation rung on an
+          `image_too_big` base failure — but image_too_big IS the modulation
+          symptom (unstripped staircase -> 7.6k unfoldable sub-steps).
+      (3) both verify extenders capped the extended capture at a flat 240s
+          (the 120s-batch-cap era, C20 eighth layer) — for reb_dur=280s the
+          "extension" SHRANK the capture and could only fail. Ceiling is now
+          `dur + 60`.
+    USF: wide programs use the existing `bp_sweep{vc}_values/sections`
+    string form (packed s{i} masks offsets to 8 bits — writer now falls back
+    to strings when off>255, reader already prefers strings; narrow members
+    byte-identical). No schema change.
+
+    REMAINING (the actual residue now): Legion_of_One + Pepper_Spray moved
+    from `image_too_big` to REAL divergences — the modulation model builds
+    tiny (3.2KB/8.3KB, all four channels incl. $D416) but verifies
+    `overlap_diverge` at m=1582/15999 (Legion). First lead: their V1
+    programs start at non-zero bases (Legion v1: `3,4..0xA` repeating —
+    ramps 3..10, not 0-based) and Legion's v1 capture collapses to 8B/3sec
+    (suspiciously tiny vs 3,903 writes) — the free-running RLE may be
+    folding a phase-shifting staircase wrongly. Localize with
+    find_first_divergence at write 1582.
+
+    ALSO OWED: the full bp re-batch (all 524 rows code_hash-stale after
+    these edits) — queued behind the DMC overnight chain; and the portfolio
+    re-derivation AFTER it (the pw-sweep dimension can then re-enter via
+    Cascading; `_excluded` Medley_BASIC note says re-derive post-batch too).
 
 # ------------------------------------------------------------
 # tmp/cleanup_plan_2026-08-03.md is now CLOSED as a work list: its three

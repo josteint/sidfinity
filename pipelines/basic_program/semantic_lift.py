@@ -433,9 +433,24 @@ def _capture_pw_program(frames):
             off = _find_sub(tab, period)               # reuse identical period bytes if already present
             if off is None:
                 off = len(tab); tab.extend(period)
-            secs.append((off, P, min(255, r)))
+            # rep is a byte in the player — a run longer than 255 SPLITS into
+            # several sections. (The old `min(255, r)` here silently DROPPED
+            # the excess repeats while still advancing i by r*P — a latent
+            # write-loss the `rep <= 255` acceptance gate happened to mask.)
             i += r * P
-        if len(tab) <= 255 and all(rep <= 255 for _, _, rep in secs):  # byte offsets/reps
+            while r > 0:
+                chunk = min(255, r)
+                secs.append((off, P, chunk))
+                r -= chunk
+        # Capacity: sections are X-indexed (<=255); the value table is reached
+        # through PER-SECTION 16-BIT POINTERS (pwsoflo/pwsofhi -> (zp),y with
+        # y = tick < period <= 16), so it is NOT capped at 255 bytes. The old
+        # `len(tab) <= 255` gate was OUR 8-bit offset+tick encoding, not the
+        # signal's shape (ledger C8: first ask whose cap it is) — it rejected
+        # Cascading's V1/V3 at the honest 288s window (tables 392/284 bytes)
+        # and collapsed the lift into the 7.6k-substep image_too_big failure.
+        # 2048 is a sanity bound (image budget still judges the real build).
+        if len(tab) <= 2048 and len(secs) <= 255:
             out[vc] = (tab, secs)
     return out
 
@@ -471,8 +486,16 @@ def _emit_pw_mod_asm(em, pw_program, mod_start, mod_inc):
         nsec = len(pw_program[vc][1])
         em(f'        ldx pwsec_v{vc}')
         em(f'        cpx #${nsec:02X}'); em(f'        bcs pwa{vc}')     # program done -> hold
-        em(f'        lda pwsoff_v{vc},x'); em('        clc'); em(f'        adc pwtk_v{vc}'); em('        tay')
-        em(f'        lda pwtab_v{vc},y'); em(f'        sta $D4{MODREG[vc]:02X}')
+        # 16-bit section pointer: pwsoflo/hi hold the ABSOLUTE address of the
+        # section's bytes inside pwtab (assembler-resolved), read via ($FD),y
+        # with y = tick. The old 8-bit `pwsoff + tick -> pwtab,y` form capped
+        # the whole table at 255 bytes — the cap that broke Cascading's V1/V3
+        # at the honest window (see _capture_pw_program). $FD/$FE are free
+        # ($FB/$FC = the step-record pointer SP; a PSID player owns its zp).
+        em(f'        lda pwsoflo_v{vc},x'); em('        sta $FD')
+        em(f'        lda pwsofhi_v{vc},x'); em('        sta $FE')
+        em(f'        ldy pwtk_v{vc}')
+        em('        lda ($FD),y'); em(f'        sta $D4{MODREG[vc]:02X}')
         em(f'        inc pwtk_v{vc}'); em(f'        lda pwtk_v{vc}'); em(f'        cmp pwslen_v{vc},x'); em(f'        bne pwa{vc}')
         em(f'        lda #$00'); em(f'        sta pwtk_v{vc}')
         em(f'        inc pwrep_v{vc}'); em(f'        lda pwrep_v{vc}'); em(f'        cmp pwsrep_v{vc},x'); em(f'        bne pwa{vc}')
@@ -521,8 +544,16 @@ def _emit_mod_sweep_and_tail(em, emit_pw_mod, pw_program, mod_total, song_end):
 def _emit_pw_data_asm(em, pw_program):
     for vc in sorted(pw_program):
         tab, secs = pw_program[vc]
-        em(f'pwtab_v{vc}: .byte ' + ', '.join(f'${v:02X}' for v in tab))
-        em(f'pwsoff_v{vc}: .byte ' + ', '.join(f'${o:02X}' for o, l, r in secs))
+        # value tables can exceed 256 bytes; xa65 .byte lines are chunked.
+        em(f'pwtab_v{vc}:')
+        for ci in range(0, len(tab), 32):
+            em('        .byte ' + ', '.join(f'${v:02X}' for v in tab[ci:ci + 32]))
+        em(f'pwsoflo_v{vc}:')
+        for ci in range(0, len(secs), 16):
+            em('        .byte ' + ', '.join(f'<(pwtab_v{vc}+{o})' for o, l, r in secs[ci:ci + 16]))
+        em(f'pwsofhi_v{vc}:')
+        for ci in range(0, len(secs), 16):
+            em('        .byte ' + ', '.join(f'>(pwtab_v{vc}+{o})' for o, l, r in secs[ci:ci + 16]))
         em(f'pwslen_v{vc}: .byte ' + ', '.join(f'${l:02X}' for o, l, r in secs))
         em(f'pwsrep_v{vc}: .byte ' + ', '.join(f'${r:02X}' for o, l, r in secs))
 
