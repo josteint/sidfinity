@@ -8,6 +8,48 @@ metadata:
   modified: 2026-08-27T15:53:16.187Z
 ---
 
+## 📊 FULL RE-BATCH CLOSEOUT 2026-08-28 (overnight): every claimed member has a CURRENT verdict
+
+Re-routed (10,774) then re-batched all three stores under the committed code —
+all rows were `code_hash`-stale after the v5 dispatch work. Verdicts are
+CURRENT; ⚠STALE-VERDICTS is CLEARED for f1, f2 and v5.
+
+| store | claimed | full | partial | error | coverage |
+|---|---:|---:|---:|---:|---:|
+| dmc_v4 (canonical/f1) | 5,474 | 5,449 | 23 | 2 | **99.5%** |
+| dmc_v4_family2 (f2)   | 2,944 | 2,929 | 14 | 1 | **99.5%** |
+| dmc_v5                | 2,031 | 1,211 | 820 | 0 | **59.6%** |
+| **DMC claimed**       | 10,449 | **9,589** | 857 | 3 | **91.8%** |
+
+Against the whole roster corpus (10,774, incl. the 309 unrouted + 16 v6):
+**9,589 = 89.0%**. `unsupported` is **0** in every store.
+
+REGRESSION CHECK, old-hash vs new-hash rows WITHIN each append-only store
+(sharper than batch_diff, which needs two files and was pointed at the wrong
+one for f2 in the overnight log): 8,399 members compared, **0 regressions,
+0 gains, and exactly 2 transitions** — `We_Were_All_Kids` and
+`Left_Ear_Bleedin_Ear_Left`, both `unsupported -> partial`, i.e. precisely the
+two members this session made buildable and nothing else moved.
+
+ROUTING DIFF over the re-route: **0 added, 0 removed, 1 reclassified** —
+`We_Were_All_Kids` `family4 -> ed_kids`, exactly as predicted. The C13 guard
+refuses nobody.
+
+⚠ The f1/f2 residue IS the formerly-invisible set: 23+2 and 14+1 non-FULL
+members, which is exactly the 30+20 that had no verdict row. Every member
+batched before this session is still FULL. So "f1/f2 are closed" was wrong only
+about the members nobody had looked at.
+
+`route.py --gaps` now reports **16**, all `v6/-` (routed to a pipeline with no
+results store — extract exists, composer never started). The 50 claimed-but-
+unbatched are gone.
+
+Two new HETEROGENEOUS members surfaced by batching the formerly-invisible set:
+`Bayliss_Richard/Grid_Zone_Remix` and `Heavy_Metal_Deluxe` (both `hetero_v5`,
+DMC v4 packing a v5 sub-player) — and Grid_Zone_Remix + Last_Amazon are also
+the two AMBIGUOUS members (claimed by both factories) and 2 of the 11
+sidid-disagreement members. Same small set keeps surfacing; worth one look.
+
 ## 🔎 2026-08-27 — sidid ALREADY KNOWS v4-vs-v5, and reframes the 309 unrouted
 
 `sidid -m` (multi-signature mode, which our catalogue generator does NOT use —
