@@ -140,8 +140,11 @@ Then:
    numbered OPEN-WORK list: measured-but-unfinished investigations, each with
    what was tried, what was refuted, and the next measurement. Items flagged
    OWNER DECISION are parked deliberately (representation/schema changes behind
-   the approval gate) — read them, don't act on them. Done items are DELETED,
-   never renumbered, because other files cite them by number.
+   the approval gate) — read them, don't act on them. Done items are REMOVED
+   COMPLETELY (no tombstone — `git log -p backlog.md` is the record); numbers
+   are NEVER reused. A new item takes the `NEXT_ITEM` number at the top of the
+   file, then bumps it. A citation to a missing number means "resolved, see
+   git history".
 
 ## Doing a Hubbard '85 engine migration
 

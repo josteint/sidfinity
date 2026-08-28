@@ -5,15 +5,17 @@
 # dozen measured-but-unfinished investigations. Moved to the repo root and
 # tracked for exactly that reason.
 #
-# Done items get DELETED from here. Numbers stay stable across prunes
-# (gaps are deliberate) only because other files cite them: project_dmc.md
-# cites item 6 (DELETED 2026-08-21 — family-2 closed at 2,924/2,924, see
-# project_dmc.md head + ledger C9 10th occ), cleanup_plan cites items 10 + 11.
+# NEXT_ITEM: 27   <- autoincrement: a NEW item takes this number, then bump it.
 #
-# Items 19-21 need an OWNER DECISION (representation / schema); the rest are
-# unfinished work that needs no permission. Items 22 + 24 also need an OWNER
-# DECISION, but NOT on representation: 22 is a decision about COST (landing it
-# re-invalidates every DMC verdict and forces a ~13 h re-batch). Item 26 is a
+# CONVENTIONS (owner-set 2026-08-28):
+#  - A done item is REMOVED COMPLETELY — no tombstone, no summary line. The
+#    record of what it was and how it resolved is `git log -p backlog.md`.
+#  - Numbers are NEVER reused; gaps are normal (6, 19, 21, 24 are gone).
+#    Other files may cite an item by number — a citation to a gap means
+#    "resolved, see git history".
+#
+# Item 22 needs an OWNER DECISION — not on representation but on COST (landing
+# it re-invalidates every DMC verdict and forces a ~13 h re-batch). Item 26 is a
 # different kind again — PARKED HARD by the owner with a trigger (broad engine
 # coverage, i.e. near the end of the project); it needs no decision, just time.
 
@@ -1133,17 +1135,6 @@
       divergence_census entry, and all three MANDATORY docs (SCOPE.md,
       52 KB RE_NOTES.md, annotated disassembly.s).
 
-19. (DELETED 2026-08-26 — CLOSED. DMC v5 TABLE OVERFLOW, all 126 members.
-    Option (c) landed (ledger C8 sixth widening: the paged composer cursor —
-    from_usf pass-2 packer + per-voice page-select SMC, gated on
-    `len(pool) > 256`, byte-gate 60/60 vs HEAD). The 4 position-sonifying
-    members were then served by the LIVE-POSITION FORM (owner-approved:
-    OFSIG `pulse_position`/`filter_position` + per-instrument
-    `pulse_table_pos`/`filter_table_pos` + the composer delta-serve — ledger
-    C11 2026-08-26 refinement), so the `offtable_live_pos` refusal class is
-    EMPTY. Results: 10 FULL + 116 partial + 0 refused; techniques in
-    C8/C11; numbers in project_dmc.md.)
-
 20. DMC v5 PLAYER VARIANT behind ~106 `player_code_mismatch` rejects —
     ⚠ LARGELY SUPERSEDED 2026-08-28 by items 22 + 23, which identify the two
     biggest clusters concretely. Its conclusion ("a genuine player VARIANT with
@@ -1175,14 +1166,6 @@
     That is a migration-sized task, not a detector tweak — and C13's rule
     ("dispatch on the PLAY-body signature") is what makes it safe to attempt:
     a loosened dispatch cannot false-FULL, build+verify judges.
-
-21. (DELETED 2026-08-26 — CLOSED. `trailing_sector_cmds` is 0 of 15: 14 FULL,
-    1 (Player_One/Valtavirtaa) moved into item 19's overflow bucket. Its
-    option (b) — "prove the trailing commands are DEAD and drop them" — was
-    REFUTED at its premise: $FF ends a v5 sector only as the lookahead peeked
-    after a ROW, so a sector ending in commands does not end at all and there
-    is no next sector for the state to survive into. Technique recorded in
-    ledger C34's 5th occurrence; numbers in project_dmc.md.)
 
 22. DMC: 43 UNROUTED MEMBERS ARE FAMILY-4 PLAYERS COMPARED AGAINST THE WRONG
     REFERENCE (measured 2026-08-28; the biggest single lever in DMC right now).
@@ -1248,19 +1231,6 @@
     `Bakewell_Dwayne/Misfortune`), and **5 members** carry a further distinct
     head (`AD 19 11 F0 19 AD 1C 11 38 ED 19 11 ...`, e.g.
     `CreaMD/Awesomeness`).
-
-24. (DELETED 2026-08-28 — RESOLVED, and it was NEITHER of the item's two
-    forks. Not a detector regression, not a member that left the family: the
-    ROUTER only probed the single-player `dmc_v4_config`, whose base detection
-    landed on CHIP 2's player ($3000) and failed the chipless masked compare on
-    a normal chip-2 register relocation (`STA $D425,Y` vs canon `$D405,Y` =
-    "first diff at $1235"). The batch dispatches `dmc_v4_config_2sid` FIRST,
-    which masks exactly that — so it had built and verified the member FULL
-    while the roster called it unclaimed (C20 4th layer: a consumer taking a
-    different build path than the verifier — here the consumer is the ROUTER).
-    Fixed: route() falls back to the 2SID probe on a v4 refusal; member
-    re-verified FULL under current code (159,469 writes, state match) and
-    re-batched with the current hash. --gaps mirror is clean again.)
 
 25. DMC v6 — 16 MEMBERS ROUTED TO A PIPELINE THAT CANNOT BUILD THEM.
     `route.py --gaps` reports them as `no_store`: they are claimed (sidid
