@@ -8,6 +8,64 @@ metadata:
   modified: 2026-08-27T15:53:16.187Z
 ---
 
+## 🎯 2026-08-28 — THE 309 UNROUTED, TRIAGED: ~71 have a NAMED cause, and the biggest is C13 again
+
+Read-only triage (`tmp/unrouted_*.txt`, `tmp/unrouted_diagnose.json`). Ran
+`v5_diagnose` over all 309 and grouped by the exact divergence:
+
+| | n |
+|---|---:|
+| `player_code_mismatch` | 181 |
+| `no_base` (no jump table found at all) | 121 |
+| `init_skeleton` | 7 |
+
+Of the 181, **128 diverge at site `$10A1`** — the play entry — so the grouping
+that matters is the PLAY HEAD BYTES there (44 distinct):
+
+**CLUSTER A — 43 members, `A5 FA 48 A5 FB 48 CE 16 10 30 1E ...` = the
+FAMILY-4 PLAY HEAD VERBATIM.** Byte identity to the Jupiter41 family-4 player
+over `$1095-$16FF`: **median 96.0%**, 41 of 43 in the 56-97% band — squarely
+inside the genuine-family-4 range (47-100%; the We_Were_All_Kids impostor was
+2.0%). These ARE family-4 players. `_detect_v5` only recognises family-4 when
+the jump table reads init `+$40` AND play `+$95`; these carry a different head,
+so base is derived as play−$A1 and they are then compared against the
+family-3/5 reference, which of course fails. **This is ledger C13 a third time,
+now in the other direction** — the head offsets decided the reference, and the
+BODY was never consulted. Fix shape: when the family-3/5 body compare fails,
+try the family-4 reference at the same base before refusing. (2 outliers,
+`Booker/Droop_*` at 5.7%, share the head but get a non-page-aligned base —
+their base derivation is wrong, look separately.)
+
+**CLUSTER B — 30 members, `A9 00 F0 04 CE <slot> 60 AA A5 F8 48 A5 F9 48 ...`**
+= an Ed-style LEAD-IN SKIP COUNTER (`LDA #imm / BEQ real / DEC slot / RTS`)
+prepended to the CANON v5 body. That is exactly the mechanism this session
+already built for `We_Were_All_Kids` — `play_skip_init`, probed off the init —
+so the composer side already exists; only detection has to see past the
+wrapper. e.g. `Ed/Bouncy_Funk`, `Ed/A_Quoi_Ca_Sert`.
+
+**CLUSTER C — 14 members, all-zero at base+$A1** = the player is not in the
+file image (ledger C26 unpacker / relocating wrapper), e.g.
+`Bakewell_Dwayne/Misfortune`.
+
+**CLUSTER D — 5 members, `AD 19 11 F0 19 AD 1C 11 38 ED 19 11 ...`** — a
+further variant, e.g. `CreaMD/Awesomeness`.
+
+Remaining sites, each its own cluster: `$1385` opcode ×16, `$16C7` opcode ×16
+(`$2C` BIT replacing `$99` STA abs,Y = a NOPed store, the classic C19 wedge
+idiom), `$10CD` abs ×6, plus singletons.
+
+⚠ REFUTED EN ROUTE — do not re-chase: the 50 members diverging at `$10A1` with
+`kind=imm` look like they differ only in WHICH ZERO-PAGE POINTER the player
+uses (`$FA`/`$FB` vs canon `$F8`/`$F9`), which would make it a masked-compare
+bug (zp is runtime state, like the `$1006-$1040` block the factory already
+ignores). Tested by re-running the whole body compare with every zp operand
+treated as don't-care: **only 3 of 50 then match** — 43 still differ at
+`$10A7`, because they are cluster A (a different player that also happens to
+use different zp). The zp difference is a SYMPTOM, not the cause.
+
+NOT LANDED — a detection change here re-invalidates every verdict and triggers
+another full re-batch, which is the owner's call, not an overnight one.
+
 ## 📊 FULL RE-BATCH CLOSEOUT 2026-08-28 (overnight): every claimed member has a CURRENT verdict
 
 Re-routed (10,774) then re-batched all three stores under the committed code —
