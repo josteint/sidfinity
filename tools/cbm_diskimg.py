@@ -4,14 +4,18 @@
     python3 tools/cbm_diskimg.py hvsc85/*.d64            # list directories
     python3 tools/cbm_diskimg.py --extract DIR IMAGE...  # write every PRG out
 
-WHY THIS EXISTS, AND WHY THERE IS NO BACKLOG ITEM FOR IT (2026-08-28).
-HVSC ships ten disk images at the root of the collection — the 10-Years /
-20-Years anniversary disk mags and the HVSC_Intro disks — which
-`tools/build_sid_db.py` does not index, because it walks for `.sid` files. They
+Step one of BACKLOG ITEM 26 — "rip the HVSC disk mags with our own pipeline",
+a capability demo parked hard until engine coverage is broad (near the end of
+the project). HVSC ships ten disk images at the root of the collection — the
+10-Years / 20-Years anniversary disk mags and the HVSC_Intro disks — which
+`tools/build_sid_db.py` never sees, because it walks for `.sid` files. They
 contain music: 37 `musicN` PRGs on `10_Years_HVSC_2.d64`, and 17 tunes on
-`20_Years_HVSC.d64` whose directory art advertises "17 exclusives!". That looks
-like a corpus-growth opportunity. It investigated out, and the owner dropped it;
-this docstring is the record so nobody re-derives it from scratch.
+`20_Years_HVSC.d64` whose directory art advertises "17 exclusives!".
+
+⚠ It is NOT a corpus-growth item, and must not be re-opened as one — that was
+the original framing and it was refuted (points 2 and 3 below). The value is
+the demonstration: every member we have ever built arrived pre-ripped, and a
+disk mag gives none of that.
 
  1. It is ALL PACKED. sidid identifies 0 of the 37 and 0 of the 17 as any
     player, the 20-Years main binary comes back `Crunched:Exomizer`, and the
@@ -26,14 +30,21 @@ this docstring is the record so nobody re-derives it from scratch.
     but an exact count match against an explicit claim of 17 is hard to explain
     otherwise. (`Update65.hvs` is no help either way: it records only
     REPLACE/MOVE/DELETE, so new files never appear in it. STIL has no entries.)
- 3. The engine-diversity argument inverts. The 46 anniversary-disk tunes span
-    17 distinct engines (GoatTracker_V2.x 15, DMC 5, Geir_Tjelta/SIDDuzz'It 4,
-    Laxity_NewPlayer_V21 3, ...), most unmigrated — but they are already
-    available as ordinary `.sid`, so depacking reaches no engine the catalogue
-    does not already expose.
+ 3. The engine diversity cuts BOTH ways. The 46 anniversary-disk tunes span 17
+    distinct engines (GoatTracker_V2.x 15, DMC 5, Geir_Tjelta/SIDDuzz'It 4,
+    Laxity_NewPlayer_V21 3, ...), most unmigrated. As a corpus argument that
+    is dead — they are already ordinary `.sid`, so depacking reaches no engine
+    the catalogue does not already expose. As the DEMO's gating condition it is
+    the whole point: attempt this before those engines are migrated and it
+    mostly reports "cannot build this player", which demonstrates nothing.
 
-The one loose end, if this is ever revisited: the 10-Years disk has 37 `musicN`
-files against only 29 tunes credited `2006 ... HVSC`. That disk never
+⭐ And because the tunes are already ripped, the demo gets GROUND TRUTH for
+free: our output per tune can be diffed against HVSC's own hand-made rip,
+which is far stronger than "it plays". That is what makes it a capstone rather
+than a stunt.
+
+The one loose end, if a smaller bite is wanted first: the 10-Years disk has 37
+`musicN` files against only 29 tunes credited `2006 ... HVSC`. That disk never
 advertised a count, so it probably mixed exclusive with pre-existing material,
 but those 8 are the only place unexplained content could sit.
 

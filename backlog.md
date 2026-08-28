@@ -14,7 +14,9 @@
 # unfinished work that needs no permission. Items 22 + 24 also need an OWNER
 # DECISION, but NOT on representation: 22 is a decision about COST (landing it
 # re-invalidates every DMC verdict and forces a ~13 h re-batch), and 24 is a
-# fork where the two possible causes need opposite actions.
+# fork where the two possible causes need opposite actions. Item 26 is a
+# different kind again — PARKED HARD by the owner with a trigger (broad engine
+# coverage, i.e. near the end of the project); it needs no decision, just time.
 
 5. REGISTRY REVIEW FLAGS (found by the first composer_param_lint runs):
    - digi_player (pipelines/composer.py): RE-ASSESSED 2026-08-16 — not
@@ -1292,3 +1294,77 @@
     are the only DMC members with no possible verdict. First step: a v6 store in
     `batch_results.STORES` + `pipelines/dmc/v6/family_batch.py`, so they at
     least COUNT as unbuilt instead of being invisible.
+
+26. RIP THE HVSC DISK MAGS WITH OUR OWN PIPELINE — a CAPABILITY DEMO for near
+    the end of the project. ⚠⚠ PARKED HARD, ON PURPOSE. This is not corpus
+    growth and must not be resurrected as if it were (see REFUTED below). It is
+    a capstone: take a packed C64 disk magazine, and produce a `.sid` for every
+    tune in it, end to end, through this project's own machinery.
+
+    WHY IT IS A GOOD DEMO. Every other member we have ever built arrived
+    pre-ripped: someone else already found the player, set the init/play
+    vectors and wrapped it in a PSID header. A disk mag gives none of that. The
+    exercise is the whole pipeline against raw material — depack, find the
+    player(s), identify each one, lift to USF, compose back, and verify against
+    the original's write stream. If it works, the claim "this project can
+    convert SID music generally" stops resting entirely on inputs someone else
+    prepared. It is also the natural place to find out what the pipeline
+    assumes about PSID that raw PRGs do not provide.
+
+    THE TRIGGER: broad engine coverage, i.e. late. Measured reason — the 46
+    anniversary-disk tunes span **17 distinct engines** (GoatTracker_V2.x 15,
+    DMC 5, Geir_Tjelta/SIDDuzz'It 4, Laxity_NewPlayer_V21 3, then
+    Roland_Hermans / OdinTracker / GoatTracker_V1 / John_Player / JCH_NewPlayer
+    / Cyberlogic_SoundStudio 2 each, and TFMX / CheeseCutter_2.x / Asterion /
+    Adam_Gilmore / TFX / SidFactory / Virtuoso once). Most are unmigrated
+    today, so attempting this now would mostly produce "we cannot build this
+    player" — which demonstrates nothing. The demo only means something when
+    the answer is expected to be yes.
+
+    WHAT IS THERE (inventoried 2026-08-28). Ten images at the collection root
+    that `tools/build_sid_db.py` never sees, because it walks for `.sid`:
+
+      10_Years_HVSC_2.d64    88 entries incl. **37 `musicN` PRGs** + articles
+      10_Years_HVSC_1.d64    13 entries (intro, note, 1 bonus tune)
+      10_Years_HVSC.d71/.d81 98 entries each — repackings of the same content
+      20_Years_HVSC.d64      20 entries: main binary + **17 tunes**; the
+                             directory art reads "m.17 exclusives!"
+      HVSC_Intro_41..44.d64  1 program each
+      10_Years_HVSC.dfi      NOT a disk image — header reads `DREAMLOAD FILE
+                             ARCHIVE`; needs its own parser
+
+    THE FIRST OBSTACLE, measured: it is ALL PACKED. sidid identifies 0 of the
+    37 and 0 of the 17 as any player; the 20-Years main binary comes back
+    `Crunched:Exomizer`; the tune files' load addresses are nonsense ($CD23,
+    $3226, $551F). So step one is a depacker — an Exomizer decruncher (well
+    documented; py65 can run the depack stub) or emulate-the-disk-and-rip.
+    That is a capability the project does not have, and building it is a real
+    part of this item, not a preliminary.
+
+    ALREADY DONE, so it is not redone: `tools/cbm_diskimg.py` reads D64/D71/D81
+    directories and extracts files by sector chain, validated against the BAM
+    disk names. It stops exactly at the packed bytes.
+
+    ⚠ REFUTED — DO NOT RE-OPEN THIS AS A CORPUS-GROWTH ITEM (answered
+    2026-08-28). The "17 exclusives" are already in HVSC as `.sid`:
+    `DOCUMENTS/Update_Announcements/20160712.txt` (Update #65, the same date
+    the disk's own art carries) says HVSC produced an exclusive music disk for
+    its 20th birthday, and the catalogue holds EXACTLY 17 SIDs credited
+    `2016 ... HVSC` — the same convention is visible on the 2006 disk. Not
+    proven per-tune (only a depacker would settle it), but an exact count match
+    against an explicit claim of 17 is hard to explain otherwise. `Update65.hvs`
+    is no help either way — it records only REPLACE/MOVE/DELETE, so new files
+    never appear in it; STIL has no entries for these tunes. The engine
+    diversity above is likewise already available as ordinary `.sid`.
+    => nothing here grows the corpus. The value is the DEMONSTRATION.
+
+    A HAPPY SIDE EFFECT, since the tunes are already ripped: **we have ground
+    truth**. Our pipeline's output for each tune can be diffed against HVSC's
+    own hand-made rip — a far stronger check than "it plays". Which is
+    precisely what makes this a good capstone rather than a stunt.
+
+    ONE GENUINE LOOSE END if anyone wants a smaller bite first: the 10-Years
+    disk has 37 `musicN` files against only 29 tunes credited `2006 ... HVSC`.
+    That disk never advertised a count, so it likely mixed exclusive with
+    pre-existing material — but those 8 are the only place unexplained content
+    could sit.
