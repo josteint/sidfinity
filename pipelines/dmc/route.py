@@ -485,7 +485,65 @@ def verdict_gaps(rows: list) -> list:
     return out
 
 
+def orphan_verdicts(rows: list) -> list:
+    """THE MIRROR of `verdict_gaps`: verdict rows the roster does not claim.
+
+    `verdict_gaps` asks "is every claimed member verified?". This asks "is
+    every verdict still owned?", and it catches a different animal — ledger
+    C20's stale-FULL palimpsest. A member that WAS claimed and verified FULL,
+    whose detector now refuses it, keeps its row and its stored `.usf`/`.sid`
+    forever: no mass-write revisits it (its `code_hash` is stale, so the writer
+    SKIPS it), its orphan removal only iterates members it knows about, and no
+    census counts it. It is invisible from every direction at once.
+
+    Found on the first run: `Surgeon/Nice_Dream_2SID`, FULL as a `multisid`
+    member under a dead hash, refused today by `dmc_v4_config`
+    (`player_code_mismatch at $1235`), artifacts still on disk.
+
+    Two severities, because they need different actions:
+      `unowned`   the roster claims it for NOBODY — a real palimpsest; either
+                  the detector regressed or the member genuinely left the
+                  family, and the artifacts are orphans nothing will remove.
+      `elsewhere` the roster routes it to a DIFFERENT group — a stale row in
+                  the wrong store, harmless to coverage but it will confuse
+                  any per-store count.
+    """
+    from src.batch_results import STORES, load_latest, store
+    # ⚠ Ownership is per STORE, not per roster group: one store serves several
+    # groups (all three v5 variants batch into `dmc_v5`), so comparing against
+    # the group made each variant read the others' rows as misfiled — 4,063
+    # false positives on the first run, swamping the 1 real finding.
+    owner = {}
+    for r in rows:
+        if r.get('pipeline'):
+            sid = _VERDICT_STORES.get((r['pipeline'], r.get('variant')))
+            if sid:
+                owner[r['rel']] = sid
+    out = []
+    for sid in sorted({s for s in _VERDICT_STORES.values() if s}):
+        if sid not in STORES:
+            continue
+        st = store(sid)
+        if not os.path.exists(st.path):
+            continue
+        unowned, elsewhere = [], []
+        for rel in load_latest(st.path, st.id_key):
+            own = owner.get(rel)
+            if own == sid:
+                continue
+            (elsewhere if own else unowned).append(rel)
+        for kind, members in (('unowned', unowned), ('elsewhere', elsewhere)):
+            if members:
+                out.append({'group': (sid, None), 'store': sid, 'kind': kind,
+                            'missing': sorted(members)})
+    out.sort(key=lambda d: (d['kind'] != 'unowned', -len(d['missing'])))
+    return out
+
+
 _GAP_LABEL = {
+    'unowned': 'has a VERDICT ROW but the roster claims it for no pipeline '
+               '(C20 stale-FULL palimpsest — artifacts nothing will remove)',
+    'elsewhere': 'has a row in this store but the roster routes it elsewhere',
     'unverified': 'claimed by the detector, never batched — no verdict row',
     'no_store': 'routed to a pipeline with NO results store (0 verdicts)',
     'no_results_file': 'store registered but its results file does not exist',
@@ -494,16 +552,11 @@ _GAP_LABEL = {
 }
 
 
-def report_verdict_gaps(rows: list) -> int:
-    """Print `verdict_gaps` and return the number of members affected."""
-    gaps = verdict_gaps(rows)
+def _print_group(title: str, gaps: list) -> int:
     n = sum(len(g['missing']) for g in gaps)
     if not gaps:
-        print('\n✅ every claimed member has a verdict row')
         return 0
-    print(f'\n⚠ CLAIMED BUT UNVERIFIED — {n} member(s) with no verdict row. '
-          f'A batch\'s denominator is its OWN rows, so these lower no '
-          f'percentage and appear in no census:')
+    print(f'\n⚠ {title} — {n} member(s):')
     for g in gaps:
         p, v = g['group']
         print(f'  {len(g["missing"]):5d}  {p}/{v or "-":<10} '
@@ -512,6 +565,27 @@ def report_verdict_gaps(rows: list) -> int:
             print(f'            {m}')
         if len(g['missing']) > 5:
             print(f'            ... +{len(g["missing"]) - 5} more')
+    return n
+
+
+def report_verdict_gaps(rows: list) -> int:
+    """Print both directions of the roster<->verdicts join; return the count.
+
+    A batch reports `full / len(rows)` over its OWN file, so BOTH directions
+    are invisible to every other gate: a claimed member with no row lowers no
+    percentage, and a row whose member nothing claims is never revisited.
+    """
+    gaps, orph = verdict_gaps(rows), orphan_verdicts(rows)
+    if not gaps and not orph:
+        print('\n✅ every claimed member has a verdict row, and every verdict '
+              'row is claimed')
+        return 0
+    n = _print_group(
+        "CLAIMED BUT UNVERIFIED — no verdict row, so they lower no percentage "
+        "and appear in no census", gaps)
+    n += _print_group(
+        "VERDICT BUT UNCLAIMED — the mirror: a row nothing owns is never "
+        "revisited by a mass-write or a census", orph)
     return n
 
 

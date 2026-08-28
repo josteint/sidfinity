@@ -8,6 +8,38 @@ metadata:
   modified: 2026-08-27T15:53:16.187Z
 ---
 
+## 🪞 2026-08-28 — THE MIRROR GAP: a verdict row nothing owns (C20 palimpsest, 1 carrier)
+
+`--gaps` asked only "is every claimed member verified?". The mirror — "is every
+verdict still OWNED?" — catches a different animal, and there is one:
+
+**`MUSICIANS/S/Surgeon/Nice_Dream_2SID`** — recorded FULL as a `multisid`
+member under a now-dead `code_hash`, artifacts (`.usf` + `.sidfinity.sid`,
+Aug 22) still on disk, and **`dmc_v4_config` refuses it today**
+(`player_code_mismatch: first diff at $1235`). It was already unrouted in the
+pre-overnight roster, so this predates this session.
+
+It is invisible from EVERY direction at once, which is why nothing caught it:
+the mass-write SKIPS it (stale hash — it printed
+`WARNING: skipped 1 FULL rows`), its orphan removal only iterates members it
+knows about, the roster claims it for nobody, and no census counts it. Ledger
+C20's stale-FULL palimpsest in its purest form.
+
+Now reported by `route.py --gaps`, in two severities: `unowned` (claimed by no
+pipeline — a real palimpsest, artifacts nothing will remove) and `elsewhere`
+(routed to a different store — harmless to coverage, confuses per-store counts).
+
+⚠ IMPLEMENTATION TRAP, hit on the first run: ownership must be compared per
+STORE, not per roster group. One store serves several groups (all three v5
+variants batch into `dmc_v5`), so a per-group comparison made each variant read
+the others' rows as misfiled — **4,063 false positives swamping the 1 real
+finding**. A check that cries wolf at that volume is worse than no check.
+
+OPEN: why does v4 now refuse a member it once built FULL? Either the detector
+tightened at some point (a regression worth finding — it is a 2SID/C27 member)
+or the member genuinely left the family and its artifacts should be deleted.
+Not resolved; needs the owner's call on which.
+
 ## 🎯 2026-08-28 — THE 309 UNROUTED, TRIAGED: ~71 have a NAMED cause, and the biggest is C13 again
 
 Read-only triage (`tmp/unrouted_*.txt`, `tmp/unrouted_diagnose.json`). Ran

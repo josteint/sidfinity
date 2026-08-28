@@ -549,10 +549,16 @@ pipeline with no entry in `src/batch_results.STORES` — DMC's 16 `v6` members,
 zero verdicts, in no coverage line anywhere), `no_results_file`, and
 `unregistered` (a pipeline/variant absent from `route._VERDICT_STORES`, i.e.
 nobody declared where its verdicts live — the same bug one step earlier).
+It also reports the MIRROR — a verdict row the roster claims for NOBODY, which
+is ledger C20's stale-FULL palimpsest and is invisible from every direction at
+once: the mass-write skips it (stale `code_hash`), its orphan removal only
+iterates members it knows about, and no census counts it. One carrier today
+(`Surgeon/Nice_Dream_2SID`, FULL as `multisid` under a dead hash, refused by
+`dmc_v4_config` now, artifacts still on disk).
 **RUN IT AT EVERY CLOSEOUT, and add the equivalent for any family that grows a
 roster.** Note what it is NOT: `roster_staleness` watches the routing CODE, and
 `code_hash` watches whether a row is current — neither can see a member that
-has no row at all.
+has no row at all, nor a row that has no member.
 
 **Reading a batch results jsonl — always via `src/batch_results.load_latest`.**
 The file is APPEND-ONLY (a resume, or a `code_hash` invalidation, appends fresh
