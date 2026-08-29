@@ -5,7 +5,7 @@
 # dozen measured-but-unfinished investigations. Moved to the repo root and
 # tracked for exactly that reason.
 #
-# NEXT_ITEM: 28   <- autoincrement: a NEW item takes this number, then bump it.
+# NEXT_ITEM: 29   <- autoincrement: a NEW item takes this number, then bump it.
 #
 # CONVENTIONS (owner-set 2026-08-28):
 #  - A done item is REMOVED COMPLETELY — no tombstone, no summary line. The
@@ -1402,3 +1402,41 @@
     - Measured values / reproduction baggage survive either shape fine (they
       are bytes); what breaks isomorphism is DERIVED-AND-DISCARDED content —
       which the tiebreaker above already steers away from.
+
+28. DMC f1 NEW RESIDUE — the 23 partials + 2 errors surfaced by de-invisibling
+    (assessed 2026-08-29 from the fresh batch rows + two probes; ⚠ probes ran
+    UNDER FULL MASS-WRITE CPU LOAD, and an empty writelog capture under load is
+    a documented siddump-death artifact — re-verify bucket A quietly first).
+
+    BUCKET A — 14 Rayden members recorded `match=0, overlap=0` (+ the
+    Popel_Premiere_Intr0h_2SID error, C27 per-chip params-merge refusal:
+    chips disagree on master_vol_static). The [0,0] rows are probably the
+    CAPTURE-DEATH artifact (8-worker batch + enormous dumps), NOT content —
+    but the one clean fresh probe proves a real problem underneath:
+    1970s_style_Hammond_Organ builds `single (base $1000)`, verifies
+    play_match=37, and the ORIGINAL emits **len_a=1,462,579 vs our 169,286**
+    (~8.6x, ~97 writes/frame) with the PSID speed bit CLEAR. A vblank-flagged
+    tune emitting 8.6x per frame = the tune drives itself (own IRQ installed
+    at init, or heavy in-play unit repetition) — Rayden's home territory
+    (Techno-Rap multiplex, Strange_Acidshit cia_rearm, the C18 '11-speeder'
+    fphase_repeat whose "sole carrier in 10,676" now plainly has SIBLINGS
+    sitting here). NEXT: on an idle box, per-IRQ capture one member; classify
+    self-IRQ vs C24 unit-repeat vs C18 F-phase; expect ONE mechanism across
+    all 14 (all same author, all same [0,0] shape).
+
+    BUCKET B — start-of-stream divergences (match=1 on failing subtunes):
+    Dark_Destroyer_2117 (known UNMERGEABLE compilation -> single fallback;
+    subs 1-2 wrong data = C31 shape), Space_Eggs, Zyron/Bouncy_Balls (subs
+    1-6), Praiser/Upside_Down (all 6 subs; Praiser = the Mega_Mix medley
+    author), PVCF/Centric + Daf/Alioth (most subs), Flubble subs 0/4.
+    Signature = per-subtune dispatch/data selection, the C31/C37 family.
+    Tanks_3000 error `base_override_not_player: $1000` is the same story one
+    step earlier (the compilation scan proposes a bogus base).
+
+    BUCKET C — small real content divergences: Ed/Solved_Track (m=370),
+    Party_Party (m=34), Flubble subs 1-3 (m=32/37), Alioth sub 0 (m=26),
+    Centric sub 1 (m=32) — ordinary first-divergence grind, localize with
+    dmc_build_one --localize each.
+
+    These 25 ARE the formerly-invisible set — never batched before Aug 28, so
+    none of this is regression; it is virgin residue with named shapes.
