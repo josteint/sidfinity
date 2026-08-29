@@ -8,6 +8,28 @@ metadata:
   modified: 2026-08-27T15:53:16.187Z
 ---
 
+## 📊 FULL RE-BATCH CLOSEOUT 2026-08-29 (overnight #2): all three stores CURRENT, 0 regressions, +47 in the grind
+
+The post-backlog-22 chain (re-route + v5 + f2 + f1, ~11h): routing diff
+exactly the predicted **47 unrouted → v5/family4** (0 added/removed; the
+Nice_Dream hand-patch reproduced by the 2SID fallback). Old-hash vs new-hash
+within each store: **0 regressions / 0 gains / 0 other** across 10,497
+members.
+
+| store | rows | full | partial | error |
+|---|---:|---:|---:|---:|
+| dmc_v4 (f1) | 5,475 (+Nice_Dream) | 5,450 | 23 | 2 |
+| dmc_v4_family2 | 2,944 | 2,929 | 14 | 1 |
+| dmc_v5 | 2,078 (+47) | 1,211 | 867 | 0 |
+
+v5's 47 newcomers land exactly as +47 partials (C5). unsupported = 0
+everywhere; `--gaps` ✅ clean BOTH directions. DMC claimed coverage:
+9,590/10,497 = 91.4% (denominator grew by the 48 recovered members);
+9,590/10,774 corpus = 89.0%. Unrouted now 261. Mass-writes + the bp
+`--write` sync queued behind the bp re-batch (tmp/masswrite2.log).
+The f1/f2 errors are the known trio (base_override_not_player ×2 +
+multi-SID params-disagree) — item 22's tombstoned census; ordinary residue.
+
 ## ✅ 2026-08-28 (evening) — BACKLOG 22 LANDED: the family-4 "at load" gate, +47 claimed
 
 The C13-third-occurrence fix: `_detect_v5`'s family-4 gate required the jump
