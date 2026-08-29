@@ -1,25 +1,11 @@
 {
 "meta": {
-"generated_utc": "2026-08-27T22:23:34+00:00",
+"generated_utc": "2026-08-28T22:58:27+00:00",
 "corpus": 10774,
 "fingerprints": {
-"dmc_v4": "0fc5b452b87c5690",
-"dmc_v5": "f034007df8b2c184"
-},
-"restamps": [
-{
-"at": "aa0203ec64887f657273b4fdaf1d7432eb6dd9d7",
-"closure_files": 17
-},
-{
-"at": "aa0203ec64887f657273b4fdaf1d7432eb6dd9d7",
-"closure_files": 17
-},
-{
-"at": "aa0203ec64887f657273b4fdaf1d7432eb6dd9d7",
-"closure_files": 17
+"dmc_v4": "ead637953e93d9e2",
+"dmc_v5": "153f2e6383f1b8fc"
 }
-]
 },
 "rows": [
 {
@@ -3062,15 +3048,16 @@
 },
 {
 "rel": "MUSICIANS/A/Agemixer/Kummatti_City.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD0 init=$0FD0 play=$0FE2",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD0 init=$0FD0 play=$0FE2"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/A/Agemixer/Last_Wader.sid",
@@ -3190,15 +3177,16 @@
 },
 {
 "rel": "MUSICIANS/A/Agemixer/Oldies.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: nonstandard_vectors: load=$0FE1 init=$0FF1 play=$0FE1",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: nonstandard_vectors: load=$0FE1 init=$0FF1 play=$0FE1"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/A/Agemixer/Oldskoolcrayfish.sid",
@@ -15246,15 +15234,16 @@
 },
 {
 "rel": "MUSICIANS/B/Bakewell_Dwayne/Freezing_12.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FC0 init=$0FC1 play=$0FCB",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FC0 init=$0FC1 play=$0FCB"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/B/Bakewell_Dwayne/Friday_Night.sid",
@@ -15596,15 +15585,16 @@
 },
 {
 "rel": "MUSICIANS/B/Bakewell_Dwayne/Jazzy_Thing_v2.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FE0 init=$0FE0 play=$0FEF",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FE0 init=$0FE0 play=$0FEF"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/B/Bakewell_Dwayne/Jeroen_Tel_Cover.sid",
@@ -15673,15 +15663,16 @@
 },
 {
 "rel": "MUSICIANS/B/Bakewell_Dwayne/Latin_Dance.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FB0 init=$0FB1 play=$0FBB",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FB0 init=$0FB1 play=$0FBB"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/B/Bakewell_Dwayne/Laxity.sid",
@@ -17475,15 +17466,16 @@
 },
 {
 "rel": "MUSICIANS/B/Bax/Bax_03.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FE4 init=$0FE4 play=$0FF5",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FE4 init=$0FE4 play=$0FF5"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/B/Bax/Beat_Hoven.sid",
@@ -17565,15 +17557,16 @@
 },
 {
 "rel": "MUSICIANS/B/Bax/Doofee.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/B/Bax/Drill.sid",
@@ -17798,15 +17791,16 @@
 },
 {
 "rel": "MUSICIANS/B/Bax/Horror.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/B/Bax/I_Hate_ASCII.sid",
@@ -17835,15 +17829,16 @@
 },
 {
 "rel": "MUSICIANS/B/Bax/Inspiration.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/B/Bax/Jazz.sid",
@@ -17938,15 +17933,16 @@
 },
 {
 "rel": "MUSICIANS/B/Bax/Long_Gone_Day.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/B/Bax/Manitou.sid",
@@ -18093,27 +18089,29 @@
 },
 {
 "rel": "MUSICIANS/B/Bax/Prodigy.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/B/Bax/Proof_It.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 49424,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$C000 init=$C000 play=$C013",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$C000 init=$C000 play=$C013"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/B/Bax/Przemijanie.sid",
@@ -18169,15 +18167,16 @@
 },
 {
 "rel": "MUSICIANS/B/Bax/Rejwy.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/B/Bax/Sad_but_True.sid",
@@ -18220,15 +18219,16 @@
 },
 {
 "rel": "MUSICIANS/B/Bax/Sector.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/B/Bax/Sixtime.sid",
@@ -18284,15 +18284,16 @@
 },
 {
 "rel": "MUSICIANS/B/Bax/Straight_on.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/B/Bax/Sucked_Msx.sid",
@@ -18374,15 +18375,16 @@
 },
 {
 "rel": "MUSICIANS/B/Bax/Track.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/B/Bax/Trackmo1.sid",
@@ -18464,15 +18466,16 @@
 },
 {
 "rel": "MUSICIANS/B/Bax/X-Filter.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD3 init=$0FD3 play=$0FDC"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/B/Bax/Xeveryn.sid",
@@ -34710,15 +34713,16 @@
 },
 {
 "rel": "MUSICIANS/C/Carlos_Breeze/Maniac.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD0 init=$0FD0 play=$0FE3",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD0 init=$0FD0 play=$0FE3"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/C/Carlos_Breeze/Modulation.sid",
@@ -41999,15 +42003,16 @@
 },
 {
 "rel": "MUSICIANS/C/Cubehead/PF.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD0 init=$0FD0 play=$0FE0",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD0 init=$0FD0 play=$0FE0"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/C/Cubehead/Pig_Turns_to_Pork_Tonight.sid",
@@ -42831,15 +42836,16 @@
 },
 {
 "rel": "MUSICIANS/D/DaFunk/Body_N_Soul.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FC0 init=$0FC1 play=$0FCB",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FC0 init=$0FC1 play=$0FCB"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/D/DaFunk/Chocos.sid",
@@ -46450,15 +46456,16 @@
 },
 {
 "rel": "MUSICIANS/D/Dgazz/Icy_Slide.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD0 init=$0FD0 play=$0FE2",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD0 init=$0FD0 play=$0FE2"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/D/Dgazz/In_Principio.sid",
@@ -46605,27 +46612,29 @@
 },
 {
 "rel": "MUSICIANS/D/Dgazz/Ode_in_C_Minor.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD0 init=$0FD0 play=$0FE2",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD0 init=$0FD0 play=$0FE2"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/D/Dgazz/Ode_in_D.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD0 init=$0FD0 play=$0FE2",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD0 init=$0FD0 play=$0FE2"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/D/Dgazz/Ode_in_D_Minor.sid",
@@ -50351,15 +50360,16 @@
 },
 {
 "rel": "MUSICIANS/D/Dune/Frying_Party_Music.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FFF init=$2200 play=$2212",
-"v5": "DMCV5Unsupported: no_jumptable: load=$0FFF init=$2200 play=$2212"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FFF init=$2200 play=$2212"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/D/Dune/Gejm.sid",
@@ -62894,15 +62904,16 @@
 },
 {
 "rel": "MUSICIANS/G/Gregfeel/Macumba.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 36864,
 "refusals": {
-"v4": "DMCV4Unsupported: loop_site_unknown: 12d460",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: loop_site_unknown: 12d460"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/G/Gregfeel/Mirror.sid",
@@ -68191,75 +68202,81 @@
 },
 {
 "rel": "MUSICIANS/J/JFK/Anotha_SFX.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD0 init=$0FD0 play=$0FE2",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD0 init=$0FD0 play=$0FE2"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/J/JFK/Hell_p_fire.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FB0 init=$0FB0 play=$0FC2",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FB0 init=$0FB0 play=$0FC2"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/J/JFK/Nieskonczony.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FC0 init=$0FC0 play=$0FD2",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FC0 init=$0FC0 play=$0FD2"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/J/JFK/Odstraszanie_Komarow.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FE0 init=$0FE0 play=$0FF0",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FE0 init=$0FE0 play=$0FF0"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/J/JFK/Remediation_1_1.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FB0 init=$0FB0 play=$0FC2",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FB0 init=$0FB0 play=$0FC2"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/J/JFK/Szamokafakajebanokasrakala.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FB0 init=$0FB0 play=$0FC2",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FB0 init=$0FB0 play=$0FC2"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/J/JLD/Dream.sid",
@@ -69769,15 +69786,16 @@
 },
 {
 "rel": "MUSICIANS/K/Keith/Loud.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FFF init=$1000 play=$1003",
-"v5": "DMCV5Unsupported: no_jumptable: load=$0FFF init=$1000 play=$1003"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FFF init=$1000 play=$1003"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/K/Keith/Mary_Janee.sid",
@@ -75796,15 +75814,16 @@
 },
 {
 "rel": "MUSICIANS/M/Manex/2_Speed_Music.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FF6 init=$0FF6 play=$1003",
-"v5": "DMCV5Unsupported: no_jumptable: load=$0FF6 init=$0FF6 play=$1003"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FF6 init=$0FF6 play=$1003"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/M/Manex/4_Mozkit.sid",
@@ -89423,15 +89442,16 @@
 },
 {
 "rel": "MUSICIANS/P/PRI/Multirock.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FC0 init=$0FC0 play=$0FD2",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FC0 init=$0FC0 play=$0FD2"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/P/PRI/My_First_One.sid",
@@ -89694,15 +89714,16 @@
 },
 {
 "rel": "MUSICIANS/P/PRI/Slap_Chill-Out.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FFF init=$2B20 play=$2B32",
-"v5": "DMCV5Unsupported: no_jumptable: load=$0FFF init=$2B20 play=$2B32"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FFF init=$2B20 play=$2B32"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/P/PRI/Soundwave.sid",
@@ -89889,15 +89910,16 @@
 },
 {
 "rel": "MUSICIANS/P/PRI/World_in_My_Eyes.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FFF init=$23AB play=$23BD",
-"v5": "DMCV5Unsupported: no_jumptable: load=$0FFF init=$23AB play=$23BD"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FFF init=$23AB play=$23BD"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/P/PRI/Yupdedup.sid",
@@ -95173,15 +95195,16 @@
 },
 {
 "rel": "MUSICIANS/P/Praiser/Petrov_Rullar.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0F80 init=$0F81 play=$0F8B",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0F80 init=$0F81 play=$0F8B"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/P/Praiser/Phantom.sid",
@@ -113302,15 +113325,16 @@
 },
 {
 "rel": "MUSICIANS/S/Simon_Laszlo/Die_Roboter.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FCC init=$0FD0 play=$0FE2",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FCC init=$0FD0 play=$0FE2"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/S/Simon_Laszlo/Disco_Guitar.sid",
@@ -124544,15 +124568,16 @@
 },
 {
 "rel": "MUSICIANS/T/The_Magical_Garfield/Music_Players_Pack_note.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD0 init=$0FD0 play=$0FE2",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD0 init=$0FD0 play=$0FE2"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/T/The_Magical_Garfield/Party_1994_Compotune.sid",
@@ -132094,15 +132119,16 @@
 },
 {
 "rel": "MUSICIANS/W/Wizard_Oxygen/Adwarp_6_tune_6.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FE0 init=$0FE0 play=$0FF0",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FE0 init=$0FE0 play=$0FF0"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/W/Wizard_Oxygen/Axel_Foley.sid",
@@ -132158,15 +132184,16 @@
 },
 {
 "rel": "MUSICIANS/W/Wizard_Oxygen/Cybernoid.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FFF init=$1D79 play=$1D8B",
-"v5": "DMCV5Unsupported: no_jumptable: load=$0FFF init=$1D79 play=$1D8B"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FFF init=$1D79 play=$1D8B"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/W/Wizard_Oxygen/Daylight.sid",
@@ -132209,15 +132236,16 @@
 },
 {
 "rel": "MUSICIANS/W/Wizard_Oxygen/Droids_Dream.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FE0 init=$0FE0 play=$0FF2",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FE0 init=$0FE0 play=$0FF2"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/W/Wizard_Oxygen/Emotions.sid",
@@ -132480,15 +132508,16 @@
 },
 {
 "rel": "MUSICIANS/W/Wizard_Oxygen/Outworlds.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FFF init=$255B play=$256D",
-"v5": "DMCV5Unsupported: no_jumptable: load=$0FFF init=$255B play=$256D"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FFF init=$255B play=$256D"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/W/Wizard_Oxygen/Popcorn.sid",
@@ -132518,15 +132547,16 @@
 },
 {
 "rel": "MUSICIANS/W/Wizard_Oxygen/Quadrotune.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FFF init=$255A play=$256C",
-"v5": "DMCV5Unsupported: no_jumptable: load=$0FFF init=$255A play=$256C"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FFF init=$255A play=$256C"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/W/Wizard_Oxygen/Rainy_Day.sid",
@@ -132582,15 +132612,16 @@
 },
 {
 "rel": "MUSICIANS/W/Wizard_Oxygen/Technicity.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FD8 init=$0FD8 play=$0FEA",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FD8 init=$0FD8 play=$0FEA"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/W/Wizard_Oxygen/Time.sid",
@@ -133672,15 +133703,16 @@
 },
 {
 "rel": "MUSICIANS/W/Wodnik/Snail.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FF4 init=$0FF4 play=$1003",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FF4 init=$0FF4 play=$1003"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/W/Wodnik/Snake_Demo_1.sid",
@@ -133710,15 +133742,16 @@
 },
 {
 "rel": "MUSICIANS/W/Wodnik/Speed_the_Doors.sid",
-"pipeline": null,
-"variant": null,
+"pipeline": "v5",
+"variant": "family4",
 "build_path": null,
-"base": null,
+"base": 4096,
 "refusals": {
-"v4": "DMCV4Unsupported: no_jumptable: load=$0FF4 init=$0FF4 play=$1003",
-"v5": "DMCV5Unsupported: player_code_mismatch: immediate at $10A1"
+"v4": "DMCV4Unsupported: no_jumptable: load=$0FF4 init=$0FF4 play=$1003"
 },
-"claims": []
+"claims": [
+"v5"
+]
 },
 {
 "rel": "MUSICIANS/W/Wodnik/Strach.sid",
