@@ -8,6 +8,15 @@ metadata:
   modified: 2026-08-12T04:31:39.282Z
 ---
 
+**2026-08-29 — RE-BATCH CLOSEOUT: 489/524 FULL (93.3%), verdicts CURRENT.**
+The full re-batch under the widened-capacity code reproduced every verdict +
+exactly the one gain (Cascading). Residue classes unchanged otherwise;
+Legion_of_One + Pepper_Spray still report `image_too_big` as the LADDER's
+final status (the modulation rung runs but diverges, and the ladder reports
+the base failure) — their true state is the rung's overlap_diverge, leads in
+backlog 14. Mass-write `--write` pass + DMC store syncs ran after
+(tmp/masswrite2.log).
+
 **2026-08-28 — CASCADING RECOVERED FULL (the pw-sweep carrier): three stale
 caps, not a missing representation.** Backlog item 14's per-note-instrument
 design was refuted by measurement (ramps are a ~19-shape library, several
