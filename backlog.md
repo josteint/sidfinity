@@ -1357,5 +1357,46 @@
     while a relationship recomputes. The ledger has been drifting this way
     on its own (C11's named-signal doctrine `own cursor + delta`, C1
     deconstructions, C19's 33rd-occurrence rule); this names the drift.
-    Candidate one-line addition to the Principle's section-9 tests if the
-    owner wants it in canon — OWNER-GATED, not landed.
+    ✅ LANDED IN CANON 2026-08-29 (owner-approved): the tiebreaker now lives
+    in the Principle, end of section 9.
+
+    THE ISOMORPHISM REQUIREMENT (owner, 2026-08-29 — a MOVE-1 DESIGN
+    CONSTRAINT recorded here so the unified composer is designed for it from
+    day one; retrofitting later is expensive, designing for it is cheap):
+    the editor should load OUR OWN exported .sid files too, which wants a
+    STATIC, BYTE-LEVEL ISOMORPHISM between canonical USF and the sidfinity
+    .sid. Analysis:
+    - The FORWARD direction already exists and is enforced corpus-wide:
+      compose is deterministic and `corpus_sync.audit_rebuild` asserts
+      build(stored .usf) == stored .sid. The BACKWARD direction (recover the
+      USF from the .sid alone) is new.
+    - It can only be an isomorphism UP TO CANONICAL FORM — and the machinery
+      exists: usf_spec_lint's round-trip + canonical-fixpoint invariants
+      define exactly the equivalence class the bijection targets.
+    - It is the DUAL of the Principle's section 8. Section 8: the .sid must
+      not contain MORE than the USF (no engine library completing it). The
+      isomorphism: the .sid must not contain LESS (the composer may not
+      consume USF content irreversibly). Together: the .sid IS the canonical
+      USF in another encoding — the composer becomes a CODEC, not an
+      encoder. This bounds (mildly) the Core Tenet's "any runtime
+      architecture" freedom: the RUNTIME stays free, but the DATA layout
+      must stay decodable (no constant-folding musical content into
+      unrecoverable code shapes without a decode map).
+    - FREE LEAK DETECTOR: `decode(build(usf)) == canonical(usf)` as a corpus
+      gate would mechanically catch every section-8 / C7-class-A3 leapfrog —
+      information flowing orig -> .sid around the USF makes decode recover
+      content the USF never had, an immediate loud failure. This is the
+      strongest argument for the requirement beyond the editor itself.
+    - Two implementation shapes, decide at Move-1: (a) EMBED the
+      (compressed) canonical USF in the .sid with the self-check
+      build(embedded) == surrounding bytes — trivially lossless,
+      self-verifying (immunized against C20's fifth layer: artifact and
+      source cannot disagree), but costs C64 RAM since a PSID payload loads
+      wholesale (fails only near-64KB tunes; ~3-8KB compressed); or
+      (b) make the unified composer's emitted DATA TABLES a self-describing
+      binary serialization of USF with a versioned site map — no RAM waste,
+      no duplication, and "sidfinitid for our own player" falls out of the
+      decode map. (b) is the elegant end-state; (a) is a sound bridge.
+    - Measured values / reproduction baggage survive either shape fine (they
+      are bytes); what breaks isomorphism is DERIVED-AND-DISCARDED content —
+      which the tiebreaker above already steers away from.

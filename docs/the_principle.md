@@ -399,6 +399,22 @@ effect representation.
    New *opaque kinds* appearing means the basis was overfit to one
    engine and has failed.
 
+**Tiebreaker — the relationship over the frozen measurement (owner-approved
+2026-08-29).** Some representation choices can carry either a MEASURED VALUE —
+a byte captured from the original's runtime, emergent state frozen at capture
+time — or the GENERATING RELATIONSHIP that produces it. When both verify
+byte-identical today, carry the relationship. A frozen snapshot is
+reproduction-only: it is semantically undefined the moment the music is
+edited, and it is unlearnable — a magic constant the model can only memorize.
+A relationship recomputes under edit and is learnable structure; the same
+axis, seen twice. This names a drift the convergence ledger already shows on
+its own (C11's named-signal doctrine — serve `own cursor + delta`, never the
+sampled byte; the C1 deconstructions; C19's 33rd-occurrence rule). NB the
+write-stream verdict CANNOT distinguish the two forms — byte-identity is
+precisely why this must be a stated preference, not a testable gate. It is a
+tiebreaker only: where no relationship is recoverable (genuinely dynamic
+work-RAM residue), the measured value remains the honest carrier.
+
 ---
 
 ## 10. The honest caveat
