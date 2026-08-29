@@ -233,7 +233,7 @@ def _emit_driver(p: dict, raster: int, d011: int) -> str:
                 + bit +
                 f'\tjsr ${entry:04X}\n'
                 '\tcli\n\trts\n' + wrap)
-    if cls == 'morton_stub':
+    if cls == 'bare_stub':
         nop = '\tnop\n' if p.get('digi_driver_nop') else ''
         return ('driver_init:\n'
                 '\tlda #$00\n'

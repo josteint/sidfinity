@@ -1511,7 +1511,7 @@
     ✅ STANDALONE BATCH LANDED (2026-08-29 evening, f4dd2120): **21/39
     FULL Mode-2 cycle-strict, 18 unsupported (unprobed driver shapes),
     0 partial** — driver-class registry (irq_vec/nmi_first/xreg/
-    morton_stub) + 4 cycle levers (base latch = NMI grid origin, Morton
+    bare_stub) + 4 cycle levers (base latch = NMI grid origin, Morton
     port pre-init, core-init tail, BIT filler) + C29 past-EOF PCM +
     content-addressed overlap dedup. Store `digi_organizer` registered.
     NEXT: (a) the 18 remaining driver shapes (one probe+emitter each,

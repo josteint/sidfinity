@@ -322,7 +322,7 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
                 dp = {'raster': img[iv + 6], 'd011': img[iv + 34],
                       'core_entry': core_entry, 'bit_pad': has_bit}
 
-    # class 'morton_stub' (Morton_Adam ×7): LDA #0 JSR core JMP L;
+    # class 'bare_stub' (the Morton_Adam shape ×7): LDA #0 JSR core JMP L;
     # L: [NOP] IRQ vector, mask $7F, enable raster, ack, CLI RTS. No
     # port / raster-line / $D011 writes — the environment's defaults
     # serve, and they cancel between orig and rebuild by construction.
@@ -331,7 +331,7 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
         if _match(iv, pat_d0):
             if img[iv + 3] | img[iv + 4] << 8 != core_base:
                 raise DigiOrganizerUnsupported(
-                    'morton_stub: JSR is not core init')
+                    'bare_stub: JSR is not core init')
             t = (img[iv + 6] | img[iv + 7] << 8) - load
             nop = img[t:t + 1] == b'\xEA'
             p1 = t + (1 if nop else 0)
@@ -343,13 +343,13 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
             if _match(p1, pat_d1):
                 w = (img[p1 + 1] | img[p1 + 6] << 8) - load
                 if _match(w, wrap_ack):
-                    driver = 'morton_stub'
+                    driver = 'bare_stub'
                     dp = {'nop': nop}
 
     if driver is None:
         raise DigiOrganizerUnsupported(
             'driver shape matches no probed class (irq_vec / nmi_first '
-            '/ xreg / morton_stub) — parametrize before accepting')
+            '/ xreg / bare_stub) — parametrize before accepting')
 
     # Any class whose recorded entry is 'core' goes through the $9000
     # JMP (and may hit the port pre-init stub); a 'core40' entry

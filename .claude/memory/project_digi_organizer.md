@@ -15,7 +15,7 @@ metadata:
 classifies verifies FULL Mode-2 at the ratified window
 (`tmp/digi_organizer_results.jsonl`, store `digi_organizer` registered;
 engine in `code_fingerprint.DEPS`). The driver-class registry
-(`irq_vec` / `nmi_first` / `xreg` / `morton_stub`) + four cycle-level
+(`irq_vec` / `nmi_first` / `xreg` / `bare_stub`) + four cycle-level
 levers did it:
 - `digi_base_latch` — the pre-first-trigger TA latch is the NMI GRID
   ORIGIN (min(rate_cycles) was a wrong guess that coincided on

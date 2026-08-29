@@ -125,6 +125,7 @@ practice, not code to factor).
 | subtune SAVE-STATE RESUME wrapper · header overstates songs, tune table has ONE record · appended init wrapper copies a per-subtune state snapshot + DATA POKES then forces song 0 · non-start subtune diverges at play pos 0, wrong first note/instrument · only init-wipe SURVIVORS matter (priming → init.voice_state; song-data pokes → per-subtune walk memory; wave/filter-table pokes → C31 clone-and-remap, def clones in unused nibble slots) | C37 | recurring (5×, all FULL) |
 | song-end REST before the repeat (no fade; silence by NOT CALLING the player; RESTART first then rest) · typed `MusicSubtune.song_restart_gap` = the rest in play() calls · trigger is STRUCTURAL (every voice has entered its FINAL orderlist entry — a dedicated terminator pattern; peek whether the next track byte is the loop marker) · ⚠ do NOT store the orig's sentinel note (INAUDIBLE, and not even in the pattern data after transposition — §7) nor the survivors (save/restore around the restart, C31 medley carry) · MEASURE the rest (seeds say 255, truth 256) · probe: the rest must be preceded by the init's clear sweep, else a musical silence false-fires · ARM PER SUBTUNE | C38 | logged |
 | song-end master-vol FADE → silence → whole-song RESTART loop · appended PLAY wrapper counts play() to N → `dec` mvol every STEP (note-init `ora mvol/sta $D418` emits it) → `$D418=$00` silence for SIL plays → JMP re-init loop · diverges DEEP in the REPLAY · restart re-runs the SHARED init (clears $1718-$179D, LEAVES $100F-$1018 survivors) · MEASURE schedule + survivors from libsidplayfp not py65 (pc-watch fade STA=N/STEP, writelog $00-run=SIL, memwatch-on-write d418 over silence=note-state) · modular wrapper (count/ramp/silence/songrestart) · ⚠ prime EXACTLY the init-uncleared block (gatemask/curnote/curinst=$1015/shadow17) NOT cinst (the ACTIVE pulse-record $174D that init CLEARS — over-prime sweeps a soft-glide voice's PW) · fade = C10 parametric mvol, restart = C37 sibling (whole-song loop not per-subtune) | C38 | logged |
+| cycle-strict SELF-DRIVEN member (RSID play=0, Mode 2) · interrupt-paced write stream · constant per-write cycle delta = idle-loop phase · late start = timer grid origin · driver cycle-shape mirror + class registry · reachability-gated probes · claimed-vs-batched denominator | C40 | logged |
 | a data table the extract reads at a FIXED OFFSET from another table is a packer-patched OPERAND that can relocate INDEPENDENTLY · DMC filter step-DURATION table assumed at op_filtdef+10 (interleaved) but read via its own `LDA fdu,Y` operand → some members put it elsewhere (Vai/Hardtechno +165, all zeros = never-advancing filter steps) · TELL: a table-driven value right at the start then a DIFFERENT CONTOUR · resolve the table from the PLAY operand (gated on the canon opcode, fallback = the assumed offset, byte-identical) · distinct from C2 (index runs off the table END; here the BASE is wrong) | C39 | logged |
 
 ---
@@ -1550,3 +1551,27 @@ practice, not code to factor).
   FULL had durs at +10 already; the operand read is ground truth). Distinct from
   C2 (index off the table END; here the base moved).
 - FULL ENTRY: [`ledger/C39.md`](ledger/C39.md) — read it before applying.
+
+### C40 — cycle-strict SELF-DRIVEN member (Mode-2 timing diagnosis)
+- PRESENTS: an RSID play=$0000 member (init installs its own IRQ/NMI;
+  digi ⇒ Mode-2 cycle-strict verdict) whose rebuild diverges by TIMING,
+  not content: identical `(reg,val)` at shifted cycles; a late/early
+  playback start that then tracks; one extra/missing value exactly at a
+  sample switch; or a silent rebuild while the orig plays.
+- CANONICAL: mirror instruction SHAPES per driver-CLASS registry (C13
+  probes, refuse unclassified; name classes by SHAPE never author — §8
+  smell), own the layout/data; the init-entry→timer-start cycles set
+  the interrupt-grid phase, and unwritten environment defaults CANCEL
+  when shapes match. Diagnosis table: constant per-write delta =
+  IDLE-LOOP PHASE vs the grid (a 1-byte post-timer tail re-phases
+  latency); late start = TIMER GRID ORIGIN (probe the base latch, never
+  derive from sample latches); switch-point content shift = grid
+  truncating the outgoing sample differently; silence = ENVIRONMENT —
+  measure port/vectors both sides with --peek-post-init before
+  theorizing. Gate static probes on entry-path REACHABILITY (unreached
+  leftover stubs false-trip). State coverage x/standalone AND x/claimed
+  (digi carriers mostly PAIR with other engines' members).
+- Trichotomy note: Mode-2 members are EXEMPT from the universal-init
+  verdict (init cycles are signal); the trichotomy's categories still
+  route the content.
+- FULL ENTRY: [`ledger/C40.md`](ledger/C40.md) — read it before applying.

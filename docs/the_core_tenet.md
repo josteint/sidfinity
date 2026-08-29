@@ -82,6 +82,15 @@ must match. Used for Chimera and similar.
 
 - Tool: same `--writelog`.
 - Comparator: `pipelines.hubbard.verify_cycle.compare_strict`.
+- **Trichotomy exemption (recorded 2026-08-29, digi_organizer):**
+  Mode-2 members are EXEMPT from the trichotomy's universal-init
+  verdict shift (Check A + aligned play stream) — under cycle-strict
+  comparison the init writes' CYCLES are signal, so a universal reset
+  would fail by construction. The composer mirrors the member's init
+  cycle-shape instead (see ledger C40); the trichotomy's CATEGORIES
+  still route the content (priming → `init.sid`, temporal facts →
+  environment). The §5 verdict shift applies to Mode-1 tracker music
+  only.
 
 **Trap A — snapshotting registers instead of capturing the write
 sequence.** Half the early project did this. Loses within-frame writes
