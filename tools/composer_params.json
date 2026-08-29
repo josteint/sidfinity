@@ -372,6 +372,34 @@
     "digi_driver_bit": {
       "category": "temporal-dispatch",
       "licensed_by": "digi proposal \u2014 xreg driver BIT-abs filler (4 pre-core cycles = NMI phase)"
+    },
+    "digi_d011_init": {
+      "category": "temporal-dispatch",
+      "licensed_by": "digi proposal \u2014 driver class sub-shape (cycle skeleton); sphere: $D011 primed post-core-init differs from the wrapper value"
+    },
+    "digi_delay_seed": {
+      "category": "temporal-dispatch",
+      "licensed_by": "digi proposal \u2014 driver class sub-shape (cycle skeleton); poke_stub: busy-wait inner counter seed (start delay length)"
+    },
+    "digi_delay_outer": {
+      "category": "temporal-dispatch",
+      "licensed_by": "digi proposal \u2014 driver class sub-shape (cycle skeleton); poke_stub: busy-wait outer counter seed"
+    },
+    "digi_driver_gate": {
+      "category": "temporal-dispatch",
+      "licensed_by": "digi proposal \u2014 driver class sub-shape (cycle skeleton); poke_stub: wrapper flag-gate form (cmp1 | ackfirst_beq \u2014 2-cycle/IRQ difference)"
+    },
+    "digi_driver_tail_sei": {
+      "category": "temporal-dispatch",
+      "licensed_by": "digi proposal \u2014 driver class sub-shape (cycle skeleton); poke_stub: tail lead SEI vs NOP"
+    },
+    "digi_speed_poke_present": {
+      "category": "temporal-dispatch",
+      "licensed_by": "digi proposal \u2014 driver class sub-shape (cycle skeleton); poke_stub: driver pokes the steady tempo into the tick immediate"
+    },
+    "digi_driver_wrap_nops": {
+      "category": "temporal-dispatch",
+      "licensed_by": "digi proposal \u2014 driver class sub-shape (cycle skeleton); bare_stub: 3 NOPs inserted after the tick JSR"
     }
   }
 }

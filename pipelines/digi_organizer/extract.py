@@ -342,14 +342,170 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
                       0xAD, 0x0D, 0xDC, 0x58, 0x60]
             if _match(p1, pat_d1):
                 w = (img[p1 + 1] | img[p1 + 6] << 8) - load
+                wrap_nops = wrap_ack[:11] + [0xEA, 0xEA, 0xEA] \
+                    + wrap_ack[11:]
                 if _match(w, wrap_ack):
                     driver = 'bare_stub'
                     dp = {'nop': nop}
+                elif _match(w, wrap_nops):
+                    driver = 'bare_stub'
+                    dp = {'nop': nop, 'wrap_nops': True}
+
+    # class 'jer_lock' (Jer Digimix ×3): SEI, port, IRQ vector via an
+    # A/X immediate pair, D01A=1 + a $DC0D=$01 write, $D011 read-AND-$7F
+    # writeback (env-relative — cancels when mirrored), raster, JSR
+    # core+$40, 14 NOPs, CLI, JMP-self LOCK (init never returns).
+    if driver is None:
+        pat_j = [0x78, 0xA9, 0x35, 0x85, 0x01,
+                 0xA9, None, 0xA2, None,
+                 0x8D, 0xFE, 0xFF, 0x8E, 0xFF, 0xFF,
+                 0xA9, 0x01, 0x8D, 0x1A, 0xD0, 0x8D, 0x0D, 0xDC,
+                 0xAD, 0x11, 0xD0, 0x29, 0x7F, 0x8D, 0x11, 0xD0,
+                 0xA9, None, 0x8D, 0x12, 0xD0,
+                 0x20, None, None] + [0xEA] * 14 + [0x58, 0x4C]
+        wrap_j = [0x48, 0x8A, 0x48, 0x98, 0x48, 0xEE, 0x19, 0xD0,
+                  0x20, None, None,
+                  0x68, 0xA8, 0x68, 0xAA, 0xAD, 0x0D, 0xDC,
+                  0x68, 0x40]
+        if _match(iv, pat_j):
+            if img[iv + 37] | img[iv + 38] << 8 != core_base + 0x40:
+                raise DigiOrganizerUnsupported('jer_lock: JSR not core+$40')
+            w = (img[iv + 6] | img[iv + 8] << 8) - load
+            if _match(w, wrap_j):
+                driver = 'jer_lock'
+                dp = {'raster': img[iv + 32], 'core_entry': 'core40'}
+
+    # class 'sphere' (Sphere_Chromance ×2): SEI, port, mask $7F, IRQ
+    # vector, D01A=1, A=X=Y=0, JSR core+$40, $D011 AFTER, CLI RTS. The
+    # WRAPPER re-writes $D011 + raster EVERY IRQ (push order Y-then-X).
+    if driver is None:
+        pat_s = [0x78, 0xA9, 0x35, 0x85, 0x01,
+                 0xA9, 0x7F, 0x8D, 0x0D, 0xDC,
+                 0xA9, None, 0x8D, 0xFE, 0xFF,
+                 0xA9, None, 0x8D, 0xFF, 0xFF,
+                 0xA9, 0x01, 0x8D, 0x1A, 0xD0,
+                 0xA9, 0x00, 0xA2, 0x00, 0xA0, 0x00,
+                 0x20, None, None,
+                 0xA9, None, 0x8D, 0x11, 0xD0,
+                 0x58, 0x60]
+        wrap_s = [0x48, 0x98, 0x48, 0x8A, 0x48, 0xEE, 0x19, 0xD0,
+                  0xA9, None, 0x8D, 0x11, 0xD0,
+                  0xA9, None, 0x8D, 0x12, 0xD0,
+                  0x20, None, None, 0xAD, 0x0D, 0xDC,
+                  0x68, 0xAA, 0x68, 0xA8, 0x68, 0x40]
+        if _match(iv, pat_s):
+            if img[iv + 32] | img[iv + 33] << 8 != core_base + 0x40:
+                raise DigiOrganizerUnsupported('sphere: JSR not core+$40')
+            w = (img[iv + 11] | img[iv + 16] << 8) - load
+            if _match(w, wrap_s):
+                driver = 'sphere'
+                dp = {'raster': img[w + 14], 'd011': img[w + 9],
+                      'd011_init': img[iv + 35], 'core_entry': 'core40'}
+
+    # class 'earbleed' (The_Mighty_Bulldozer ×2): SEI, port, $D011,
+    # raster, D01A/D019=1, mask $7F, ack, DC0E=0, IRQ vector, A=0, JSR
+    # core, CLI RTS; wrapper = INC-ack, no $DC0D read, no register-X/Y
+    # ack reorder.
+    if driver is None:
+        pat_e = [0x78, 0xA9, 0x35, 0x85, 0x01,
+                 0xA9, None, 0x8D, 0x11, 0xD0,
+                 0xA9, None, 0x8D, 0x12, 0xD0,
+                 0xA9, 0x01, 0x8D, 0x1A, 0xD0, 0x8D, 0x19, 0xD0,
+                 0xA9, 0x7F, 0x8D, 0x0D, 0xDC,
+                 0xAD, 0x0D, 0xDC,
+                 0xA9, 0x00, 0x8D, 0x0E, 0xDC,
+                 0xA9, None, 0x8D, 0xFE, 0xFF,
+                 0xA9, None, 0x8D, 0xFF, 0xFF,
+                 0xA9, 0x00, 0x20, None, None,
+                 0x58, 0x60]
+        wrap_e = [0x48, 0x8A, 0x48, 0x98, 0x48, 0xEE, 0x19, 0xD0,
+                  0x20, None, None,
+                  0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40]
+        if _match(iv, pat_e):
+            if img[iv + 49] | img[iv + 50] << 8 != core_base:
+                raise DigiOrganizerUnsupported('earbleed: JSR not core')
+            w = (img[iv + 37] | img[iv + 42] << 8) - load
+            if _match(w, wrap_e):
+                driver = 'earbleed'
+                dp = {'raster': img[iv + 11], 'd011': img[iv + 6]}
+
+    # class 'poke_stub' (the delayed Morton shape ×4): flag=0, JSR core,
+    # pokes counters ($D0 into two delay cells + $0B into an outer
+    # counter), OPTIONAL speed poke (`LDA src / STA $908E` — the runtime
+    # TEMPO; the image byte is only the first-row seed), JMP tail: SEI,
+    # IRQ vector, mask $7F, D01A=1, ack, CLI, then a nested busy-wait
+    # DELAY (~2 frames) before flag=1 unlocks the flag-gated wrapper.
+    if driver is None:
+        pat_p0 = [0xA9, 0x00, 0x8D, None, None,       # flag = 0
+                  0x20, None, None,                   # JSR core
+                  0xA9, None, 0x8D, None, None, 0x8D, None, None,
+                  0xA9, None, 0x8D, None, None]       # counter pokes
+        if _match(iv, pat_p0):
+            if img[iv + 6] | img[iv + 7] << 8 != core_base:
+                raise DigiOrganizerUnsupported('poke_stub: JSR not core')
+            q = iv + 21
+            speed_poke = None
+            speedb = load + tick + 7                  # the tick immediate
+            if img[q] == 0xAD and \
+                    img[q + 3] == 0x8D and \
+                    (img[q + 4] | img[q + 5] << 8) == speedb:
+                speed_poke = rd(img[q + 1] | img[q + 2] << 8)[0]
+                q += 6
+            if img[q] != 0x4C:
+                raise DigiOrganizerUnsupported('poke_stub: no JMP tail')
+            t = (img[q + 1] | img[q + 2] << 8) - load
+            tail_sei = img[t] == 0x78
+            if not tail_sei and img[t] != 0xEA:
+                raise DigiOrganizerUnsupported(
+                    f'poke_stub: tail lead ${img[t]:02X} not SEI/NOP')
+            pat_p1 = [None,
+                      0xA9, None, 0x8D, 0xFE, 0xFF,
+                      0xA9, None, 0x8D, 0xFF, 0xFF,
+                      0xA9, 0x7F, 0x8D, 0x0D, 0xDC,
+                      0xA9, 0x01, 0x8D, 0x1A, 0xD0,
+                      0xAD, 0x0D, 0xDC, 0x58,
+                      # delay: DEC outer / JSR sub / LDA outer / BNE /
+                      # INC flag / RTS
+                      0xCE, None, None, 0x20, None, None,
+                      0xAD, None, None, 0xD0, 0xF5,
+                      0xEE, None, None, 0x60,
+                      # sub: two DEC/LDA/CMP#0/BNE loops + RTS
+                      0xCE, None, None, 0xAD, None, None,
+                      0xC9, 0x00, 0xD0, 0xF6,
+                      0xCE, None, None, 0xAD, None, None,
+                      0xC9, 0x00, 0xD0, 0xF6, 0x60]
+            wrap_cmp = [0x48, 0x8A, 0x48, 0x98, 0x48,
+                        0xAD, None, None, 0xC9, 0x01, 0xD0, 0x03,
+                        0x20, None, None,
+                        0x0E, 0x19, 0xD0, 0xAD, 0x0D, 0xDC,
+                        0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40]
+            wrap_beq = [0x48, 0x8A, 0x48, 0x98, 0x48,
+                        0x0E, 0x19, 0xD0,
+                        0xAD, None, None, 0xF0, 0x03,
+                        0x20, None, None,
+                        0xAD, 0x0D, 0xDC,
+                        0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40]
+            if _match(t, pat_p1):
+                w = (img[t + 2] | img[t + 7] << 8) - load
+                gate_form = None
+                if _match(w, wrap_cmp):
+                    gate_form = 'cmp1'
+                elif _match(w, wrap_beq):
+                    gate_form = 'ackfirst_beq'
+                if gate_form:
+                    driver = 'poke_stub'
+                    dp = {'core_entry': 'core',
+                          'delay_seed': img[iv + 9],
+                          'outer_seed': img[iv + 17],
+                          'speed_poke': speed_poke,
+                          'tail_sei': tail_sei,
+                          'gate_form': gate_form}
 
     if driver is None:
         raise DigiOrganizerUnsupported(
             'driver shape matches no probed class (irq_vec / nmi_first '
-            '/ xreg / bare_stub) — parametrize before accepting')
+            '/ xreg / bare_stub / jer_lock / sphere / earbleed / '
+            'poke_stub) — parametrize before accepting')
 
     # Any class whose recorded entry is 'core' goes through the $9000
     # JMP (and may hit the port pre-init stub); a 'core40' entry

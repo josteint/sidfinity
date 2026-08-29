@@ -75,10 +75,23 @@ def model_to_usf(m, usf_dir: str, basename: str) -> UsfFile:
         raise ValueError(
             f'speed_init ${m.speed_init:02X} != reload '
             f'${m.speed_reload:02X} — not the code-as-data shape')
-    init = InitState(sid=InitSid(master_vol=m.d418_init))
+    # A driver SPEED POKE (poke_stub) overwrites the tick immediate at
+    # runtime: the poked value is the musical tempo; the image byte is
+    # only the first-row seed (carried as typed speed_ctr_init).
+    speed_poke = m.driver_params.get('speed_poke')
+    steady = speed_poke if speed_poke is not None else m.speed_reload
+    seed_field = (m.speed_reload
+                  if speed_poke is not None
+                  and m.speed_reload != speed_poke else 0)
+    if speed_poke is not None and m.speed_reload != speed_poke \
+            and m.speed_reload == 0:
+        raise ValueError('speed seed 0 with a differing poke — the '
+                         'elided-default carrier cannot express it')
+    init = InitState(sid=InitSid(master_vol=m.d418_init),
+                     speed_ctr_init=seed_field)
 
     sub = MusicSubtune(
-        id=0, tempo=m.speed_reload + 1, voices=[],
+        id=0, tempo=steady + 1, voices=[],
         digi_voice=VoiceBlock(
             id=0, orderlist=ol, patterns=patterns),
         init=None)
@@ -112,6 +125,20 @@ def model_to_usf(m, usf_dir: str, basename: str) -> UsfFile:
                if m.base_latch != 0x70 else {}),
             **({'digi_port_preinit': m.port_preinit}
                if m.port_preinit is not None else {}),
+            **({'digi_d011_init': m.driver_params['d011_init']}
+               if m.driver_params.get('d011_init') is not None
+               and m.driver_params.get('d011_init')
+               != m.driver_params.get('d011') else {}),
+            **({'digi_delay_seed': m.driver_params['delay_seed'],
+                'digi_delay_outer': m.driver_params['outer_seed'],
+                'digi_driver_gate': m.driver_params['gate_form']}
+               if m.driver == 'poke_stub' else {}),
+            **({'digi_driver_tail_sei': False}
+               if m.driver_params.get('tail_sei') is False else {}),
+            **({'digi_speed_poke_present': True}
+               if m.driver_params.get('speed_poke') is not None else {}),
+            **({'digi_driver_wrap_nops': True}
+               if m.driver_params.get('wrap_nops') else {}),
             **({'digi_core_tail': m.core_tail}
                if m.core_tail != 'rts' else {}),
             **({'digi_driver_bit': True}

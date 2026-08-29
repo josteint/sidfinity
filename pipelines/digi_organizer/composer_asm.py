@@ -174,7 +174,7 @@ _WRAP_INC = ('irq_wrapper:\n'
              '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
 
 
-def _emit_driver(p: dict, raster: int, d011: int) -> str:
+def _emit_driver(p: dict, raster: int, d011: int, speed: int) -> str:
     """The standalone driver, mirrored per CLASS (extract's registry).
     Instruction shapes = the cycle skeleton; operands are ours."""
     cls = p.get('digi_driver', 'irq_vec')
@@ -235,6 +235,11 @@ def _emit_driver(p: dict, raster: int, d011: int) -> str:
                 '\tcli\n\trts\n' + wrap)
     if cls == 'bare_stub':
         nop = '\tnop\n' if p.get('digi_driver_nop') else ''
+        wrap = _WRAP_ACK
+        if p.get('digi_driver_wrap_nops'):
+            wrap = _WRAP_ACK.replace(
+                f'\tjsr ${CORE + 3:04X}\n',
+                f'\tjsr ${CORE + 3:04X}\n\tnop\n\tnop\n\tnop\n')
         return ('driver_init:\n'
                 '\tlda #$00\n'
                 f'\tjsr ${CORE:04X}\n'
@@ -245,7 +250,143 @@ def _emit_driver(p: dict, raster: int, d011: int) -> str:
                 '\tlda #$7f\n\tsta $dc0d\n'
                 '\tlda #$01\n\tsta $d01a\n'
                 '\tlda $dc0d\n'
-                '\tcli\n\trts\n' + _WRAP_ACK)
+                '\tcli\n\trts\n' + wrap)
+    if cls == 'jer_lock':
+        # SEI, port, A/X vector pair, D01A=1 + $DC0D=$01, $D011
+        # read-AND-$7F writeback (env-relative — cancels), raster,
+        # JSR core+$40, 14 NOPs, CLI, JMP-self LOCK (never returns).
+        return ('driver_init:\n'
+                '\tsei\n'
+                '\tlda #$35\n\tsta $01\n'
+                '\tlda #<irq_wrapper\n\tldx #>irq_wrapper\n'
+                '\tsta $fffe\n\tstx $ffff\n'
+                '\tlda #$01\n\tsta $d01a\n\tsta $dc0d\n'
+                '\tlda $d011\n\tand #$7f\n\tsta $d011\n'
+                f'\tlda #${raster:02X}\n\tsta $d012\n'
+                f'\tjsr ${CORE + 0x40:04X}\n'
+                + '\tnop\n' * 14 +
+                '\tcli\n'
+                'drv_lock:\n'
+                '\tjmp drv_lock\n'
+                'irq_wrapper:\n'
+                '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
+                '\tinc $d019\n'
+                f'\tjsr ${CORE + 3:04X}\n'
+                '\tpla\n\ttay\n\tpla\n\ttax\n'
+                '\tlda $dc0d\n'
+                '\tpla\n\trti\n')
+    if cls == 'sphere':
+        # Wrapper re-writes $D011 + raster EVERY IRQ; push order
+        # Y-then-X, restore X-then-Y; $D011 primed AFTER core init.
+        d011_init = int(p.get('digi_d011_init', d011))
+        return ('driver_init:\n'
+                '\tsei\n'
+                '\tlda #$35\n\tsta $01\n'
+                '\tlda #$7f\n\tsta $dc0d\n'
+                '\tlda #<irq_wrapper\n\tsta $fffe\n'
+                '\tlda #>irq_wrapper\n\tsta $ffff\n'
+                '\tlda #$01\n\tsta $d01a\n'
+                '\tlda #$00\n\tldx #$00\n\tldy #$00\n'
+                f'\tjsr ${CORE + 0x40:04X}\n'
+                f'\tlda #${d011_init:02X}\n\tsta $d011\n'
+                '\tcli\n\trts\n'
+                'irq_wrapper:\n'
+                '\tpha\n\ttya\n\tpha\n\ttxa\n\tpha\n'
+                '\tinc $d019\n'
+                f'\tlda #${d011:02X}\n\tsta $d011\n'
+                f'\tlda #${raster:02X}\n\tsta $d012\n'
+                f'\tjsr ${CORE + 3:04X}\n'
+                '\tlda $dc0d\n'
+                '\tpla\n\ttax\n\tpla\n\ttay\n\tpla\n\trti\n')
+    if cls == 'earbleed':
+        return ('driver_init:\n'
+                '\tsei\n'
+                '\tlda #$35\n\tsta $01\n'
+                f'\tlda #${d011:02X}\n\tsta $d011\n'
+                f'\tlda #${raster:02X}\n\tsta $d012\n'
+                '\tlda #$01\n\tsta $d01a\n\tsta $d019\n'
+                '\tlda #$7f\n\tsta $dc0d\n\tlda $dc0d\n'
+                '\tlda #$00\n\tsta $dc0e\n'
+                '\tlda #<irq_wrapper\n\tsta $fffe\n'
+                '\tlda #>irq_wrapper\n\tsta $ffff\n'
+                '\tlda #$00\n'
+                f'\tjsr ${CORE:04X}\n'
+                '\tcli\n\trts\n'
+                'irq_wrapper:\n'
+                '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
+                '\tinc $d019\n'
+                f'\tjsr ${CORE + 3:04X}\n'
+                '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
+    if cls == 'poke_stub':
+        # The delayed Morton shape: flag-gated wrapper + a ~2-frame
+        # busy-wait after CLI before the sequencer unlocks; optional
+        # runtime SPEED POKE into the tick immediate (the image byte
+        # is only the first-row seed).
+        dseed = int(p.get('digi_delay_seed', 0xD0))
+        oseed = int(p.get('digi_delay_outer', 0x0B))
+        lead = '\tsei\n' if p.get('digi_driver_tail_sei', True) else '\tnop\n'
+        gate = p.get('digi_driver_gate', 'cmp1')
+        has_poke = bool(p.get('digi_speed_poke_present'))
+        poke = ('\tlda spdval\n\tsta st1+1\n' if has_poke else '')
+        if gate == 'cmp1':
+            wrap = ('irq_wrapper:\n'
+                    '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
+                    '\tlda dflag\n\tcmp #$01\n\tbne dwskip\n'
+                    f'\tjsr ${CORE + 3:04X}\n'
+                    'dwskip:\n'
+                    '\tasl $d019\n'
+                    '\tlda $dc0d\n'
+                    '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
+        elif gate == 'ackfirst_beq':
+            wrap = ('irq_wrapper:\n'
+                    '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
+                    '\tasl $d019\n'
+                    '\tlda dflag\n\tbeq dwskip\n'
+                    f'\tjsr ${CORE + 3:04X}\n'
+                    'dwskip:\n'
+                    '\tlda $dc0d\n'
+                    '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
+        else:
+            raise DigiComposeError(f'unknown poke_stub gate {gate!r}')
+        return ('driver_init:\n'
+                '\tlda #$00\n\tsta dflag\n'
+                f'\tjsr ${CORE:04X}\n'
+                f'\tlda #${dseed:02X}\n\tsta dcnt1\n\tsta dcnt2\n'
+                f'\tlda #${oseed:02X}\n\tsta docnt\n'
+                + poke +
+                '\tjmp ptail\n'
+                'ptail:\n' + lead +
+                '\tlda #<irq_wrapper\n\tsta $fffe\n'
+                '\tlda #>irq_wrapper\n\tsta $ffff\n'
+                '\tlda #$7f\n\tsta $dc0d\n'
+                '\tlda #$01\n\tsta $d01a\n'
+                '\tlda $dc0d\n'
+                '\tcli\n'
+                'dloop:\n'
+                '\tdec docnt\n'
+                '\tjsr dsub\n'
+                '\tlda docnt\n'
+                '\tbne dloop\n'
+                '\tinc dflag\n'
+                '\trts\n'
+                'dsub:\n'
+                '\tdec dcnt1\n'
+                '\tlda dcnt1\n'
+                '\tcmp #$00\n'
+                '\tbne dsub\n'
+                'dsub2:\n'
+                '\tdec dcnt2\n'
+                '\tlda dcnt2\n'
+                '\tcmp #$00\n'
+                '\tbne dsub2\n'
+                '\trts\n'
+                + wrap +
+                'dflag:\t.byt $00\n'
+                'docnt:\t.byt $00\n'
+                'dcnt1:\t.byt $00\n'
+                'dcnt2:\t.byt $00\n'
+                + (f'spdval:\t.byt ${speed:02X}\n'
+                   if has_poke else ''))
     raise DigiComposeError(f'unknown digi_driver class {cls!r}')
 
 
@@ -261,6 +402,11 @@ def compose_asm(usf: UsfFile, usf_dir: str) -> str:
     speed = sub.tempo - 1
     if not (0 <= speed <= 0x7F):
         raise DigiComposeError(f'tempo {sub.tempo} out of range')
+    # first-row SEED for the tick immediate: with a driver speed POKE
+    # the image byte (carried as init.speed_ctr_init) seeds the first
+    # row; the poke then installs the steady tempo.
+    seed = (usf.init.speed_ctr_init
+            if usf.init and usf.init.speed_ctr_init else speed)
     mvol = (usf.init.sid.master_vol
             if usf.init and usf.init.sid and
             usf.init.sid.master_vol is not None else 0x0F)
@@ -327,7 +473,7 @@ def compose_asm(usf: UsfFile, usf_dir: str) -> str:
              '\tbmi st1\n'
              '\trts\n'
              'st1:\n'
-             f'\tlda #${speed:02X}\n'
+             f'\tlda #${seed:02X}\n'
              f'\tsta ${STATE_SPEEDCTR:04X}\n'
              f'\tlda ${STATE_ROWPOS:04X}\n'
              '\tbne rowfetch\n'
@@ -518,11 +664,15 @@ def compose_asm(usf: UsfFile, usf_dir: str) -> str:
     # the player; the driver floats after the patterns) ---
     if len(smptab) > PATTERNS - SMPTAB:
         raise DigiComposeError('sample table overruns the pattern area')
-    driver_addr = PATTERNS + len(patmem)
+    # page-align the driver: a page-crossing taken branch inside the
+    # delay/wait loops costs +1 cycle per iteration (measured: the
+    # poke_stub outer loop crossing a page shifted the whole stream by
+    # its 11 iterations) — the originals are page-local, so are we.
+    driver_addr = (PATTERNS + len(patmem) + 0xFF) & 0xFF00
     segs = [(SMPTAB, _byt('smptab', smptab)),
             (ORDERLIST, _byt('orderlist', entries)),
             (PATTERNS, _byt('patterns', patmem)),
-            (driver_addr, _emit_driver(p, raster, d011))]
+            (driver_addr, _emit_driver(p, raster, d011, speed))]
     for addr, packed in pcm_chunks:
         segs.append((addr, _byt(f'pcm_{addr:04X}', packed)))
     core_text = '\n'.join(a)
