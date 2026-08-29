@@ -123,7 +123,8 @@ def model_to_usf(m, usf_dir: str, basename: str) -> UsfFile:
                if m.driver_params.get('nop') else {}),
             **({'digi_base_latch': m.base_latch}
                if m.base_latch != 0x70 else {}),
-            **({'digi_port_preinit': m.port_preinit}
+            **({'digi_port_preinit': m.port_preinit,
+                'digi_preinit_form': m.preinit_form}
                if m.port_preinit is not None else {}),
             **({'digi_d011_init': m.driver_params['d011_init']}
                if m.driver_params.get('d011_init') is not None
@@ -141,6 +142,8 @@ def model_to_usf(m, usf_dir: str, basename: str) -> UsfFile:
                if m.driver_params.get('wrap_nops') else {}),
             **({'digi_core_tail': m.core_tail}
                if m.core_tail != 'rts' else {}),
+            **({'digi_nmi_vec': '0318'}
+               if m.nmi_vec == '0318' else {}),
             **({'digi_driver_bit': True}
                if m.driver_params.get('bit_pad') else {}),
         }),

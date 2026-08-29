@@ -387,6 +387,65 @@ def _emit_driver(p: dict, raster: int, d011: int, speed: int) -> str:
                 'dcnt2:\t.byt $00\n'
                 + (f'spdval:\t.byt ${speed:02X}\n'
                    if has_poke else ''))
+    if cls == 'kernal_irq':
+        # KERNAL-path driver (port stays $37): core first, $0314
+        # vector; the KERNAL IRQ entry does the pushes and $EA31 the
+        # restores — the wrapper carries none.
+        return ('driver_init:\n'
+                f'\tjsr ${CORE:04X}\n'
+                '\tsei\n'
+                '\tlda #$7f\n\tsta $dc0d\n\tlda $dc0d\n'
+                f'\tlda #${d011:02X}\n\tsta $d011\n'
+                f'\tlda #${raster:02X}\n\tsta $d012\n'
+                '\tlda #<irq_wrapper\n\tsta $0314\n'
+                '\tlda #>irq_wrapper\n\tsta $0315\n'
+                '\tlda #$01\n\tsta $d019\n\tsta $d01a\n'
+                '\tcli\n\trts\n'
+                'irq_wrapper:\n'
+                '\tlda #$01\n\tsta $d019\n'
+                f'\tjsr ${CORE + 3:04X}\n'
+                '\tjmp $ea31\n')
+    if cls == 'kernal_lock':
+        # KERNAL-path + JMP-self lock; A=1 serves D01A/mask/raster;
+        # DEC-form acks; wrapper exits via the short $EA81 tail.
+        return ('driver_init:\n'
+                '\tsei\n'
+                '\tlda #$01\n'
+                '\tsta $d01a\n\tsta $dc0d\n\tsta $d012\n'
+                f'\tlda #${d011:02X}\n\tsta $d011\n'
+                '\tdec $d019\n'
+                '\tlda #<irq_wrapper\n\tsta $0314\n'
+                '\tlda #>irq_wrapper\n\tsta $0315\n'
+                f'\tjsr ${CORE:04X}\n'
+                '\tcli\n'
+                'drv_lock:\n'
+                '\tjmp drv_lock\n'
+                'irq_wrapper:\n'
+                '\tdec $d019\n'
+                f'\tjsr ${CORE + 3:04X}\n'
+                '\tjmp $ea81\n')
+    if cls == 'arnie':
+        # SEI, mask, JSR sub {STA $DD0D (A=$7F), acks, D019=1, JMP
+        # core — core's RTS returns to the caller}, port, vector
+        # hi-then-lo, DC0E=0, D01A/D019=1, raster, $D011, CLI RTS.
+        return ('driver_init:\n'
+                '\tsei\n'
+                '\tlda #$7f\n\tsta $dc0d\n'
+                '\tjsr drv_sub\n'
+                '\tlda #$35\n\tsta $01\n'
+                '\tlda #>irq_wrapper\n\tsta $ffff\n'
+                '\tlda #<irq_wrapper\n\tsta $fffe\n'
+                '\tlda #$00\n\tsta $dc0e\n'
+                '\tlda #$01\n\tsta $d01a\n\tsta $d019\n'
+                f'\tlda #${raster:02X}\n\tsta $d012\n'
+                f'\tlda #${d011:02X}\n\tsta $d011\n'
+                '\tcli\n\trts\n'
+                'drv_sub:\n'
+                '\tsta $dd0d\n'
+                '\tlda $dc0d\n\tlda $dd0d\n'
+                '\tlda #$01\n\tsta $d019\n'
+                f'\tjmp ${CORE:04X}\n'
+                + _WRAP_INC)
     raise DigiComposeError(f'unknown digi_driver class {cls!r}')
 
 
@@ -423,17 +482,33 @@ def compose_asm(usf: UsfFile, usf_dir: str) -> str:
         a.append('\tjmp core_init\n'
                  '\tjmp seq_tick\n')
     else:
-        # Morton-variant port pre-init: the core entry routes through
-        # `SEI / LDA #port / STA $01 / JMP core_init` (cycle-identical
-        # to the original's stub at core+$26).
-        a.append('\tjmp port_stub\n'
-                 '\tjmp seq_tick\n'
-                 f'\t.dsb ${CORE + 0x26:04X} - *, 0\n'
-                 'port_stub:\n'
-                 '\tsei\n'
-                 f'\tlda #${port_preinit:02X}\n'
-                 '\tsta $01\n'
-                 '\tjmp core_init\n')
+        # Port pre-init stub at the core entry, mirrored per FORM:
+        # 'jmp' (Morton), 'nopslide' (fall through NOPs into core
+        # init), 'romcopy' (KERNAL $E000-$FFFF copied under itself +
+        # DEC $01 — ~131k pre-timer cycles, part of the grid phase).
+        form = p.get('digi_preinit_form', 'jmp')
+        head = ('\tjmp port_stub\n'
+                '\tjmp seq_tick\n'
+                f'\t.dsb ${CORE + 0x26:04X} - *, 0\n'
+                'port_stub:\n'
+                '\tsei\n'
+                f'\tlda #${port_preinit:02X}\n'
+                '\tsta $01\n')
+        if form == 'jmp':
+            a.append(head + '\tjmp core_init\n')
+        elif form == 'nopslide':
+            a.append(head + f'\t.dsb ${CORE + 0x40:04X} - *, $EA\n')
+        elif form == 'romcopy':
+            a.append(head +
+                     '\tlda #$e0\n\tsta $21\n'
+                     '\tldy #$00\n\tsty $20\n'
+                     'rcp1:\n'
+                     '\tlda ($20),y\n\tsta ($20),y\n'
+                     '\tiny\n\tbne rcp1\n'
+                     '\tinc $21\n\tbne rcp1\n'
+                     '\tdec $01\n')
+        else:
+            raise DigiComposeError(f'unknown preinit form {form!r}')
     # --- core init (canonical $9040) ---
     a.append(f'\t.dsb ${CORE + 0x40:04X} - *, 0\n'
              'core_init:\n'
@@ -676,6 +751,12 @@ def compose_asm(usf: UsfFile, usf_dir: str) -> str:
     for addr, packed in pcm_chunks:
         segs.append((addr, _byt(f'pcm_{addr:04X}', packed)))
     core_text = '\n'.join(a)
+    # KERNAL-path core variant: every NMI vector-swap targets the
+    # KERNAL RAM vector $0318/$0319 instead of the hardware $FFFA/$FFFB
+    # (the member keeps the KERNAL banked in; probed, all-sites).
+    if p.get('digi_nmi_vec') == '0318':
+        core_text = core_text.replace('$fffa', '$0318') \
+                             .replace('$fffb', '$0319')
     segs.append((CORE, core_text))
     segs.sort(key=lambda x: x[0])
     out = [f'* = ${segs[0][0]:04X}\n']

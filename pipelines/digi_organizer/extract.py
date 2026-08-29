@@ -85,6 +85,8 @@ class DigiOrganizerModel:
     driver: str = 'irq_vec'    # driver class (registry in extract_model)
     driver_params: dict = field(default_factory=dict)
     port_preinit: 'int | None' = None  # core-entry port stub value (Morton)
+    preinit_form: 'str | None' = None  # jmp | nopslide | romcopy
+    nmi_vec: str = 'fffa'              # NMI vector target: fffa | 0318 (KERNAL)
     core_tail: str = 'rts'             # core-init tail: rts | nop_rts | cli_rts
     raster_line: 'int | None' = None   # driver's $D012 IRQ line (None = env)
     d011: 'int | None' = None          # driver's $D011 value (None = env)
@@ -153,6 +155,31 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
         raise DigiOrganizerUnsupported('sample table fetch not found')
     smp_base = img[smf + 4] | img[smf + 5] << 8
 
+    # --- NMI vector TARGET: canon cores swap $FFFA/$FFFB; a
+    # KERNAL-path member (port $36, KERNAL banked in) re-points ALL
+    # NINE vector-swap operands at $0318/$0319 (the KERNAL NMI RAM
+    # vector) — probe the core-init store pair, then REQUIRE the other
+    # sites to agree (a mixed core would be a different variant).
+    vecp = _find(img, [0xA0, 0x91, 0x8C, None, None,
+                       0xA9, 0x57, 0x8D, None, None])
+    if vecp is None:
+        raise DigiOrganizerUnsupported('core-init NMI vector stores not found')
+    hi_t = img[vecp + 3] | img[vecp + 4] << 8
+    lo_t = img[vecp + 8] | img[vecp + 9] << 8
+    if (lo_t, hi_t) == (0xFFFA, 0xFFFB):
+        nmi_vec = 'fffa'
+    elif (lo_t, hi_t) == (0x0318, 0x0319):
+        nmi_vec = '0318'
+    else:
+        raise DigiOrganizerUnsupported(
+            f'NMI vector target ${lo_t:04X}/${hi_t:04X} unclassified')
+    pair = bytes((lo_t & 0xFF, lo_t >> 8))
+    n_sites = img.count(b'\x8d' + pair) + img.count(b'\x8c' + pair)
+    if n_sites < 8:
+        raise DigiOrganizerUnsupported(
+            f'NMI vector sites inconsistent ({n_sites} of >=8 use '
+            f'${lo_t:04X})')
+
     # --- core init: TA latch + $D418 prime
     ci = _find(img, [0xA9, None, 0xA0, 0x00, 0x8D, 0x04, 0xDD])
     if ci is None:
@@ -180,20 +207,35 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
     def _probe_port_preinit():
         # Only meaningful when a driver actually ENTERS via the $9000
         # JMP — an unreached entry stub is editor leftover (Digitune's
-        # driver JSRs core+$40 directly past a stale stub).
+        # driver JSRs core+$40 directly past a stale stub). Returns
+        # (form, port): 'jmp' (SEI/port/JMP core+$40), 'nopslide'
+        # (SEI/port/NOP... falling into core init), or 'romcopy' (the
+        # KERNAL-$E000-$FFFF copy-under-itself + DEC $01 — how a
+        # KERNAL-path member banks the ROM 'out' yet keeps its IRQ
+        # chain: ~131k pre-timer cycles, part of the grid phase).
         ent = img[cb + 1] | img[cb + 2] << 8
         if ent == core_base + 0x40:
             return None
-        stub = [0x78, 0xA9, None, 0x85, 0x01,
-                0x4C, (core_base + 0x40) & 0xFF, (core_base + 0x40) >> 8]
         so = ent - load
-        if not (0 <= so <= len(img) - len(stub)) or any(
-                q is not None and img[so + j] != q
-                for j, q in enumerate(stub)):
+        head = [0x78, 0xA9, None, 0x85, 0x01]
+        if not _match(so, head):
             raise DigiOrganizerUnsupported(
-                f'core entry routes to ${ent:04X} — not core+$40 and '
-                'not the port pre-init stub')
-        return img[so + 2]
+                f'core entry routes to ${ent:04X} — no port stub head')
+        port = img[so + 2]
+        tail = so + 5
+        if _match(tail, [0x4C, (core_base + 0x40) & 0xFF,
+                         (core_base + 0x40) >> 8]):
+            return ('jmp', port)
+        end = cb + 0x40
+        if tail < end and all(img[k] == 0xEA for k in range(tail, end)):
+            return ('nopslide', port)
+        romcopy = [0xA9, 0xE0, 0x85, 0x21, 0xA0, 0x00, 0x84, 0x20,
+                   0xB1, 0x20, 0x91, 0x20, 0xC8, 0xD0, 0xF9,
+                   0xE6, 0x21, 0xD0, 0xF5, 0xC6, 0x01]
+        if _match(tail, romcopy) and tail + len(romcopy) == end:
+            return ('romcopy', port)
+        raise DigiOrganizerUnsupported(
+            f'core entry stub at ${ent:04X}: unclassified tail')
 
     # --- core-init TAIL byte (core+$7F): canon RTS; NOP / CLI variants
     # fall through into the $60 byte at core+$80. Post-timer, but it
@@ -501,21 +543,97 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
                           'tail_sei': tail_sei,
                           'gate_form': gate_form}
 
+    # class 'kernal_irq' (Second_Thoughts): core FIRST, then SEI, mask,
+    # ack, $D011, raster, the KERNAL $0314 vector (port stays $37 — the
+    # wrapper exits via JMP $EA31), D019/D01A=1, CLI RTS.
+    if driver is None:
+        pat_k = ([0x20, None, None, 0x78,
+                  0xA9, 0x7F, 0x8D, 0x0D, 0xDC, 0xAD, 0x0D, 0xDC,
+                  0xA9, None, 0x8D, 0x11, 0xD0,
+                  0xA9, None, 0x8D, 0x12, 0xD0,
+                  0xA9, None, 0x8D, 0x14, 0x03,
+                  0xA9, None, 0x8D, 0x15, 0x03,
+                  0xA9, 0x01, 0x8D, 0x19, 0xD0, 0x8D, 0x1A, 0xD0,
+                  0x58, 0x60])
+        wrap_k = [0xA9, 0x01, 0x8D, 0x19, 0xD0, 0x20, None, None,
+                  0x4C, 0x31, 0xEA]
+        if _match(iv, pat_k):
+            if img[iv + 1] | img[iv + 2] << 8 != core_base:
+                raise DigiOrganizerUnsupported('kernal_irq: JSR not core')
+            w = (img[iv + 23] | img[iv + 28] << 8) - load
+            if _match(w, wrap_k):
+                driver = 'kernal_irq'
+                dp = {'raster': img[iv + 18], 'd011': img[iv + 13]}
+
+    # class 'kernal_lock' (Digi-Zak_3): A=1 serves D01A/mask/raster(!),
+    # $D011, DEC-ack, KERNAL $0314 vector, JSR core, CLI, JMP-self;
+    # wrapper DEC-acks and exits via JMP $EA81.
+    if driver is None:
+        pat_l = [0x78, 0xA9, 0x01,
+                 0x8D, 0x1A, 0xD0, 0x8D, 0x0D, 0xDC, 0x8D, 0x12, 0xD0,
+                 0xA9, None, 0x8D, 0x11, 0xD0,
+                 0xCE, 0x19, 0xD0,
+                 0xA9, None, 0x8D, 0x14, 0x03,
+                 0xA9, None, 0x8D, 0x15, 0x03,
+                 0x20, None, None, 0x58, 0x4C]
+        wrap_l = [0xCE, 0x19, 0xD0, 0x20, None, None, 0x4C, 0x81, 0xEA]
+        if _match(iv, pat_l):
+            if img[iv + 31] | img[iv + 32] << 8 != core_base:
+                raise DigiOrganizerUnsupported('kernal_lock: JSR not core')
+            w = (img[iv + 21] | img[iv + 26] << 8) - load
+            if _match(w, wrap_l):
+                driver = 'kernal_lock'
+                dp = {'raster': 1, 'd011': img[iv + 13]}
+
+    # class 'arnie' (Arnie-Rap): SEI, mask, JSR sub {STA $DD0D(A=$7F),
+    # acks both CIAs, D019=1, JMP core — core RTSes back to the
+    # caller}, then port, vector hi-then-lo, DC0E=0, D01A/D019=1,
+    # raster, $D011, CLI RTS; wrap_inc wrapper.
+    if driver is None:
+        pat_r0 = [0x78, 0xA9, 0x7F, 0x8D, 0x0D, 0xDC, 0x20, None, None]
+        pat_sub = [0x8D, 0x0D, 0xDD, 0xAD, 0x0D, 0xDC, 0xAD, 0x0D, 0xDD,
+                   0xA9, 0x01, 0x8D, 0x19, 0xD0, 0x4C, None, None]
+        pat_r1 = [0xA9, 0x35, 0x85, 0x01,
+                  0xA9, None, 0x8D, 0xFF, 0xFF,
+                  0xA9, None, 0x8D, 0xFE, 0xFF,
+                  0xA9, 0x00, 0x8D, 0x0E, 0xDC,
+                  0xA9, 0x01, 0x8D, 0x1A, 0xD0, 0x8D, 0x19, 0xD0,
+                  0xA9, None, 0x8D, 0x12, 0xD0,
+                  0xA9, None, 0x8D, 0x11, 0xD0,
+                  0x58, 0x60]
+        if _match(iv, pat_r0):
+            sb = (img[iv + 7] | img[iv + 8] << 8) - load
+            if _match(sb, pat_sub) and \
+                    img[sb + 15] | img[sb + 16] << 8 == core_base and \
+                    _match(iv + 9, pat_r1):
+                w = (img[iv + 9 + 10] | img[iv + 9 + 5] << 8) - load
+                wrap_inc2 = [0x48, 0x8A, 0x48, 0x98, 0x48,
+                             0xEE, 0x19, 0xD0, 0x20, None, None,
+                             0xAD, 0x0D, 0xDC,
+                             0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40]
+                if _match(w, wrap_inc2):
+                    driver = 'arnie'
+                    dp = {'raster': img[iv + 9 + 28],
+                          'd011': img[iv + 9 + 33]}
+
     if driver is None:
         raise DigiOrganizerUnsupported(
             'driver shape matches no probed class (irq_vec / nmi_first '
             '/ xreg / bare_stub / jer_lock / sphere / earbleed / '
-            'poke_stub) — parametrize before accepting')
+            'poke_stub / kernal_irq / kernal_lock / arnie) — '
+            'parametrize before accepting')
 
     # Any class whose recorded entry is 'core' goes through the $9000
     # JMP (and may hit the port pre-init stub); a 'core40' entry
     # bypasses it, making the stub dead.
     enters_via_jmp = dp.get('core_entry', 'core') == 'core'
-    port_preinit = _probe_port_preinit() if enters_via_jmp else None
+    pre = _probe_port_preinit() if enters_via_jmp else None
+    preinit_form, port_preinit = pre if pre else (None, None)
 
     m = DigiOrganizerModel(
         sid_path=sid_path, load=load, meta=meta,
         driver=driver, driver_params=dp, port_preinit=port_preinit,
+        preinit_form=preinit_form, nmi_vec=nmi_vec,
         core_tail=core_tail,
         raster_line=dp.get('raster'), d011=dp.get('d011'),
         speed_reload=speed_reload, speed_init=speed_init,
@@ -536,11 +654,12 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
     else:
         raise DigiOrganizerUnsupported('orderlist has no terminator')
 
-    # --- patterns (32 rows, $FF-truncated) ---
+    # --- patterns (32 rows, $FF-truncated; a slot past the image end
+    # is PLAYED ENVIRONMENT, C29 — served CPU-eye like the PCM) ---
     for pat, _rep in m.orderlist:
         if pat in m.patterns:
             continue
-        raw = rd((pat_page << 8) + pat * 32, 32)
+        raw = _read_pcm(sid_path, load, img, (pat_page << 8) + pat * 32, 32)
         rows = []
         for b in raw:
             if b == 0xFF:

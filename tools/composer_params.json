@@ -400,6 +400,14 @@
     "digi_driver_wrap_nops": {
       "category": "temporal-dispatch",
       "licensed_by": "digi proposal \u2014 driver class sub-shape (cycle skeleton); bare_stub: 3 NOPs inserted after the tick JSR"
+    },
+    "digi_preinit_form": {
+      "category": "environment",
+      "licensed_by": "digi proposal \u2014 core-entry stub form (jmp | nopslide | romcopy KERNAL copy)"
+    },
+    "digi_nmi_vec": {
+      "category": "environment",
+      "licensed_by": "digi proposal \u2014 KERNAL-path core variant: NMI swap targets $0318/$0319 (probed, all 9 sites)"
     }
   }
 }
