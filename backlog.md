@@ -5,7 +5,7 @@
 # dozen measured-but-unfinished investigations. Moved to the repo root and
 # tracked for exactly that reason.
 #
-# NEXT_ITEM: 27   <- autoincrement: a NEW item takes this number, then bump it.
+# NEXT_ITEM: 28   <- autoincrement: a NEW item takes this number, then bump it.
 #
 # CONVENTIONS (owner-set 2026-08-28):
 #  - A done item is REMOVED COMPLETELY — no tombstone, no summary line. The
@@ -1298,3 +1298,64 @@
     That disk never advertised a count, so it likely mixed exclusive with
     pre-existing material — but those 8 are the only place unexplained content
     could sit.
+
+27. THE USF EDITOR — a realtime, USF-native music editor (owner's vision,
+    2026-08-29). ⚠⚠ PARKED HARD: post-Move-1 by nature (one interpreter wants
+    ONE set of semantics; today there are N family composers + params knobs).
+    Recorded now because the DESIGN back-propagates a preference into today's
+    work (see the last paragraph, which is live guidance, not parked).
+
+    THE VISION: load a .usf, hit play, see everything in realtime; "slow
+    play" at any rate including PAUSE-WITH-SUSTAIN (the moment keeps
+    sounding); instrument / wavetable / freq-table editors — a professional
+    sound editor contextualized to SID + USF.
+
+    WHY THIS PROJECT MAKES IT TRACTABLE (the parked design notes):
+    - No C64 needed: the whole project proves the music IS the $D400-$D418
+      write stream, fully determined by USF. Play = a USF INTERPRETER
+      emitting writes into a SID emulator (reSID->WASM; websid/jsSID prove
+      browser-rate 6581). The score interpreted directly, at any clock.
+    - Pause-with-sustain is PHYSICALLY REAL on a SID, and it is the
+      trichotomy's schedule/chip split made audible: freeze the sequencer
+      clock, keep clocking the chip — oscillators run, sustain holds, the
+      filter sits where the sweep left it. Any-rate play = scale the
+      player-tick : SID-cycle ratio (time-stretch with zero pitch change,
+      native). A third freeze depth falls out of our layering: hold the ROW
+      clock but keep the EFFECT clock (note holds, vibrato keeps wobbling).
+      Envelope time is chip time — "true" stretch wants an optional
+      envelope-rate scale; both are artistic tools, expose both.
+    - Total provenance for free: an interpreter over USF knows which entity
+      caused every write (orderlist entry -> row -> instrument -> table step
+      -> register) — playheads on the C1 sweep curves, wavetable cursors, a
+      raw register lane. A debugger for music; no SID tool has the abstract
+      layer to do it.
+    - Export is already solved AND verified: edit -> USF -> the real
+      composer -> a genuine .sid for real hardware. Demo: load Commando,
+      change a note, export a working C64 SID.
+    - Correctness reuses the oracle: for any UNEDITED usf the interpreter's
+      stream must equal the composer's rebuild (compare_instruction_stream)
+      — the editor engine is just another consumer gated by the verdict.
+      (After an edit there is no original; correctness becomes CONSUMER
+      EQUIVALENCE — interpreter == composer — a Move-1-era addendum to the
+      core tenet if the editor is ever built.)
+    - The editor is the HUMAN-facing form of the ML claim: every schema
+      field must surface as a comprehensible control; a field you cannot
+      build a sane widget for is a section-7/8 leak announcing itself. It is
+      also the natural curation surface for model-generated USFs.
+    - Honest costs: the interpreter must honor the reproduction tail
+      (off-table records, C29 environment serves, wedge knobs — shown as
+      read-only "authenticity" flags, some tunes "layout-locked"); the real
+      expense is UI, not audio (the schema IS the data model).
+
+    ⚑ LIVE GUIDANCE THAT IS *NOT* PARKED — the one thing this vision
+    back-propagates into current development (owner asked; analysis
+    2026-08-29): NO canon changes are required, but one TIEBREAKER is worth
+    honoring today: when a residue fix can carry either a FROZEN MEASURED
+    VALUE or the GENERATING RELATIONSHIP and both verify byte-identical,
+    prefer the relationship — a frozen snapshot of emergent state is
+    reproduction-only (undefined after any edit, unlearnable by the model),
+    while a relationship recomputes. The ledger has been drifting this way
+    on its own (C11's named-signal doctrine `own cursor + delta`, C1
+    deconstructions, C19's 33rd-occurrence rule); this names the drift.
+    Candidate one-line addition to the Principle's section-9 tests if the
+    owner wants it in canon — OWNER-GATED, not landed.
