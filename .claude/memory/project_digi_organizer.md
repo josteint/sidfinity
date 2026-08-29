@@ -5,10 +5,37 @@ metadata:
   node_type: memory
   type: project
   originSessionId: eeee45ad-d522-49c1-8391-1946b3565085
-  modified: 2026-08-29T19:12:03.891Z
+  modified: 2026-08-29T19:51:20.136Z
 ---
 
-## 2026-08-29 (later) — standalone batch: 21/39 FULL cycle-strict, 0 partial
+## 2026-08-29 (night) — driver-zoo round 2: 29/39 FULL, verdicts CURRENT
+
+**Status: 29 FULL / 2 partial / 8 unsupported of 39 standalone** (fresh
+batch, 0 regressions). Four more driver classes landed: `jer_lock`
+(Jer ×3, JMP-self lock, env-relative $D011 AND-writeback), `poke_stub`
+(Morton delayed ×4 — flag-gated wrapper + busy-wait start delay +
+RUNTIME SPEED POKE: the poked value IS the tempo, the image byte is
+only the first-row seed → typed `speed_ctr_init`; two gate forms
+cmp1/ackfirst_beq), `earbleed` (×2), plus `bare_stub` wrap-NOPs and
+`xreg` BIT-filler variants. TWO C40 refinements measured (recorded in
+the entry): PAGE-ALIGN emitted loops (a page-crossing taken branch =
++1 cyc/iteration — shifted a stream by exactly the 11 outer
+iterations), and the shifted-perfect-prefix diagnosis (first-tick
+phase slip; wall-frame burst indices, never compacted frame counts).
+
+RESIDUE (named): 6 driver singles (Damn_Fine songs-counter driver,
+Second_Thoughts JSR-core-first + $0314 vector, Arnie-Rap, Digi-Zak_3
+$0314 vector + JMP tail, Digibeatz ×2 speed-poke variants) · the
+SPHERE PAIR (Digi_Zak_1 partial / _2 refused on a garbage id-55 table
+row): perfect content prefix at EVERY horizon, whole stream lags one
+initial raster-IRQ phase slip vs the env $D012 latch neither side
+writes — first-tick phase, measured extensively, parked ·
+Digimix_2: a 152-page (38KB) blob exceeds the largest contiguous free
+region — check whether one used id's (s,e) is a garbage row first ·
+Trace_Loop: deep partial (77% prefix, equal totals) — ordinary
+first-divergence grind.
+
+## 2026-08-29 (later) — standalone batch: 21/39 FULL cycle-strict, 0 partial (superseded above)
 
 **Status: 21 FULL of the 39 standalone members (54%), 18 unsupported
 (unprobed driver shapes), 0 partial / 0 error** — every member that
