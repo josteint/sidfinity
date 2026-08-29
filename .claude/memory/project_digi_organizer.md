@@ -5,10 +5,30 @@ metadata:
   node_type: memory
   type: project
   originSessionId: eeee45ad-d522-49c1-8391-1946b3565085
-  modified: 2026-08-29T19:51:20.136Z
+  modified: 2026-08-29T20:05:08.446Z
 ---
 
-## 2026-08-29 (night) — driver-zoo round 2: 29/39 FULL, verdicts CURRENT
+## 2026-08-29 (late night) — round 3: 30/39 FULL, verdicts CURRENT
+
+**Status: 30 FULL / 4 partial / 5 unsupported of 39 standalone**
+(aa059cda; 0 regressions). New: `kernal_irq` / `kernal_lock` / `arnie`
+driver classes; the STUB-FORM registry (`jmp` | `nopslide` | `romcopy`
+— the KERNAL $E000-$FFFF copy-under-itself, ~131k pre-timer cycles);
+the **`digi_nmi_vec` CORE VARIANT** — KERNAL-path members (port $36)
+re-point ALL NINE NMI vector-swap operands at $0318/$0319 (the KERNAL
+NMI RAM vector); probe requires all-site consistency, composer
+substitutes globally. Patterns past image end served CPU-eye (C29).
+Digi-Zak_3 FULL first try.
+RESIDUE: partials Second_Thoughts (content-complete, +5-then-−1-cycle
+idle-phase) + Arnie-Rap (322/10081 fr) + Trace_Loop (1551/2028) +
+Digi_Zak_1 (first-tick phase slip, extensively measured);
+unsupported Damn_Fine (song-select head, decoded, needs emitter) +
+Digibeatz ×2 (D011=0 screen-off + busy-wait-raster wrapper + pre-init
+speed pokes, decoded, needs emitters) + Digimix_2 (152-page blob —
+suspect a garbage used-id (s,e) first) + Digi_Zak_2 (garbage id-55
+table row admitted by the extract — gate used ids on sanity).
+
+## 2026-08-29 (night) — driver-zoo round 2: 29/39 FULL, verdicts CURRENT (superseded above)
 
 **Status: 29 FULL / 2 partial / 8 unsupported of 39 standalone** (fresh
 batch, 0 regressions). Four more driver classes landed: `jer_lock`
