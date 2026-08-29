@@ -1507,9 +1507,18 @@
     CYCLE-STRICT** (4,249/4,249 frames, 535k writes @ 99 s) through the
     parametric composer — no registry row two. NB Digi-Organizer is 131
     carriers CORPUS-WIDE (51 beside Music_Assembler, 39 standalone) —
-    far bigger than the f2-adjacent 13. NEXT: driver parametrization →
-    the 39 standalone members; then paired members (C31-hetero + the
-    $D418-ownership split verdict); then Rayden_Digi (item 28).
+    far bigger than the f2-adjacent 13.
+    ✅ STANDALONE BATCH LANDED (2026-08-29 evening, f4dd2120): **21/39
+    FULL Mode-2 cycle-strict, 18 unsupported (unprobed driver shapes),
+    0 partial** — driver-class registry (irq_vec/nmi_first/xreg/
+    morton_stub) + 4 cycle levers (base latch = NMI grid origin, Morton
+    port pre-init, core-init tail, BIT filler) + C29 past-EOF PCM +
+    content-addressed overlap dedup. Store `digi_organizer` registered.
+    NEXT: (a) the 18 remaining driver shapes (one probe+emitter each,
+    listed in [[project_digi_organizer]]); (b) regression.py wiring +
+    mass-write at family closeout; (c) the 92 music-paired members
+    (C31-hetero + the $D418-ownership split verdict); (d) Rayden_Digi
+    (item 28) on the same schema.
 
     BUCKET B — per-subtune start divergences (the C31/C37 family, same as
     f1's bucket B): Andy/Jumping_Jack (6 subs m=1), Riot/Enzyme (subs 1-8
