@@ -534,6 +534,40 @@ exactly the §8 failure mode it was scoped to avoid.
 
 ## Move-1-era considerations (NOT before)
 
+### ✅ DECIDED (owner, 2026-08-29): the unified composer is a CODEC — option (b), self-describing tables
+
+Not a consideration, a standing DECISION for whoever designs the unified
+composer: its emitted data tables are a VERSIONED BINARY SERIALIZATION of
+canonical USF, and a static decoder (the inverse of the site map) recovers
+the canonical USF from the `.sid` alone — a byte-level isomorphism up to
+canonical form (the equivalence class `usf_spec_lint`'s round-trip +
+canonical-fixpoint invariants already define). Chosen over embedding a
+compressed USF copy in the file (option (a): lossless and self-verifying,
+but duplicates truth and costs C64 RAM since a PSID payload loads
+wholesale).
+
+What this binds and what it frees: the RUNTIME stays fully free (the Core
+Tenet's grant is untouched) — the DATA LAYOUT must stay decodable. No
+constant-folding musical content into unrecoverable code shapes unless the
+decode map covers the site. It is the DUAL of the principle's §8: §8 says
+the `.sid` may not contain MORE than the USF; this says it may not contain
+LESS. Together: the `.sid` IS the canonical USF in another encoding.
+
+Two consequences worth designing for on day one:
+- `decode(build(usf)) == canonical(usf)` as a corpus gate is a MECHANICAL
+  §8 / C7-class-A3 leak detector — any content flowing original → `.sid`
+  around the USF makes decode recover content the USF never had, a loud
+  automatic failure where today we rely on census and vigilance.
+- The decode map is "sidfinitid for our own player" for free, and the
+  editor (backlog item 27) gets its load-our-own-exports path from it.
+
+Origin: the USF-editor discussion (backlog 27, which holds the full
+analysis); the Principle's §9 relationship-over-frozen-measurement
+tiebreaker (landed the same day) points the same direction — measured
+values survive the isomorphism, derived-and-discarded content is what
+breaks it.
+
+
 ### Dead-schema tails — pruning candidates (P5 census, 2026-08-04)
 
 The full-corpus cardinality census (`tools/usf_principle_lint.py --full`,

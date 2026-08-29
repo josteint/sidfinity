@@ -1387,7 +1387,9 @@
       information flowing orig -> .sid around the USF makes decode recover
       content the USF never had, an immediate loud failure. This is the
       strongest argument for the requirement beyond the editor itself.
-    - Two implementation shapes, decide at Move-1: (a) EMBED the
+    - ✅ DECIDED (owner, 2026-08-29): option (b) — recorded as a standing
+      Move-1 design decision in docs/the_move-1_plan.md ("the unified
+      composer is a CODEC"). The shapes, for the record: (a) EMBED the
       (compressed) canonical USF in the .sid with the self-check
       build(embedded) == surrounding bytes — trivially lossless,
       self-verifying (immunized against C20's fifth layer: artifact and
