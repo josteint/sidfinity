@@ -19,6 +19,7 @@ from src.usf.types import (
     FreqSlideConfig, IncBy2Config, SongEndConfig, InitBehaviorConfig,
     MasterVolConfig, SfxConfig, SweepEnvelope,
     MusicSubtune, DigiSubtune, SfxSubtune, DmcSfxSubtune,
+    DigiConfig, SampleInstrument, DIGI_TECHNIQUES,
     SfxEngine, SfxInstrument, SfxSong, SfxVoiceInit,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
     GlobalEvent, LiveSignal,
@@ -837,16 +838,21 @@ class _T(Transformer):
                 raise UsfParseError(f'global block for chip {chip} '
                                     'appears twice')
             globals_[chip] = evs
+        digi_voice = None
+        if rest and isinstance(rest[-1], tuple) \
+                and rest[-1][0] == '_digi_voice':
+            digi_voice = rest.pop()[1]
         voices = rest
         # Multi-SID validation: voices come in whole 3-voice CHIP BLOCKS
         # (chip of voice v = (v-1)//3 + 1), ascending. A multi-SID subtune
         # need not sound every chip — a dispatch wrapper may gate a chip's
         # player off for some subtunes — so the blocks present may start
         # above 1 and skip (a chip-2-only subtune is voices 4..6).
-        if not voices or len(voices) % 3:
+        if (not voices and digi_voice is None) or len(voices) % 3:
             raise UsfParseError(
                 f'music subtune has {len(voices)} voice blocks; '
-                'expected a multiple of 3 (one block per sounding chip)')
+                'expected a multiple of 3 (one block per sounding chip), '
+                'or none with a digi_voice (a pure sample-channel tune)')
         ids = [v.id for v in voices]
         blocks = sorted({(i - 1) // 3 for i in ids})
         if ids != sorted(ids) or len(blocks) != len(voices) // 3 or \
@@ -854,13 +860,14 @@ class _T(Transformer):
             raise UsfParseError(
                 'voice blocks must be whole ascending 3-voice chip blocks '
                 f'(1-3, 4-6, 7-9), got {ids}')
-        n_chips = blocks[-1] + 1
+        n_chips = blocks[-1] + 1 if blocks else 0
         for chip in list(tempos) + list(globals_):
             if chip > n_chips:
                 raise UsfParseError(
                     f'chip {chip} referenced but subtune has only '
                     f'{n_chips * 3} voices')
         return ('music', {'tempo': tempo, 'voices': voices,
+                          'digi_voice': digi_voice,
                           'params': params, 'init': init,
                           'is_sfx': is_sfx, 'origin_engine': origin_engine,
                           'freq_table': sub_freq, 'default_filter': sub_dfilt,
@@ -874,6 +881,51 @@ class _T(Transformer):
 
     def digi_body(self, items):
         return ('digi', {'sample': str(items[0])})
+
+    # ----- digi parametrization (tune-level `digi {}` block) -----
+    def digi_technique(self, items):
+        return ('technique', str(items[0]))
+
+    def digi_idle_level(self, items):
+        return ('idle_level', int(items[0]))
+
+    def digi_or_mask(self, items):
+        return ('or_mask', int(items[0]))
+
+    def digi_config_block(self, items):
+        d = dict(items)
+        tech = d.get('technique')
+        if tech not in DIGI_TECHNIQUES:
+            raise UsfParseError(
+                f'digi technique must be one of {DIGI_TECHNIQUES}, '
+                f'got {tech!r}')
+        return ('digi_config', DigiConfig(
+            technique=tech,
+            idle_level=d.get('idle_level', 0),
+            or_mask=d.get('or_mask', 0)))
+
+    # ----- sample instruments -----
+    def si_sample(self, items):
+        return ('sample', str(items[0]))
+
+    def si_rate(self, items):
+        return ('rate_cycles', int(items[0]))
+
+    def sample_instrument_block(self, items):
+        si_id = int(items[0])
+        d = dict(items[1:])
+        if 'sample' not in d or 'rate_cycles' not in d:
+            raise UsfParseError(
+                f'sample_instrument {si_id}: needs sample + rate_cycles')
+        return SampleInstrument(id=si_id, sample=d['sample'],
+                                rate_cycles=d['rate_cycles'])
+
+    # ----- digi voice (the sample channel inside a music subtune) -----
+    def digi_voice_block(self, items):
+        orderlist = items[0]
+        patterns = list(items[1:])
+        return ('_digi_voice',
+                VoiceBlock(id=0, orderlist=orderlist, patterns=patterns))
 
     # ----- sfx body -----
     def sfx_v1(self, items):
@@ -960,6 +1012,7 @@ class _T(Transformer):
             return MusicSubtune(
                 id=sub_id, tempo=body_data['tempo'],
                 voices=body_data['voices'],
+                digi_voice=body_data.get('digi_voice'),
                 params=body_data.get('params'),
                 init=body_data.get('init'),
                 is_sfx=body_data.get('is_sfx', False),
@@ -1283,6 +1336,9 @@ class _T(Transformer):
 
     def fx_named(self, items):
         return f'fx:{items[0]}'
+
+    def fx_rate(self, items):
+        return f'rate=${int(items[0]):04X}'
 
     def fx_glide(self, items):
         return f'glide={int(items[0])}'
@@ -1686,6 +1742,8 @@ class _T(Transformer):
         environment = None
         offtable_vibdepth = []
         wave_table = None
+        digi = None
+        sample_instruments = []
         seen_blocks = set()
         for it in items:
             if isinstance(it, tuple):
@@ -1737,6 +1795,10 @@ class _T(Transformer):
                     environment = v
                 elif k == 'wave_table':
                     wave_table = v
+                elif k == 'digi_config':
+                    digi = v
+            elif isinstance(it, SampleInstrument):
+                sample_instruments.append(it)
             elif isinstance(it, PsidMeta):
                 psid = it
             elif isinstance(it, Params):
@@ -1762,7 +1824,8 @@ class _T(Transformer):
             wave_programs=wave_programs, offtable_vibdepth=offtable_vibdepth,
             wave_table=wave_table,
             default_filter=default_filter, default_pulse=default_pulse,
-            dmc_sfx=dmc_sfx)
+            dmc_sfx=dmc_sfx, digi=digi,
+            sample_instruments=sample_instruments)
 
 
 # ---------------------------------------------------------------------------

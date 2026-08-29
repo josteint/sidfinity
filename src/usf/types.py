@@ -404,6 +404,13 @@ class MusicSubtune:
     # the ORDERLIST already states, so the composer derives the moment from
     # the orderlist structure instead of storing the sentinel.
     song_restart_gap: Optional[int] = None
+    # The digi (sample) channel — a 4th scored voice beside the SID
+    # voices (owner-approved 2026-08-29, docs/digi_parametrization_
+    # proposal.md). Reuses the VoiceBlock/Pattern/NoteRow machinery:
+    # rows trigger SampleInstruments (instr refs into the tune's
+    # sample_instruments pool); id=0 marks the digi voice. None = no
+    # digi channel (almost all subtunes).
+    digi_voice: Optional['VoiceBlock'] = None
     kind: str = 'music'
 
 
@@ -413,6 +420,51 @@ class DigiSubtune:
     id: int
     sample: str          # filename, relative to the .usf file
     kind: str = 'digi'
+
+
+# The digi playback techniques — a small MUSICAL enum (each value is a
+# physically different synthesis route on the chip), never an engine id.
+DIGI_TECHNIQUES = ('wavetoggle_1bit', 'volume_4bit')
+
+
+@dataclass
+class DigiConfig:
+    """Tune-level digi (sample-channel) playback parametrization.
+
+    The parametric form the item-5 tripwire demanded of the second digi
+    engine (owner-approved 2026-08-29): the composer SYNTHESIZES a digi
+    player from `technique` + the digi voice's score — no registry
+    lookup, no per-engine emitter (principle §8).
+
+      technique   — how sample values become sound:
+                    'wavetoggle_1bit' (waveform gate toggling, Chimera
+                    family) | 'volume_4bit' (4-bit values to the $D418
+                    volume register: Rayden_Digi, Digi-Organizer).
+      idle_level  — the value written when a sample ends (rest level;
+                    Rayden V1 writes $0A).
+      or_mask     — bits held high on every sample write (e.g. the
+                    filter-mode bit Digi-Organizer keeps asserted, $10).
+    """
+    technique: str
+    idle_level: int = 0
+    or_mask: int = 0
+
+
+@dataclass
+class SampleInstrument:
+    """A sample 'timbre' the digi voice's rows trigger.
+
+    `sample` — the PCM sidecar FLAC (ledger C7 category C: the bytes
+    ARE the natural musical form), relative to the .usf file.
+    `rate_cycles` — default playback rate as the integer CIA timer
+    latch (CPU cycles per sample step; Hz = clock / rate_cycles). The
+    authored, exact, ordered quantity (principle §9 tiebreaker — the
+    engines' own tables state the latch; Hz is a derivation). A row
+    overrides per event with the `rate=$XXXX` fx flag.
+    """
+    id: int
+    sample: str
+    rate_cycles: int
 
 
 @dataclass
@@ -1499,6 +1551,14 @@ class UsfFile:
     # program; absent ⇒ the PW holds (the engine's null pos-0). One shared
     # program (pulse position 0) all voices index.
     default_pulse: Optional['SweepEnvelope'] = None
+    # Tune-level digi (sample-channel) parametrization — the item-5
+    # tripwire's `digi { technique, ... }` form (owner-approved
+    # 2026-08-29, docs/digi_parametrization_proposal.md). None = the
+    # tune has no digi channel.
+    digi: Optional['DigiConfig'] = None
+    # Sample-instrument pool the digi voice's rows trigger. Empty for
+    # tunes with no digi channel.
+    sample_instruments: list['SampleInstrument'] = field(default_factory=list)
     # Embedded dmc_sfx sub-player (a compact SFX sequencer packed into some DMC
     # compilations, e.g. Canyon_Tank_Duel). Carries the shared musical content
     # (filter LFO, arp table, tuning, instruments, songs, initial voice state)

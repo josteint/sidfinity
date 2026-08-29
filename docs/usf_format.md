@@ -94,6 +94,28 @@ is its work-file leftovers reads `voice 1 { note: 26  gate_mask: $FF }`,
 and an all-defaults voice is the bare `voice N { }` (kept so the
 voice stays in `init.voices` on parse).
 
+## The digi (sample) channel
+
+Owner-approved 2026-08-29 (design: `docs/digi_parametrization_proposal.md`;
+backlog item 5's tripwire). A tune with a sample channel carries:
+
+- a top-level `digi { technique: wavetoggle_1bit|volume_4bit,
+  idle_level: $XX, or_mask: $XX }` block — the parametric playback
+  form. The composer SYNTHESIZES the digi player from it; there is no
+  engine registry (`digi_player` in params is the legacy Chimera-only
+  scaffold, to be folded in at Move 1).
+- `sample_instrument N { sample: <file>.flac, rate_cycles: $XXXX }`
+  blocks after the instruments — the digi voice's timbres. The PCM is a
+  FLAC sidecar (same convention as digi subtunes); `rate_cycles` is the
+  integer CIA latch (cycles per sample step), the authored exact rate.
+- inside a music subtune, after the voice blocks, an optional
+  `digi_voice { orderlist: ... pattern N { ... } }` — the sample
+  channel's score, reusing the ordinary orderlist/pattern/row grammar.
+  Rows use `---` pitch + duration + `iN` sample-instrument refs; a
+  `rate=$XXXX` fx flag overrides the instrument's rate per event.
+  A subtune may have a digi_voice and NO SID voice blocks (a pure
+  sample tune — the standalone Digi-Organizer members).
+
 ## Multi-SID (2SID / 3SID) model
 
 A multi-SID tune is N independent single-chip tunes in one file:

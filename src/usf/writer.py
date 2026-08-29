@@ -830,6 +830,13 @@ def _write_subtune(s) -> list[str]:
             lines.append('  }')
         for v in s.voices:
             lines.extend(_write_voice(v))
+        if getattr(s, 'digi_voice', None) is not None:
+            dv = s.digi_voice
+            lines.append('  digi_voice {')
+            lines.append(f'    orderlist: {_write_orderlist(dv.orderlist)}')
+            for p in sorted(dv.patterns, key=lambda x: x.id):
+                lines.extend(_write_pattern(p))
+            lines.append('  }')
         # one global block per chip; chip 1 is always the bare form
         for chip, track in ((1, s.global_track),
                             (2, getattr(s, 'global_track2', [])),
@@ -1093,6 +1100,16 @@ def write(usf: UsfFile) -> str:
     if getattr(usf, 'dmc_sfx', None) is not None:
         lines.append('')
         lines.extend(_write_dmc_sfx(usf.dmc_sfx))
+    if getattr(usf, 'digi', None) is not None:
+        d = usf.digi
+        lines.append('')
+        lines.append('digi {  ; sample-channel parametrization')
+        lines.append(f'  technique: {d.technique}')
+        if d.idle_level:
+            lines.append(f'  idle_level: {_hex(d.idle_level)}')
+        if d.or_mask:
+            lines.append(f'  or_mask: {_hex(d.or_mask)}')
+        lines.append('}')
     for _kw, _env in (('default_filter', getattr(usf, 'default_filter', None)),
                       ('default_pulse', getattr(usf, 'default_pulse', None))):
         if _env is None:
@@ -1126,6 +1143,13 @@ def write(usf: UsfFile) -> str:
     for inst in sorted(usf.instruments, key=lambda x: x.id):
         lines.append('')
         lines.extend(_write_instrument(inst))
+    for si in sorted(getattr(usf, 'sample_instruments', []) or [],
+                     key=lambda x: x.id):
+        lines.append('')
+        lines.append(f'sample_instrument {si.id} {{')
+        lines.append(f'  sample: {si.sample}')
+        lines.append(f'  rate_cycles: {_hex(si.rate_cycles, 4)}')
+        lines.append('}')
     for sub in sorted(usf.subtunes, key=lambda x: x.id):
         lines.append('')
         lines.extend(_write_subtune(sub))

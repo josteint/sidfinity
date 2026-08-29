@@ -3,13 +3,28 @@
 // Lark grammar (LALR friendly). Whitespace and comments are ignored
 // between tokens. Top-level order is enforced by the start rule.
 
-start: psid_block params_block init_block top_block* instrument_block* subtune_block*
+start: psid_block params_block init_block top_block* instrument_block* sample_instrument_block* subtune_block*
 
 // Top-level optional blocks, grouped into ONE repeated rule (any order among
 // themselves; each at most once — the parser enforces once-ness) so the LALR
 // table stays small: a chain of N optionals blows up construction (the 11th
 // one pushed build time from seconds to minutes; this form is O(1) per block).
-top_block: environment_block | freq_table_block | offtable_vibdepth_block | state_layout_block | song_end_block | init_behavior_block | master_vol_block | sfx_block | dmc_sfx_block | default_filter_block | default_pulse_block | fc_aux_block | wave_table_block
+top_block: environment_block | freq_table_block | offtable_vibdepth_block | state_layout_block | song_end_block | init_behavior_block | master_vol_block | sfx_block | dmc_sfx_block | default_filter_block | default_pulse_block | fc_aux_block | wave_table_block | digi_config_block
+
+// ----- digi (sample-channel) parametrization -----
+// Owner-approved 2026-08-29 (docs/digi_parametrization_proposal.md).
+// `technique` is a small musical enum validated in the transformer
+// (CNAME here, not keyword terminals — the C33 grammar trap).
+digi_config_block: "digi" "{" digi_cfg_field+ "}"
+digi_cfg_field: "technique" ":" CNAME      -> digi_technique
+              | "idle_level" ":" byte      -> digi_idle_level
+              | "or_mask" ":" byte         -> digi_or_mask
+
+// Sample instruments — the digi voice's timbres. `rate_cycles` is the
+// integer CIA latch (cycles per sample step), the authored exact rate.
+sample_instrument_block: "sample_instrument" INT "{" si_field+ "}"
+si_field: "sample" ":" SAMPLE_PATH         -> si_sample
+        | "rate_cycles" ":" number         -> si_rate
 
 // ----- default (idle) filter / pulse sweeps (DMC V5) -----
 // The default cutoff / PW modulation the engine applies before/between explicit
@@ -643,7 +658,12 @@ dmcsfx_body: "song" ":" INT
 // calls and then starts again from the top, from silence, with instruments
 // and effects reset instead of carried over the wrap. Absent = the ordinary
 // seamless loop. Structural/musical, not a mechanism knob (see types.py).
-music_body: "tempo" ":" INT tempo_chip* origin_engine_field? is_sfx_field? restart_gap_field? params_block? init_block? sub_override* voice_block+ global_block*
+music_body: "tempo" ":" INT tempo_chip* origin_engine_field? is_sfx_field? restart_gap_field? params_block? init_block? sub_override* voice_block* digi_voice_block? global_block*
+
+// The digi (sample) channel — a 4th scored voice reusing the ordinary
+// orderlist/pattern/row machinery. Rows trigger sample_instruments;
+// per-event rate overrides ride the `rate=$XXXX` fx flag.
+digi_voice_block: "digi_voice" "{" "orderlist" ":" orderlist pattern_block* "}"
 // Per-subtune overrides of normally file-level content (a compilation whose
 // packed players tune differently / carry their own idle filter sweep).
 // Grouped into one repeated rule, like `top_block`, to keep the LALR table
@@ -764,6 +784,10 @@ fx_flag: "tie"                  -> fx_tie
        // DMC V5 gate-mask-toggle tie ($F4): hold current note one more
        // duration AND flip the gate bit (vs `tie` = plain hold $FE).
        | "gate_tie"             -> fx_gate_tie
+       // digi voice: per-event playback-rate override (CIA latch,
+       // cycles per sample step) — overrides the sample_instrument's
+       // default rate_cycles for this trigger.
+       | "rate" "=" number      -> fx_rate
        | "fx" ":" CNAME         -> fx_named
        // FC family musical attributes (new in v0). Glide = portamento
        // with an N-frame onset delay; wave_adjust = per-note wave-table
