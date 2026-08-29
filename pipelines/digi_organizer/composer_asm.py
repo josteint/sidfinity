@@ -67,8 +67,14 @@ def _score_tables(usf: UsfFile, usf_dir: str):
     regions = [[0x10, 0x90], [0xA0, 0xD0], [0xE0, 0xFF]]
     blob_pages = {}
     pcm_chunks = []
+    # decreasing-size placement (an 80-page blob must see the big
+    # region before smaller blobs fragment it)
+    sized = []
     for fname in sorted({si.sample for si in usf.sample_instruments}):
         smp = read_sample(os.path.join(usf_dir, fname))
+        sized.append((len(smp.audio), fname, smp))
+    placed = []  # (page, packed) for overlap dedup
+    for _sz, fname, smp in sorted(sized, key=lambda t: -t[0]):
         nib = [b >> 4 for b in smp.audio]
         if len(nib) % 2:
             nib.append(0)
@@ -77,6 +83,21 @@ def _score_tables(usf: UsfFile, usf_dir: str):
         if len(packed) % 256:
             packed += bytes(256 - len(packed) % 256)
         n_pages = len(packed) >> 8
+        # content-addressed overlap dedup: the original's sample table
+        # may carve overlapping ranges out of ONE recording — a blob
+        # whose bytes sit page-aligned inside an already-placed blob
+        # reuses that placement (byte-exact, no new memory).
+        reused = None
+        for bpage, bpacked in placed:
+            off = bpacked.find(packed)
+            while off != -1 and off % 256:
+                off = bpacked.find(packed, off + 1)
+            if off != -1:
+                reused = bpage + (off >> 8)
+                break
+        if reused is not None:
+            blob_pages[fname] = (reused, reused + n_pages)
+            continue
         for reg in regions:
             if reg[1] - reg[0] >= n_pages:
                 page = reg[0]
@@ -87,6 +108,7 @@ def _score_tables(usf: UsfFile, usf_dir: str):
                 f'PCM allocator: no region fits {n_pages} pages')
         blob_pages[fname] = (page, page + n_pages)
         pcm_chunks.append((page << 8, packed))
+        placed.append((page, packed))
 
     # --- sample table (id*4 entries: start, end, latch, pad) ---
     max_id = max(si.id for si in usf.sample_instruments)
@@ -189,6 +211,14 @@ def _emit_driver(p: dict, raster: int, d011: int) -> str:
                 '\tstx $d01a\n\tstx $d019\n'
                 '\tcli\n\trts\n' + _WRAP_NOACK)
     if cls == 'xreg':
+        bit = '\tbit irq_wrapper\n' if p.get('digi_driver_bit') else ''
+        wrap = _WRAP_INC
+        if p.get('digi_driver_bit'):
+            wrap = _WRAP_INC.replace(
+                f'\tjsr ${CORE + 3:04X}\n',
+                f'\tbit irq_wrapper\n\tjsr ${CORE + 3:04X}\n')
+        entry = (CORE + 0x40 if p.get('digi_core_entry') == 'core40'
+                 else CORE)
         return ('driver_init:\n'
                 '\tsei\n'
                 '\tldx #$35\n\tstx $01\n'
@@ -200,8 +230,9 @@ def _emit_driver(p: dict, raster: int, d011: int) -> str:
                 f'\tlda #${d011:02X}\n\tsta $d011\n'
                 '\tlda #>irq_wrapper\n\tsta $ffff\n'
                 '\tlda #<irq_wrapper\n\tsta $fffe\n'
-                f'\tjsr ${CORE:04X}\n'
-                '\tcli\n\trts\n' + _WRAP_INC)
+                + bit +
+                f'\tjsr ${entry:04X}\n'
+                '\tcli\n\trts\n' + wrap)
     if cls == 'morton_stub':
         nop = '\tnop\n' if p.get('digi_driver_nop') else ''
         return ('driver_init:\n'

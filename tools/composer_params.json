@@ -368,6 +368,10 @@
     "digi_core_tail": {
       "category": "temporal-dispatch",
       "licensed_by": "digi proposal \u2014 core-init tail variant (idle-loop phase vs NMI grid = per-write latency under Mode-2)"
+    },
+    "digi_driver_bit": {
+      "category": "temporal-dispatch",
+      "licensed_by": "digi proposal \u2014 xreg driver BIT-abs filler (4 pre-core cycles = NMI phase)"
     }
   }
 }

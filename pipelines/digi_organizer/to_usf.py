@@ -114,6 +114,8 @@ def model_to_usf(m, usf_dir: str, basename: str) -> UsfFile:
                if m.port_preinit is not None else {}),
             **({'digi_core_tail': m.core_tail}
                if m.core_tail != 'rts' else {}),
+            **({'digi_driver_bit': True}
+               if m.driver_params.get('bit_pad') else {}),
         }),
         init=init,
         digi=DigiConfig(technique='volume_4bit', idle_level=None,

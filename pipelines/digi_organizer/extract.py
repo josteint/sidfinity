@@ -301,13 +301,26 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
         wrap_inc = [0x48, 0x8A, 0x48, 0x98, 0x48, 0xEE, 0x19, 0xD0,
                     0x20, None, None, 0xAD, 0x0D, 0xDC,
                     0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40]
-        if _match(iv, pat_c):
-            if img[iv + 49] | img[iv + 50] << 8 != core_base:
+        if _match(iv, pat_c[:-5]):
+            q = iv + len(pat_c) - 5          # after the vector stores
+            has_bit = img[q] == 0x2C
+            if has_bit:
+                q += 3                        # BIT abs filler (Xmas form)
+            if img[q] != 0x20 or img[q + 3:q + 5] != b'\x58\x60':
+                raise DigiOrganizerUnsupported('xreg: tail shape mismatch')
+            entry = img[q + 1] | img[q + 2] << 8
+            if entry == core_base:
+                core_entry = 'core'
+            elif entry == core_base + 0x40:
+                core_entry = 'core40'
+            else:
                 raise DigiOrganizerUnsupported('xreg: JSR is not core init')
             w = (img[iv + 44] | img[iv + 39] << 8) - load
-            if _match(w, wrap_inc):
+            wrap_inc_bit = wrap_inc[:8] + [0x2C, None, None] + wrap_inc[8:]
+            if _match(w, wrap_inc_bit if has_bit else wrap_inc):
                 driver = 'xreg'
-                dp = {'raster': img[iv + 6], 'd011': img[iv + 34]}
+                dp = {'raster': img[iv + 6], 'd011': img[iv + 34],
+                      'core_entry': core_entry, 'bit_pad': has_bit}
 
     # class 'morton_stub' (Morton_Adam ×7): LDA #0 JSR core JMP L;
     # L: [NOP] IRQ vector, mask $7F, enable raster, ack, CLI RTS. No
@@ -338,8 +351,10 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
             'driver shape matches no probed class (irq_vec / nmi_first '
             '/ xreg / morton_stub) — parametrize before accepting')
 
-    enters_via_jmp = (driver != 'nmi_first'
-                      or dp.get('core_entry') == 'core')
+    # Any class whose recorded entry is 'core' goes through the $9000
+    # JMP (and may hit the port pre-init stub); a 'core40' entry
+    # bypasses it, making the stub dead.
+    enters_via_jmp = dp.get('core_entry', 'core') == 'core'
     port_preinit = _probe_port_preinit() if enters_via_jmp else None
 
     m = DigiOrganizerModel(
