@@ -89,14 +89,32 @@ def model_to_usf(m, usf_dir: str, basename: str) -> UsfFile:
                       released=meta['released'],
                       start_song=meta['start_song'],
                       speed=meta['speed']),
-        # Temporal dispatch of the sequencer tick (raster IRQ line +
-        # the $D011 the driver programs — badline pattern = NMI-phase
-        # signal under Mode-2 verification). Params keys registered in
-        # tools/composer_params.json; NB the typed `environment` block
-        # is the sibling family — flagged in the digi proposal for the
-        # owner's eventual call rather than grown silently here.
-        params=Params(fields={'digi_tick_raster': m.raster_line,
-                              'digi_tick_d011': m.d011}),
+        # Temporal dispatch of the sequencer tick: the driver CLASS
+        # (cycle-shape the composer mirrors — the pre-core-init cycles
+        # set the CIA2-NMI phase) + raster line + $D011 (badline
+        # pattern = NMI-phase signal under Mode-2). Params keys
+        # registered in tools/composer_params.json; the typed
+        # `environment` block is the sibling family — flagged in the
+        # digi proposal for the owner rather than grown silently here.
+        # Defaults elided: sei=True, core_entry='core', nop=False.
+        params=Params(fields={
+            'digi_driver': m.driver,
+            **({'digi_tick_raster': m.raster_line}
+               if m.raster_line is not None else {}),
+            **({'digi_tick_d011': m.d011} if m.d011 is not None else {}),
+            **({'digi_driver_sei': False}
+               if m.driver_params.get('sei') is False else {}),
+            **({'digi_core_entry': 'core40'}
+               if m.driver_params.get('core_entry') == 'core40' else {}),
+            **({'digi_driver_nop': True}
+               if m.driver_params.get('nop') else {}),
+            **({'digi_base_latch': m.base_latch}
+               if m.base_latch != 0x70 else {}),
+            **({'digi_port_preinit': m.port_preinit}
+               if m.port_preinit is not None else {}),
+            **({'digi_core_tail': m.core_tail}
+               if m.core_tail != 'rts' else {}),
+        }),
         init=init,
         digi=DigiConfig(technique='volume_4bit', idle_level=None,
                         or_mask=m.or_mask),

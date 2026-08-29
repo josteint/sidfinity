@@ -104,6 +104,9 @@ STORES: dict[str, Store] = {
     # family without one is invisible rather than 0% (they were the last
     # `no_store` bucket in `route.py --gaps`). Its batch records each member
     # `unsupported: no_composer` until the composer is built.
+    'digi_organizer':  Store('digi_organizer',
+                             'tmp/digi_organizer_results.jsonl',
+                             engine='digi_organizer', id_key='path'),
     'dmc_v6':          Store('dmc_v6', 'tmp/dmc_v6_results.jsonl',
                              'dmc_v6', 'path'),
 }

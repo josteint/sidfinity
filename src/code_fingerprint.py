@@ -122,6 +122,9 @@ DEPS: dict[str, list[str]] = {
     'goattracker_v1': ['pipelines/goattracker/v1'] + _SHARED,
     'basic_program':  ['pipelines/basic_program'] + _SHARED,
     'music_assembler': ['pipelines/music_assembler'] + _SHARED,
+    'digi_organizer':  ['pipelines/digi_organizer',
+                        'pipelines/hubbard/sample.py',
+                        'pipelines/hubbard/flac_io.py'] + _SHARED,
 }
 
 # The consumer that STAMPS each engine's verdict rows. Everyone who computes a
@@ -138,6 +141,7 @@ BATCH_CONSUMER: dict[str, str] = {
     'goattracker_v1':  'goattracker_v1_family_batch',
     'basic_program':   'basic_program_batch',
     'music_assembler': 'masm_family_batch',
+    'digi_organizer':  'digi_organizer_family_batch',
 }
 
 # {engine: {consumer: [repo-relative files]}} — written by tools/derive_deps.py.

@@ -340,6 +340,34 @@
     "digi_tick_d011": {
       "category": "temporal-dispatch",
       "licensed_by": "digi parametrization proposal (owner-approved 2026-08-29); badline pattern = NMI-phase signal under Mode-2"
+    },
+    "digi_base_latch": {
+      "category": "temporal-dispatch",
+      "licensed_by": "digi proposal \u2014 pre-first-trigger CIA2 TA latch (NMI grid origin); probed core-init operand, default $70"
+    },
+    "digi_driver": {
+      "category": "temporal-dispatch",
+      "licensed_by": "digi proposal \u2014 driver CLASS cycle-shape (C13 registry); pre-core-init cycles set the NMI phase"
+    },
+    "digi_driver_sei": {
+      "category": "temporal-dispatch",
+      "licensed_by": "digi proposal \u2014 driver class sub-shape"
+    },
+    "digi_core_entry": {
+      "category": "temporal-dispatch",
+      "licensed_by": "digi proposal \u2014 driver class sub-shape"
+    },
+    "digi_driver_nop": {
+      "category": "temporal-dispatch",
+      "licensed_by": "digi proposal \u2014 driver class sub-shape"
+    },
+    "digi_port_preinit": {
+      "category": "environment",
+      "licensed_by": "digi proposal \u2014 Morton-variant core-entry port stub (probed; sets $01 the driver omits)"
+    },
+    "digi_core_tail": {
+      "category": "temporal-dispatch",
+      "licensed_by": "digi proposal \u2014 core-init tail variant (idle-loop phase vs NMI grid = per-write latency under Mode-2)"
     }
   }
 }

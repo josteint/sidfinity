@@ -58,6 +58,10 @@ _SUBP_RE = re.compile(r"\['params'\](?:\.get\(|\[)\s*'([a-z0-9_]+)'")
 # arrangement has to be declared instead of silently escaping again.
 _MODEL_MEDIATED = {
     'pipelines/dmc/v5/composer_v5.py': ['pipelines/dmc/v5/from_usf.py'],
+    # digi_organizer reads its keys through a local alias of
+    # usf.params.fields — _reader_keys sees the alias form.
+    'pipelines/digi_organizer/composer_asm.py':
+        ['pipelines/digi_organizer/composer_asm.py'],
 }
 
 

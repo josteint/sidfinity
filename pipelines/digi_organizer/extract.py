@@ -77,13 +77,17 @@ class DigiOrganizerModel:
     sid_path: str
     load: int
     meta: dict
-    raster_line: int           # driver's $D012 IRQ line
-    d011: int                  # driver's $D011 value
     speed_reload: int          # steady speed immediate (frames/row - 1)
     speed_init: int            # init-time counter seed ($908E byte)
     base_latch: int            # core-init CIA2 TA latch (lo byte)
     or_mask: int               # the handlers' ORA #imm operand
     d418_init: int             # value core init writes to $D418
+    driver: str = 'irq_vec'    # driver class (registry in extract_model)
+    driver_params: dict = field(default_factory=dict)
+    port_preinit: 'int | None' = None  # core-entry port stub value (Morton)
+    core_tail: str = 'rts'             # core-init tail: rts | nop_rts | cli_rts
+    raster_line: 'int | None' = None   # driver's $D012 IRQ line (None = env)
+    d011: 'int | None' = None          # driver's $D011 value (None = env)
     orderlist: list = field(default_factory=list)  # [(pat, repeat)]
     order_term: str = 'stop'   # 'stop' ($FE) | 'loop' ($FF, to pos 0)
     patterns: dict = field(default_factory=dict)   # id -> [row bytes], $FF-truncated
@@ -159,43 +163,190 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
         raise DigiOrganizerUnsupported('core init $D418 prime not found')
     d418_init = img[d4 + 1]
 
-    # --- the standalone DRIVER (init vector) — strict shape probe.
-    # The driver's timing (raster line, IRQ wrapper shape) is part of
-    # the cycle-strict stream; members whose driver differs from the
-    # probed canonical shape are REFUSED until parametrized (C13
-    # positive detection, never a silent default).
+    # --- the standalone DRIVER (init vector) — a CLASS REGISTRY of
+    # strict shape probes (C13 positive detection). The driver's cycle
+    # shape up to the core-init call sets the CIA2-NMI PHASE for the
+    # whole song, so each class is mirrored cycle-for-cycle by the
+    # composer; a member matching NO class is REFUSED (never defaulted).
+    core_base = load + tick - 0x87
     iv = meta['init'] - load
-    drv = [0x78, 0xA9, 0x35, 0x85, 0x01,        # SEI; port=$35
-           0xA9, None, 0x8D, 0xFE, 0xFF,        # IRQ vector lo
-           0xA9, None, 0x8D, 0xFF, 0xFF,        # IRQ vector hi
-           0xA9, 0x81, 0x8D, 0x0D, 0xDC,        # CIA1 int mask
-           0xAD, 0x0D, 0xDC,
-           0xA9, None, 0x8D, 0x12, 0xD0,        # raster line
-           0xA9, None, 0x8D, 0x11, 0xD0,        # $D011
-           0xA2, 0x00, 0x8E, 0x0E, 0xDC,
-           0xE8, 0x8E, 0x1A, 0xD0, 0x8E, 0x19, 0xD0,
-           0xA9, 0x00, 0x20, None, None,        # JSR core init
-           0x58, 0x60]
-    if not (0 <= iv <= len(img) - len(drv)) or any(
-            p is not None and img[iv + j] != p
-            for j, p in enumerate(drv)):
+
+    # --- core ENTRY stub: the $9000 JMP may route through a PORT
+    # PRE-INIT (`SEI / LDA #port / STA $01 / JMP core+$40`) — the
+    # Morton variant sets $01=$35 here because its driver never does;
+    # other members carry the stub unreached (editor leftover).
+    cb = core_base - load
+
+    def _probe_port_preinit():
+        # Only meaningful when a driver actually ENTERS via the $9000
+        # JMP — an unreached entry stub is editor leftover (Digitune's
+        # driver JSRs core+$40 directly past a stale stub).
+        ent = img[cb + 1] | img[cb + 2] << 8
+        if ent == core_base + 0x40:
+            return None
+        stub = [0x78, 0xA9, None, 0x85, 0x01,
+                0x4C, (core_base + 0x40) & 0xFF, (core_base + 0x40) >> 8]
+        so = ent - load
+        if not (0 <= so <= len(img) - len(stub)) or any(
+                q is not None and img[so + j] != q
+                for j, q in enumerate(stub)):
+            raise DigiOrganizerUnsupported(
+                f'core entry routes to ${ent:04X} — not core+$40 and '
+                'not the port pre-init stub')
+        return img[so + 2]
+
+    # --- core-init TAIL byte (core+$7F): canon RTS; NOP / CLI variants
+    # fall through into the $60 byte at core+$80. Post-timer, but it
+    # shifts the idle-loop phase against the NMI grid = a constant
+    # per-write latency delta under Mode-2 — mirror it exactly.
+    tail_b = img[cb + 0x7F]
+    if tail_b == 0x60:
+        core_tail = 'rts'
+    elif tail_b == 0xEA and img[cb + 0x80] == 0x60:
+        core_tail = 'nop_rts'
+    elif tail_b == 0x58 and img[cb + 0x80] == 0x60:
+        core_tail = 'cli_rts'
+    else:
         raise DigiOrganizerUnsupported(
-            'standalone driver shape mismatch (not the probed canonical '
-            'driver — parametrize before accepting)')
-    raster_line = img[iv + 24]
-    d011 = img[iv + 29]
-    wrapper = (img[iv + 6] | img[iv + 11] << 8) - load
-    wsig = [0x48, 0x8A, 0x48, 0x98, 0x48, 0x0E, 0x19, 0xD0,
-            0x20, None, None, 0xAD, 0x0D, 0xDC,
-            0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40]
-    if not (0 <= wrapper <= len(img) - len(wsig)) or any(
-            p is not None and img[wrapper + j] != p
-            for j, p in enumerate(wsig)):
-        raise DigiOrganizerUnsupported('IRQ wrapper shape mismatch')
+            f'core-init tail ${tail_b:02X} at core+$7F unclassified')
+
+    def _match(off, pat):
+        return (0 <= off <= len(img) - len(pat)) and all(
+            p is None or img[off + j] == p for j, p in enumerate(pat))
+
+    driver = None
+    dp = {}  # driver params
+
+    # class 'irq_vec' (Heavy-Beat / Suffer_the_Noise / TDU / Koester /
+    # Digi-Zak_4_Mix): SEI, port, IRQ vector, mask $81+ack, raster,
+    # $D011, stop TA, enable raster, JSR core, CLI RTS.
+    pat_a = [0x78, 0xA9, 0x35, 0x85, 0x01,
+             0xA9, None, 0x8D, 0xFE, 0xFF,
+             0xA9, None, 0x8D, 0xFF, 0xFF,
+             0xA9, 0x81, 0x8D, 0x0D, 0xDC,
+             0xAD, 0x0D, 0xDC,
+             0xA9, None, 0x8D, 0x12, 0xD0,
+             0xA9, None, 0x8D, 0x11, 0xD0,
+             0xA2, 0x00, 0x8E, 0x0E, 0xDC,
+             0xE8, 0x8E, 0x1A, 0xD0, 0x8E, 0x19, 0xD0,
+             0xA9, 0x00, 0x20, None, None,
+             0x58, 0x60]
+    wrap_ack = [0x48, 0x8A, 0x48, 0x98, 0x48, 0x0E, 0x19, 0xD0,
+                0x20, None, None, 0xAD, 0x0D, 0xDC,
+                0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40]
+    wrap_noack = [0x48, 0x8A, 0x48, 0x98, 0x48, 0x0E, 0x19, 0xD0,
+                  0x20, None, None,
+                  0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40]
+    if _match(iv, pat_a):
+        w = (img[iv + 6] | img[iv + 11] << 8) - load
+        if img[iv + 48] | img[iv + 49] << 8 != core_base:
+            raise DigiOrganizerUnsupported('irq_vec: JSR is not core init')
+        if _match(w, wrap_ack):
+            driver = 'irq_vec'
+            dp = {'raster': img[iv + 24], 'd011': img[iv + 29]}
+
+    # class 'nmi_first' (Digitune / N_H_Digi / Samples1 / Digi_Music_1 /
+    # Memomay / Lets_Do_It): [SEI] port, NMI vector pre-set, A=0 JSR
+    # core(+$40), IRQ vector, mask, ack, raster, $D011, X-form, CLI RTS.
+    if driver is None:
+        sei = img[iv:iv + 1] == b'\x78'
+        p0 = iv + (1 if sei else 0)
+        pat_b = [0xA9, 0x35, 0x85, 0x01,
+                 0xA9, None, 0x8D, 0xFB, 0xFF,
+                 0xA9, None, 0x8D, 0xFA, 0xFF,
+                 0xA9, 0x00, 0x20, None, None,
+                 0xA9, None, 0x8D, 0xFE, 0xFF,
+                 0xA9, None, 0x8D, 0xFF, 0xFF,
+                 0xA9, 0x81, 0x8D, 0x0D, 0xDC,
+                 0xAD, 0x0D, 0xDC,
+                 0xA9, None, 0x8D, 0x12, 0xD0,
+                 0xA9, None, 0x8D, 0x11, 0xD0,
+                 0xA2, 0x00, 0x8E, 0x0E, 0xDC,
+                 0xE8, 0x8E, 0x1A, 0xD0, 0x8E, 0x19, 0xD0,
+                 0x58, 0x60]
+        if _match(p0, pat_b):
+            entry = img[p0 + 17] | img[p0 + 18] << 8
+            if entry == core_base:
+                core_entry = 'core'
+            elif entry == core_base + 0x40:
+                core_entry = 'core40'
+            else:
+                raise DigiOrganizerUnsupported(
+                    'nmi_first: JSR is not core init')
+            # The NMI pre-set operands are DEAD (no NMI can fire before
+            # core init, which re-points the vector) — the composer
+            # emits its own idle label there; only the instruction
+            # shape matters for the cycle skeleton.
+            w = (img[p0 + 20] | img[p0 + 25] << 8) - load
+            if _match(w, wrap_noack):
+                driver = 'nmi_first'
+                dp = {'raster': img[p0 + 38], 'd011': img[p0 + 43],
+                      'sei': sei, 'core_entry': core_entry}
+
+    # class 'xreg' (Demi-Demo_4 / Simpsons / Xmas_Chortles ×2): X-reg
+    # form; ONE immediate serves raster line + both CIA masks; STA
+    # $DC0E relies on A=0 (the RSID song number).
+    if driver is None:
+        pat_c = [0x78, 0xA2, 0x35, 0x86, 0x01,
+                 0xA2, None, 0x8E, 0x12, 0xD0,
+                 0x8E, 0x0D, 0xDC, 0x8E, 0x0D, 0xDD,
+                 0xAE, 0x0D, 0xDC, 0xAE, 0x0D, 0xDD,
+                 0xA2, 0x01, 0x8E, 0x19, 0xD0, 0x8E, 0x1A, 0xD0,
+                 0x8D, 0x0E, 0xDC,
+                 0xA9, None, 0x8D, 0x11, 0xD0,
+                 0xA9, None, 0x8D, 0xFF, 0xFF,
+                 0xA9, None, 0x8D, 0xFE, 0xFF,
+                 0x20, None, None,
+                 0x58, 0x60]
+        wrap_inc = [0x48, 0x8A, 0x48, 0x98, 0x48, 0xEE, 0x19, 0xD0,
+                    0x20, None, None, 0xAD, 0x0D, 0xDC,
+                    0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40]
+        if _match(iv, pat_c):
+            if img[iv + 49] | img[iv + 50] << 8 != core_base:
+                raise DigiOrganizerUnsupported('xreg: JSR is not core init')
+            w = (img[iv + 44] | img[iv + 39] << 8) - load
+            if _match(w, wrap_inc):
+                driver = 'xreg'
+                dp = {'raster': img[iv + 6], 'd011': img[iv + 34]}
+
+    # class 'morton_stub' (Morton_Adam ×7): LDA #0 JSR core JMP L;
+    # L: [NOP] IRQ vector, mask $7F, enable raster, ack, CLI RTS. No
+    # port / raster-line / $D011 writes — the environment's defaults
+    # serve, and they cancel between orig and rebuild by construction.
+    if driver is None:
+        pat_d0 = [0xA9, 0x00, 0x20, None, None, 0x4C, None, None]
+        if _match(iv, pat_d0):
+            if img[iv + 3] | img[iv + 4] << 8 != core_base:
+                raise DigiOrganizerUnsupported(
+                    'morton_stub: JSR is not core init')
+            t = (img[iv + 6] | img[iv + 7] << 8) - load
+            nop = img[t:t + 1] == b'\xEA'
+            p1 = t + (1 if nop else 0)
+            pat_d1 = [0xA9, None, 0x8D, 0xFE, 0xFF,
+                      0xA9, None, 0x8D, 0xFF, 0xFF,
+                      0xA9, 0x7F, 0x8D, 0x0D, 0xDC,
+                      0xA9, 0x01, 0x8D, 0x1A, 0xD0,
+                      0xAD, 0x0D, 0xDC, 0x58, 0x60]
+            if _match(p1, pat_d1):
+                w = (img[p1 + 1] | img[p1 + 6] << 8) - load
+                if _match(w, wrap_ack):
+                    driver = 'morton_stub'
+                    dp = {'nop': nop}
+
+    if driver is None:
+        raise DigiOrganizerUnsupported(
+            'driver shape matches no probed class (irq_vec / nmi_first '
+            '/ xreg / morton_stub) — parametrize before accepting')
+
+    enters_via_jmp = (driver != 'nmi_first'
+                      or dp.get('core_entry') == 'core')
+    port_preinit = _probe_port_preinit() if enters_via_jmp else None
 
     m = DigiOrganizerModel(
         sid_path=sid_path, load=load, meta=meta,
-        raster_line=raster_line, d011=d011,
+        driver=driver, driver_params=dp, port_preinit=port_preinit,
+        core_tail=core_tail,
+        raster_line=dp.get('raster'), d011=dp.get('d011'),
         speed_reload=speed_reload, speed_init=speed_init,
         base_latch=base_latch, or_mask=or_mask, d418_init=d418_init)
 
@@ -235,10 +386,43 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
         m.samples[sid_] = (s, e, latch)
         key = (s, e)
         if key not in m.pcm:
-            data = rd(s << 8, (e - s) << 8)
+            data = _read_pcm(sid_path, load, img, s << 8, (e - s) << 8)
             nib = []
             for byte in data:
                 nib.append(byte >> 4)
                 nib.append(byte & 0x0F)
             m.pcm[key] = nib
     return m
+
+
+def _read_pcm(sid_path, load, img, addr, n):
+    """Sample bytes; a range past the image end is PLAYED ENVIRONMENT
+    RAM (ledger C29) — serve those bytes CPU-EYE via `siddump
+    --peek-post-init` (libsidplayfp ground truth, never py65/zeros)."""
+    end_img = load + len(img)
+    in_img = img[addr - load:min(addr + n, end_img) - load] \
+        if addr < end_img else b''
+    missing = n - len(in_img)
+    if missing <= 0:
+        return in_img
+    lo = addr + len(in_img)
+    hi = lo + missing - 1
+    if hi > 0xFFFF:
+        raise DigiOrganizerUnsupported(
+            f'sample range ${addr:04X}+{n} wraps past $FFFF')
+    import subprocess
+    r = subprocess.run(
+        ['siddump', sid_path, '--force-rsid', '--duration', '0',
+         '--peek-post-init', f'{lo:X}-{hi:X}'],
+        capture_output=True, text=True)
+    got = {}
+    for line in r.stdout.splitlines():
+        if line.startswith('PEEK:'):
+            for kv in line[5:].strip().split(','):
+                k, v = kv.split('=')
+                got[int(k, 16)] = int(v, 16)
+    if len(got) >= missing:
+        tail = bytes(got[a] for a in range(lo, hi + 1))
+        return in_img + tail
+    raise DigiOrganizerUnsupported(
+        f'peek-post-init failed for ${lo:04X}-${hi:04X}')

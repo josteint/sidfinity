@@ -58,11 +58,15 @@ def _score_tables(usf: UsfFile, usf_dir: str):
     if dv is None:
         raise DigiComposeError('subtune has no digi_voice')
 
-    # --- PCM blobs: FLAC sidecar → nibble stream → packed bytes,
-    # placed page-aligned from PCM_BASE in filename order.
+    # --- PCM blobs: FLAC sidecar → nibble stream → packed bytes.
+    # Page-aligned first-fit over the FREE regions: below the player
+    # ($1000-$8FFF), then $A000-$CFFF (NOT $D000+ — port=$35 maps I/O
+    # there), then under the KERNAL ($E000-$FEFF; the NMI vector at
+    # $FFFA bounds it). Absolute reads cost 4 cycles anywhere, so
+    # placement is pure layout.
+    regions = [[0x10, 0x90], [0xA0, 0xD0], [0xE0, 0xFF]]
     blob_pages = {}
     pcm_chunks = []
-    page = PCM_BASE >> 8
     for fname in sorted({si.sample for si in usf.sample_instruments}):
         smp = read_sample(os.path.join(usf_dir, fname))
         nib = [b >> 4 for b in smp.audio]
@@ -73,9 +77,16 @@ def _score_tables(usf: UsfFile, usf_dir: str):
         if len(packed) % 256:
             packed += bytes(256 - len(packed) % 256)
         n_pages = len(packed) >> 8
+        for reg in regions:
+            if reg[1] - reg[0] >= n_pages:
+                page = reg[0]
+                reg[0] += n_pages
+                break
+        else:
+            raise DigiComposeError(
+                f'PCM allocator: no region fits {n_pages} pages')
         blob_pages[fname] = (page, page + n_pages)
         pcm_chunks.append((page << 8, packed))
-        page += n_pages
 
     # --- sample table (id*4 entries: start, end, latch, pad) ---
     max_id = max(si.id for si in usf.sample_instruments)
@@ -120,6 +131,93 @@ def _score_tables(usf: UsfFile, usf_dir: str):
     return entries, patmem, smptab, pcm_chunks
 
 
+_WRAP_ACK = ('irq_wrapper:\n'
+             '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
+             '\tasl $d019\n'
+             f'\tjsr ${CORE + 3:04X}\n'
+             '\tlda $dc0d\n'
+             '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
+
+_WRAP_NOACK = ('irq_wrapper:\n'
+               '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
+               '\tasl $d019\n'
+               f'\tjsr ${CORE + 3:04X}\n'
+               '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
+
+_WRAP_INC = ('irq_wrapper:\n'
+             '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
+             '\tinc $d019\n'
+             f'\tjsr ${CORE + 3:04X}\n'
+             '\tlda $dc0d\n'
+             '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
+
+
+def _emit_driver(p: dict, raster: int, d011: int) -> str:
+    """The standalone driver, mirrored per CLASS (extract's registry).
+    Instruction shapes = the cycle skeleton; operands are ours."""
+    cls = p.get('digi_driver', 'irq_vec')
+    if cls == 'irq_vec':
+        return ('driver_init:\n'
+                '\tsei\n'
+                '\tlda #$35\n\tsta $01\n'
+                '\tlda #<irq_wrapper\n\tsta $fffe\n'
+                '\tlda #>irq_wrapper\n\tsta $ffff\n'
+                '\tlda #$81\n\tsta $dc0d\n\tlda $dc0d\n'
+                f'\tlda #${raster:02X}\n\tsta $d012\n'
+                f'\tlda #${d011:02X}\n\tsta $d011\n'
+                '\tldx #$00\n\tstx $dc0e\n\tinx\n'
+                '\tstx $d01a\n\tstx $d019\n'
+                '\tlda #$00\n'
+                f'\tjsr ${CORE:04X}\n'
+                '\tcli\n\trts\n' + _WRAP_ACK)
+    if cls == 'nmi_first':
+        sei = '\tsei\n' if p.get('digi_driver_sei', True) else ''
+        entry = (CORE + 0x40 if p.get('digi_core_entry') == 'core40'
+                 else CORE)
+        return ('driver_init:\n' + sei +
+                '\tlda #$35\n\tsta $01\n'
+                '\tlda #>idle_nmi\n\tsta $fffb\n'
+                '\tlda #<idle_nmi\n\tsta $fffa\n'
+                '\tlda #$00\n'
+                f'\tjsr ${entry:04X}\n'
+                '\tlda #<irq_wrapper\n\tsta $fffe\n'
+                '\tlda #>irq_wrapper\n\tsta $ffff\n'
+                '\tlda #$81\n\tsta $dc0d\n\tlda $dc0d\n'
+                f'\tlda #${raster:02X}\n\tsta $d012\n'
+                f'\tlda #${d011:02X}\n\tsta $d011\n'
+                '\tldx #$00\n\tstx $dc0e\n\tinx\n'
+                '\tstx $d01a\n\tstx $d019\n'
+                '\tcli\n\trts\n' + _WRAP_NOACK)
+    if cls == 'xreg':
+        return ('driver_init:\n'
+                '\tsei\n'
+                '\tldx #$35\n\tstx $01\n'
+                f'\tldx #${raster:02X}\n\tstx $d012\n'
+                '\tstx $dc0d\n\tstx $dd0d\n'
+                '\tldx $dc0d\n\tldx $dd0d\n'
+                '\tldx #$01\n\tstx $d019\n\tstx $d01a\n'
+                '\tsta $dc0e\n'
+                f'\tlda #${d011:02X}\n\tsta $d011\n'
+                '\tlda #>irq_wrapper\n\tsta $ffff\n'
+                '\tlda #<irq_wrapper\n\tsta $fffe\n'
+                f'\tjsr ${CORE:04X}\n'
+                '\tcli\n\trts\n' + _WRAP_INC)
+    if cls == 'morton_stub':
+        nop = '\tnop\n' if p.get('digi_driver_nop') else ''
+        return ('driver_init:\n'
+                '\tlda #$00\n'
+                f'\tjsr ${CORE:04X}\n'
+                '\tjmp drv_l\n'
+                'drv_l:\n' + nop +
+                '\tlda #<irq_wrapper\n\tsta $fffe\n'
+                '\tlda #>irq_wrapper\n\tsta $ffff\n'
+                '\tlda #$7f\n\tsta $dc0d\n'
+                '\tlda #$01\n\tsta $d01a\n'
+                '\tlda $dc0d\n'
+                '\tcli\n\trts\n' + _WRAP_ACK)
+    raise DigiComposeError(f'unknown digi_driver class {cls!r}')
+
+
 def compose_asm(usf: UsfFile, usf_dir: str) -> str:
     d = usf.digi
     if d is None or d.technique != 'volume_4bit':
@@ -138,15 +236,27 @@ def compose_asm(usf: UsfFile, usf_dir: str) -> str:
     p = usf.params.fields if usf.params else {}
     raster = int(p.get('digi_tick_raster', 0x81))
     d011 = int(p.get('digi_tick_d011', 0x1B))
-    base_latch = min((si.rate_cycles for si in usf.sample_instruments),
-                     default=0x70)
+    base_latch = int(p.get('digi_base_latch', 0x70))
 
     entries, patmem, smptab, pcm_chunks = _score_tables(usf, usf_dir)
 
+    port_preinit = p.get('digi_port_preinit')
     a = []
-    a.append(f'* = ${CORE:04X}\n'
-             '\tjmp core_init\n'
-             '\tjmp seq_tick\n')
+    if port_preinit is None:
+        a.append('\tjmp core_init\n'
+                 '\tjmp seq_tick\n')
+    else:
+        # Morton-variant port pre-init: the core entry routes through
+        # `SEI / LDA #port / STA $01 / JMP core_init` (cycle-identical
+        # to the original's stub at core+$26).
+        a.append('\tjmp port_stub\n'
+                 '\tjmp seq_tick\n'
+                 f'\t.dsb ${CORE + 0x26:04X} - *, 0\n'
+                 'port_stub:\n'
+                 '\tsei\n'
+                 f'\tlda #${port_preinit:02X}\n'
+                 '\tsta $01\n'
+                 '\tjmp core_init\n')
     # --- core init (canonical $9040) ---
     a.append(f'\t.dsb ${CORE + 0x40:04X} - *, 0\n'
              'core_init:\n'
@@ -174,7 +284,10 @@ def compose_asm(usf: UsfFile, usf_dir: str) -> str:
              f'\tsta ${STATE_ORDPOS:04X}\n'
              f'\tsta ${STATE_ROWPOS:04X}\n'
              '\tjsr speed_init\n'
-             '\trts\n')
+             + {'rts': '\trts\n',
+                'nop_rts': '\tnop\n\t.byt $60\n',
+                'cli_rts': '\tcli\n\t.byt $60\n'}[
+                   p.get('digi_core_tail', 'rts')])
     # --- sequencer tick (canonical $9087; the LDA #speed operand is
     # the one engine speed byte, read back by speed_init) ---
     a.append(f'\t.dsb ${CORE + 0x87:04X} - *, 0\n'
@@ -370,70 +483,43 @@ def compose_asm(usf: UsfFile, usf_dir: str) -> str:
     # idle_scr = the idle handler's LDA #imm operand (mirrors the
     # original's self-scribble; the value is never read).
     a.append(f'idle_scr = ${CORE + 0x15E:04X}\n')
-    # --- data ---
-    a.append(f'\t.dsb ${ORDERLIST:04X} - *, 0\n' + _byt('orderlist', entries))
-    a.append(f'\t.dsb ${SMPTAB:04X} - *, 0\n' + _byt('smptab', smptab))
-    # --- driver (canonical $9340) ---
-    a.append(f'\t.dsb ${DRIVER:04X} - *, 0\n'
-             'driver_init:\n'
-             '\tsei\n'
-             '\tlda #$35\n'
-             '\tsta $01\n'
-             '\tlda #<irq_wrapper\n'
-             '\tsta $fffe\n'
-             '\tlda #>irq_wrapper\n'
-             '\tsta $ffff\n'
-             '\tlda #$81\n'
-             '\tsta $dc0d\n'
-             '\tlda $dc0d\n'
-             f'\tlda #${raster:02X}\n'
-             '\tsta $d012\n'
-             f'\tlda #${d011:02X}\n'
-             '\tsta $d011\n'
-             '\tldx #$00\n'
-             '\tstx $dc0e\n'
-             '\tinx\n'
-             '\tstx $d01a\n'
-             '\tstx $d019\n'
-             '\tlda #$00\n'
-             f'\tjsr ${CORE:04X}\n'
-             '\tcli\n'
-             '\trts\n'
-             'irq_wrapper:\n'
-             '\tpha\n'
-             '\ttxa\n'
-             '\tpha\n'
-             '\ttya\n'
-             '\tpha\n'
-             '\tasl $d019\n'
-             f'\tjsr ${CORE + 3:04X}\n'
-             '\tlda $dc0d\n'
-             '\tpla\n'
-             '\ttay\n'
-             '\tpla\n'
-             '\ttax\n'
-             '\tpla\n'
-             '\trti\n')
-    a.append(f'\t.dsb ${PATTERNS:04X} - *, 0\n' + _byt('patterns', patmem))
-    # --- PCM ---
+    # --- data + driver as address-sorted SEGMENTS (PCM may sit below
+    # the player; the driver floats after the patterns) ---
+    if len(smptab) > PATTERNS - SMPTAB:
+        raise DigiComposeError('sample table overruns the pattern area')
+    driver_addr = PATTERNS + len(patmem)
+    segs = [(SMPTAB, _byt('smptab', smptab)),
+            (ORDERLIST, _byt('orderlist', entries)),
+            (PATTERNS, _byt('patterns', patmem)),
+            (driver_addr, _emit_driver(p, raster, d011))]
     for addr, packed in pcm_chunks:
-        a.append(f'\t.dsb ${addr:04X} - *, 0\n' +
-                 _byt(f'pcm_{addr:04X}', packed))
-    return '\n'.join(a)
+        segs.append((addr, _byt(f'pcm_{addr:04X}', packed)))
+    core_text = '\n'.join(a)
+    segs.append((CORE, core_text))
+    segs.sort(key=lambda x: x[0])
+    out = [f'* = ${segs[0][0]:04X}\n']
+    for i, (addr, text) in enumerate(segs):
+        if i > 0:
+            out.append(f'\t.dsb ${addr:04X} - *, 0\n')
+        out.append(text)
+    return '\n'.join(out)
 
 
 def build_sid(usf_path: str, out_path: str) -> str:
     usf = usf_parser.parse_file(usf_path)
     usf_dir = os.path.dirname(usf_path) or '.'
-    blob = assemble(compose_asm(usf, usf_dir))
+    asm = compose_asm(usf, usf_dir)
+    blob, labels = assemble(asm, return_labels=True)
+    load = int(asm.split('=', 1)[1].split('\n', 1)[0].strip().
+               lstrip('$'), 16)
     h = bytearray(build_header(
-        load=0, init=DRIVER, play=0, songs=1,
+        load=0, init=labels['driver_init'], play=0, songs=1,
         start_song=usf.psid.start_song, speed=0,
         title=usf.psid.title, author=usf.psid.author,
         released=usf.psid.released))
     h[:4] = b'RSID'
     with open(out_path, 'wb') as f:
         f.write(h)
-        f.write(struct.pack('<H', CORE))
+        f.write(struct.pack('<H', load))
         f.write(blob)
     return out_path
