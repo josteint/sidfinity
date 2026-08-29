@@ -441,12 +441,14 @@ class DigiConfig:
                     family) | 'volume_4bit' (4-bit values to the $D418
                     volume register: Rayden_Digi, Digi-Organizer).
       idle_level  — the value written when a sample ends (rest level;
-                    Rayden V1 writes $0A).
+                    Rayden V1 writes $0A). None = NO write at sample end
+                    (Digi-Organizer: the volume holds the last nibble) —
+                    distinct from an explicit 0 write.
       or_mask     — bits held high on every sample write (e.g. the
                     filter-mode bit Digi-Organizer keeps asserted, $10).
     """
     technique: str
-    idle_level: int = 0
+    idle_level: Optional[int] = None
     or_mask: int = 0
 
 

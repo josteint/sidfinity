@@ -1105,7 +1105,7 @@ def write(usf: UsfFile) -> str:
         lines.append('')
         lines.append('digi {  ; sample-channel parametrization')
         lines.append(f'  technique: {d.technique}')
-        if d.idle_level:
+        if d.idle_level is not None:
             lines.append(f'  idle_level: {_hex(d.idle_level)}')
         if d.or_mask:
             lines.append(f'  or_mask: {_hex(d.or_mask)}')

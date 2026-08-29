@@ -1,335 +1,345 @@
 {
- "_doc": [
-  "Reviewed registry of every params.fields key a COMPOSER consumes.",
-  "tools/composer_param_lint.py errors on any composer-consumed key not",
-  "registered here \u2014 so adding one forces the question this registry",
-  "encodes: is the key MUSIC or MECHANISM, and which ledger entry / canon",
-  "section licenses it?  Categories:",
-  "  musical-content    \u2014 the value IS music (a contour, a fade formula);",
-  "                       the model can learn it; preferred (C1/C10/C14).",
-  "  mechanism-knob     \u2014 reproduces a per-member player mechanism the",
-  "                       write stream demands (C19 wedges etc.). Each is",
-  "                       a standing DECONSTRUCTION candidate; note it.",
-  "  temporal-dispatch  \u2014 WHEN play runs, not what it plays (C18/C24/C31).",
-  "  environment        \u2014 host/timer facts (trichotomy section 4.3).",
-  "A key a musician could not read that is NOT a mechanism demanded by",
-  "the write stream is the principle-section-8 leak in param clothing."
- ],
- "pipelines/composer.py": {
-  "digi_player": {
-   "category": "mechanism-knob",
-   "licensed_by": "NONE \u2014 meets principle section-8's test exactly (the composer's choice of which 6502 to emit depends on USF content -> _digi_player_registry). The old C7-category-C citation was WRONG: C7-C covers the PCM sample data (FLAC sidecars, fine), not the player choice. Re-assessed 2026-08-16, note corrected 2026-08-20 (backlog item 5).",
-   "note": "LATENT, not active: a library of one (1 corpus carrier, 4k-era Chimera; 1 registry entry). Owner-reviewed TRIPWIRE: the SECOND digi engine migrated (e.g. Galway $D418 4-bit) must PARAMETRIZE (a real technique enum like digi { technique: wavetoggle_1bit | volume_4bit, rate: N }; the composer synthesizes the player) \u2014 NEVER add registry row two. DigiCode's addresses are composer layout and must not be reachable from USF even by name."
+  "_doc": [
+    "Reviewed registry of every params.fields key a COMPOSER consumes.",
+    "tools/composer_param_lint.py errors on any composer-consumed key not",
+    "registered here \u2014 so adding one forces the question this registry",
+    "encodes: is the key MUSIC or MECHANISM, and which ledger entry / canon",
+    "section licenses it?  Categories:",
+    "  musical-content    \u2014 the value IS music (a contour, a fade formula);",
+    "                       the model can learn it; preferred (C1/C10/C14).",
+    "  mechanism-knob     \u2014 reproduces a per-member player mechanism the",
+    "                       write stream demands (C19 wedges etc.). Each is",
+    "                       a standing DECONSTRUCTION candidate; note it.",
+    "  temporal-dispatch  \u2014 WHEN play runs, not what it plays (C18/C24/C31).",
+    "  environment        \u2014 host/timer facts (trichotomy section 4.3).",
+    "A key a musician could not read that is NOT a mechanism demanded by",
+    "the write stream is the principle-section-8 leak in param clothing."
+  ],
+  "pipelines/composer.py": {
+    "digi_player": {
+      "category": "mechanism-knob",
+      "licensed_by": "NONE \u2014 meets principle section-8's test exactly (the composer's choice of which 6502 to emit depends on USF content -> _digi_player_registry). The old C7-category-C citation was WRONG: C7-C covers the PCM sample data (FLAC sidecars, fine), not the player choice. Re-assessed 2026-08-16, note corrected 2026-08-20 (backlog item 5).",
+      "note": "LATENT, not active: a library of one (1 corpus carrier, 4k-era Chimera; 1 registry entry). Owner-reviewed TRIPWIRE: the SECOND digi engine migrated (e.g. Galway $D418 4-bit) must PARAMETRIZE (a real technique enum like digi { technique: wavetoggle_1bit | volume_4bit, rate: N }; the composer synthesizes the player) \u2014 NEVER add registry row two. DigiCode's addresses are composer layout and must not be reachable from USF even by name."
+    }
+  },
+  "pipelines/dmc/composer_asm.py": {
+    "cia_rearm_per_play": {
+      "category": "mechanism-knob",
+      "licensed_by": "C25 (mirrored class)"
+    },
+    "cymbal_burst": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (probed articulation immediate)"
+    },
+    "cymbal_ctrl": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 26th (cymbal ctrl immediate)"
+    },
+    "prep_ctrl": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (f2 $11D9 fetch-frame prep-ctrl immediate, canon $08 TEST; Rowdy $F000 copy = $40; per-subtune override rides MusicSubtune.params, C31)"
+    },
+    "d418_noteinit_dead": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (f2 $12A8 filter note-init STA $D418 killed \u2014 Third_Zak zp-redirect, Chance_for_Win_part_2 NOP; init mvol store survives)"
+    },
+    "filter_cut_static": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (f2 $10A3 play filter-tail STA $D416 NOPed \u2014 SilverFox/No_End; $D417 store survives)"
+    },
+    "vib_phase_persist": {
+      "category": "musical-content",
+      "licensed_by": "C19 (f2 $11BE vibdir clear patched to EOR zp,x, misalignment kills the vibctr clear too \u2014 Shock/Mea_Culpa_end; vibrato phase persists across notes, 44th-occ persist family); typed as init_behavior.vibrato_phase_persist (C33, 2026-08-13), key = fallback"
+    },
+    "vib_step_dead": {
+      "category": "musical-content",
+      "licensed_by": "C19 (f2 $12F5 vib-increment store re-pointed to CMP \u2014 Shade/For_Moonlight; vdep never written, swell ramps by 0); typed as init_behavior.vibrato_step_dead (C33, 2026-08-13), key = fallback"
+    },
+    "d417_tail_anim": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (playgfa animator)",
+      "note": "deconstruction candidate -> C1 contour"
+    },
+    "drum_fhi_to_pw": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (drum freq-hi store repoint)"
+    },
+    "dual_freq_generator": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (dual freq generator wedge)"
+    },
+    "vib_swell_ror": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (f2 $1583 half-cycle swell ADC vdep,x -> ROR vdep,x + $158E hi-writeback repointed +1 \u2014 vdep halves each half-cycle, carry-out pokes the next voice's swell-hi / slal[0]; Petshopmix, sole carrier)",
+      "note": "deconstruction candidate (33rd-occ): a halving depth is a musical trajectory (decaying vibrato \u2014 the shape:drift precedent), but the cross-voice poke is pure mechanism; flagged for the owner."
+    },
+    "filter_idx_eor": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (re-assembled def-index dispatch ADC fstep -> EOR abs,x with X = the claiming voice: v0 reads fstep (EOR-for-ADD), v2 reads fbase = index pinned to 0; Inside, sole carrier; X measured via pc-watch 2026-08-20)"
+    },
+    "filter_dur_store_dead": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (re-assembled STA fdu -> EOR abs,x: the step-duration cache is never written, the filter advances every frame; Childs_Play, sole carrier)"
+    },
+    "filter_def_orig": {
+      "category": "mechanism-knob",
+      "licensed_by": "C31 (the fbase off-table read sonifies the ORIG def#<<4; the merge's compact remap renumbers a reading player's defs \u2014 this slot:orig map feeds the composer's fbsh shadow serving the idx-116/212 redirect; Sub_Burner)",
+      "note": "window layout deliberately untouched \u2014 re-anchoring broke the verdict-proven Lane_Crazy."
+    },
+    "idle_pulse_instr": {
+      "category": "mechanism-knob",
+      "licensed_by": "C31 (per-subtune idle-pulse record \u2014 the pulse sibling of idle_wave/sub_iwpos: an idling voice runs its own packed player's record-0 pulse program; value = the USF instrument number whose pulse config that record carries; Sub_Burner)",
+      "note": "typed sibling family exists (init.voice_state) \u2014 C33 typing candidate (a per-subtune idle-instrument reference)."
+    },
+    "dur_fetch_underflow": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C19 (f2 $10C3 duration-fetch branch BEQ->BMI, Delta_Zak: every row lasts one extra tick, init seed lasts two plays \u2014 a member-global tick-machinery fencepost, tempo_override's family)",
+      "note": "init_behavior typing candidate (C33). 33rd-occ test run: value-level deconstruction (durations+1 in USF) rejected \u2014 the +1 is uniform machinery, not authored per-row, and the extra init-seed play has no typed home without a schema addition (owner gate)."
+    },
+    "dual_generator_steps": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (dual freq generator wedge)"
+    },
+    "effect_entry_variant": {
+      "category": "mechanism-knob",
+      "licensed_by": "C18 (vibflip arm entry)"
+    },
+    "fclaim_clear_dead": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 21st (fclaim clear repointed to void)"
+    },
+    "filter_cut_from_fbase": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 42nd (filter-tail load repoint)"
+    },
+    "filter_static": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 37th (filter stores NOPed)"
+    },
+    "fphase_repeat": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C18 (F-phase per-voice repeat)"
+    },
+    "hardrestart_smc_variant": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (hard-restart SMC variant)"
+    },
+    "hardrestart_test_init": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (hard-restart prep variant)"
+    },
+    "hr_prep_gate": {
+      "category": "mechanism-knob",
+      "licensed_by": "C23 (hr prep $08-then-$09 footprint)"
+    },
+    "master_vol_every_play": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 ($D418-every-play wrapper)"
+    },
+    "master_vol_fade": {
+      "category": "musical-content",
+      "licensed_by": "C10/C38 (parametric song-end fade)"
+    },
+    "master_vol_reassert_filter_tail": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 ($D418 reassert site)"
+    },
+    "master_vol_static": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 36th (static $D418)"
+    },
+    "medley": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C31 (time-medley wrapper)"
+    },
+    "multisid_keep_regs": {
+      "category": "mechanism-knob",
+      "licensed_by": "C27 (per-chip write-stream quirks)"
+    },
+    "noteinit_deferred": {
+      "category": "mechanism-knob",
+      "licensed_by": "C23 (deferred 2-frame arm)"
+    },
+    "noteinit_defer_wave": {
+      "category": "mechanism-knob",
+      "licensed_by": "C23 general form"
+    },
+    "play_phases": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C18 (per-call phase schedule)",
+      "note": "MIGRATED to the typed Environment.play_phases field (trichotomy \u00a74.3) on 2026-08-23 \u2014 ledger C33. The key is still read as a FALLBACK because ~5.4k stored .usf carry the old params form; delete this row once they are regenerated."
+    },
+    "play_unit_repeat": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C24 (unit repeat)"
+    },
+    "pulsewidth_dir_persist": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (pw_dir_persist repoint)"
+    },
+    "pulsewidth_hi_const": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (pw_hi_const wedge)"
+    },
+    "pw_base_sid_read": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 31st (ADC into SID-mirror space)"
+    },
+    "pw_bound_shift": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (PWM bound-shift wedge)"
+    },
+    "pw_up_reverse": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 35th (up-reversal bound repoint)"
+    },
+    "route_clear_dead": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 ($D417 route-bit clear to void)"
+    },
+    "rphase_variant": {
+      "category": "mechanism-knob",
+      "licensed_by": "C18 (R-phase entry variant)"
+    },
+    "switch_toggle_mask": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (SWITCH gate-toggle EOR immediate)"
+    },
+    "track_fe_reset": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 40th ($FE -> KERNAL reset halt)"
+    },
+    "track_ff_reinit": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 22nd ($FF -> init restart)"
+    },
+    "track_ff_reinit_ghost": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (shape B/39th ghost restart)"
+    },
+    "track_loop_dead": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 43rd (dead loop store: halt-and-hold)"
+    },
+    "vib_ramp_persist": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 clear-repointed family ($11C4 note-init rampctr clear dead -> legato vibrato swell); typed as init_behavior.vibrato_ramp_persist, this key is the old-corpus params fallback"
+    },
+    "hold_gateoff": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (f2 sub-build gate-off: mask_only vs adsr_clear helper); typed as init_behavior.gate_off_hold (C33 2026-08-04), key = old-corpus fallback"
+    },
+    "rest_effects": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 15th/C31 (rest/switch dispatch tail variant); typed as init_behavior.rest_effects, key = fallback"
+    },
+    "hard_restart": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (hard-restart prep variants: none/helper/preset); typed as init_behavior.hard_restart, key = fallback"
+    },
+    "cymbal_onset": {
+      "category": "mechanism-knob",
+      "licensed_by": "C19 (f2 note-init tail skips the cymbal check -> burst fires frame 2); typed as init_behavior.cymbal_onset, key = fallback"
+    },
+    "vib_ramp": {
+      "category": "musical-content",
+      "licensed_by": "principle section-4 small musical enum (width/step/step_full = vibrato swell algorithm; f2 RE + the Brian step_full round); typed as init_behavior.vibrato_ramp, key = fallback",
+      "note": "CONVERSION TRIGGER (principle section-4 parameter-vs-kind, review 2026-08-13): 'step' vs 'step_full' differ by an ORDERED shift amount (freq_hi>>1 vs freq_hi), not a category. At two values the enum is readable; if a THIRD swell rate ever appears, convert to a numeric field (e.g. swell_shift) instead of minting a fourth enum value."
+    },
+    "medley_switch": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C31 medley variant, per-subtune form (Arthur/Fuckin_Birds + NemTP): an armed subtune plays its own song for a hi:lo play countdown then re-inits into a target song"
+    },
+    "filter_before_voice": {
+      "category": "mechanism-knob",
+      "licensed_by": "C16/C24 play-body unit ORDER (Ofyron_Gadaf: filter tail before voice N \u2014 in-body voice JSR neutered + a 9-byte play wrapper runs it after; the tail's $D417 reads the routing shadow pre-clear)"
+    }
+  },
+  "pipelines/dmc/v5/composer_v5.py": {
+    "play_skip_init": {
+      "category": "mechanism-knob",
+      "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
+      "note": "initial play() calls that do nothing (this player has no $1842 skip counter)"
+    },
+    "noteon_skip_freq_clear": {
+      "category": "mechanism-knob",
+      "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
+      "note": "note-on writes SR/AD/CTRL only \u2014 no FREQ=$0000 pair"
+    },
+    "dur_ctr_init": {
+      "category": "mechanism-knob",
+      "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
+      "note": "per-voice duration-counter seed"
+    },
+    "wave_speed_from_instr": {
+      "category": "mechanism-knob",
+      "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
+      "note": "wave-step advance period comes from the instrument byte, not every frame"
+    },
+    "volovr_ad_zero": {
+      "category": "mechanism-knob",
+      "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
+      "note": "a volume-override note-on forces AD=$00 (the SR carries the level)"
+    },
+    "pulse_ctr_8bit": {
+      "category": "mechanism-knob",
+      "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
+      "note": "pulse step counter is 8-bit, not 16-bit"
+    },
+    "noteload_no_d418": {
+      "category": "mechanism-knob",
+      "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
+      "note": "the note-load pass does not emit $D418"
+    },
+    "filter_v3_only": {
+      "category": "mechanism-knob",
+      "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
+      "note": "filter init is gated to voice 3"
+    },
+    "filter_needs_cmd": {
+      "category": "mechanism-knob",
+      "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
+      "note": "the filter sweep does not run until the first filter command"
+    },
+    "filter_d416_only": {
+      "category": "mechanism-knob",
+      "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
+      "note": "filter writes $D416 (+base) only, never $D415"
+    },
+    "d418_skip_vib_reversal": {
+      "category": "mechanism-knob",
+      "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
+      "note": "$D418 is skipped on a vibrato-reversal frame"
+    },
+    "wave_step_carry": {
+      "category": "mechanism-knob",
+      "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
+      "note": "the wave step propagates its carry into freq hi"
+    },
+    "vib_from_instr_bytes": {
+      "category": "mechanism-knob",
+      "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
+      "note": "vibrato onset delay/period read from the instrument bytes"
+    },
+    "filter_prog_8bit": {
+      "category": "mechanism-knob",
+      "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
+      "note": "filter program is an 8-bit (add, count) walk"
+    },
+    "play_phases": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C18 (per-call phase schedule)",
+      "note": "MIGRATED to the typed Environment.play_phases field (trichotomy \u00a74.3) on 2026-08-23 \u2014 ledger C33. The key is still read as a FALLBACK because ~5.4k stored .usf carry the old params form; delete this row once they are regenerated."
+    }
+  },
+  "pipelines/digi_organizer/composer_asm.py": {
+    "digi_tick_raster": {
+      "category": "temporal-dispatch",
+      "licensed_by": "digi parametrization proposal (owner-approved 2026-08-29); typed environment sibling flagged for owner review"
+    },
+    "digi_tick_d011": {
+      "category": "temporal-dispatch",
+      "licensed_by": "digi parametrization proposal (owner-approved 2026-08-29); badline pattern = NMI-phase signal under Mode-2"
+    }
   }
- },
- "pipelines/dmc/composer_asm.py": {
-  "cia_rearm_per_play": {
-   "category": "mechanism-knob",
-   "licensed_by": "C25 (mirrored class)"
-  },
-  "cymbal_burst": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (probed articulation immediate)"
-  },
-  "cymbal_ctrl": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 26th (cymbal ctrl immediate)"
-  },
-  "prep_ctrl": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (f2 $11D9 fetch-frame prep-ctrl immediate, canon $08 TEST; Rowdy $F000 copy = $40; per-subtune override rides MusicSubtune.params, C31)"
-  },
-  "d418_noteinit_dead": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (f2 $12A8 filter note-init STA $D418 killed \u2014 Third_Zak zp-redirect, Chance_for_Win_part_2 NOP; init mvol store survives)"
-  },
-  "filter_cut_static": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (f2 $10A3 play filter-tail STA $D416 NOPed \u2014 SilverFox/No_End; $D417 store survives)"
-  },
-  "vib_phase_persist": {
-   "category": "musical-content",
-   "licensed_by": "C19 (f2 $11BE vibdir clear patched to EOR zp,x, misalignment kills the vibctr clear too \u2014 Shock/Mea_Culpa_end; vibrato phase persists across notes, 44th-occ persist family); typed as init_behavior.vibrato_phase_persist (C33, 2026-08-13), key = fallback"
-  },
-  "vib_step_dead": {
-   "category": "musical-content",
-   "licensed_by": "C19 (f2 $12F5 vib-increment store re-pointed to CMP \u2014 Shade/For_Moonlight; vdep never written, swell ramps by 0); typed as init_behavior.vibrato_step_dead (C33, 2026-08-13), key = fallback"
-  },
-  "d417_tail_anim": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (playgfa animator)",
-   "note": "deconstruction candidate -> C1 contour"
-  },
-  "drum_fhi_to_pw": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (drum freq-hi store repoint)"
-  },
-  "dual_freq_generator": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (dual freq generator wedge)"
-  },
-  "vib_swell_ror": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (f2 $1583 half-cycle swell ADC vdep,x -> ROR vdep,x + $158E hi-writeback repointed +1 \u2014 vdep halves each half-cycle, carry-out pokes the next voice's swell-hi / slal[0]; Petshopmix, sole carrier)",
-   "note": "deconstruction candidate (33rd-occ): a halving depth is a musical trajectory (decaying vibrato \u2014 the shape:drift precedent), but the cross-voice poke is pure mechanism; flagged for the owner."
-  },
-  "filter_idx_eor": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (re-assembled def-index dispatch ADC fstep -> EOR abs,x with X = the claiming voice: v0 reads fstep (EOR-for-ADD), v2 reads fbase = index pinned to 0; Inside, sole carrier; X measured via pc-watch 2026-08-20)"
-  },
-  "filter_dur_store_dead": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (re-assembled STA fdu -> EOR abs,x: the step-duration cache is never written, the filter advances every frame; Childs_Play, sole carrier)"
-  },
-  "filter_def_orig": {
-   "category": "mechanism-knob",
-   "licensed_by": "C31 (the fbase off-table read sonifies the ORIG def#<<4; the merge's compact remap renumbers a reading player's defs \u2014 this slot:orig map feeds the composer's fbsh shadow serving the idx-116/212 redirect; Sub_Burner)",
-   "note": "window layout deliberately untouched \u2014 re-anchoring broke the verdict-proven Lane_Crazy."
-  },
-  "idle_pulse_instr": {
-   "category": "mechanism-knob",
-   "licensed_by": "C31 (per-subtune idle-pulse record \u2014 the pulse sibling of idle_wave/sub_iwpos: an idling voice runs its own packed player's record-0 pulse program; value = the USF instrument number whose pulse config that record carries; Sub_Burner)",
-   "note": "typed sibling family exists (init.voice_state) \u2014 C33 typing candidate (a per-subtune idle-instrument reference)."
-  },
-  "dur_fetch_underflow": {
-   "category": "temporal-dispatch",
-   "licensed_by": "C19 (f2 $10C3 duration-fetch branch BEQ->BMI, Delta_Zak: every row lasts one extra tick, init seed lasts two plays \u2014 a member-global tick-machinery fencepost, tempo_override's family)",
-   "note": "init_behavior typing candidate (C33). 33rd-occ test run: value-level deconstruction (durations+1 in USF) rejected \u2014 the +1 is uniform machinery, not authored per-row, and the extra init-seed play has no typed home without a schema addition (owner gate)."
-  },
-  "dual_generator_steps": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (dual freq generator wedge)"
-  },
-  "effect_entry_variant": {
-   "category": "mechanism-knob",
-   "licensed_by": "C18 (vibflip arm entry)"
-  },
-  "fclaim_clear_dead": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 21st (fclaim clear repointed to void)"
-  },
-  "filter_cut_from_fbase": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 42nd (filter-tail load repoint)"
-  },
-  "filter_static": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 37th (filter stores NOPed)"
-  },
-  "fphase_repeat": {
-   "category": "temporal-dispatch",
-   "licensed_by": "C18 (F-phase per-voice repeat)"
-  },
-  "hardrestart_smc_variant": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (hard-restart SMC variant)"
-  },
-  "hardrestart_test_init": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (hard-restart prep variant)"
-  },
-  "hr_prep_gate": {
-   "category": "mechanism-knob",
-   "licensed_by": "C23 (hr prep $08-then-$09 footprint)"
-  },
-  "master_vol_every_play": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 ($D418-every-play wrapper)"
-  },
-  "master_vol_fade": {
-   "category": "musical-content",
-   "licensed_by": "C10/C38 (parametric song-end fade)"
-  },
-  "master_vol_reassert_filter_tail": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 ($D418 reassert site)"
-  },
-  "master_vol_static": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 36th (static $D418)"
-  },
-  "medley": {
-   "category": "temporal-dispatch",
-   "licensed_by": "C31 (time-medley wrapper)"
-  },
-  "multisid_keep_regs": {
-   "category": "mechanism-knob",
-   "licensed_by": "C27 (per-chip write-stream quirks)"
-  },
-  "noteinit_deferred": {
-   "category": "mechanism-knob",
-   "licensed_by": "C23 (deferred 2-frame arm)"
-  },
-  "noteinit_defer_wave": {
-   "category": "mechanism-knob",
-   "licensed_by": "C23 general form"
-  },
-  "play_phases": {
-   "category": "temporal-dispatch",
-   "licensed_by": "C18 (per-call phase schedule)",
-   "note": "MIGRATED to the typed Environment.play_phases field (trichotomy \u00a74.3) on 2026-08-23 \u2014 ledger C33. The key is still read as a FALLBACK because ~5.4k stored .usf carry the old params form; delete this row once they are regenerated."
-  },
-  "play_unit_repeat": {
-   "category": "temporal-dispatch",
-   "licensed_by": "C24 (unit repeat)"
-  },
-  "pulsewidth_dir_persist": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (pw_dir_persist repoint)"
-  },
-  "pulsewidth_hi_const": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (pw_hi_const wedge)"
-  },
-  "pw_base_sid_read": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 31st (ADC into SID-mirror space)"
-  },
-  "pw_bound_shift": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (PWM bound-shift wedge)"
-  },
-  "pw_up_reverse": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 35th (up-reversal bound repoint)"
-  },
-  "route_clear_dead": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 ($D417 route-bit clear to void)"
-  },
-  "rphase_variant": {
-   "category": "mechanism-knob",
-   "licensed_by": "C18 (R-phase entry variant)"
-  },
-  "switch_toggle_mask": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (SWITCH gate-toggle EOR immediate)"
-  },
-  "track_fe_reset": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 40th ($FE -> KERNAL reset halt)"
-  },
-  "track_ff_reinit": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 22nd ($FF -> init restart)"
-  },
-  "track_ff_reinit_ghost": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (shape B/39th ghost restart)"
-  },
-  "track_loop_dead": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 43rd (dead loop store: halt-and-hold)"
-  },
-  "vib_ramp_persist": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 clear-repointed family ($11C4 note-init rampctr clear dead -> legato vibrato swell); typed as init_behavior.vibrato_ramp_persist, this key is the old-corpus params fallback"
-  },
-  "hold_gateoff": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (f2 sub-build gate-off: mask_only vs adsr_clear helper); typed as init_behavior.gate_off_hold (C33 2026-08-04), key = old-corpus fallback"
-  },
-  "rest_effects": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 15th/C31 (rest/switch dispatch tail variant); typed as init_behavior.rest_effects, key = fallback"
-  },
-  "hard_restart": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (hard-restart prep variants: none/helper/preset); typed as init_behavior.hard_restart, key = fallback"
-  },
-  "cymbal_onset": {
-   "category": "mechanism-knob",
-   "licensed_by": "C19 (f2 note-init tail skips the cymbal check -> burst fires frame 2); typed as init_behavior.cymbal_onset, key = fallback"
-  },
-  "vib_ramp": {
-   "category": "musical-content",
-   "licensed_by": "principle section-4 small musical enum (width/step/step_full = vibrato swell algorithm; f2 RE + the Brian step_full round); typed as init_behavior.vibrato_ramp, key = fallback",
-   "note": "CONVERSION TRIGGER (principle section-4 parameter-vs-kind, review 2026-08-13): 'step' vs 'step_full' differ by an ORDERED shift amount (freq_hi>>1 vs freq_hi), not a category. At two values the enum is readable; if a THIRD swell rate ever appears, convert to a numeric field (e.g. swell_shift) instead of minting a fourth enum value."
-  },
-  "medley_switch": {
-   "category": "temporal-dispatch",
-   "licensed_by": "C31 medley variant, per-subtune form (Arthur/Fuckin_Birds + NemTP): an armed subtune plays its own song for a hi:lo play countdown then re-inits into a target song"
-  },
-  "filter_before_voice": {
-   "category": "mechanism-knob",
-   "licensed_by": "C16/C24 play-body unit ORDER (Ofyron_Gadaf: filter tail before voice N \u2014 in-body voice JSR neutered + a 9-byte play wrapper runs it after; the tail's $D417 reads the routing shadow pre-clear)"
-  }
- },
- "pipelines/dmc/v5/composer_v5.py": {
-  "play_skip_init": {
-   "category": "mechanism-knob",
-   "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
-   "note": "initial play() calls that do nothing (this player has no $1842 skip counter)"
-  },
-  "noteon_skip_freq_clear": {
-   "category": "mechanism-knob",
-   "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
-   "note": "note-on writes SR/AD/CTRL only \u2014 no FREQ=$0000 pair"
-  },
-  "dur_ctr_init": {
-   "category": "mechanism-knob",
-   "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
-   "note": "per-voice duration-counter seed"
-  },
-  "wave_speed_from_instr": {
-   "category": "mechanism-knob",
-   "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
-   "note": "wave-step advance period comes from the instrument byte, not every frame"
-  },
-  "volovr_ad_zero": {
-   "category": "mechanism-knob",
-   "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
-   "note": "a volume-override note-on forces AD=$00 (the SR carries the level)"
-  },
-  "pulse_ctr_8bit": {
-   "category": "mechanism-knob",
-   "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
-   "note": "pulse step counter is 8-bit, not 16-bit"
-  },
-  "noteload_no_d418": {
-   "category": "mechanism-knob",
-   "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
-   "note": "the note-load pass does not emit $D418"
-  },
-  "filter_v3_only": {
-   "category": "mechanism-knob",
-   "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
-   "note": "filter init is gated to voice 3"
-  },
-  "filter_needs_cmd": {
-   "category": "mechanism-knob",
-   "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
-   "note": "the filter sweep does not run until the first filter command"
-  },
-  "filter_d416_only": {
-   "category": "mechanism-knob",
-   "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
-   "note": "filter writes $D416 (+base) only, never $D415"
-  },
-  "d418_skip_vib_reversal": {
-   "category": "mechanism-knob",
-   "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
-   "note": "$D418 is skipped on a vibrato-reversal frame"
-  },
-  "wave_step_carry": {
-   "category": "mechanism-knob",
-   "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
-   "note": "the wave step propagates its carry into freq hi"
-  },
-  "vib_from_instr_bytes": {
-   "category": "mechanism-knob",
-   "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
-   "note": "vibrato onset delay/period read from the instrument bytes"
-  },
-  "filter_prog_8bit": {
-   "category": "mechanism-knob",
-   "licensed_by": "Principle \u00a78 (decomposed from the `family4` variant flag, 2026-08-23)",
-   "note": "filter program is an 8-bit (add, count) walk"
-  },
-  "play_phases": {
-   "category": "temporal-dispatch",
-   "licensed_by": "C18 (per-call phase schedule)",
-   "note": "MIGRATED to the typed Environment.play_phases field (trichotomy \u00a74.3) on 2026-08-23 \u2014 ledger C33. The key is still read as a FALLBACK because ~5.4k stored .usf carry the old params form; delete this row once they are regenerated."
-  }
- }
 }

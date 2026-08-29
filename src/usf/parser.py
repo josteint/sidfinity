@@ -901,7 +901,7 @@ class _T(Transformer):
                 f'got {tech!r}')
         return ('digi_config', DigiConfig(
             technique=tech,
-            idle_level=d.get('idle_level', 0),
+            idle_level=d.get('idle_level'),
             or_mask=d.get('or_mask', 0)))
 
     # ----- sample instruments -----
