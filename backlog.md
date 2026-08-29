@@ -1408,21 +1408,39 @@
     UNDER FULL MASS-WRITE CPU LOAD, and an empty writelog capture under load is
     a documented siddump-death artifact — re-verify bucket A quietly first).
 
-    BUCKET A — 14 Rayden members recorded `match=0, overlap=0` (+ the
-    Popel_Premiere_Intr0h_2SID error, C27 per-chip params-merge refusal:
-    chips disagree on master_vol_static). The [0,0] rows are probably the
-    CAPTURE-DEATH artifact (8-worker batch + enormous dumps), NOT content —
-    but the one clean fresh probe proves a real problem underneath:
-    1970s_style_Hammond_Organ builds `single (base $1000)`, verifies
-    play_match=37, and the ORIGINAL emits **len_a=1,462,579 vs our 169,286**
-    (~8.6x, ~97 writes/frame) with the PSID speed bit CLEAR. A vblank-flagged
-    tune emitting 8.6x per frame = the tune drives itself (own IRQ installed
-    at init, or heavy in-play unit repetition) — Rayden's home territory
-    (Techno-Rap multiplex, Strange_Acidshit cia_rearm, the C18 '11-speeder'
-    fphase_repeat whose "sole carrier in 10,676" now plainly has SIBLINGS
-    sitting here). NEXT: on an idle box, per-IRQ capture one member; classify
-    self-IRQ vs C24 unit-repeat vs C18 F-phase; expect ONE mechanism across
-    all 14 (all same author, all same [0,0] shape).
+    BUCKET A — ✅ CLASSIFIED 2026-08-29 (idle-box re-verify + header census +
+    writelog histogram): the 14 Rayden members are the **RAYDEN_DIGI
+    HETEROGENEOUS CLASS** — the exact f1 twin of item 29's f2 Digi-Organizer
+    bucket, and sidid already names it (`engines` column:
+    `DMC|(DMC_V4.x)|Rayden_Digi_V1` ×13 / `_V2` ×3).
+      * ONE mechanism across all 14, confirmed at the header level: every
+        member is **RSID with play=$0000** — init installs its own IRQ and
+        never returns; the tune drives itself (the "self-IRQ" branch of the
+        old classification question; NOT C24 unit-repeat, NOT C18 F-phase).
+      * What the extra writes are, measured (Boot_Zak_v2, 5 s of orig
+        writelog): **41,314 of ~45k writes are $D418** with 4-bit values at
+        ~63-cycle spacing (~1 write/rasterline ≈ 8-15 kHz) = VOLUME-REGISTER
+        DIGI sample playback, while the DMC voice registers get a normal
+        ~450 writes each. So: ordinary DMC music + a Rayden digi player on
+        the same chip under a fast self-installed IRQ.
+      * The [0,0] batch rows were indeed the under-load capture artifact; a
+        quiet rebuild gives the honest shape (Boot_Zak_v2: play_match=1,
+        len_a=910,492 vs len_b=73,058 ≈ 12.5×). Content-wise unfixable
+        without emitting the digi stream — the $D418 writes interleave from
+        frame 1, so flat compare dies immediately regardless of the music.
+      * CORPUS CLOSURE: Rayden_Digi carriers are EXACTLY 17, all
+        MUSICIANS/R/Rayden — these 14 partials + Popel_Premiere_Intr0h_2SID
+        (the C27 params-merge error, also tagged V1) + 2 with no verdict row
+        anywhere (unrouted): Embarassed_Emotions (DMC|V2) and
+        Spelling_Around (V2 beside ROB_HUBBARD — not even a DMC member).
+      * WHAT IT NEEDS = the same as item 29 bucket A: heterogeneous
+        music+digi handling, Mode-2 cycle-strict verification for the digi
+        part (core tenet: digi = cycle-exact), FLAC-sidecar PCM (C7-C), and
+        the item-5 tripwire FIRES: Rayden_Digi is a volume_4bit technique →
+        the owner-gated `digi { technique, rate }` parametrization, NEVER
+        registry row two. ⚠ EFFECTIVELY OWNER-GATED at the representation
+        step; design it ONCE for Digi-Organizer + Rayden_Digi together
+        (13 + 17 carriers = the two biggest digi families after Chimera).
 
     BUCKET B — start-of-stream divergences (match=1 on failing subtunes):
     Dark_Destroyer_2117 (known UNMERGEABLE compilation -> single fallback;
@@ -1461,6 +1479,11 @@
     `digi { technique, rate }` enum, composer synthesizes the player), NEVER
     add registry row two. That is an owner-gated schema design, so this
     class is effectively OWNER-GATED at the representation step.
+    ⚠ UPDATE 2026-08-29: item 28's f1 bucket A turned out to be the SAME
+    architectural class with a DIFFERENT digi player (Rayden_Digi_V1/V2, 17
+    carriers, all RSID play=$0000 self-IRQ volume digi) — so the `digi {
+    technique, rate }` design has TWO engine families waiting on it, 13 + 17
+    carriers; design once for both (see item 28 bucket A for measurements).
 
     BUCKET B — per-subtune start divergences (the C31/C37 family, same as
     f1's bucket B): Andy/Jumping_Jack (6 subs m=1), Riot/Enzyme (subs 1-8
