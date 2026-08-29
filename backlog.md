@@ -1500,10 +1500,16 @@
     carriers, all RSID play=$0000 self-IRQ volume digi) — so the `digi {
     technique, rate }` design has TWO engine families waiting on it, 13 + 17
     carriers; design once for both (see item 28 bucket A for measurements).
-    ✍ THE DESIGN EXISTS: `docs/digi_parametrization_proposal.md`
-    (2026-08-29, owner-lifted design gate; schema still awaits approval).
-    NB Digi-Organizer is 131 carriers CORPUS-WIDE (51 beside
-    Music_Assembler, 39 standalone) — far bigger than the f2-adjacent 13.
+    ✍ DESIGN APPROVED + LANDED (2026-08-29): schema in 532b3931
+    (`digi{}` + sample_instruments + digi_voice, all gates green), the
+    Digi-Organizer pipeline exists (`pipelines/digi_organizer/`,
+    [[project_digi_organizer]]), and **Heavy-Beat is FULL Mode-2
+    CYCLE-STRICT** (4,249/4,249 frames, 535k writes @ 99 s) through the
+    parametric composer — no registry row two. NB Digi-Organizer is 131
+    carriers CORPUS-WIDE (51 beside Music_Assembler, 39 standalone) —
+    far bigger than the f2-adjacent 13. NEXT: driver parametrization →
+    the 39 standalone members; then paired members (C31-hetero + the
+    $D418-ownership split verdict); then Rayden_Digi (item 28).
 
     BUCKET B — per-subtune start divergences (the C31/C37 family, same as
     f1's bucket B): Andy/Jumping_Jack (6 subs m=1), Riot/Enzyme (subs 1-8
