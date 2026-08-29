@@ -5,7 +5,7 @@
 # dozen measured-but-unfinished investigations. Moved to the repo root and
 # tracked for exactly that reason.
 #
-# NEXT_ITEM: 29   <- autoincrement: a NEW item takes this number, then bump it.
+# NEXT_ITEM: 30   <- autoincrement: a NEW item takes this number, then bump it.
 #
 # CONVENTIONS (owner-set 2026-08-28):
 #  - A done item is REMOVED COMPLETELY — no tombstone, no summary line. The
@@ -1440,3 +1440,35 @@
 
     These 25 ARE the formerly-invisible set — never batched before Aug 28, so
     none of this is regression; it is virgin residue with named shapes.
+
+29. DMC f2 NEW RESIDUE — 14 partials + 1 error, dominated by ONE new class:
+    the DIGI-ORGANIZER HETEROGENEOUS members (assessed 2026-08-29).
+
+    BUCKET A — 9 members recorded `match=0, overlap=0`, and unlike f1's
+    bucket A this is NOT (mainly) capture death: `engines` (the sidid -m
+    column, first real payoff) says 7 of them are **DMC|Digi-Organizer** — a
+    digi sample player packed beside the DMC music player. Corpus-wide the
+    class is exactly 13: these 7 + Sax/Digi_Music + Justincase_part_6 (bare
+    `DMC` label but almost certainly the same, unsignatured) in f2, and 5
+    MORE in the unrouted 261 (Bakewell/New_Wave, Bayliss/Egg_Catcher,
+    Doxx/Love_Is_in_the_Air, PVCF/Centric_end_sequence, PVCF/Giana_2). The
+    original's stream is dominated by sample volume writes our build never
+    emits -> ~zero overlap. WHAT IT NEEDS: probe the Digi-Organizer player,
+    C31-heterogeneous handling + the digi pipeline (Mode-2 cycle-exact for
+    the sample part; Chimera/FLAC-sidecar machinery exists).
+    ⚠⚠ ITEM-5 TRIPWIRE FIRES HERE BY DESIGN: Digi-Organizer would be the
+    SECOND digi engine — the owner-reviewed rule says PARAMETRIZE (a real
+    `digi { technique, rate }` enum, composer synthesizes the player), NEVER
+    add registry row two. That is an owner-gated schema design, so this
+    class is effectively OWNER-GATED at the representation step.
+
+    BUCKET B — per-subtune start divergences (the C31/C37 family, same as
+    f1's bucket B): Andy/Jumping_Jack (6 subs m=1), Riot/Enzyme (subs 1-8
+    m=1), Bayliss/Stealth_4 (sub 0 m=1; subs 1-5 m~27-32 with overlap ~3.9k
+    = far short too), Grid_Zone_Remix sub 2 (m=6510, deep — this is the
+    hetero_v5 + ambiguous-claim + sidid-disagreement member, every odd list
+    this week). Last_Amazon error `base_override_not_player: $2000` = same
+    family, one step earlier (also ambiguous v4/v5).
+
+    All 15 are formerly-invisible members — virgin residue, no regressions.
+    Cross-ref: f1 counterpart assessment = item 28.
