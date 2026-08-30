@@ -5,7 +5,7 @@
 # dozen measured-but-unfinished investigations. Moved to the repo root and
 # tracked for exactly that reason.
 #
-# NEXT_ITEM: 35   <- autoincrement: a NEW item takes this number, then bump it.
+# NEXT_ITEM: 36   <- autoincrement: a NEW item takes this number, then bump it.
 #
 # CONVENTIONS (owner-set 2026-08-28):
 #  - A done item is REMOVED COMPLETELY — no tombstone, no summary line. The
@@ -1726,6 +1726,46 @@
     deriving rather than for extending the exclusion list one suffix at a
     time.
 
+32. OWNER DECISION — SAMPLE WINDOWS: the USF cannot say "these instruments
+    are slices of ONE recording", so it stores the slices (measured
+    2026-08-30, digi_organizer closeout). A sampler musician's ordinary
+    move is to record once and carve several instruments out of it at
+    different offsets; Morton/Digibeatz_2 does exactly that with TWELVE
+    overlapping windows into one recording. `SampleInstrument` names a
+    whole FLAC and nothing else, so to_usf emits twelve separate sidecars
+    whose audio overlaps: **429 pages stored for 216 pages of sound**.
+
+    The composer currently recovers the relationship CONTENT-ADDRESSEDLY at
+    build time (`_cluster_blobs`, C40 3d): it byte-compares the blobs, finds
+    the page-aligned overlaps in either direction and stacks them back. That
+    works — the member is FULL, and without it the family could not have
+    closed, since 429 pages exceed the machine's free RAM. But it is
+    recovering by inference what the format threw away.
+
+    WHY IT MATTERS BEYOND SIZE (Principle §9 tiebreaker, "the relationship
+    over the frozen measurement"): twelve near-identical audio blobs are
+    unlearnable — a model can only memorise them, and they are semantically
+    undefined the moment anyone edits the music (edit the recording and the
+    twelve copies silently disagree). The relationship "one recording,
+    twelve windows" is the musical fact, and it is the fact a sampler user
+    would recognise.
+
+    SHAPE OF THE FIX (needs approval — a typed-field addition):
+    `SampleInstrument { sample, offset, length, rate_cycles }`, with
+    offset/length elided at their defaults so every existing member's .usf
+    is unchanged and the corpus stays readable. The extract already knows
+    the windows (it reads start/end pages from the engine's own table); the
+    composer's clustering then becomes a placement detail rather than a
+    reconstruction. NB it interacts with C40 3e's `digi_onepage_rows`: both
+    are facts about how the sample TABLE was written, and a typed window
+    might absorb the one-page-row distinction as `length == 1` vs an
+    explicit end — worth checking before designing either further.
+
+    EXPOSURE: 39 standalone digi_organizer members today (12 windows in
+    Digibeatz_2, 24 of 39 members carry at least one shared range); the
+    92 music-paired members are unmeasured; Rayden_Digi is the next family
+    on the same schema and will have the same authoring idiom.
+
 34. ⚠ DIGI_ORGANIZER'S 39 STORED .usf DO NOT REBUILD THEIR STORED .sid
     (measured 2026-08-30 22:37, found while measuring item 31; the family
     was declared CLOSED and mass-written this morning). Rebuilding each
@@ -1774,42 +1814,66 @@
     class is currently undetectable for them (basic_program has 489 stored
     .usf written inline by its batch).
 
-32. OWNER DECISION — SAMPLE WINDOWS: the USF cannot say "these instruments
-    are slices of ONE recording", so it stores the slices (measured
-    2026-08-30, digi_organizer closeout). A sampler musician's ordinary
-    move is to record once and carve several instruments out of it at
-    different offsets; Morton/Digibeatz_2 does exactly that with TWELVE
-    overlapping windows into one recording. `SampleInstrument` names a
-    whole FLAC and nothing else, so to_usf emits twelve separate sidecars
-    whose audio overlaps: **429 pages stored for 216 pages of sound**.
+35. REVIEW THE UNIVERSAL DIGI DRIVER (landed 2026-08-30 20:23-21:39, not yet
+    reviewed). Five commits in ~3 h replaced the 14-entry driver CLASS
+    REGISTRY with a generic instruction-walk decoder plus one parametric
+    emitter: c999ff81 (design), 329dbdbc (12/14 shapes), 18be3c62 (delay-loop
+    family, 14/14), d58ca2cb (no register assumptions after the core call),
+    c42e5e6c (sub-JMP entry). Net −978/+829 across
+    `pipelines/digi_organizer/{extract,composer_asm,to_usf}.py`, plus a
+    rewrite of ledger C40's points 1-2 (6acb76fd). Verdict at the time:
+    39/39 FULL, batch_diff 0 regressions.
 
-    The composer currently recovers the relationship CONTENT-ADDRESSEDLY at
-    build time (`_cluster_blobs`, C40 3d): it byte-compares the blobs, finds
-    the page-aligned overlaps in either direction and stacks them back. That
-    works — the member is FULL, and without it the family could not have
-    closed, since 429 pages exceed the machine's free RAM. But it is
-    recovering by inference what the format threw away.
+    WHY IT WANTS A REVIEW: the motivation was correct and canonical — a
+    registry of named code templates indexed from the USF is a Principle §8
+    leak, and C40 now says so. But the replacement carries the driver as
+    nine `digi_drv_*` params, and the question is whether those are MEASURED
+    FACTS or the same library with a better story. What a member actually
+    stores today (2NY/Heavy-Beat):
 
-    WHY IT MATTERS BEYOND SIZE (Principle §9 tiebreaker, "the relationship
-    over the frozen measurement"): twelve near-identical audio blobs are
-    unlearnable — a model can only memorise them, and they are semantically
-    undefined the moment anyone edits the music (edit the recording and the
-    twelve copies silently disagree). The relationship "one recording,
-    twelve windows" is the musical fact, and it is the fact a sampler user
-    would recognise.
+      digi_drv_pre: "SEI@0,01=35@4,IRQ@15,dc0d=81@21,R:dc0d@25,d012=81@31,
+                     d011=1b@37,dc0e=00@43,d01a=01@49,d019=01@53"
+      digi_drv_wrap: "save,ack=asl,tick,read=dc0d,restore,rti"
+      digi_drv_post: "CLI@0"   digi_drv_tail: rts
+      digi_drv_cyc: 65         digi_drv_pcyc: 2
 
-    SHAPE OF THE FIX (needs approval — a typed-field addition):
-    `SampleInstrument { sample, offset, length, rate_cycles }`, with
-    offset/length elided at their defaults so every existing member's .usf
-    is unchanged and the corpus stays readable. The extract already knows
-    the windows (it reads start/end pages from the engine's own table); the
-    composer's clustering then becomes a placement detail rather than a
-    reconstruction. NB it interacts with C40 3e's `digi_onepage_rows`: both
-    are facts about how the sample TABLE was written, and a typed window
-    might absorb the one-page-row distinction as `length == 1` vs an
-    explicit end — worth checking before designing either further.
+    That is an ordered list of machine operations with cycle offsets. The
+    owner REJECTED an earlier form of exactly this shape during the session
+    ("an ordered write-list plus a cycles-to-core number — distilled
+    machinery rather than anything the audio needs; that is the original's
+    instruction sequence as data"), and three experiments then reshaped it.
+    The review question is simply whether the landed form actually cleared
+    that bar or converged back onto it. Principle §3 (Pole B: complete but
+    unlearnable) and ledger C7 category B (opaque blob in USF) are the
+    tests; `the_principle.md` §9's four tests are the gate.
 
-    EXPOSURE: 39 standalone digi_organizer members today (12 windows in
-    Digibeatz_2, 24 of 39 members carry at least one shared range); the
-    92 music-paired members are unmeasured; Rayden_Digi is the next family
-    on the same schema and will have the same authoring idiom.
+    ⚖ THE HONEST COUNTER-ARGUMENT, to weigh rather than dismiss: digi is
+    Mode 2, where cycle position IS the signal, so SOME temporal facts must
+    reach the composer — a fully "musical" digi representation that drops
+    them cannot verify by construction. So the question is not "should
+    temporal facts be carried" (yes) but "is this the MINIMAL set of
+    observable temporal facts, or a transcription of the original's
+    instruction stream?" C40's own wording — "match the cycle SCHEDULE, own
+    the code; producing the same schedule does not require producing it the
+    same way" — is the standard to hold it to.
+
+    SPECIFIC THINGS TO LOOK AT:
+      a. All nine are registered `temporal-dispatch` in composer_params.json.
+         Is that right for each? `digi_drv_wrap` ("save,ack=asl,tick,
+         read=dc0d,restore,rti") reads as a CODE SHAPE, not a time.
+      b. `digi_drv_subjmp` landed at 21:39 as a late fix. How many carriers?
+         A single-carrier knob is the registry re-forming one row at a time
+         — the speculative-generality tripwire already recorded in item 5.
+      c. Does ledger C40's rewritten card match what SHIPPED, or what was
+         intended at 19:38 when it was rewritten (before 3 of the 5 commits)?
+      d. The two prototypes committed into `pipelines/digi_organizer/docs/`
+         (c431fb6e) are item 31's third instance — do they still earn a place
+         beside the family now the work has landed?
+      e. 39/39 FULL was measured on FRESH extracts; item 34 shows the stored
+         artifacts never rebuilt. Re-run the mass-write as part of accepting
+         this work, not separately.
+
+    NOT URGENT: the family verifies, nothing is blocked on it, and the
+    coverage claim is honest. This is a design review of a fast, large,
+    canon-adjacent change — exactly the kind that should not be self-
+    certified by the session that wrote it.
