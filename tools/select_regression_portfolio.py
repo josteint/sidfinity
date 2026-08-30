@@ -624,6 +624,71 @@ MASM_PIN_DIMS = {
 }
 
 
+def digi_organizer_features(sid: str) -> tuple[str, set] | None:
+    """Digi-Organizer feature set for one FULL member.
+
+    This family is verified CYCLE-STRICT (core tenet Mode 2), so its
+    dimensions are the things that move CYCLES, not just values: the
+    driver CLASS (each one a distinct mirrored cycle shape), the
+    core-entry and core-tail variants, the NMI vector target, the PSID
+    clock, the speed-poke forms, and the data shapes whose handling is a
+    BRANCH in the mirrored player (degenerate vs explicit one-page
+    sample rows — ledger C40 3e). Also the composer-side layout paths
+    (relocated player, PCM overlap join, past-EOF PCM), which no other
+    member exercises.
+    """
+    import signal
+
+    def _bail(_sig, _frm):
+        raise TimeoutError
+
+    signal.signal(signal.SIGALRM, _bail)
+    signal.alarm(20)
+    from pipelines.digi_organizer.extract import extract_model
+    try:
+        m = extract_model(sid)
+    except Exception:
+        return None
+    finally:
+        signal.alarm(0)
+    f = {f'driver:{m.driver}',
+         f'tail:{m.core_tail}',
+         f'nmivec:{m.nmi_vec}',
+         f'clock:{m.meta["clock"]}'}
+    if m.port_preinit is not None:
+        f.add(f'preinit:{m.preinit_form}')
+    if m.driver_params.get('core_entry') == 'core40':
+        f.add('entry:core40')
+    if m.base_latch != 0x70:
+        f.add('latch:nondefault')
+    if m.driver_params.get('speed_poke') is not None:
+        f.add('speed:poke_post')          # poke AFTER core init
+    if 'speed_preinit' in m.driver_params:
+        f.add('speed:poke_pre')           # poke BEFORE core init
+    if m.order_term == 'stop':
+        f.add('order:stop')
+    if m.onepage_degenerate:
+        f.add('smptab:onepage_degenerate')     # the C40 3e branch
+    if any(e - s == 1 for s, e, _l in m.samples.values()
+           if True) and not m.onepage_degenerate:
+        f.add('smptab:onepage_normal')
+    # composer-side layout paths, derived from the same facts the
+    # allocator sees (page totals, not placements — placement is chosen
+    # by the composer and is not a property of the member)
+    ranges = {(s, e) for s, e, _l in m.samples.values()}
+    if len(ranges) != len(m.samples):
+        f.add('pcm:shared_range')
+    tot = sum(e - s for s, e in ranges)
+    if max((e - s for s, e in ranges), default=0) > 0x80:
+        f.add('pcm:huge_blob')            # forces the relocated player
+    if tot > 0xC0:
+        f.add('pcm:overflow_join')        # forces the overlap join
+    end_img = m.load + len(open(sid, 'rb').read())
+    if any((e << 8) > end_img for _s, e in ranges):
+        f.add('pcm:past_eof')             # C29 CPU-eye capture
+    return sid, f
+
+
 def masm_features(sid: str) -> tuple[str, set] | None:
     """Music Assembler feature set for one FULL member.
 
@@ -819,6 +884,21 @@ ENGINES = {
         'features': dmc_v5_features,
         'witnesses': DMC_V5_WITNESSES,
         'pin_dims': DMC_V5_PIN_DIMS,
+        'sid_key': 'path',
+    },
+    # DIGI-ORGANIZER, derived at its standalone closeout (39/39). The
+    # family is small but its dimensions are unusually SHARP: it is the
+    # only Mode-2 cycle-strict family, so a covered dimension is covered
+    # to the cycle, and 14 of its ~29 dimensions are driver classes with
+    # ONE carrier each — an exact multicover therefore lands close to
+    # the whole family, which is the honest answer for 39 members whose
+    # every class is its own hand-written cycle skeleton.
+    'digi_organizer': {
+        'results': store_path('digi_organizer'),
+        'out': os.path.join(ROOT, 'pipelines', 'digi_organizer',
+                            'regression_portfolio.json'),
+        'features': digi_organizer_features,
+        'witnesses': set(),
         'sid_key': 'path',
     },
 }

@@ -316,6 +316,40 @@ def _w_masm(sid: str, group: str | None) -> dict:
             'ok': ok, 'partial': 0, 'fail': 1 - ok, 'total': 1}
 
 
+def _w_digiorg(sid: str, group: str | None) -> dict:
+    """Digi-Organizer — the FULL round trip, SID -> USF (+ FLAC sidecars)
+    -> SID, verified CYCLE-STRICT (core tenet Mode 2: for digi the write
+    TIMING is the sample). The only family in this harness whose verdict
+    is compare_strict rather than the flat instruction stream."""
+    import glob as _glob
+    import tempfile
+    from pipelines.digi_organizer.to_usf import write_usf
+    from pipelines.digi_organizer.composer_asm import build_sid
+    from pipelines.hubbard.verify_cycle import writelog_capture, compare_strict
+    from src import songlengths as _sl
+    # the portfolio stores the batch's HVSC-relative `path` key
+    sid = sid if sid.startswith('hvsc85/') else 'hvsc85/' + sid
+    td = tempfile.mkdtemp()
+    out = os.path.join(td, 'a.sid')
+    build_sid(write_usf(sid, td), out)
+    db = _sl.load_database(_glob.glob('hvsc85/DOCUMENTS/Songlengths.md5')[0])
+    try:
+        dur = _sl.get_durations(sid, db)[0] * 1.1
+    except Exception:
+        dur = 120.0
+    a = writelog_capture(sid, 0, dur, force_rsid=True)
+    b = writelog_capture(out, 0, dur, force_rsid=True)
+    r = compare_strict(a, b)
+    ok = 1 if (r['first_diff'] is None
+               and sum(map(len, a)) == sum(map(len, b))) else 0
+    return {'family': 'Digi_Organizer',
+            'group': group or 'Digi-Organizer portfolio (Mode-2 '
+                              'CYCLE-STRICT feature-cover):',
+            'line': '  %-24s %s' % (sid.split('/')[-1][:24],
+                                    'FULL' if ok else 'REGRESSED'),
+            'ok': ok, 'partial': 0, 'fail': 1 - ok, 'total': 1}
+
+
 def _w_masm_hetero(_unused: str, group: str | None) -> dict:
     """Freespace_2075 — the DMC + Music Assembler heterogeneous member
     (ledger C31). Its subtunes 1-2 are MA players, so MA composer changes can
@@ -453,6 +487,7 @@ _WORKERS = {
     'jd': _w_jd, 'fc_canary': _w_fc_canary, 'fc_portfolio': _w_fc_portfolio,
     'dmc': _w_dmc, 'dmc_v5': _w_dmc_v5, 'basic': _w_basic,
     'masm': _w_masm, 'masm_hetero': _w_masm_hetero, 'gtv1': _w_gtv1,
+    'digiorg': _w_digiorg,
 }
 
 
@@ -569,6 +604,14 @@ def _build_tasks() -> list:
     # the MA family batch cannot see it (it is DMC-classified).
     add('masm_hetero', '', 'DMC + Music_Assembler heterogeneous member '
                            '(ledger C31), MA-side canary:')
+    # Digi-Organizer: Mode-2 CYCLE-STRICT round trip, one member per
+    # cycle-shape dimension (driver class, core tail/entry, NMI vector,
+    # clock, speed-poke form, the C40 3e one-page branch, and the
+    # composer's relocated-player / overlap-join / past-EOF PCM paths).
+    gpf = os.path.join(_PIPE, 'digi_organizer', 'regression_portfolio.json')
+    if os.path.exists(gpf):
+        for sid in json.load(open(gpf))['portfolio']:
+            add('digiorg', sid, None)
     # GoatTracker V1: one FULL canary per player variant, built through a
     # written+parsed .usf (the round trip, not the in-memory UsfFile).
     for sid in ('MUSICIANS/N/Ne7/Manifold_28B.sid',          # player1 tracker
@@ -595,6 +638,8 @@ _FAMILY_ORDER = [
      'Music Assembler family (SID -> USF -> SID round-trip portfolio):'),
     ('GoatTracker_V1',
      'GoatTracker V1 (SID -> USF -> SID canaries, one per player variant):'),
+    ('Digi_Organizer',
+     'Digi-Organizer (Mode-2 CYCLE-STRICT round-trip portfolio):'),
 ]
 
 
@@ -649,6 +694,7 @@ def main():
     bp_ok, _, bp_fail, _ = agg['Basic_Program']
     ma_ok, _, ma_fail, _ = agg['Music_Assembler']
     gt_ok, _, gt_fail, _ = agg['GoatTracker_V1']
+    dg_ok, _, dg_fail, _ = agg['Digi_Organizer']
 
     print(f'Hubbard:    {h_ok} ok  +  {h_part} known-partial  +  '
           f'{h_reg} regressed  (of {h_total})')
@@ -662,9 +708,10 @@ def main():
     print(f'Basic_Program: {bp_ok} ok  +  {bp_fail} regressed')
     print(f'Music_Assembler: {ma_ok} ok  +  {ma_fail} regressed')
     print(f'GoatTracker_V1: {gt_ok} ok  +  {gt_fail} regressed')
+    print(f'Digi_Organizer: {dg_ok} ok  +  {dg_fail} regressed')
 
     if (h_reg or c_fail or cme_fail or jd_fail or fc_fail or dmc_fail
-            or v5_fail or bp_fail or ma_fail or gt_fail):
+            or v5_fail or bp_fail or ma_fail or gt_fail or dg_fail):
         sys.exit(1)
 
 
