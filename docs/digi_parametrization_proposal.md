@@ -181,7 +181,15 @@ score (the actual musical content) unrepresented.
    every measured DoF of both engines (technique, per-event rate,
    score, mixing constants) plus Chimera's (pace = rate_cycles).
 2. **No escape hatch** — `technique` is a 2-value musical enum; no
-   registry row; no field indexes composer code. The composer branch on
+   registry row; no field indexes composer code. ⚠ THIS BECAME FALSE
+   AND WAS RESTORED (2026-08-30). It held for the PLAYER, which is what
+   this document is about, but the migration then grew a DRIVER
+   registry — 14 hand-written 6502 templates selected by name from
+   `params['digi_driver']`, six of them with a single carrier — and no
+   one re-ran this test against it. The driver is now parametrized (a
+   generic instruction walk measures each member; one emitter
+   synthesises code for it), so the claim holds again; see ledger C40
+   points 1-2, which had taught the shortcut and are corrected. The composer branch on
    `technique` is the same class as branching on `shape: triangle` —
    parametric synthesis, not engine sniffing (each value is defined by
    its chip behavior, not by which author's player it came from).
