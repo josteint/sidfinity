@@ -100,6 +100,7 @@ def model_to_usf(m, usf_dir: str, basename: str) -> UsfFile:
     return UsfFile(
         psid=PsidMeta(title=meta['title'], author=meta['author'],
                       released=meta['released'],
+                      clock=meta['clock'], sid=meta['sid_model'],
                       start_song=meta['start_song'],
                       speed=meta['speed']),
         # Temporal dispatch of the sequencer tick: the driver CLASS

@@ -774,11 +774,17 @@ def build_sid(usf_path: str, out_path: str) -> str:
     blob, labels = assemble(asm, return_labels=True)
     load = int(asm.split('=', 1)[1].split('\n', 1)[0].strip().
                lstrip('$'), 16)
+    # Clock is SIGNAL under Mode 2: the raster-IRQ tick runs at the
+    # frame rate, so an NTSC member's stream is 60 Hz — a PAL default
+    # rebuilds at 5/6 speed (perfect content prefix, wrong wall time).
+    clock = {'PAL': 1, 'NTSC': 2, 'both': 3}.get(usf.psid.clock, 0)
+    sidm = {6581: 1, 8580: 2, 'both': 3}.get(usf.psid.sid, 0)
     h = bytearray(build_header(
         load=0, init=labels['driver_init'], play=0, songs=1,
         start_song=usf.psid.start_song, speed=0,
         title=usf.psid.title, author=usf.psid.author,
-        released=usf.psid.released))
+        released=usf.psid.released,
+        flags=(clock << 2) | (sidm << 4)))
     h[:4] = b'RSID'
     with open(out_path, 'wb') as f:
         f.write(h)

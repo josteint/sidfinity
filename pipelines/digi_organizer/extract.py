@@ -42,8 +42,16 @@ def load_image(sid_path: str):
             img = body[2:]
         else:
             img = body
+    # header flags (+118, v2+): clock bits 2-3 / SID model bits 4-5.
+    # The raster-IRQ tick runs at the FRAME rate, so an NTSC member's
+    # whole stream is 60 Hz — a PAL-defaulted rebuild plays at 5/6
+    # speed with a perfect content prefix (Digi_Zak_1/_2).
+    flags = struct.unpack('>H', d[0x76:0x78])[0] if version >= 2 else 0
+    clock = {1: 'PAL', 2: 'NTSC', 3: 'both'}.get((flags >> 2) & 3, 'unknown')
+    sid_model = {1: 6581, 2: 8580, 3: 'both'}.get((flags >> 4) & 3, 0)
     meta = {'magic': magic, 'version': version, 'init': init, 'play': play,
             'songs': songs, 'start_song': start, 'speed': speed,
+            'clock': clock, 'sid_model': sid_model,
             'title': title, 'author': author, 'released': released}
     return meta, load, img
 
@@ -640,8 +648,23 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
         base_latch=base_latch, or_mask=or_mask, d418_init=d418_init)
 
     # --- walk the orderlist (pos is taken &$7F by the engine) ---
+    # An UNTERMINATED authored orderlist runs the walk into the member's
+    # own PLAYER CODE (Digi_Zak_2: the sphere driver init sits at $9240,
+    # right after 32 authored entries — `SEI/LDA #$35/...` read as
+    # "pattern 120 repeat 41" + garbage sample-table rows, latch $00).
+    # Memory at/after a located code/table structure can never hold
+    # authored entries (the player would be corrupt), so the walk stops
+    # there: the song plays once and ends. The engine WOULD sonify its
+    # own code if left running (~90 s past the recorded songlength —
+    # measured: order pos <= $1E over the whole ratified window), which
+    # is not musical content (C7); represent the authored end as 'stop'.
+    code_barrier = min((a for a in (meta['init'], smp_base)
+                        if a >= ol_base), default=None)
     pos = 0
     while pos < 0x80:
+        if code_barrier is not None and ol_base + pos * 2 + 2 > code_barrier:
+            m.order_term = 'stop'
+            break
         b0, b1 = rd(ol_base + pos * 2, 2)
         if b0 == 0xFE:
             m.order_term = 'stop'
