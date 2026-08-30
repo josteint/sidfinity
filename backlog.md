@@ -5,7 +5,7 @@
 # dozen measured-but-unfinished investigations. Moved to the repo root and
 # tracked for exactly that reason.
 #
-# NEXT_ITEM: 30   <- autoincrement: a NEW item takes this number, then bump it.
+# NEXT_ITEM: 31   <- autoincrement: a NEW item takes this number, then bump it.
 #
 # CONVENTIONS (owner-set 2026-08-28):
 #  - A done item is REMOVED COMPLETELY — no tombstone, no summary line. The
@@ -1530,3 +1530,21 @@
 
     All 15 are formerly-invisible members — virgin residue, no regressions.
     Cross-ref: f1 counterpart assessment = item 28.
+
+30. DIGI_ORGANIZER PARAMS CONSOLIDATION — deferred from the 2026-08-30 canon
+    audit, scheduled for the standalone-family CLOSEOUT (after the 5 decoded
+    unsupported members + the 4 cycle-phase partials land, or when the grind
+    saturates). The driver-class registry grew ~17 registered params keys;
+    several per-class SUB-SHAPE booleans (digi_driver_gate/_tail_sei/_bit/
+    _nop/_wrap_nops, digi_delay_seed/_outer, digi_d011_init) are 1:1 with a
+    single class and are approaching, one flag at a time, the "driver
+    op-encoding in params" rejected at design time as Pole-B-for-mechanism
+    (the audit's aggregate-trend finding). TASK: census key-by-key which
+    booleans/scalars are (a) constant across all carriers of their class →
+    fold into the class definition (emitter constant), (b) genuinely
+    per-member → keep as params. Gate = the byte-identity carrier-refactor
+    recipe over ALL 39 members (build pre/post, MD5-compare every .sid —
+    the digi .usf text changes by design), then a restamp batch +
+    batch_diff. Registry rows for folded keys are DELETED (composer_param_
+    lint flags stale rows). NOT owner-gated (params-bag mechanism, C33-style
+    carrier refactor) but the audit trail should note what folded where.
