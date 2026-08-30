@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: eeee45ad-d522-49c1-8391-1946b3565085
-  modified: 2026-08-30T07:49:33.081Z
+  modified: 2026-08-30T17:00:59.082Z
 ---
 
 ## 2026-08-30 — round 4: **39/39 FULL — the standalone family is CLOSED**
@@ -23,8 +23,13 @@ family in the harness); 22/22 green. MASS-WRITE RUN: 39 `.usf` + 39
 audited from disk (the stored .usf rebuilds the stored .sid AND the
 stored .sid still verifies cycle-strict). `mass_write.py` is the
 corpus_sync binding plus a PCM-sidecar orphan sweep, which
-ARTIFACT_SUFFIXES cannot see. Backlog item 30 DONE: 18 params keys →
-15 while the driver-class registry grew 11 → 14, all byte-identical.
+ARTIFACT_SUFFIXES cannot see. Backlog item 30 DONE: the REGISTERED
+`digi_*` params keys went 19 → 17 (three folded into their class
+emitters, one added — `digi_onepage_rows`) while the driver-class
+registry grew 11 → 14; all rebuilds byte-identical. ⚠ the commit
+message on 7e92460d says "18 → 15": that counted keys PRESENT IN THE
+STORED .usf, not registered ones, and forgot the key added earlier the
+same session. Net is −2, not −3.
 
 ⚠ SEQUENCING, learned the hard way twice: the family's fingerprint
 closure is its whole directory, so deriving the portfolio AND editing
