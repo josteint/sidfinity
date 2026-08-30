@@ -1606,6 +1606,21 @@
     Whichever way it lands, it is the same KEY-DEFINITION change and wants
     the same migration step.
 
+    ⚠⚠ THIRD INSTANCE, and the one that shows the real shape of the bug: it
+    is not "tools that live in the hashed dir", it is EVERYTHING that lives
+    there. Committing two RESEARCH PROTOTYPES into
+    `pipelines/digi_organizer/docs/` — which CLAUDE.md names as the home for
+    per-engine research material — invalidated all 39 freshly-earned
+    verdicts. So the declared closure currently says a family's verdicts
+    depend on its own documentation. Three instances in one day, each
+    costing a re-batch: the portfolio, the mass-writer, and now the docs.
+    The declared set is `['pipelines/<family>', ...shared]` — a whole
+    directory — and the only files in it that can actually change a verdict
+    are the extract, the composer and their shared imports, which is
+    precisely what `tools/derive_deps.py` measures. That is the argument for
+    deriving rather than for extending the exclusion list one suffix at a
+    time.
+
 32. OWNER DECISION — SAMPLE WINDOWS: the USF cannot say "these instruments
     are slices of ONE recording", so it stores the slices (measured
     2026-08-30, digi_organizer closeout). A sampler musician's ordinary
