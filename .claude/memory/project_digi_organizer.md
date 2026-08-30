@@ -5,8 +5,53 @@ metadata:
   node_type: memory
   type: project
   originSessionId: eeee45ad-d522-49c1-8391-1946b3565085
-  modified: 2026-08-29T20:05:08.446Z
+  modified: 2026-08-30T06:46:38.706Z
 ---
+
+## 2026-08-30 — round 4: 36/39 FULL, 0 unsupported, verdicts CURRENT
+
+**Status: 36 FULL / 3 partial / 0 unsupported of 39 standalone**
+(full re-batch, `batch_diff` 0 regressions vs both prior batches, +6).
+Every member the family claims now BUILDS; the whole residue is one
+class. Six landed:
+
+- **Digi_Zak_1 + _2 (Sphere)** — the parked "first-tick phase slip"
+  was the **NTSC header flag**. The raster-IRQ tick runs at the FRAME
+  rate, so these are 60 Hz streams and the PAL-defaulted rebuild ran
+  at exactly 5/6 speed with a perfect content prefix at every horizon.
+  Header clock/sid now parsed → typed `PsidMeta.clock`/`sid` → derived
+  into the rebuilt header. A SLOPE, not the one-time slip it mimics
+  (C40 diagnosis table). _2 additionally had an UNTERMINATED orderlist
+  whose walk ran into the sphere driver's own code at $9240 ("pattern
+  120 repeat 41" + the garbage latch-$00 sample row that refused the
+  build) → the walk now stops at a located-code barrier.
+- **Digimix_2 (Jer)** — plays a 152-page sample (its table carves the
+  whole $0800-$A000 memory; every other sample a sub-range). No
+  canonical hole is that big → the player block became RELOCATABLE
+  (page-granular, whole-block; `_layout`). See C40 3d for the two
+  layout invariants this surfaced.
+- **Digibeatz_1 + _2 (Morton)** — new driver classes `rwait_lock` /
+  `rwait_rts`: no raster line is ARMED, the wrapper BUSY-WAITS
+  `cmp $d012` until the beam reaches its line (screen blanked, so no
+  badline perturbs it), and a PRE-core-init poke of the tick's speed
+  immediate makes the image byte stale for seed AND reload. _2 needed
+  the PCM overlap JOIN (12 windows into one recording: 429 pages
+  separate, 216 merged, ~223 available).
+- **Damn_Fine_Digi** — new class `song_head`: an SMC song-select head
+  that decides nothing (one song, init ignores A) but whose cycles are
+  grid phase, so it is mirrored exactly.
+
+RESIDUE (3, all one class — content-complete, sub-frame cycle phase):
+Second_Thoughts (+5-then-−1 idle phase) · Arnie-Rap (322/10081 fr) ·
+Trace_Loop (1551/2028). Trace_Loop measured this round: its trigger
+path and BOTH NMI handlers are byte-identical to a FULL sibling's, and
+both inter-write delta patterns (74/88 and 77/85, same mean) occur on
+BOTH sides — so it is phase accumulated at a sample switch, not
+structure. Next step is a pc-trace comparison across the switch, which
+is the first real investment any of the three needs.
+
+NOT yet: regression.py wiring, mass-write, the 92 music-paired members,
+backlog item 30 (params consolidation, scheduled for closeout).
 
 ## 2026-08-29 (late night) — round 3: 30/39 FULL, verdicts CURRENT
 

@@ -1566,11 +1566,27 @@ practice, not code to factor).
   IDLE-LOOP PHASE vs the grid (a 1-byte post-timer tail re-phases
   latency); late start = TIMER GRID ORIGIN (probe the base latch, never
   derive from sample latches); switch-point content shift = grid
-  truncating the outgoing sample differently; silence = ENVIRONMENT —
-  measure port/vectors both sides with --peek-post-init before
-  theorizing. Gate static probes on entry-path REACHABILITY (unreached
-  leftover stubs false-trip). State coverage x/standalone AND x/claimed
-  (digi carriers mostly PAIR with other engines' members).
+  truncating the outgoing sample differently; constant RATE RATIO with
+  a perfect content prefix = the PSID CLOCK flag (a raster-IRQ tick
+  runs at the FRAME rate, so NTSC is a 60 Hz stream — a SLOPE, not the
+  one-time first-tick slip it mimics); silence = ENVIRONMENT, or the
+  HOST REFUSED THE FILE (RSID rejects load < $07E8 / init in
+  $A/$B/$D/$E/$F pages with no diagnostic at all — check that first,
+  it is one field). Gate static probes on entry-path REACHABILITY
+  (unreached leftover stubs false-trip). State coverage x/standalone
+  AND x/claimed (digi carriers mostly PAIR with other engines').
+- LAYOUT (3d): relocating the mirrored player is cycle-neutral only
+  PAGE-GRANULARLY and only as a WHOLE (all 6502 variable timing depends
+  on LOW bytes) — and then check what the mirrored init reads as DATA:
+  a byte-saving original reuses register values, so a PAGE BYTE can be
+  load-bearing (the repeat-counter seed `sty` reusing Y = >idle_nmi is
+  negative only at $9000; relocated low it built clean and played every
+  pattern 10× instead of 2×). Mode 2 forbids repairing that with an
+  extra load, so the invariant binds the LAYOUT — assert it. PCM
+  windows carved from one recording must be re-shared CONTENT-ADDRESSEDLY
+  at placement, in BOTH directions. A PRE-init speed poke replaces the
+  image byte for seed AND reload; a POST-init one leaves it as the
+  first row's duration — read the ORDER, not the shape.
 - Trichotomy note: Mode-2 members are EXEMPT from the universal-init
   verdict (init cycles are signal); the trichotomy's categories still
   route the content.

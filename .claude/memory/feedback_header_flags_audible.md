@@ -5,6 +5,7 @@ metadata:
   node_type: memory
   type: feedback
   originSessionId: ecfcfba7-aa57-459e-907d-2b829fe8eee8
+  modified: 2026-08-30T06:47:00.635Z
 ---
 
 When bringing up a NEW engine's composer (`build_*_sid`): (1) derive the PSID
@@ -23,3 +24,17 @@ covers this dimension — the header diff at bring-up and the mandatory
 new-engine ear-test ([[feedback_py65_misses_dispatch_bugs]]) are the only
 nets. All in-tree composers were fixed 2026-07-06; extracts capture
 clock/sid losslessly (USF grammar admits `sid: both`/0).
+
+**Fourth occurrence, and the first where a verdict COULD see it
+(2026-08-30, digi_organizer):** under the cycle-strict Mode-2 verdict
+the clock flag is not merely audible, it is measurable — a raster-IRQ
+tick runs at the FRAME rate, so an NTSC original is a 60 Hz stream and
+the PAL-defaulted rebuild runs at exactly 5/6 speed. It presents as a
+perfect content prefix at every horizon with the whole stream lagging,
+which is almost indistinguishable from a one-time interrupt-phase slip
+— and the two Sphere members sat parked for a round as "extensively
+measured first-tick phase" before anyone read the header. A slip is an
+OFFSET; this is a SLOPE. When a new composer's first cycle-strict
+partial looks like phase, check the four header fields before
+measuring anything. Signature recorded in ledger C40's diagnosis
+table.

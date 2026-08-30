@@ -1514,8 +1514,23 @@
     bare_stub) + 4 cycle levers (base latch = NMI grid origin, Morton
     port pre-init, core-init tail, BIT filler) + C29 past-EOF PCM +
     content-addressed overlap dedup. Store `digi_organizer` registered.
-    NEXT: (a) the 18 remaining driver shapes (one probe+emitter each,
-    listed in [[project_digi_organizer]]); (b) regression.py wiring +
+    ✅ ROUND 4 (2026-08-30): **36/39 FULL, 0 unsupported, 3 partial**
+    (re-batch, batch_diff 0 regressions). Every claimed member now
+    BUILDS. Landed: the NTSC clock flag as Mode-2 signal (the two
+    Sphere members — a raster tick runs at the FRAME rate, so the
+    PAL default ran 5/6 speed; the parked "first-tick phase" was a
+    header field), a code-barrier stop for an unterminated orderlist,
+    a page-granular RELOCATABLE player block + PCM overlap join
+    (Digimix_2's 152-page sample, Digibeatz_2's 12 windows into one
+    recording), and the `rwait_lock`/`rwait_rts`/`song_head` driver
+    classes. C40 grew a 3d (layout invariants inside mirrored init +
+    the RSID load/init address rules, which fail SILENTLY).
+    NEXT: (a) the 3 remaining partials — ONE class, content-complete
+    sub-frame cycle phase (Second_Thoughts / Arnie-Rap / Trace_Loop);
+    Trace_Loop is measured down to "phase accumulated at a sample
+    switch, trigger path and both NMI handlers byte-identical to a
+    FULL sibling's", and the next step for any of them is a pc-trace
+    comparison across the switch; (b) regression.py wiring +
     mass-write at family closeout; (c) the 92 music-paired members
     (C31-hetero + the $D418-ownership split verdict); (d) Rayden_Digi
     (item 28) on the same schema.
@@ -1532,9 +1547,14 @@
     Cross-ref: f1 counterpart assessment = item 28.
 
 30. DIGI_ORGANIZER PARAMS CONSOLIDATION — deferred from the 2026-08-30 canon
-    audit, scheduled for the standalone-family CLOSEOUT (after the 5 decoded
-    unsupported members + the 4 cycle-phase partials land, or when the grind
-    saturates). The driver-class registry grew ~17 registered params keys;
+    audit, scheduled for the standalone-family CLOSEOUT (the 5 decoded
+    unsupported members LANDED 2026-08-30; what remains before closeout is
+    the 3 cycle-phase partials, or a decision that the grind has saturated).
+    NB round 4 added THREE more driver classes (rwait_lock / rwait_rts /
+    song_head) and deliberately gave them NO new keys — every sub-shape
+    rides an existing one — so the census below should now find the key
+    count flat against a larger class registry. The registry grew ~17
+    registered params keys;
     several per-class SUB-SHAPE booleans (digi_driver_gate/_tail_sei/_bit/
     _nop/_wrap_nops, digi_delay_seed/_outer, digi_d011_init) are 1:1 with a
     single class and are approaching, one flag at a time, the "driver
