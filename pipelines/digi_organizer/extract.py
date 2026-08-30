@@ -624,6 +624,89 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
                     dp = {'raster': img[iv + 9 + 28],
                           'd011': img[iv + 9 + 33]}
 
+    # The RASTER-WAIT family (Digibeatz ×2). Two things set it apart:
+    #  - the driver never ARMS a raster line ($D012 is left at the
+    #    environment default); the wrapper BUSY-WAITS `cmp $d012` until
+    #    the beam reaches its line, so THAT immediate is what places the
+    #    tick in the frame — it is this family's `raster`.
+    #  - a pre-core-init POKE of the tick's own speed immediate
+    #    (core+$8E). Being before `jsr core`, it feeds both the init
+    #    seed and every steady reload, so the IMAGE byte is stale for
+    #    both and the poked value is the member's tempo (C40's speed
+    #    poke, one layer earlier). The second poke, into a driver byte
+    #    two before the wrapper, is dead template residue — reproduced
+    #    for its 4 pre-timer cycles only, never read.
+    # Screen is BLANKED ($D011=$00) — no badlines, so the busy-wait is
+    # cycle-deterministic.
+    rwait_wrap = [0x0E, 0x19, 0xD0, 0xA9, None, 0xCD, 0x12, 0xD0,
+                  0xD0, 0xFB, 0x20, None, None]
+
+    def _rwait(w, tail):
+        """(raster, ok) for a busy-wait wrapper at image offset w."""
+        if not _match(w, rwait_wrap + tail):
+            return None
+        if img[w + 11] | img[w + 12] << 8 != core_base + 3:
+            raise DigiOrganizerUnsupported('rwait: JSR is not the seq tick')
+        return img[w + 4]
+
+    # class 'rwait_lock' (Digibeatz_1): SEI, port, $D01A, mask+ack both
+    # CIAs, the two pokes, IRQ vector lo/hi, JSR core, ack, blank, CLI,
+    # JMP-self LOCK; wrapper acks, waits, ticks, reads $DC0D, RTI.
+    if driver is None:
+        pat_w = [0x78, 0xA9, 0x35, 0x85, 0x01,
+                 0xA9, 0x81, 0x8D, 0x1A, 0xD0,
+                 0xA9, 0x7F, 0x8D, 0x0D, 0xDC, 0x8D, 0x0D, 0xDD,
+                 0xAD, 0x0D, 0xDC, 0xAD, 0x0D, 0xDD,
+                 0xA2, None, 0xA9, None,
+                 0x8E, None, None, 0x8D, None, None,
+                 0xA9, None, 0xA2, None,
+                 0x8D, 0xFE, 0xFF, 0x8E, 0xFF, 0xFF,
+                 0x20, None, None,
+                 0xA9, 0xFF, 0x8D, 0x19, 0xD0,
+                 0xA9, None, 0x8D, 0x11, 0xD0,
+                 0x58, 0x4C, None, None]
+        if _match(iv, pat_w) and \
+                img[iv + 29] | img[iv + 30] << 8 == core_base + 0x8E and \
+                img[iv + 45] | img[iv + 46] << 8 == core_base and \
+                img[iv + 59] | img[iv + 60] << 8 == load + iv + 58:
+            w = (img[iv + 35] | img[iv + 37] << 8) - load
+            r = _rwait(w, [0xAD, 0x0D, 0xDC, 0x40])
+            if r is not None:
+                driver = 'rwait_lock'
+                dp = {'raster': r, 'd011': img[iv + 53],
+                      'speed_preinit': img[iv + 25]}
+
+    # class 'rwait_rts' (Digibeatz_2): same family, but blanks the
+    # screen + border FIRST, pre-arms the NMI vector at a bare RTI stub
+    # (dead — core init re-points it), and RETURNS instead of locking;
+    # its wrapper skips the $DC0D read.
+    if driver is None:
+        pat_x = [0x78, 0xA9, 0x35, 0x85, 0x01,
+                 0xA9, None, 0x8D, 0x11, 0xD0, 0x8D, 0x20, 0xD0,
+                 0x8D, 0x21, 0xD0,
+                 0xA9, None, 0xA2, None, 0x8D, 0xFA, 0xFF, 0x8E, 0xFB, 0xFF,
+                 0xA9, 0x81, 0x8D, 0x1A, 0xD0,
+                 0xA9, 0x7F, 0x8D, 0x0D, 0xDC, 0x8D, 0x0D, 0xDD,
+                 0xAD, 0x0D, 0xDC, 0xAD, 0x0D, 0xDD,
+                 0xA2, None, 0xA9, None,
+                 0x8E, None, None, 0x8D, None, None,
+                 0xA9, None, 0xA2, None,
+                 0x8D, 0xFE, 0xFF, 0x8E, 0xFF, 0xFF,
+                 0x20, None, None,
+                 0xA9, 0xFF, 0x8D, 0x19, 0xD0,
+                 0xA9, None, 0x8D, 0x11, 0xD0,
+                 0x58, 0x60]
+        if _match(iv, pat_x) and \
+                img[iv + 50] | img[iv + 51] << 8 == core_base + 0x8E and \
+                img[iv + 66] | img[iv + 67] << 8 == core_base:
+            w = (img[iv + 56] | img[iv + 58] << 8) - load
+            r = _rwait(w, [0x40])
+            if r is not None:
+                driver = 'rwait_rts'
+                dp = {'raster': r, 'd011': img[iv + 74],
+                      'd011_init': img[iv + 6],
+                      'speed_preinit': img[iv + 46]}
+
     if driver is None:
         raise DigiOrganizerUnsupported(
             'driver shape matches no probed class (irq_vec / nmi_first '
@@ -637,6 +720,14 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
     enters_via_jmp = dp.get('core_entry', 'core') == 'core'
     pre = _probe_port_preinit() if enters_via_jmp else None
     preinit_form, port_preinit = pre if pre else (None, None)
+
+    # A PRE-core-init poke of the tick's speed immediate (rwait family)
+    # lands before anything reads it, so it replaces the image byte for
+    # BOTH the init seed and every steady reload — the file's byte is
+    # editor residue. (Contrast poke_stub, which pokes AFTER core init:
+    # there the image byte really is the first row's duration.)
+    if 'speed_preinit' in dp:
+        speed_reload = speed_init = dp['speed_preinit']
 
     m = DigiOrganizerModel(
         sid_path=sid_path, load=load, meta=meta,

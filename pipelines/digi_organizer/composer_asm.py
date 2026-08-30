@@ -72,23 +72,12 @@ def _byt(label, data, per_row=16):
     return '\n'.join(rows) + '\n'
 
 
-def _alloc_pcm(usf: UsfFile, usf_dir: str, regions: list):
-    """Place the PCM blobs page-aligned, first-fit over `regions`.
-
-    Absolute reads cost 4 cycles anywhere, so placement is pure layout;
-    `regions` is [[first_page, end_page_exclusive], ...] and is consumed
-    (mutated) as blobs are placed.
-    """
-    blob_pages = {}
-    pcm_chunks = []
-    # decreasing-size placement (an 80-page blob must see the big
-    # region before smaller blobs fragment it)
+def _packed_blobs(usf: UsfFile, usf_dir: str):
+    """The distinct PCM blobs, page-padded, largest first (a big blob
+    must see the big region before smaller ones fragment it)."""
     sized = []
     for fname in sorted({si.sample for si in usf.sample_instruments}):
         smp = read_sample(os.path.join(usf_dir, fname))
-        sized.append((len(smp.audio), fname, smp))
-    placed = []  # (page, packed) for overlap dedup
-    for _sz, fname, smp in sorted(sized, key=lambda t: -t[0]):
         nib = [b >> 4 for b in smp.audio]
         if len(nib) % 2:
             nib.append(0)
@@ -96,22 +85,83 @@ def _alloc_pcm(usf: UsfFile, usf_dir: str, regions: list):
                        for i in range(0, len(nib), 2))
         if len(packed) % 256:
             packed += bytes(256 - len(packed) % 256)
-        n_pages = len(packed) >> 8
-        # content-addressed overlap dedup: the original's sample table
-        # may carve overlapping ranges out of ONE recording — a blob
-        # whose bytes sit page-aligned inside an already-placed blob
-        # reuses that placement (byte-exact, no new memory).
-        reused = None
-        for bpage, bpacked in placed:
-            off = bpacked.find(packed)
-            while off != -1 and off % 256:
-                off = bpacked.find(packed, off + 1)
-            if off != -1:
-                reused = bpage + (off >> 8)
+        sized.append((len(packed), fname, packed))
+    return sorted(sized, key=lambda t: -t[0])
+
+
+def _aligned_find(data, packed):
+    """Page offset (in pages) of `packed` inside `data`, or None."""
+    off = data.find(packed)
+    while off != -1 and off % 256:
+        off = data.find(packed, off + 1)
+    return None if off == -1 else off >> 8
+
+
+def _tail_head(a, b):
+    """Largest k such that a's last k PAGES equal b's first k pages."""
+    for k in range(min(len(a), len(b)) >> 8, 0, -1):
+        if a[-(k << 8):] == b[:k << 8]:
+            return k
+    return 0
+
+
+def _cluster_blobs(blobs, join: bool):
+    """Group the blobs into contiguous RUNS of memory.
+
+    An original's sample table routinely carves SEVERAL windows out of
+    ONE recording, and the .usf carries each window as its own sidecar,
+    so the sharing has to be recovered CONTENT-ADDRESSEDLY. Containment
+    (a blob sitting page-aligned inside another) always collapses. With
+    `join`, blobs that merely OVERLAP also merge — in either direction,
+    since which window was seen first is an artifact of sidecar naming,
+    not of the audio. Digibeatz_2's 12 windows into one recording span
+    429 pages placed separately and 216 merged; the machine has ~226.
+
+    Byte-exactness is structural: a run only ever grows by bytes the
+    overlap proved equal, so every member's window still reads back its
+    own bytes. `_alloc_pcm` re-asserts that after placement.
+    """
+    runs = []                       # [[data, {fname: page offset}], ...]
+    for _sz, fname, packed in blobs:
+        for run in runs:
+            off = _aligned_find(run[0], packed)
+            if off is not None:
+                run[1][fname] = off
                 break
-        if reused is not None:
-            blob_pages[fname] = (reused, reused + n_pages)
-            continue
+            if not join:
+                continue
+            k = _tail_head(run[0], packed)          # blob continues run
+            if k:
+                run[1][fname] = (len(run[0]) >> 8) - k
+                run[0] = run[0] + packed[k << 8:]
+                break
+            k = _tail_head(packed, run[0])          # blob precedes run
+            if k:
+                shift = (len(packed) >> 8) - k
+                run[0] = packed[:shift << 8] + run[0]
+                run[1] = {f: o + shift for f, o in run[1].items()}
+                run[1][fname] = 0
+                break
+        else:
+            runs.append([packed, {fname: 0}])
+    return runs
+
+
+def _alloc_pcm(usf: UsfFile, usf_dir: str, regions: list, join: bool = False):
+    """Place the PCM runs page-aligned, first-fit over `regions`.
+
+    Absolute reads cost 4 cycles anywhere, so placement is pure layout;
+    `regions` is [[first_page, end_page_exclusive], ...] and is consumed
+    (mutated) as runs are placed.
+    """
+    blobs = _packed_blobs(usf, usf_dir)
+    runs = _cluster_blobs(blobs, join)
+    if join:                        # merging changed the sizes
+        runs.sort(key=lambda r: -len(r[0]))
+    blob_pages = {}
+    pcm_chunks = []
+    for data, members in runs:
+        n_pages = len(data) >> 8
         for reg in regions:
             if reg[1] - reg[0] >= n_pages:
                 page = reg[0]
@@ -120,54 +170,100 @@ def _alloc_pcm(usf: UsfFile, usf_dir: str, regions: list):
         else:
             raise DigiComposeError(
                 f'PCM allocator: no region fits {n_pages} pages')
-        blob_pages[fname] = (page, page + n_pages)
-        pcm_chunks.append((page << 8, packed))
-        placed.append((page, packed))
+        pcm_chunks.append((page << 8, data))
+        for fname, off in members.items():
+            blob_pages[fname] = (page + off, page + off + _blob_pages(
+                blobs, fname))
+    # every window must read back its own bytes from where it landed
+    for _sz, fname, packed in blobs:
+        s, _e = blob_pages[fname]
+        for addr, data in pcm_chunks:
+            o = (s << 8) - addr
+            if 0 <= o and o + len(packed) <= len(data):
+                if data[o:o + len(packed)] != packed:
+                    raise DigiComposeError(
+                        f'PCM allocator: {fname} misplaced at ${s:02X}00')
+                break
+        else:
+            raise DigiComposeError(f'PCM allocator: {fname} placed nowhere')
     return blob_pages, pcm_chunks
 
 
-def _place(usf: UsfFile, usf_dir: str):
+def _blob_pages(blobs, fname):
+    for sz, f, _p in blobs:
+        if f == fname:
+            return sz >> 8
+    raise KeyError(fname)
+
+
+def _driver_pages(p: dict, raster: int, d011: int, speed: int) -> int:
+    """How many pages the emitted driver occupies. MEASURED, not
+    guessed: its byte length is layout-independent (every operand is
+    absolute), so the canonical emission answers for any base."""
+    text = _emit_driver(p, raster, d011, speed, _layout(CORE))
+    stubs = ''.join(f'{n} = ${CORE + off:04X}\n' for n, off in
+                    (('st1', 0x8D), ('idle_nmi', 0x100)))
+    return (len(assemble(f'* = $c000\n' + stubs + text)) + 0xFF) >> 8
+
+
+def _place(usf: UsfFile, usf_dir: str, drv_pages: int):
     """Choose the player base + place the PCM. Returns (base, blob_pages,
     pcm_chunks).
 
-    CANONICAL first: player at $9000, PCM below it ($1000-$8FFF), then
-    $A000-$CFFF (NOT $D000+ — port=$35 maps I/O there), then under the
-    KERNAL ($E000-$FEFF; the NMI vector at $FFFA bounds it). A blob too
-    big for every hole gets a RETRY with the player block moved LOW,
-    which opens $1000-$CFFF as ONE hole — Jer's Digimix_2 plays 152
-    contiguous pages (its sample table carves the whole $0800-$A000
-    memory, every other sample a page-aligned sub-range of it, so the
-    content-addressed dedup places exactly one blob).
+    Three attempts, each from a clean slate, weakest first so that every
+    member that fits the ordinary map keeps its ordinary layout:
+
+    1. CANONICAL — player at $9000, PCM below it ($1000-$8FFF), then
+       $A000-$CFFF (NOT $D000+ — port=$35 maps I/O there), then under
+       the KERNAL ($E000-$FEFF; the NMI vector at $FFFA bounds it).
+    2. RELOCATED — the player block parked as high as RAM allows, just
+       under the $D000 I/O window, so the hole below it is the largest
+       single run available. Jer's Digimix_2 plays 152 CONTIGUOUS pages
+       (its table carves the whole $0800-$A000 memory) and no canonical
+       hole is that big.
+    3. RELOCATED + JOIN, over every page the machine can spare
+       ($0800 up; page $04 stays free for psiddrv, which relocates into
+       the first page outside the image). Digibeatz_2's 12 windows into
+       one recording need the overlap join AND that extra room: 216
+       pages against the 192+31 available.
+
+    ⚠ Where the player may live is doubly constrained, and both
+    constraints are why the relocated attempts park it just under
+    $D000:
+      - the mirrored core init seeds the repeat counter with `sty`
+        reusing Y = >idle_nmi (the original's byte-saving trick), and
+        the seed must be NEGATIVE for the first order fetch to latch
+        its entry's repeat. Under Mode 2 we cannot add a separate load
+        — the init's cycle count IS the interrupt-grid phase — so the
+        handler page must be >= $80. build_sid asserts it.
+      - RSID refuses an init address in $A000-$BFFF or $D000-$FFFF (and
+        a load address below $07E8) outright: the tune does not play at
+        all, with no diagnostic beyond silence.
+    Together those leave $8000-$9FFF and $C000-$CFFF.
     """
-    try:
-        blob_pages, pcm_chunks = _alloc_pcm(
-            usf, usf_dir, [[0x10, 0x90], [0xA0, 0xD0], [0xE0, 0xFF]])
-        return CORE, blob_pages, pcm_chunks
-    except DigiComposeError as e:
-        if 'no region fits' not in str(e):
-            raise
-    # The block spans CORE..PATTERNS+patmem plus the page-aligned driver
-    # (well under a page of code; +2 pages of slack, and compose_asm
-    # asserts the real extent against the placed PCM). Park it as HIGH
-    # as RAM allows — just under the $D000 I/O window, which is RAM
-    # under every port this family uses — so the hole below it is the
-    # largest single run available.
-    #
-    # ⚠ NOT arbitrarily: the mirrored core init seeds the repeat counter
-    # with `sty` reusing Y = >idle_nmi (the original's byte-saving
-    # trick), and the seed must be NEGATIVE for the first order fetch to
-    # latch its entry's repeat. Under Mode 2 we cannot add a separate
-    # load — the init's cycle count IS the interrupt-grid phase — so the
-    # player must live where its handler page is >= $80. build_sid
-    # asserts it from the assembled labels.
+    # The block spans CORE..PATTERNS+patmem plus the page-aligned
+    # driver, whose size is MEASURED (below) rather than guessed.
     pats = usf.subtunes[0].digi_voice.patterns
     size = ((PATTERNS - CORE) +
             32 * (max((q.id for q in pats), default=0) + 1)
-            + 0xFF & ~0xFF) + 0x200
-    base = 0xD000 - size
-    blob_pages, pcm_chunks = _alloc_pcm(
-        usf, usf_dir, [[0x10, base >> 8], [0xE0, 0xFF]])
-    return base, blob_pages, pcm_chunks
+            + 0xFF & ~0xFF) + (drv_pages << 8)
+    hi = 0xD000 - size
+    if hi < 0xC000:
+        raise DigiComposeError(
+            f'player block is {size >> 8} pages — no RSID-legal window '
+            f'holds it (init must avoid $A/$B/$D/$E/$F pages)')
+    attempts = [
+        (CORE, [[0x10, 0x90], [0xA0, 0xD0], [0xE0, 0xFF]], False),
+        (hi, [[0x10, hi >> 8], [0xE0, 0xFF]], False),
+        (hi, [[0x08, hi >> 8], [0xE0, 0xFF]], True),
+    ]
+    for i, (base, regions, join) in enumerate(attempts):
+        try:
+            blob_pages, pcm_chunks = _alloc_pcm(usf, usf_dir, regions, join)
+            return base, blob_pages, pcm_chunks
+        except DigiComposeError as exc:
+            if 'no region fits' not in str(exc) or i == len(attempts) - 1:
+                raise
 
 
 def _score_tables(usf: UsfFile, blob_pages: dict):
@@ -522,6 +618,67 @@ def _emit_driver(p: dict, raster: int, d011: int, speed: int,
                 '\tlda #$01\n\tsta $d019\n'
                 f'\tjmp ${CORE:04X}\n'
                 + _WRAP_INC)
+    if cls in ('rwait_lock', 'rwait_rts'):
+        # RASTER-WAIT family (Digibeatz ×2). No raster line is ARMED —
+        # the IRQ fires at the environment default and the wrapper
+        # BUSY-WAITS `cmp $d012` until the beam reaches `raster`, which
+        # is what places the tick in the frame. The screen is blanked
+        # ($D011=$00) so no badline steals a cycle from that wait.
+        # `stx st1+1` re-pokes the tick's speed immediate before core
+        # init with the value the extract already carried as the tempo
+        # (self-consistent, no knob); the `sta rwdead` beside it targets
+        # dead editor residue and is emitted for its 4 pre-timer cycles
+        # only. Both dead bytes keep the original's values.
+        wait = ('irq_wrapper:\n'
+                '\tasl $d019\n'
+                f'\tlda #${raster:02X}\n'
+                'rw1:\n'
+                '\tcmp $d012\n'
+                '\tbne rw1\n'
+                f'\tjsr ${CORE + 3:04X}\n')
+        tail = ('\tlda #$ff\n\tsta $d019\n'
+                f'\tlda #${d011:02X}\n\tsta $d011\n'
+                '\tcli\n')
+        pokes = (f'\tldx #${speed:02X}\n'
+                 '\tlda #$00\n'
+                 '\tstx st1+1\n'
+                 '\tsta rwdead\n'
+                 '\tlda #<irq_wrapper\n\tldx #>irq_wrapper\n'
+                 '\tsta $fffe\n\tstx $ffff\n'
+                 f'\tjsr ${CORE:04X}\n')
+        cia = ('\tlda #$81\n\tsta $d01a\n'
+               '\tlda #$7f\n\tsta $dc0d\n\tsta $dd0d\n'
+               '\tlda $dc0d\n\tlda $dd0d\n')
+        if cls == 'rwait_lock':
+            return ('driver_init:\n'
+                    '\tsei\n'
+                    '\tlda #$35\n\tsta $01\n'
+                    + cia + pokes + tail +
+                    'drv_lock:\n'
+                    '\tjmp drv_lock\n'
+                    'rwdead:\t.byt $03,$00\n'
+                    + wait +
+                    '\tlda $dc0d\n'
+                    '\trti\n')
+        # rwait_rts also blanks border+background first and pre-arms the
+        # NMI vector at a bare RTI (dead — core init re-points it before
+        # any NMI can fire; only the shape's cycles matter), then
+        # RETURNS to psiddrv instead of locking.
+        d011_init = int(p.get('digi_d011_init', d011))
+        return ('driver_init:\n'
+                '\tsei\n'
+                '\tlda #$35\n\tsta $01\n'
+                f'\tlda #${d011_init:02X}\n'
+                '\tsta $d011\n\tsta $d020\n\tsta $d021\n'
+                '\tlda #<rwnmi\n\tldx #>rwnmi\n'
+                '\tsta $fffa\n\tstx $fffb\n'
+                + cia + pokes + tail +
+                '\trts\n'
+                'rwnmi:\n'
+                '\trti\n'
+                'rwdead:\t.byt $03,$00\n'
+                + wait +
+                '\trti\n')
     raise DigiComposeError(f'unknown digi_driver class {cls!r}')
 
 
@@ -550,7 +707,8 @@ def compose_asm(usf: UsfFile, usf_dir: str) -> str:
     d011 = int(p.get('digi_tick_d011', 0x1B))
     base_latch = int(p.get('digi_base_latch', 0x70))
 
-    base, blob_pages, pcm_chunks = _place(usf, usf_dir)
+    drv_pages = _driver_pages(p, raster, d011, speed)
+    base, blob_pages, pcm_chunks = _place(usf, usf_dir, drv_pages)
     L = _layout(base)
     CORE = L['CORE']
     STATE_SPEEDCTR, STATE_ORDPOS = L['STATE_SPEEDCTR'], L['STATE_ORDPOS']
@@ -832,15 +990,16 @@ def compose_asm(usf: UsfFile, usf_dir: str) -> str:
             (ORDERLIST, _byt('orderlist', entries)),
             (PATTERNS, _byt('patterns', patmem)),
             (driver_addr, _emit_driver(p, raster, d011, speed, L))]
+    blk_end = driver_addr + (drv_pages << 8)
     for addr, packed in pcm_chunks:
         segs.append((addr, _byt(f'pcm_{addr:04X}', packed)))
-        # the PCM holes were reserved from an ESTIMATE of the player
-        # extent — assert the real one, so a layout slip is a build
-        # error and never a silently overwritten sample.
-        if addr < driver_addr + 0x100 and addr + len(packed) > CORE:
+        # the PCM holes were reserved around a COMPUTED player extent —
+        # re-assert it here, so a layout slip is a build error and never
+        # a silently overwritten sample.
+        if addr < blk_end and addr + len(packed) > CORE:
             raise DigiComposeError(
                 f'PCM at ${addr:04X}+{len(packed)} overlaps the player '
-                f'block ${CORE:04X}-${driver_addr + 0xFF:04X}')
+                f'block ${CORE:04X}-${blk_end - 1:04X}')
     core_text = '\n'.join(a)
     # KERNAL-path core variant: every NMI vector-swap targets the
     # KERNAL RAM vector $0318/$0319 instead of the hardware $FFFA/$FFFB
