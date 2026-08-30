@@ -333,29 +333,9 @@
     }
   },
   "pipelines/digi_organizer/composer_asm.py": {
-    "digi_tick_raster": {
-      "category": "temporal-dispatch",
-      "licensed_by": "digi parametrization proposal (owner-approved 2026-08-29); typed environment sibling flagged for owner review"
-    },
-    "digi_tick_d011": {
-      "category": "temporal-dispatch",
-      "licensed_by": "digi parametrization proposal (owner-approved 2026-08-29); badline pattern = NMI-phase signal under Mode-2"
-    },
     "digi_base_latch": {
       "category": "temporal-dispatch",
       "licensed_by": "digi proposal — pre-first-trigger CIA2 TA latch (NMI grid origin); probed core-init operand, default $70"
-    },
-    "digi_driver": {
-      "category": "temporal-dispatch",
-      "licensed_by": "digi proposal — driver CLASS cycle-shape (C13 registry); pre-core-init cycles set the NMI phase"
-    },
-    "digi_driver_sei": {
-      "category": "temporal-dispatch",
-      "licensed_by": "digi proposal — driver class sub-shape"
-    },
-    "digi_core_entry": {
-      "category": "temporal-dispatch",
-      "licensed_by": "digi proposal — driver class sub-shape"
     },
     "digi_port_preinit": {
       "category": "environment",
@@ -364,30 +344,6 @@
     "digi_core_tail": {
       "category": "temporal-dispatch",
       "licensed_by": "digi proposal — core-init tail variant (idle-loop phase vs NMI grid = per-write latency under Mode-2)"
-    },
-    "digi_driver_bit": {
-      "category": "temporal-dispatch",
-      "licensed_by": "digi proposal — xreg driver BIT-abs filler (4 pre-core cycles = NMI phase)"
-    },
-    "digi_d011_init": {
-      "category": "temporal-dispatch",
-      "licensed_by": "digi proposal — driver class sub-shape (cycle skeleton); sphere: $D011 primed post-core-init differs from the wrapper value"
-    },
-    "digi_driver_gate": {
-      "category": "temporal-dispatch",
-      "licensed_by": "digi proposal — driver class sub-shape (cycle skeleton); poke_stub: wrapper flag-gate form (cmp1 | ackfirst_beq — 2-cycle/IRQ difference)"
-    },
-    "digi_driver_tail_sei": {
-      "category": "temporal-dispatch",
-      "licensed_by": "digi proposal — driver class sub-shape (cycle skeleton); poke_stub: tail lead SEI vs NOP"
-    },
-    "digi_speed_poke_present": {
-      "category": "temporal-dispatch",
-      "licensed_by": "digi proposal — driver class sub-shape (cycle skeleton); poke_stub: driver pokes the steady tempo into the tick immediate"
-    },
-    "digi_driver_wrap_nops": {
-      "category": "temporal-dispatch",
-      "licensed_by": "digi proposal — driver class sub-shape (cycle skeleton); bare_stub: 3 NOPs inserted after the tick JSR"
     },
     "digi_preinit_form": {
       "category": "environment",
@@ -400,6 +356,38 @@
     "digi_onepage_rows": {
       "category": "mechanism-knob",
       "licensed_by": "C40 — which one-page sample rows use the engine's DEGENERATE table form (end <= start). The trigger clamps end to start+1 through a BRANCH, so both forms play the same single page (no musical difference — C19 33rd-occ test passes) but differ by 2 cycles, which the Mode-2 cycle-strict verdict sees. Not derivable: the corpus has 19 normal and 5 degenerate one-page rows."
+    },
+    "digi_drv_pre": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C40 — the driver as MEASURED FACTS rather than the name of a code template. A generic instruction walk reports what the member’s startup code contributes to the write stream; the composer synthesises its own code for it. This replaced a 14-entry emitter registry that the USF indexed by name (Principle §7/§8). `pre` is the SCHEDULE of machine-state writes before the sample timer starts: `token@cycle`, because matching the total is not enough (one write two cycles late moves the whole NMI grid)."
+    },
+    "digi_drv_cyc": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C40 — the driver as MEASURED FACTS rather than the name of a code template. A generic instruction walk reports what the member’s startup code contributes to the write stream; the composer synthesises its own code for it. This replaced a 14-entry emitter registry that the USF indexed by name (Principle §7/§8). `cyc` is the cycle at which the driver hands over to the core = the sample clock’s phase against the frame clock."
+    },
+    "digi_drv_post": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C40 — the driver as MEASURED FACTS rather than the name of a code template. A generic instruction walk reports what the member’s startup code contributes to the write stream; the composer synthesises its own code for it. This replaced a 14-entry emitter registry that the USF indexed by name (Principle §7/§8). the same schedule for the writes after the core call."
+    },
+    "digi_drv_pcyc": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C40 — the driver as MEASURED FACTS rather than the name of a code template. A generic instruction walk reports what the member’s startup code contributes to the write stream; the composer synthesises its own code for it. This replaced a 14-entry emitter registry that the USF indexed by name (Principle §7/§8). the post-core section’s cycle budget."
+    },
+    "digi_drv_tail": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C40 — the driver as MEASURED FACTS rather than the name of a code template. A generic instruction walk reports what the member’s startup code contributes to the write stream; the composer synthesises its own code for it. This replaced a 14-entry emitter registry that the USF indexed by name (Principle §7/§8). what the CPU does between interrupts (return to the host, lock, or a counted delay) — observable because an NMI is taken at the end of whatever instruction is executing."
+    },
+    "digi_drv_wrap": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C40 — the driver as MEASURED FACTS rather than the name of a code template. A generic instruction walk reports what the member’s startup code contributes to the write stream; the composer synthesises its own code for it. This replaced a 14-entry emitter registry that the USF indexed by name (Principle §7/§8). the per-interrupt wrapper as ordered BEHAVIOUR tokens (save / ack / spin / tick / read / exit). Tokens rather than cycles because NMIs fire while it runs, so its instruction boundaries are observable; a product space, not a menu."
+    },
+    "digi_drv_entry": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C40 — the driver as MEASURED FACTS rather than the name of a code template. A generic instruction walk reports what the member’s startup code contributes to the write stream; the composer synthesises its own code for it. This replaced a 14-entry emitter registry that the USF indexed by name (Principle §7/§8). which core entry point the driver calls."
+    },
+    "digi_drv_subjmp": {
+      "category": "temporal-dispatch",
+      "licensed_by": "C40 — the driver reaches the core by JMP from inside a helper, so the core’s RTS returns to the helper’s CALLER (3 cycles for the jump, not 6 for a call). A flat emission cannot express that control flow, so the emitter splits at the recorded call site."
     }
   }
 }
