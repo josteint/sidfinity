@@ -5,8 +5,28 @@ metadata:
   node_type: memory
   type: project
   originSessionId: eeee45ad-d522-49c1-8391-1946b3565085
-  modified: 2026-08-30T17:00:59.082Z
+  modified: 2026-08-30T20:43:02.506Z
 ---
+
+## 2026-08-30 (22:40) — ⚠ THE STORED ARTIFACTS ARE STALE: re-run the mass-write
+
+Verdicts are current (39/39 FULL, current code_hash), but the 39 stored
+`.usf` on disk are NOT: all 39 raise `DigiComposeError: driver overshoots
+its cycle budget by 6` when rebuilt under current code. They were written
+at ~09:38, BEFORE the driver parametrization below (20:23-21:39) replaced
+the params surface — `digi_driver`/`digi_tick_d011`/`digi_tick_raster`
+became `digi_drv_{cyc,pcyc,pre,post,tail,wrap}`. The 21:44 batch reads
+FULL because a batch extracts FRESH and never opens the stored `.usf`.
+
+Ledger C20 third layer, exactly as documented, and invisible to code_hash,
+`usf_corpus_check` (the dead keys sit in the wild `params` bag, so the file
+still parses) and regression. The gate that sees it is
+`corpus_sync.audit_rebuild` — already bound as `mass_write.py --audit`,
+just not re-run since the driver landed.
+
+FIX: `python3 pipelines/digi_organizer/mass_write.py --audit 12`. Left for
+a waking decision (it mutates the stored corpus). Detail: backlog 34; found
+by `tools/verdict_staleness_probe.py` while measuring backlog 31.
 
 ## 2026-08-30 (late) — the driver is PARAMETRIZED; registry gone
 

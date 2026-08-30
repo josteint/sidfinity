@@ -5,7 +5,7 @@
 # dozen measured-but-unfinished investigations. Moved to the repo root and
 # tracked for exactly that reason.
 #
-# NEXT_ITEM: 34   <- autoincrement: a NEW item takes this number, then bump it.
+# NEXT_ITEM: 35   <- autoincrement: a NEW item takes this number, then bump it.
 #
 # CONVENTIONS (owner-set 2026-08-28):
 #  - A done item is REMOVED COMPLETELY — no tombstone, no summary line. The
@@ -1552,6 +1552,111 @@
     Cross-ref: f1 counterpart assessment = item 28.
 
 31. CODE_FINGERPRINT'S TEST-SELECTION EXCLUSION IS INERT FOR 6 OF 7 FAMILIES
+
+    ==== MEASURED 2026-08-30 22:30 (tools/fingerprint_policy_probe.py,
+         tools/verdict_staleness_probe.py
+         — read-only; the replica hasher self-checks against the real
+         code_fingerprint() for all 8 engines before any number below) ====
+
+    THE BLOCKING RATIONALE BELOW IS NO LONGER TRUE, AND THE WINDOW IS OPEN
+    NOW. This item says the fix must wait for a planned batch because it
+    moves six families' keys at once and a migration refusal means ~16 h of
+    re-batching. Measured: **8 of the 9 verdict stores are ALREADY 100%
+    stale**, and `migrate_verdict_rows` ALREADY refuses every one of them
+    under EVERY policy including "change nothing" — because the digi
+    parametrization schema landed on 2026-08-29 16:40 (532b3931 + 98484692,
+    touching src/usf/{types,grammar,parser,writer}) AFTER those stores were
+    stamped. So for those eight, landing this fix costs exactly nothing:
+    they are already in the state the fix was feared to cause.
+
+      dmc_v4   f1 5475 rows / f2 2944   stamped 08-29   100% stale
+      dmc_v5      2078 rows             stamped 08-29   100% stale
+      dmc_v6        16 rows             stamped 08-28   100% stale
+      fc_standard 4140 rows             stamped 08-19   100% stale
+      goattracker_v1 1387 rows          stamped 08-18   100% stale
+      basic_program  524 rows           stamped 08-29   100% stale
+      music_assembler 6489 rows         stamped 08-19   100% stale
+      digi_organizer   39 rows          stamped 08-30   ALL CURRENT
+
+    The one family with current rows is digi_organizer, and its migration
+    CARRIES under every policy (0 closure files changed since its stamp).
+    So the fix is free there too — 39 members, and no restamp even needed
+    if it is re-batched instead.
+
+    ⚠ MEMORY.md's "verdicts CURRENT" lines for DMC and basic_program are
+    stale as of 2026-08-29 16:40 and should be re-marked.
+
+    ==== AND THE STALENESS IS NOMINAL, NOT REAL ====
+    A byte-identity spot check (rebuild the STORED .usf under current code,
+    compare to the stored .sid — the CLAUDE.md carrier-refactor gate; same
+    bytes => same write stream => same verdict) says the digi schema change
+    moved NOTHING in the other families:
+
+      dmc_v4       191/191 byte-identical, over ALL 7 build paths
+                   (single/compilation/multisid/multiplex/medley/
+                    hetero_masm/hetero_v5)
+      dmc_v5        60/60
+      fc_standard   60/60   (also spans the 2026-08-23 directory move)
+
+    So the ~16 h re-batch is avoidable IF the owner accepts byte-identity
+    as the proof. `migrate_verdict_rows` cannot express that today — it
+    refuses on git CONTENT change and has no byte-identity mode. Adding one
+    (`--prove-by-rebuild N`: sample N stored artifacts per family, restamp
+    only on 100% identity, record the evidence in the row) is a smaller,
+    safer piece of work than any re-batch and generalises to every future
+    key change. NOT DONE HERE — it is a change to the restamp PROOF, which
+    is owner territory.
+    ⚠ It proves nothing about members with no stored artifact (non-FULL),
+    which is exactly right: those get re-verified anyway.
+    ⚠ music_assembler / goattracker_v1 have no stored .usf (no mass-write
+    by design) so the check cannot cover them; basic_program has 489 but
+    writes them from its batch with no corpus_sync, so it has no
+    `audit_rebuild` binding to reuse.
+
+    ==== TWO CORRECTIONS TO THE ANALYSIS BELOW ====
+
+    (a) ⛔ EXCLUDING `docs/` IS UNSAFE — do not do it. Measured, a
+        `/docs/` exclusion drops `pipelines/dmc/docs/*.bin`: the CANON
+        PLAYER BINARIES the DMC factory dispatches and probes against.
+        That is verbatim inclusiveness hole #1 in code_fingerprint's own
+        docstring, closed on 2026-08-22 and re-opened by this. The docs
+        instance must be fixed by DERIVING, never by a path exclusion.
+
+    (b) DERIVING ALREADY FIXES THE MASS-WRITER INSTANCE, and that reframes
+        the writer complaint as a symptom. Measured per family, adding
+        `mass_write.py` to the exclusion changes the key ONLY for dmc_v6
+        and digi_organizer — the two families with NO entry in
+        engine_deps.json, which therefore fall back to the declared
+        directory glob. For the six derived families the batch never
+        imports its writer, so it is already outside the closure. Same for
+        the digi docs prototypes. So:
+
+          the portfolio instance  -> needs the suffix typo fixed; derivation
+                                     does NOT fix it (portfolios enter via
+                                     `_declared_data_files`, which globs the
+                                     declared dir for non-.py files and
+                                     applies the same suffix filter)
+          the writer instance     -> derivation fixes it
+          the docs instance       -> derivation fixes it
+
+        COMPLETE FIX = the one-line suffix correction, PLUS a derived entry
+        for digi_organizer and dmc_v6. Not "grow the exclusion list".
+
+    ==== WHICH KEYS MOVE (policy B = suffix typo fixed) ====
+      MOVES: dmc_v4 dmc_v5 dmc_v6 fc_standard basic_program
+             music_assembler digi_organizer          (7, not 6 — dmc_v6 too)
+      same:  goattracker_v1                          (no portfolio file)
+
+    ==== NON-usf INPUTS THAT ALSO CHANGED (a real re-batch, not nominal) ====
+      dmc_v4 / dmc_v5 / goattracker_v1 / basic_program: src/usf ONLY
+      dmc_v6:          + route.py, v5/factory.py, v6/family_batch.py
+      fc_standard:     + family_batch.py, standard/config.py  (both the
+                         08-23 move's path fixups; byte-identity says the
+                         builds are unchanged anyway)
+      music_assembler: + family_batch.py, locate.py           (ditto)
+
+    (original entry follows)
+
     (measured 2026-08-30). `_SELECTION_SUFFIXES` in src/code_fingerprint.py
     excludes portfolio files from the hash so that re-deriving a portfolio
     cannot invalidate a family's verdicts — its comment says "matched by
@@ -1620,6 +1725,54 @@
     precisely what `tools/derive_deps.py` measures. That is the argument for
     deriving rather than for extending the exclusion list one suffix at a
     time.
+
+34. ⚠ DIGI_ORGANIZER'S 39 STORED .usf DO NOT REBUILD THEIR STORED .sid
+    (measured 2026-08-30 22:37, found while measuring item 31; the family
+    was declared CLOSED and mass-written this morning). Rebuilding each
+    stored `.usf` under current code raises on ALL 39:
+
+      DigiComposeError: driver overshoots its cycle budget by 6
+      (pipelines/digi_organizer/composer_asm.py:575)
+
+    CAUSE — tonight's universal-driver parametrization (c999ff81 20:23
+    through c42e5e6c 21:39) replaced the driver's params surface. Diffed
+    on 2NY/Heavy-Beat, stored vs a fresh extract:
+
+      stored (09:38)          fresh (now)
+        digi_driver: irq_vec    digi_drv_cyc / digi_drv_pcyc / digi_drv_post
+        digi_tick_d011: 27      digi_drv_pre / digi_drv_tail / digi_drv_wrap
+        digi_tick_raster: 129
+
+    The mass-write ran at ~09:38, BEFORE the driver work. The batch re-ran
+    at 21:44 and reports 39/39 FULL with a current code_hash — correctly,
+    because a batch EXTRACTS FRESH and never reads the stored .usf.
+
+    So: rows current, artifacts stale. Ledger C20 third layer, in its
+    exact documented shape — and invisible to every other gate:
+      * code_hash    — green (the rows really were earned by current code)
+      * corpus_check — green (the old .usf still PARSES; the dead keys sit
+                       in the wild `params` bag, which is why nothing
+                       type-checks them)
+      * regression   — green (portfolio members build from a fresh extract)
+    The ONE gate that sees it is `corpus_sync.audit_rebuild`, which
+    digi_organizer's mass_write.py already binds (--audit) — it simply has
+    not been re-run since the driver landed.
+
+    FIX (cheap, 39 members): re-run
+      python3 pipelines/digi_organizer/mass_write.py --audit 12
+    NOT DONE TONIGHT — it mutates the stored corpus, and the owner may
+    want to look at the universal-driver work first. Deliberately left for
+    a waking decision rather than done unattended.
+
+    GENERAL LESSON, worth more than the incident: a family closeout has
+    TWO write-side steps that can drift apart — the batch (verdicts) and
+    the mass-write (artifacts) — and a composer change lands between them
+    silently. The rule "re-run the mass-write after ANY composer change,
+    not just after a batch" belongs in the closeout checklist. Note also
+    that basic_program, music_assembler and goattracker_v1 do not use
+    corpus_sync at all, so they have no audit_rebuild binding and this
+    class is currently undetectable for them (basic_program has 489 stored
+    .usf written inline by its batch).
 
 32. OWNER DECISION — SAMPLE WINDOWS: the USF cannot say "these instruments
     are slices of ONE recording", so it stores the slices (measured
