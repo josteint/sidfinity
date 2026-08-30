@@ -106,6 +106,8 @@ class DigiOrganizerModel:
     # sample ids whose table row uses the engine's DEGENERATE one-page
     # form (end <= start, clamped to start+1 by a branch in the trigger)
     onepage_degenerate: list = field(default_factory=list)
+    # the measured facts a universal driver reproduces (see _driver_facts)
+    driver_facts: dict = field(default_factory=dict)
 
 
 def extract_model(sid_path: str) -> DigiOrganizerModel:
@@ -789,8 +791,10 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
     if 'speed_preinit' in dp:
         speed_reload = speed_init = dp['speed_preinit']
 
+    facts = _driver_facts(driver, dp, speed_reload)
+
     m = DigiOrganizerModel(
-        sid_path=sid_path, load=load, meta=meta,
+        sid_path=sid_path, load=load, meta=meta, driver_facts=facts,
         driver=driver, driver_params=dp, port_preinit=port_preinit,
         preinit_form=preinit_form, nmi_vec=nmi_vec,
         core_tail=core_tail,
@@ -866,6 +870,108 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
                 nib.append(byte & 0x0F)
             m.pcm[key] = nib
     return m
+
+
+def _driver_facts(driver: str, dp: dict, speed: int) -> dict:
+    """The measured facts a UNIVERSAL driver reproduces for this member.
+
+    Not a catalogue of code — the four things a driver contributes to the
+    write stream (ledger C40): the machine STATE it leaves, the CYCLES
+    before the sample timer starts, what the CPU does between interrupts,
+    and the per-interrupt wrapper (the one part whose instruction
+    boundaries are observable, because NMIs fire while it runs).
+
+    The probes above still RECOGNISE each member's shape; this turns what
+    they measured into facts. Replacing the recognition with a generic
+    instruction walk — so an unfamiliar driver is decoded rather than
+    refused — is backlog item 33(a); the prototype is in docs/.
+    """
+    R = dp.get('raster', 0x81)
+    D = dp.get('d011', 0x1B)
+    e = dp.get('core_entry', 'core')
+    ack_wrap = 'save,ack=asl,tick,read=dc0d,restore,rti'
+    inc_wrap = 'save,ack=inc,tick,read=dc0d,restore,rti'
+    late = f'IRQ,dc0d=81,R:dc0d,d012={R:02x},d011={D:02x},dc0e=00,d01a=01,d019=01'
+    if driver == 'irq_vec':
+        return dict(pre=f'SEI,01=35,{late}', cyc=65, entry=e, post='',
+                    tail='rts', wrap=ack_wrap)
+    if driver == 'nmi_first':
+        sei = dp.get('sei', True)
+        return dict(pre=('SEI,' if sei else '') + '01=35,NMI,A=00',
+                    cyc=27 if sei else 25, entry=e, post=late, tail='rts',
+                    wrap='save,ack=asl,tick,restore,rti')
+    if driver == 'xreg':
+        bit = dp.get('bit_pad')
+        return dict(pre=(f'SEI,01=35,d012={R:02x},dc0d=81,dd0d=81,R:dc0d,'
+                         f'R:dd0d,d019=01,d01a=01,dc0e=00,d011={D:02x},IRQ'),
+                    cyc=71 if bit else 67, entry=e, post='', tail='rts',
+                    wrap='save,ack=inc,' + ('pad=4,' if bit else '')
+                         + 'tick,read=dc0d,restore,rti')
+    if driver == 'bare_stub':
+        wn = dp.get('wrap_nops')
+        return dict(pre='A=00', cyc=8, entry=e,
+                    post='IRQ,dc0d=7f,d01a=01,R:dc0d', tail='rts',
+                    wrap='save,ack=asl,tick,' + ('pad=6,' if wn else '')
+                         + 'read=dc0d,restore,rti')
+    if driver == 'jer_lock':
+        return dict(pre=(f'SEI,01=35,IRQ,d01a=01,dc0d=01,AND:d011=7f,'
+                         f'd012={R:02x}'),
+                    cyc=51, entry='core40', post='', tail='lock',
+                    wrap='save,ack=inc,tick,restore_cia,rti')
+    if driver == 'sphere':
+        di = dp.get('d011_init', D)
+        return dict(pre='SEI,01=35,dc0d=7f,IRQ,d01a=01,A=00,X=00,Y=00',
+                    cyc=43, entry='core40', post=f'd011={di:02x}', tail='rts',
+                    wrap=(f'save,ack=inc,set=d011:{D:02x},set=d012:{R:02x},'
+                          'tick,read=dc0d,restore,rti'))
+    if driver == 'earbleed':
+        return dict(pre=(f'SEI,01=35,d011={D:02x},d012={R:02x},d01a=01,'
+                         'd019=01,dc0d=7f,R:dc0d,dc0e=00,IRQ,A=00'),
+                    cyc=65, entry=e, post='', tail='rts',
+                    wrap='save,ack=inc,tick,restore,rti')
+    if driver == 'poke_stub':
+        gate = 'gate' if dp.get('gate_form') == 'cmp1' else 'gate_beq'
+        pk = ',SPD' if dp.get('speed_poke') is not None else ''
+        lead = 'SEI' if dp.get('tail_sei', True) else 'PAD2'
+        return dict(pre='FLAG=00', cyc=12, entry=e,
+                    post=f'{lead},IRQ,dc0d=7f,d01a=01,R:dc0d' + pk,
+                    tail='delay=d0:d0:0b',
+                    wrap=('save,' + gate + ',tick,ack=asl,read=dc0d,restore,rti'
+                          if dp.get('gate_form') == 'cmp1' else
+                          'save,ack=asl,' + gate + ',tick,read=dc0d,restore,rti'))
+    if driver == 'kernal_irq':
+        return dict(pre='', cyc=6, entry=e,
+                    post=(f'SEI,dc0d=7f,R:dc0d,d011={D:02x},d012={R:02x},'
+                          'IRQK,d019=01,d01a=01'),
+                    tail='rts', wrap='ack=lda,tick,jmp=ea31')
+    if driver == 'kernal_lock':
+        return dict(pre=(f'SEI,d01a=01,dc0d=01,d012=01,d011={D:02x},'
+                         'DEC:d019,IRQK'),
+                    cyc=46, entry=e, post='', tail='lock',
+                    wrap='ack=dec,tick,jmp=ea81')
+    if driver == 'sub_jmp':
+        return dict(pre='SEI,dc0d=7f,dd0d=7f,R:dc0d,R:dd0d,d019=01', cyc=35,
+                    entry=e,
+                    post=(f'01=35,IRQ,dc0e=00,d01a=01,d019=01,d012={R:02x},'
+                          f'd011={D:02x}'),
+                    tail='rts', wrap=inc_wrap)
+    if driver in ('rwait_lock', 'rwait_rts'):
+        di = dp.get('d011_init', D)
+        pre = ('SEI,01=35'
+               + (f',d011={di:02x},d020={di:02x},d021={di:02x},NMI'
+                  if driver == 'rwait_rts' else '')
+               + ',d01a=81,dc0d=7f,dd0d=7f,R:dc0d,R:dd0d,SPD,DEAD,IRQ')
+        return dict(pre=pre, cyc=87 if driver == 'rwait_rts' else 61,
+                    entry=e, post=f'd019=ff,d011={D:02x}',
+                    tail='rts' if driver == 'rwait_rts' else 'lock',
+                    wrap=(f'ack=asl,spin={R:02x},tick'
+                          + (',read=dc0d' if driver == 'rwait_lock' else '')
+                          + ',rti'))
+    if driver == 'song_head':
+        return dict(pre='SEI,01=35,NMI,A=00', cyc=43, entry='core40',
+                    post=late, tail='rts',
+                    wrap='save,ack=asl,tick,restore,rti')
+    raise DigiOrganizerUnsupported(f'no driver facts for {driver!r}')
 
 
 def _read_pcm(sid_path, load, img, addr, n):

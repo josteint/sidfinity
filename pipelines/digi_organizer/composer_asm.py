@@ -326,406 +326,305 @@ def _score_tables(usf: UsfFile, blob_pages: dict, onepage_rows=()):
     return entries, patmem, smptab
 
 
-def _wrap_ack(CORE):
-    return ('irq_wrapper:\n'
-            '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
-            '\tasl $d019\n'
-            f'\tjsr ${CORE + 3:04X}\n'
-            '\tlda $dc0d\n'
-            '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
+# ---------------------------------------------------------------------------
+# THE DRIVER — one universal emitter, no per-member templates
+# ---------------------------------------------------------------------------
+# A member's driver is the startup code that arms the interrupts. Every
+# musician wrote their own, but MEASURED (2026-08-30, all 39 standalone
+# members) the only things a driver contributes to the $D418 write stream
+# are:
+#
+#   * the machine STATE it establishes (screen on/off — badlines steal
+#     cycles, so this is audible; which interrupt sources are live; banking;
+#     where the handler lives),
+#   * the CYCLE COUNT before the sample timer starts, which is the phase of
+#     the sample clock against the frame clock,
+#   * what the CPU does BETWEEN interrupts, as an instruction-boundary
+#     PERIOD — because an NMI is taken at the end of the current
+#     instruction, so the code running when it arrives sets its latency.
+#
+# Everything else is free. Proven by experiment: reordering the init's
+# writes, and re-emitting them with different registers and opcodes at
+# equal cycles, both leave a member FULL (Heavy-Beat 4249/4249, separately
+# and together). So the init is synthesised however we like — it runs under
+# SEI, where no interrupt can observe its shape — and only its TOTAL cycles
+# and final state are reproduced.
+#
+# The interrupt WRAPPER is the opposite case: NMIs are non-maskable, so they
+# fire while it runs and its instruction lengths ARE observable. It is
+# therefore built from ordered BEHAVIOUR tokens whose instruction sequences
+# follow from the tokens — a product space, not a menu. The counter-example
+# that proves this half is real: replacing a member's busy-wait with an
+# armed raster (same schedule, cleaner mechanism) drops Digibeatz_1 from
+# FULL to match=1, because the spin is a window in which the CPU runs a
+# tight 7-cycle loop. See ledger C40 and backlog item 33.
+
+_ACK = {'asl': '\tasl $d019\n', 'inc': '\tinc $d019\n',
+        'dec': '\tdec $d019\n', 'lda': '\tlda #$01\n\tsta $d019\n'}
 
 
-def _wrap_noack(CORE):
-    return ('irq_wrapper:\n'
-            '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
-            '\tasl $d019\n'
-            f'\tjsr ${CORE + 3:04X}\n'
-            '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
+def _emit_state(ops: str, ctx: dict) -> str:
+    """Emit code establishing one phase of the machine state.
+
+    `ops` is a comma-separated token list. ORDER IS FREE — proven by
+    experiment (reordering a member's init writes leaves it FULL) — so the
+    emitter is free to reorder for brevity, and it must be: originals reach
+    short cycle counts by reusing whatever is already in a register (xreg
+    keeps A=0 from the RSID entry across its reads to save two cycles), and
+    since the caller can only PAD, our code has to be able to come in at or
+    under the original's count. So writes are grouped by value (one load
+    per distinct value), reads go to X to leave A intact, and A is tracked
+    from its known entry value of 0 (the subtune number).
+
+      AAAA=VV  write byte VV to $AAAA (2-digit address = zero page)
+      A=VV     leave VV in A without storing it
+      IRQ      install the IRQ vector at $FFFE/$FFFF
+      IRQK     install it at $0314/$0315 (the KERNAL path)
+      NMI      pre-arm the NMI vector (dead — core init re-points it before
+               any NMI can fire; emitted for its cycles alone)
+      R:AAAA   read $AAAA (an interrupt acknowledge)
+      SPD      poke the sequencer's speed immediate
+      DEAD     poke the driver's own dead template byte
+    """
+    out, a = [], ctx.get('a_in', 0x00)   # RSID enters init with A = subtune
+
+    def store(addr, val):
+        nonlocal a
+        if a != val:
+            out.append(f'\tlda #${val:02X}\n')
+            a = val
+        out.append(f'\tsta ${addr}\n')
+
+    # SEI and CLI are ORDER BARRIERS, not reorderable writes: everything
+    # before an SEI runs with interrupts still live, so hoisting a write
+    # across one changes whether the host can interrupt it. Reordering and
+    # grouping happen only WITHIN a segment.
+    segs, cur = [], []
+    for t in [t for t in ops.split(',') if t.strip()]:
+        if t in ('SEI', 'CLI'):
+            segs.append((cur, t)); cur = []
+        else:
+            cur.append(t)
+    segs.append((cur, None))
+
+    for seg, barrier in segs:
+        groups, rest = {}, []
+        written = [t.partition('=')[0] for t in seg
+                   if '=' in t and not t.startswith(('A=', 'X=', 'Y=', 'AND:'))]
+        dup = {ad for ad in written if written.count(ad) > 1}
+        for t in seg:
+            if ('=' in t and not t.startswith(('A=', 'X=', 'Y=', 'R:', 'AND:',
+                                               'DEC:', 'FLAG='))
+                    and t.partition('=')[0] not in dup):
+                addr, _, v = t.partition('=')
+                groups.setdefault(int(v, 16), []).append(addr)
+            else:
+                rest.append(t)
+        for val in sorted(groups, key=lambda v: (v != a, -len(groups[v]))):
+            for addr in groups[val]:
+                store(addr, val)
+        for t in rest:
+            if t == 'IRQ':
+                out.append('\tlda #<irq_wrapper\n\tsta $fffe\n'
+                           '\tlda #>irq_wrapper\n\tsta $ffff\n'); a = None
+            elif t == 'IRQK':
+                out.append('\tlda #<irq_wrapper\n\tsta $0314\n'
+                           '\tlda #>irq_wrapper\n\tsta $0315\n'); a = None
+            elif t == 'NMI':
+                out.append('\tlda #>idle_nmi\n\tsta $fffb\n'
+                           '\tlda #<idle_nmi\n\tsta $fffa\n'); a = None
+            elif t == 'SPD':
+                out.append(f"\tlda #${ctx['speed']:02X}\n\tsta st1+1\n")
+                a = ctx['speed']
+            elif t == 'DEAD':
+                out.append('\tlda #$00\n\tsta drv_dead\n'); a = 0
+            elif t.startswith('R:'):
+                out.append(f'\tldx ${t[2:]}\n')      # X, so A survives
+            elif t.startswith('X='):
+                out.append(f'\tldx #${int(t[2:], 16):02X}\n')
+            elif t.startswith('Y='):
+                out.append(f'\tldy #${int(t[2:], 16):02X}\n')
+            elif t.startswith('AND:'):
+                addr, _, mask = t[4:].partition('=')
+                out.append(f'\tlda ${addr}\n\tand #${int(mask, 16):02X}\n'
+                           f'\tsta ${addr}\n'); a = None
+            elif t.startswith('DEC:'):
+                out.append(f'\tdec ${t[4:]}\n')
+            elif t.startswith('FLAG='):
+                v = int(t[5:], 16)
+                out.append(f'\tlda #${v:02X}\n\tsta drv_flag\n'); a = v
+            elif t.startswith('A='):
+                v = int(t[2:], 16)
+                if a != v:
+                    out.append(f'\tlda #${v:02X}\n'); a = v
+            elif t == 'PAD2':
+                out.append('\tnop\n')
+            elif '=' in t:
+                addr, _, v = t.partition('=')     # an ordered (duplicated) write
+                store(addr, int(v, 16))
+            else:
+                raise DigiComposeError(f'unknown state token {t!r}')
+        if barrier == 'SEI':
+            out.append('\tsei\n')
+        elif barrier == 'CLI':
+            out.append('\tcli\n')
+    ctx['a_out'] = a
+    return ''.join(out)
 
 
-def _wrap_inc(CORE):
-    return ('irq_wrapper:\n'
-            '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
-            '\tinc $d019\n'
-            f'\tjsr ${CORE + 3:04X}\n'
-            '\tlda $dc0d\n'
-            '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
+def _emit_wrapper(spec: str, ctx: dict) -> str:
+    """Emit the per-interrupt wrapper from ordered BEHAVIOUR tokens.
+
+    Unlike the init, this runs with NMIs live, so the token ORDER and the
+    instruction lengths it implies are both observable:
+      save / restore   push and pull A,X,Y
+      ack=asl|inc|dec|lda      acknowledge the VIC interrupt
+      set=AAAA:VV      re-assert a register every interrupt
+      spin=NN          busy-wait until the raster reaches line $NN
+      gate             run the tick only once the startup flag is set
+      tick             call the sequencer
+      read=AAAA        read a register (a CIA acknowledge)
+      rti / jmp=AAAA   exit
+    """
+    out, gated = [], False
+    for tok in [t for t in spec.split(',') if t.strip()]:
+        if tok == 'save':
+            out.append('\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n')
+        elif tok == 'restore_cia':
+            # the CIA acknowledge sits BETWEEN the pulls in some originals;
+            # the instruction boundaries differ from doing it after, and
+            # NMIs fire here, so reproduce the placement
+            out.append('\tpla\n\ttay\n\tpla\n\ttax\n'
+                       '\tlda $dc0d\n\tpla\n')
+        elif tok == 'restore':
+            out.append('\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n')
+        elif tok.startswith('ack='):
+            out.append(_ACK[tok[4:]])
+        elif tok.startswith('set='):
+            a, _, v = tok[4:].partition(':')
+            out.append(f'\tlda #${int(v, 16):02X}\n\tsta ${a}\n')
+        elif tok.startswith('spin='):
+            out.append(f'\tlda #${int(tok[5:], 16):02X}\n'
+                       'drv_spin:\n\tcmp $d012\n\tbne drv_spin\n')
+        elif tok == 'gate':
+            out.append('\tlda drv_flag\n\tcmp #$01\n\tbne drv_skip\n')
+            gated = True
+        elif tok == 'gate_beq':
+            out.append('\tlda drv_flag\n\tbeq drv_skip\n')
+            gated = True
+        elif tok == 'tick':
+            out.append(f"\tjsr ${ctx['CORE'] + 3:04X}\n")
+            if gated:
+                out.append('drv_skip:\n'); gated = False
+        elif tok.startswith('read='):
+            out.append(f'\tlda ${tok[5:]}\n')
+        elif tok.startswith('pad='):
+            out.append(_pad(int(tok[4:])))
+        elif tok == 'rti':
+            out.append('\trti\n')
+        elif tok.startswith('jmp='):
+            out.append(f'\tjmp ${tok[4:]}\n')
+        else:
+            raise DigiComposeError(f'unknown wrapper token {tok!r}')
+    return 'irq_wrapper:\n' + ''.join(out)
+
+
+def _pad(n: int) -> str:
+    """Filler for exactly n cycles. NOP=2 and a 3-cycle read make every
+    n >= 2 reachable, so any measured cycle count can be hit."""
+    if n < 0:
+        raise DigiComposeError(f'driver overshoots its cycle budget by {-n}')
+    out = []
+    if n % 2:
+        out.append('\tbit $ea\n'); n -= 3
+    while n > 0:
+        out.append('\tnop\n'); n -= 2
+    if n < 0:
+        raise DigiComposeError('cycle budget unreachable')
+    return ''.join(out)
+
+
+def _cycles(asm: str) -> int:
+    """Cycle cost of straight-line emitted code (no branches taken)."""
+    import re as _re
+    tot = 0
+    for ln in asm.split('\n'):
+        t = ln.strip()
+        if not t or t.endswith(':') or t.startswith('.'):
+            continue
+        parts = t.split(None, 1)
+        op, arg = parts[0], (parts[1] if len(parts) > 1 else '')
+        if op in ('sei', 'cli', 'nop', 'tax', 'txa', 'tya', 'tay', 'inx', 'dex'):
+            tot += 2
+        elif op == 'pha':
+            tot += 3
+        elif op == 'pla':
+            tot += 4
+        elif op in ('rts', 'rti'):
+            tot += 6
+        elif op == 'jmp':
+            tot += 3
+        elif op == 'jsr':
+            tot += 6
+        elif op in ('lda', 'ldx', 'ldy', 'cmp', 'and', 'ora'):
+            tot += 2 if arg.startswith('#') else (
+                3 if _re.fullmatch(r'\$[0-9a-f]{2}', arg) else 4)
+        elif op in ('sta', 'stx', 'sty'):
+            tot += 3 if _re.fullmatch(r'\$[0-9a-f]{2}', arg) else 4
+        elif op in ('inc', 'dec', 'asl'):
+            tot += 6
+        elif op == 'bit':
+            tot += 3 if _re.fullmatch(r'\$[0-9a-f]{2}', arg) else 4
+        elif op in ('bne', 'beq'):
+            tot += 3
+        else:
+            raise DigiComposeError(f'cycle model: unknown op {op!r}')
+    return tot
 
 
 def _emit_driver(p: dict, raster: int, d011: int, speed: int,
                  L: dict) -> str:
-    """The standalone driver, mirrored per CLASS (extract's registry).
-    Instruction shapes = the cycle skeleton; operands are ours."""
+    """THE driver — synthesised from the member's measured facts."""
     CORE = L['CORE']
-    _WRAP_ACK, _WRAP_NOACK, _WRAP_INC = (
-        _wrap_ack(CORE), _wrap_noack(CORE), _wrap_inc(CORE))
-    cls = p.get('digi_driver', 'irq_vec')
-    if cls == 'irq_vec':
-        return ('driver_init:\n'
-                '\tsei\n'
-                '\tlda #$35\n\tsta $01\n'
-                '\tlda #<irq_wrapper\n\tsta $fffe\n'
-                '\tlda #>irq_wrapper\n\tsta $ffff\n'
-                '\tlda #$81\n\tsta $dc0d\n\tlda $dc0d\n'
-                f'\tlda #${raster:02X}\n\tsta $d012\n'
-                f'\tlda #${d011:02X}\n\tsta $d011\n'
-                '\tldx #$00\n\tstx $dc0e\n\tinx\n'
-                '\tstx $d01a\n\tstx $d019\n'
-                '\tlda #$00\n'
-                f'\tjsr ${CORE:04X}\n'
-                '\tcli\n\trts\n' + _WRAP_ACK)
-    if cls == 'nmi_first':
-        sei = '\tsei\n' if p.get('digi_driver_sei', True) else ''
-        entry = (CORE + 0x40 if p.get('digi_core_entry') == 'core40'
-                 else CORE)
-        return ('driver_init:\n' + sei +
-                '\tlda #$35\n\tsta $01\n'
-                '\tlda #>idle_nmi\n\tsta $fffb\n'
-                '\tlda #<idle_nmi\n\tsta $fffa\n'
-                '\tlda #$00\n'
-                f'\tjsr ${entry:04X}\n'
-                '\tlda #<irq_wrapper\n\tsta $fffe\n'
-                '\tlda #>irq_wrapper\n\tsta $ffff\n'
-                '\tlda #$81\n\tsta $dc0d\n\tlda $dc0d\n'
-                f'\tlda #${raster:02X}\n\tsta $d012\n'
-                f'\tlda #${d011:02X}\n\tsta $d011\n'
-                '\tldx #$00\n\tstx $dc0e\n\tinx\n'
-                '\tstx $d01a\n\tstx $d019\n'
-                '\tcli\n\trts\n' + _WRAP_NOACK)
-    if cls == 'xreg':
-        bit = '\tbit irq_wrapper\n' if p.get('digi_driver_bit') else ''
-        wrap = _WRAP_INC
-        if p.get('digi_driver_bit'):
-            wrap = _WRAP_INC.replace(
-                f'\tjsr ${CORE + 3:04X}\n',
-                f'\tbit irq_wrapper\n\tjsr ${CORE + 3:04X}\n')
-        entry = (CORE + 0x40 if p.get('digi_core_entry') == 'core40'
-                 else CORE)
-        return ('driver_init:\n'
-                '\tsei\n'
-                '\tldx #$35\n\tstx $01\n'
-                f'\tldx #${raster:02X}\n\tstx $d012\n'
-                '\tstx $dc0d\n\tstx $dd0d\n'
-                '\tldx $dc0d\n\tldx $dd0d\n'
-                '\tldx #$01\n\tstx $d019\n\tstx $d01a\n'
-                '\tsta $dc0e\n'
-                f'\tlda #${d011:02X}\n\tsta $d011\n'
-                '\tlda #>irq_wrapper\n\tsta $ffff\n'
-                '\tlda #<irq_wrapper\n\tsta $fffe\n'
-                + bit +
-                f'\tjsr ${entry:04X}\n'
-                '\tcli\n\trts\n' + wrap)
-    if cls == 'bare_stub':
-        # the NOP at the jump target is part of the class shape (the
-        # extract refuses a bare_stub without it), not a knob
-        wrap = _WRAP_ACK
-        if p.get('digi_driver_wrap_nops'):
-            wrap = _WRAP_ACK.replace(
-                f'\tjsr ${CORE + 3:04X}\n',
-                f'\tjsr ${CORE + 3:04X}\n\tnop\n\tnop\n\tnop\n')
-        return ('driver_init:\n'
-                '\tlda #$00\n'
-                f'\tjsr ${CORE:04X}\n'
-                '\tjmp drv_l\n'
-                'drv_l:\n'
-                '\tnop\n'
-                '\tlda #<irq_wrapper\n\tsta $fffe\n'
-                '\tlda #>irq_wrapper\n\tsta $ffff\n'
-                '\tlda #$7f\n\tsta $dc0d\n'
-                '\tlda #$01\n\tsta $d01a\n'
-                '\tlda $dc0d\n'
-                '\tcli\n\trts\n' + wrap)
-    if cls == 'jer_lock':
-        # SEI, port, A/X vector pair, D01A=1 + $DC0D=$01, $D011
-        # read-AND-$7F writeback (env-relative — cancels), raster,
-        # JSR core+$40, 14 NOPs, CLI, JMP-self LOCK (never returns).
-        return ('driver_init:\n'
-                '\tsei\n'
-                '\tlda #$35\n\tsta $01\n'
-                '\tlda #<irq_wrapper\n\tldx #>irq_wrapper\n'
-                '\tsta $fffe\n\tstx $ffff\n'
-                '\tlda #$01\n\tsta $d01a\n\tsta $dc0d\n'
-                '\tlda $d011\n\tand #$7f\n\tsta $d011\n'
-                f'\tlda #${raster:02X}\n\tsta $d012\n'
-                f'\tjsr ${CORE + 0x40:04X}\n'
-                + '\tnop\n' * 14 +
-                '\tcli\n'
-                'drv_lock:\n'
-                '\tjmp drv_lock\n'
-                'irq_wrapper:\n'
-                '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
-                '\tinc $d019\n'
-                f'\tjsr ${CORE + 3:04X}\n'
-                '\tpla\n\ttay\n\tpla\n\ttax\n'
-                '\tlda $dc0d\n'
-                '\tpla\n\trti\n')
-    if cls == 'sphere':
-        # Wrapper re-writes $D011 + raster EVERY IRQ; push order
-        # Y-then-X, restore X-then-Y; $D011 primed AFTER core init.
-        d011_init = int(p.get('digi_d011_init', d011))
-        return ('driver_init:\n'
-                '\tsei\n'
-                '\tlda #$35\n\tsta $01\n'
-                '\tlda #$7f\n\tsta $dc0d\n'
-                '\tlda #<irq_wrapper\n\tsta $fffe\n'
-                '\tlda #>irq_wrapper\n\tsta $ffff\n'
-                '\tlda #$01\n\tsta $d01a\n'
-                '\tlda #$00\n\tldx #$00\n\tldy #$00\n'
-                f'\tjsr ${CORE + 0x40:04X}\n'
-                f'\tlda #${d011_init:02X}\n\tsta $d011\n'
-                '\tcli\n\trts\n'
-                'irq_wrapper:\n'
-                '\tpha\n\ttya\n\tpha\n\ttxa\n\tpha\n'
-                '\tinc $d019\n'
-                f'\tlda #${d011:02X}\n\tsta $d011\n'
-                f'\tlda #${raster:02X}\n\tsta $d012\n'
-                f'\tjsr ${CORE + 3:04X}\n'
-                '\tlda $dc0d\n'
-                '\tpla\n\ttax\n\tpla\n\ttay\n\tpla\n\trti\n')
-    if cls == 'earbleed':
-        return ('driver_init:\n'
-                '\tsei\n'
-                '\tlda #$35\n\tsta $01\n'
-                f'\tlda #${d011:02X}\n\tsta $d011\n'
-                f'\tlda #${raster:02X}\n\tsta $d012\n'
-                '\tlda #$01\n\tsta $d01a\n\tsta $d019\n'
-                '\tlda #$7f\n\tsta $dc0d\n\tlda $dc0d\n'
-                '\tlda #$00\n\tsta $dc0e\n'
-                '\tlda #<irq_wrapper\n\tsta $fffe\n'
-                '\tlda #>irq_wrapper\n\tsta $ffff\n'
-                '\tlda #$00\n'
-                f'\tjsr ${CORE:04X}\n'
-                '\tcli\n\trts\n'
-                'irq_wrapper:\n'
-                '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
-                '\tinc $d019\n'
-                f'\tjsr ${CORE + 3:04X}\n'
-                '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
-    if cls == 'poke_stub':
-        # The delayed Morton shape: flag-gated wrapper + a ~2-frame
-        # busy-wait after CLI before the sequencer unlocks; optional
-        # runtime SPEED POKE into the tick immediate (the image byte
-        # is only the first-row seed).
-        # busy-wait seeds: CLASS CONSTANTS, asserted by the extract
-        dseed, oseed = 0xD0, 0x0B
-        lead = '\tsei\n' if p.get('digi_driver_tail_sei', True) else '\tnop\n'
-        gate = p.get('digi_driver_gate', 'cmp1')
-        has_poke = bool(p.get('digi_speed_poke_present'))
-        poke = ('\tlda spdval\n\tsta st1+1\n' if has_poke else '')
-        if gate == 'cmp1':
-            wrap = ('irq_wrapper:\n'
-                    '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
-                    '\tlda dflag\n\tcmp #$01\n\tbne dwskip\n'
-                    f'\tjsr ${CORE + 3:04X}\n'
-                    'dwskip:\n'
-                    '\tasl $d019\n'
-                    '\tlda $dc0d\n'
-                    '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
-        elif gate == 'ackfirst_beq':
-            wrap = ('irq_wrapper:\n'
-                    '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
-                    '\tasl $d019\n'
-                    '\tlda dflag\n\tbeq dwskip\n'
-                    f'\tjsr ${CORE + 3:04X}\n'
-                    'dwskip:\n'
-                    '\tlda $dc0d\n'
-                    '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
-        else:
-            raise DigiComposeError(f'unknown poke_stub gate {gate!r}')
-        return ('driver_init:\n'
-                '\tlda #$00\n\tsta dflag\n'
-                f'\tjsr ${CORE:04X}\n'
-                f'\tlda #${dseed:02X}\n\tsta dcnt1\n\tsta dcnt2\n'
-                f'\tlda #${oseed:02X}\n\tsta docnt\n'
-                + poke +
-                '\tjmp ptail\n'
-                'ptail:\n' + lead +
-                '\tlda #<irq_wrapper\n\tsta $fffe\n'
-                '\tlda #>irq_wrapper\n\tsta $ffff\n'
-                '\tlda #$7f\n\tsta $dc0d\n'
-                '\tlda #$01\n\tsta $d01a\n'
-                '\tlda $dc0d\n'
-                '\tcli\n'
-                'dloop:\n'
-                '\tdec docnt\n'
-                '\tjsr dsub\n'
-                '\tlda docnt\n'
-                '\tbne dloop\n'
-                '\tinc dflag\n'
-                '\trts\n'
-                'dsub:\n'
-                '\tdec dcnt1\n'
-                '\tlda dcnt1\n'
-                '\tcmp #$00\n'
-                '\tbne dsub\n'
-                'dsub2:\n'
-                '\tdec dcnt2\n'
-                '\tlda dcnt2\n'
-                '\tcmp #$00\n'
-                '\tbne dsub2\n'
-                '\trts\n'
-                + wrap +
-                'dflag:\t.byt $00\n'
-                'docnt:\t.byt $00\n'
-                'dcnt1:\t.byt $00\n'
-                'dcnt2:\t.byt $00\n'
-                + (f'spdval:\t.byt ${speed:02X}\n'
-                   if has_poke else ''))
-    if cls == 'kernal_irq':
-        # KERNAL-path driver (port stays $37): core first, $0314
-        # vector; the KERNAL IRQ entry does the pushes and $EA31 the
-        # restores — the wrapper carries none.
-        return ('driver_init:\n'
-                f'\tjsr ${CORE:04X}\n'
-                '\tsei\n'
-                '\tlda #$7f\n\tsta $dc0d\n\tlda $dc0d\n'
-                f'\tlda #${d011:02X}\n\tsta $d011\n'
-                f'\tlda #${raster:02X}\n\tsta $d012\n'
-                '\tlda #<irq_wrapper\n\tsta $0314\n'
-                '\tlda #>irq_wrapper\n\tsta $0315\n'
-                '\tlda #$01\n\tsta $d019\n\tsta $d01a\n'
-                '\tcli\n\trts\n'
-                'irq_wrapper:\n'
-                '\tlda #$01\n\tsta $d019\n'
-                f'\tjsr ${CORE + 3:04X}\n'
-                '\tjmp $ea31\n')
-    if cls == 'kernal_lock':
-        # KERNAL-path + JMP-self lock; A=1 serves D01A/mask/raster;
-        # DEC-form acks; wrapper exits via the short $EA81 tail.
-        return ('driver_init:\n'
-                '\tsei\n'
-                '\tlda #$01\n'
-                '\tsta $d01a\n\tsta $dc0d\n\tsta $d012\n'
-                f'\tlda #${d011:02X}\n\tsta $d011\n'
-                '\tdec $d019\n'
-                '\tlda #<irq_wrapper\n\tsta $0314\n'
-                '\tlda #>irq_wrapper\n\tsta $0315\n'
-                f'\tjsr ${CORE:04X}\n'
-                '\tcli\n'
-                'drv_lock:\n'
-                '\tjmp drv_lock\n'
-                'irq_wrapper:\n'
-                '\tdec $d019\n'
-                f'\tjsr ${CORE + 3:04X}\n'
-                '\tjmp $ea81\n')
-    if cls == 'sub_jmp':
-        # SEI, mask, JSR sub {STA $DD0D (A=$7F), acks, D019=1, JMP
-        # core — core's RTS returns to the caller}, port, vector
-        # hi-then-lo, DC0E=0, D01A/D019=1, raster, $D011, CLI RTS.
-        return ('driver_init:\n'
-                '\tsei\n'
-                '\tlda #$7f\n\tsta $dc0d\n'
-                '\tjsr drv_sub\n'
-                '\tlda #$35\n\tsta $01\n'
-                '\tlda #>irq_wrapper\n\tsta $ffff\n'
-                '\tlda #<irq_wrapper\n\tsta $fffe\n'
-                '\tlda #$00\n\tsta $dc0e\n'
-                '\tlda #$01\n\tsta $d01a\n\tsta $d019\n'
-                f'\tlda #${raster:02X}\n\tsta $d012\n'
-                f'\tlda #${d011:02X}\n\tsta $d011\n'
-                '\tcli\n\trts\n'
-                'drv_sub:\n'
-                '\tsta $dd0d\n'
-                '\tlda $dc0d\n\tlda $dd0d\n'
-                '\tlda #$01\n\tsta $d019\n'
-                f'\tjmp ${CORE:04X}\n'
-                + _WRAP_INC)
-    if cls == 'song_head':
-        # SMC song-select head: the subtune number in A is poked into
-        # the immediate handed to core init. This core's init ignores A
-        # and the file declares one song, so the head decides nothing —
-        # but it runs before the timer starts, so its cycles are the NMI
-        # grid's phase and are mirrored exactly (A=0 ⇒ the BEQ is taken,
-        # same as the original). The port is written twice ($38 = all
-        # RAM, then $35) and a dead NMI vector pre-armed, both likewise
-        # for their cycles.
-        return ('driver_init:\n'
-                '\ttax\n'
-                '\tstx songimm+1\n'
-                '\tcpx #$00\n'
-                '\tbeq shd1\n'
-                '\tdec songimm+1\n'
-                '\tldx #$01\n'
-                'shd1:\n'
-                '\tsei\n'
-                '\tlda #$38\n\tsta $01\n'
-                '\tlda #$35\n\tsta $01\n'
-                '\tlda #>idle_nmi\n\tsta $fffb\n'
-                '\tlda #<idle_nmi\n\tsta $fffa\n'
-                'songimm:\n'
-                '\tlda #$00\n'
-                f'\tjsr ${CORE + 0x40:04X}\n'
-                '\tlda #<irq_wrapper\n\tsta $fffe\n'
-                '\tlda #>irq_wrapper\n\tsta $ffff\n'
-                '\tlda #$81\n\tsta $dc0d\n'
-                '\tlda $dc0d\n'
-                f'\tlda #${raster:02X}\n\tsta $d012\n'
-                f'\tlda #${d011:02X}\n\tsta $d011\n'
-                '\tldx #$00\n\tstx $dc0e\n\tinx\n'
-                '\tstx $d01a\n\tstx $d019\n'
-                '\tcli\n\trts\n' + _WRAP_NOACK)
-    if cls in ('rwait_lock', 'rwait_rts'):
-        # RASTER-WAIT family (Digibeatz ×2). No raster line is ARMED —
-        # the IRQ fires at the environment default and the wrapper
-        # BUSY-WAITS `cmp $d012` until the beam reaches `raster`, which
-        # is what places the tick in the frame. The screen is blanked
-        # ($D011=$00) so no badline steals a cycle from that wait.
-        # `stx st1+1` re-pokes the tick's speed immediate before core
-        # init with the value the extract already carried as the tempo
-        # (self-consistent, no knob); the `sta rwdead` beside it targets
-        # dead editor residue and is emitted for its 4 pre-timer cycles
-        # only. Both dead bytes keep the original's values.
-        wait = ('irq_wrapper:\n'
-                '\tasl $d019\n'
-                f'\tlda #${raster:02X}\n'
-                'rw1:\n'
-                '\tcmp $d012\n'
-                '\tbne rw1\n'
-                f'\tjsr ${CORE + 3:04X}\n')
-        tail = ('\tlda #$ff\n\tsta $d019\n'
-                f'\tlda #${d011:02X}\n\tsta $d011\n'
-                '\tcli\n')
-        pokes = (f'\tldx #${speed:02X}\n'
-                 '\tlda #$00\n'
-                 '\tstx st1+1\n'
-                 '\tsta rwdead\n'
-                 '\tlda #<irq_wrapper\n\tldx #>irq_wrapper\n'
-                 '\tsta $fffe\n\tstx $ffff\n'
-                 f'\tjsr ${CORE:04X}\n')
-        cia = ('\tlda #$81\n\tsta $d01a\n'
-               '\tlda #$7f\n\tsta $dc0d\n\tsta $dd0d\n'
-               '\tlda $dc0d\n\tlda $dd0d\n')
-        if cls == 'rwait_lock':
-            return ('driver_init:\n'
-                    '\tsei\n'
-                    '\tlda #$35\n\tsta $01\n'
-                    + cia + pokes + tail +
-                    'drv_lock:\n'
-                    '\tjmp drv_lock\n'
-                    'rwdead:\t.byt $03,$00\n'
-                    + wait +
-                    '\tlda $dc0d\n'
-                    '\trti\n')
-        # rwait_rts also blanks border+background first and pre-arms the
-        # NMI vector at a bare RTI (dead — core init re-points it before
-        # any NMI can fire; only the shape's cycles matter), then
-        # RETURNS to psiddrv instead of locking.
-        d011_init = int(p.get('digi_d011_init', d011))
-        return ('driver_init:\n'
-                '\tsei\n'
-                '\tlda #$35\n\tsta $01\n'
-                f'\tlda #${d011_init:02X}\n'
-                '\tsta $d011\n\tsta $d020\n\tsta $d021\n'
-                '\tlda #<rwnmi\n\tldx #>rwnmi\n'
-                '\tsta $fffa\n\tstx $fffb\n'
-                + cia + pokes + tail +
-                '\trts\n'
-                'rwnmi:\n'
-                '\trti\n'
-                'rwdead:\t.byt $03,$00\n'
-                + wait +
-                '\trti\n')
-    raise DigiComposeError(f'unknown digi_driver class {cls!r}')
+    ctx = {'CORE': CORE, 'speed': speed}
+    pre = _emit_state(p.get('digi_drv_pre', ''), ctx)
+    post = _emit_state(p.get('digi_drv_post', ''), ctx)
+    entry = CORE + 0x40 if p.get('digi_drv_entry') == 'core40' else CORE
+    # Pad the init to the measured pre-timer cycle count. This is the whole
+    # of what the init contributes: it runs under SEI, so nothing can
+    # observe its shape — only when it hands over to the core.
+    budget = int(p.get('digi_drv_cyc', 0))
+    body = pre
+    asm = ('driver_init:\n' + body + _pad(budget - _cycles(body) - 6)
+           + f'\tjsr ${entry:04X}\n' + post)
+    tail = p.get('digi_drv_tail', 'rts')
+    if tail == 'lock':
+        asm += '\tcli\ndrv_lock:\n\tjmp drv_lock\n'
+    elif tail == 'rts':
+        asm += '\tcli\n\trts\n'
+    elif tail == 'rts_bare':
+        asm += '\trts\n'
+    elif tail.startswith('delay='):
+        # A startup delay run with interrupts LIVE, so its loop period is
+        # observable: mirror the period and the counts, not the code.
+        a, b, c = (int(x, 16) for x in tail[6:].split(':'))
+        asm += ('\tcli\n'
+                f'\tlda #${a:02X}\n\tsta drv_c1\n\tsta drv_c2\n'
+                f'\tlda #${c:02X}\n\tsta drv_c3\n'
+                'dloop:\n\tdec drv_c3\n\tjsr dsub\n'
+                '\tlda drv_c3\n\tbne dloop\n'
+                '\tinc drv_flag\n\trts\n'
+                'dsub:\n\tdec drv_c1\n\tlda drv_c1\n\tcmp #$00\n\tbne dsub\n'
+                'dsub2:\n\tdec drv_c2\n\tlda drv_c2\n\tcmp #$00\n\tbne dsub2\n'
+                '\trts\n')
+    else:
+        raise DigiComposeError(f'unknown driver tail {tail!r}')
+    asm += _emit_wrapper(p.get('digi_drv_wrap', ''), ctx)
+    asm += ('drv_dead:\t.byt $03,$00\n'
+            'drv_flag:\t.byt $00\n'
+            'drv_c1:\t.byt $00\ndrv_c2:\t.byt $00\ndrv_c3:\t.byt $00\n')
+    return asm
+
 
 
 def compose_asm(usf: UsfFile, usf_dir: str) -> str:
