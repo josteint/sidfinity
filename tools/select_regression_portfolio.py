@@ -643,10 +643,16 @@ def digi_organizer_features(sid: str) -> tuple[str, set] | None:
         raise TimeoutError
 
     signal.signal(signal.SIGALRM, _bail)
-    signal.alarm(20)
+    # 60s, not 20: a member whose PCM runs past the image end shells out
+    # to `siddump --peek-post-init` once per off-image range (C29).
+    signal.alarm(60)
     from pipelines.digi_organizer.extract import extract_model
+    # the batch's id_key is the HVSC-RELATIVE path; the extract wants a
+    # real one. (Returning the id UNCHANGED matters — the portfolio it
+    # writes is consumed by regression.py, which re-joins the root.)
+    sid_id, path = sid, os.path.join(ROOT, 'hvsc85', sid)
     try:
-        m = extract_model(sid)
+        m = extract_model(path)
     except Exception:
         return None
     finally:
@@ -689,10 +695,10 @@ def digi_organizer_features(sid: str) -> tuple[str, set] | None:
     if sum(e - s for s, e in ranges) > 192:
         f.add('pcm:total_over_192p')      # forces the overlap join
     from pipelines.digi_organizer.extract import load_image
-    _meta, load, img = load_image(sid)
+    _meta, load, img = load_image(path)
     if any((e << 8) > load + len(img) for _s, e in ranges):
         f.add('pcm:past_eof')             # C29 CPU-eye capture
-    return sid, f
+    return sid_id, f
 
 
 def masm_features(sid: str) -> tuple[str, set] | None:

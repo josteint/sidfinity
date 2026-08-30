@@ -1,0 +1,245 @@
+{
+ "engine": "digi_organizer",
+ "portfolio": [
+  "DEMOS/A-F/Damn_Fine_Digi.sid",
+  "DEMOS/A-F/Demi-Demo_4.sid",
+  "DEMOS/S-Z/TDU_Jubilee_tune_10.sid",
+  "MUSICIANS/0-9/2NY/Heavy-Beat.sid",
+  "MUSICIANS/B/Bayliss_Richard/Second_Thoughts.sid",
+  "MUSICIANS/F/Feekzoid/Arnie-Rap.sid",
+  "MUSICIANS/F/Feekzoid/Xmas_Chortles_x-rated_version.sid",
+  "MUSICIANS/J/Jer/Digimix_1.sid",
+  "MUSICIANS/J/Jer/Digimix_2.sid",
+  "MUSICIANS/J/Jer/Memomay_Dbl_Mix.sid",
+  "MUSICIANS/K/Koester_Boris/Digi-Zak_3.sid",
+  "MUSICIANS/M/Morton_Adam/Check_em.sid",
+  "MUSICIANS/M/Morton_Adam/Digibeatz_1.sid",
+  "MUSICIANS/M/Morton_Adam/Digibeatz_2.sid",
+  "MUSICIANS/M/Morton_Adam/Gorillaz-Dare.sid",
+  "MUSICIANS/M/Morton_Adam/Hip-Hop_Loop_1.sid",
+  "MUSICIANS/M/Morton_Adam/Trace_Loop.sid",
+  "MUSICIANS/S/Sphere_Chromance/Digi_Zak_1.sid",
+  "MUSICIANS/S/Sphere_Chromance/Digi_Zak_2.sid",
+  "MUSICIANS/T/The_Mighty_Bulldozer/Earbleed_I.sid",
+  "MUSICIANS/T/The_Mighty_Bulldozer/Earbleed_II.sid",
+  "MUSICIANS/Y/Yoko/Lets_Do_It.sid"
+ ],
+ "dimensions": {
+  "clock:NTSC": [
+   "MUSICIANS/S/Sphere_Chromance/Digi_Zak_1.sid",
+   "MUSICIANS/S/Sphere_Chromance/Digi_Zak_2.sid"
+  ],
+  "clock:PAL": [
+   "DEMOS/A-F/Damn_Fine_Digi.sid",
+   "DEMOS/A-F/Demi-Demo_4.sid",
+   "DEMOS/S-Z/TDU_Jubilee_tune_10.sid",
+   "MUSICIANS/0-9/2NY/Heavy-Beat.sid",
+   "MUSICIANS/B/Bayliss_Richard/Second_Thoughts.sid",
+   "MUSICIANS/F/Feekzoid/Arnie-Rap.sid",
+   "MUSICIANS/F/Feekzoid/Xmas_Chortles_x-rated_version.sid",
+   "MUSICIANS/J/Jer/Digimix_1.sid",
+   "MUSICIANS/J/Jer/Digimix_2.sid",
+   "MUSICIANS/J/Jer/Memomay_Dbl_Mix.sid",
+   "MUSICIANS/K/Koester_Boris/Digi-Zak_3.sid",
+   "MUSICIANS/M/Morton_Adam/Check_em.sid",
+   "MUSICIANS/M/Morton_Adam/Digibeatz_1.sid",
+   "MUSICIANS/M/Morton_Adam/Digibeatz_2.sid",
+   "MUSICIANS/M/Morton_Adam/Gorillaz-Dare.sid",
+   "MUSICIANS/M/Morton_Adam/Hip-Hop_Loop_1.sid",
+   "MUSICIANS/M/Morton_Adam/Trace_Loop.sid",
+   "MUSICIANS/T/The_Mighty_Bulldozer/Earbleed_I.sid",
+   "MUSICIANS/T/The_Mighty_Bulldozer/Earbleed_II.sid",
+   "MUSICIANS/Y/Yoko/Lets_Do_It.sid"
+  ],
+  "driver:bare_stub": [
+   "MUSICIANS/M/Morton_Adam/Gorillaz-Dare.sid",
+   "MUSICIANS/M/Morton_Adam/Hip-Hop_Loop_1.sid"
+  ],
+  "driver:earbleed": [
+   "MUSICIANS/T/The_Mighty_Bulldozer/Earbleed_I.sid",
+   "MUSICIANS/T/The_Mighty_Bulldozer/Earbleed_II.sid"
+  ],
+  "driver:irq_vec": [
+   "DEMOS/S-Z/TDU_Jubilee_tune_10.sid",
+   "MUSICIANS/0-9/2NY/Heavy-Beat.sid"
+  ],
+  "driver:jer_lock": [
+   "MUSICIANS/J/Jer/Digimix_1.sid",
+   "MUSICIANS/J/Jer/Digimix_2.sid"
+  ],
+  "driver:kernal_irq": [
+   "MUSICIANS/B/Bayliss_Richard/Second_Thoughts.sid"
+  ],
+  "driver:kernal_lock": [
+   "MUSICIANS/K/Koester_Boris/Digi-Zak_3.sid"
+  ],
+  "driver:nmi_first": [
+   "MUSICIANS/J/Jer/Memomay_Dbl_Mix.sid",
+   "MUSICIANS/Y/Yoko/Lets_Do_It.sid"
+  ],
+  "driver:poke_stub": [
+   "MUSICIANS/M/Morton_Adam/Check_em.sid",
+   "MUSICIANS/M/Morton_Adam/Trace_Loop.sid"
+  ],
+  "driver:rwait_lock": [
+   "MUSICIANS/M/Morton_Adam/Digibeatz_1.sid"
+  ],
+  "driver:rwait_rts": [
+   "MUSICIANS/M/Morton_Adam/Digibeatz_2.sid"
+  ],
+  "driver:song_head": [
+   "DEMOS/A-F/Damn_Fine_Digi.sid"
+  ],
+  "driver:sphere": [
+   "MUSICIANS/S/Sphere_Chromance/Digi_Zak_1.sid",
+   "MUSICIANS/S/Sphere_Chromance/Digi_Zak_2.sid"
+  ],
+  "driver:sub_jmp": [
+   "MUSICIANS/F/Feekzoid/Arnie-Rap.sid"
+  ],
+  "driver:xreg": [
+   "DEMOS/A-F/Demi-Demo_4.sid",
+   "MUSICIANS/F/Feekzoid/Xmas_Chortles_x-rated_version.sid"
+  ],
+  "entry:core40": [
+   "DEMOS/A-F/Damn_Fine_Digi.sid",
+   "MUSICIANS/F/Feekzoid/Xmas_Chortles_x-rated_version.sid",
+   "MUSICIANS/J/Jer/Digimix_1.sid",
+   "MUSICIANS/J/Jer/Digimix_2.sid",
+   "MUSICIANS/S/Sphere_Chromance/Digi_Zak_1.sid",
+   "MUSICIANS/S/Sphere_Chromance/Digi_Zak_2.sid"
+  ],
+  "nmivec:0318": [
+   "MUSICIANS/B/Bayliss_Richard/Second_Thoughts.sid"
+  ],
+  "nmivec:fffa": [
+   "DEMOS/A-F/Damn_Fine_Digi.sid",
+   "DEMOS/A-F/Demi-Demo_4.sid",
+   "DEMOS/S-Z/TDU_Jubilee_tune_10.sid",
+   "MUSICIANS/0-9/2NY/Heavy-Beat.sid",
+   "MUSICIANS/F/Feekzoid/Arnie-Rap.sid",
+   "MUSICIANS/F/Feekzoid/Xmas_Chortles_x-rated_version.sid",
+   "MUSICIANS/J/Jer/Digimix_1.sid",
+   "MUSICIANS/J/Jer/Digimix_2.sid",
+   "MUSICIANS/J/Jer/Memomay_Dbl_Mix.sid",
+   "MUSICIANS/K/Koester_Boris/Digi-Zak_3.sid",
+   "MUSICIANS/M/Morton_Adam/Check_em.sid",
+   "MUSICIANS/M/Morton_Adam/Digibeatz_1.sid",
+   "MUSICIANS/M/Morton_Adam/Digibeatz_2.sid",
+   "MUSICIANS/M/Morton_Adam/Gorillaz-Dare.sid",
+   "MUSICIANS/M/Morton_Adam/Hip-Hop_Loop_1.sid",
+   "MUSICIANS/M/Morton_Adam/Trace_Loop.sid",
+   "MUSICIANS/S/Sphere_Chromance/Digi_Zak_1.sid",
+   "MUSICIANS/S/Sphere_Chromance/Digi_Zak_2.sid",
+   "MUSICIANS/T/The_Mighty_Bulldozer/Earbleed_I.sid",
+   "MUSICIANS/T/The_Mighty_Bulldozer/Earbleed_II.sid",
+   "MUSICIANS/Y/Yoko/Lets_Do_It.sid"
+  ],
+  "order:stop": [
+   "MUSICIANS/S/Sphere_Chromance/Digi_Zak_2.sid"
+  ],
+  "pcm:blob_over_128p": [
+   "MUSICIANS/J/Jer/Digimix_2.sid"
+  ],
+  "pcm:past_eof": [
+   "MUSICIANS/F/Feekzoid/Xmas_Chortles_x-rated_version.sid",
+   "MUSICIANS/J/Jer/Digimix_2.sid",
+   "MUSICIANS/J/Jer/Memomay_Dbl_Mix.sid",
+   "MUSICIANS/M/Morton_Adam/Digibeatz_2.sid",
+   "MUSICIANS/T/The_Mighty_Bulldozer/Earbleed_I.sid"
+  ],
+  "pcm:shared_range": [
+   "DEMOS/A-F/Damn_Fine_Digi.sid",
+   "DEMOS/A-F/Demi-Demo_4.sid",
+   "MUSICIANS/0-9/2NY/Heavy-Beat.sid",
+   "MUSICIANS/B/Bayliss_Richard/Second_Thoughts.sid",
+   "MUSICIANS/F/Feekzoid/Arnie-Rap.sid",
+   "MUSICIANS/F/Feekzoid/Xmas_Chortles_x-rated_version.sid",
+   "MUSICIANS/J/Jer/Digimix_1.sid",
+   "MUSICIANS/J/Jer/Digimix_2.sid",
+   "MUSICIANS/K/Koester_Boris/Digi-Zak_3.sid",
+   "MUSICIANS/S/Sphere_Chromance/Digi_Zak_1.sid",
+   "MUSICIANS/S/Sphere_Chromance/Digi_Zak_2.sid",
+   "MUSICIANS/T/The_Mighty_Bulldozer/Earbleed_I.sid",
+   "MUSICIANS/T/The_Mighty_Bulldozer/Earbleed_II.sid",
+   "MUSICIANS/Y/Yoko/Lets_Do_It.sid"
+  ],
+  "pcm:total_over_192p": [
+   "MUSICIANS/F/Feekzoid/Xmas_Chortles_x-rated_version.sid",
+   "MUSICIANS/J/Jer/Digimix_1.sid",
+   "MUSICIANS/J/Jer/Digimix_2.sid",
+   "MUSICIANS/K/Koester_Boris/Digi-Zak_3.sid",
+   "MUSICIANS/M/Morton_Adam/Digibeatz_1.sid",
+   "MUSICIANS/M/Morton_Adam/Digibeatz_2.sid"
+  ],
+  "preinit:jmp": [
+   "MUSICIANS/M/Morton_Adam/Check_em.sid",
+   "MUSICIANS/M/Morton_Adam/Digibeatz_1.sid",
+   "MUSICIANS/M/Morton_Adam/Digibeatz_2.sid",
+   "MUSICIANS/M/Morton_Adam/Gorillaz-Dare.sid",
+   "MUSICIANS/M/Morton_Adam/Hip-Hop_Loop_1.sid",
+   "MUSICIANS/M/Morton_Adam/Trace_Loop.sid"
+  ],
+  "preinit:nopslide": [
+   "MUSICIANS/B/Bayliss_Richard/Second_Thoughts.sid"
+  ],
+  "preinit:romcopy": [
+   "MUSICIANS/K/Koester_Boris/Digi-Zak_3.sid"
+  ],
+  "smptab:onepage_degenerate": [
+   "MUSICIANS/B/Bayliss_Richard/Second_Thoughts.sid",
+   "MUSICIANS/F/Feekzoid/Arnie-Rap.sid",
+   "MUSICIANS/M/Morton_Adam/Trace_Loop.sid"
+  ],
+  "smptab:onepage_normal": [
+   "DEMOS/A-F/Damn_Fine_Digi.sid",
+   "DEMOS/S-Z/TDU_Jubilee_tune_10.sid",
+   "MUSICIANS/B/Bayliss_Richard/Second_Thoughts.sid",
+   "MUSICIANS/F/Feekzoid/Arnie-Rap.sid",
+   "MUSICIANS/F/Feekzoid/Xmas_Chortles_x-rated_version.sid",
+   "MUSICIANS/J/Jer/Digimix_1.sid",
+   "MUSICIANS/S/Sphere_Chromance/Digi_Zak_1.sid",
+   "MUSICIANS/S/Sphere_Chromance/Digi_Zak_2.sid",
+   "MUSICIANS/T/The_Mighty_Bulldozer/Earbleed_I.sid",
+   "MUSICIANS/T/The_Mighty_Bulldozer/Earbleed_II.sid"
+  ],
+  "speed:poke_post": [
+   "MUSICIANS/M/Morton_Adam/Check_em.sid",
+   "MUSICIANS/M/Morton_Adam/Trace_Loop.sid"
+  ],
+  "speed:poke_pre": [
+   "MUSICIANS/M/Morton_Adam/Digibeatz_1.sid",
+   "MUSICIANS/M/Morton_Adam/Digibeatz_2.sid"
+  ],
+  "tail:cli_rts": [
+   "DEMOS/A-F/Demi-Demo_4.sid",
+   "MUSICIANS/B/Bayliss_Richard/Second_Thoughts.sid",
+   "MUSICIANS/F/Feekzoid/Xmas_Chortles_x-rated_version.sid",
+   "MUSICIANS/K/Koester_Boris/Digi-Zak_3.sid",
+   "MUSICIANS/S/Sphere_Chromance/Digi_Zak_1.sid",
+   "MUSICIANS/S/Sphere_Chromance/Digi_Zak_2.sid"
+  ],
+  "tail:nop_rts": [
+   "DEMOS/A-F/Damn_Fine_Digi.sid",
+   "MUSICIANS/J/Jer/Memomay_Dbl_Mix.sid",
+   "MUSICIANS/T/The_Mighty_Bulldozer/Earbleed_I.sid",
+   "MUSICIANS/T/The_Mighty_Bulldozer/Earbleed_II.sid"
+  ],
+  "tail:rts": [
+   "DEMOS/S-Z/TDU_Jubilee_tune_10.sid",
+   "MUSICIANS/0-9/2NY/Heavy-Beat.sid",
+   "MUSICIANS/F/Feekzoid/Arnie-Rap.sid",
+   "MUSICIANS/J/Jer/Digimix_1.sid",
+   "MUSICIANS/J/Jer/Digimix_2.sid",
+   "MUSICIANS/M/Morton_Adam/Check_em.sid",
+   "MUSICIANS/M/Morton_Adam/Digibeatz_1.sid",
+   "MUSICIANS/M/Morton_Adam/Digibeatz_2.sid",
+   "MUSICIANS/M/Morton_Adam/Gorillaz-Dare.sid",
+   "MUSICIANS/M/Morton_Adam/Hip-Hop_Loop_1.sid",
+   "MUSICIANS/M/Morton_Adam/Trace_Loop.sid",
+   "MUSICIANS/Y/Yoko/Lets_Do_It.sid"
+  ]
+ },
+ "corpus_full": 39,
+ "mode": "exact"
+}
