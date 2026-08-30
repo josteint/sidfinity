@@ -848,6 +848,39 @@
     grind; see item 17's PILOT charter for what is being trialled and
     what must be written back.
 
+    ==== 2026-08-30 23:10 — THE $D418 RESIDUE SHAPE, AND A REFUTED LEVER ====
+    A partial census of r3 (867 partials, 853 clustered) shows ONE dominant
+    first-divergence signature: **404 of 853 (47%) diverge at a write where
+    the ORIGINAL emits a voice register and OUR REBUILD emits $D418.** It
+    spreads across many register clusters (V1/V2/V3 freqlo, SR, ...) at every
+    stream depth, so it is one lever wearing a dozen cluster labels, not a
+    dozen bugs. That is the single biggest thing in the v5 residue.
+
+    ⛔ REFUTED, so nobody re-runs it: the obvious reading — "the original
+    doesn't drive $D418 the way we do, so v5 needs v4's C19 $D418 wedge
+    probes (`master_vol_static` / `d418_noteinit_dead` / `filter_static`)" —
+    is WRONG. Measured on all 867 originals with `tools/d418_shape_census.py`
+    (~5 min, read-only):
+
+        perplay  531 (61.2%)      dense  336 (38.8%)
+        static / sparse / silent:   0    (0.0%)
+
+    NOT ONE original is $D418-static or even sparse. Every one drives it at
+    >= 0.25 writes per frame, most at 1.3-1.75 (i.e. more than once per
+    frame), with 2-3 distinct values ($3F/$1F + a single $0F). So both sides
+    write $D418 densely and the divergence is about WHEN and HOW MANY, not
+    about a wedge that removed the write. That points at C16 (per-frame
+    write ORDER) or C24 (unit repeat — a doubled filter tail writes $D418
+    twice), NOT at the C19 wedge family.
+
+    NEXT MEASUREMENT for this lever: take a `perplay` representative and
+    compare the orig's per-IRQ $D418 COUNT against the rebuild's for the
+    same play() (`siddump --writelog-per-irq`). If the orig writes it twice
+    per play where we write once (or vice versa), it is C24
+    `play_unit_repeat` on the filter tail; if the counts match and only the
+    position differs, it is C16 emission order.
+    Rows: tmp/d418_shape_census.jsonl (path, shape, rate, distinct values).
+
     ==== STATUS 2026-08-23: ROUND 1 DONE — 1,167/2,151 FULL (54.3%) ====
     The grind is OPEN and the target is now named precisely: the residue
     is ONE PLAYER VARIANT. `family4` (the Jupiter41 branch, play +$95) is
