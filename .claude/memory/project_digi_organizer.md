@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: eeee45ad-d522-49c1-8391-1946b3565085
-  modified: 2026-08-30T07:34:38.901Z
+  modified: 2026-08-30T07:49:33.081Z
 ---
 
 ## 2026-08-30 — round 4: **39/39 FULL — the standalone family is CLOSED**
@@ -18,10 +18,20 @@ CLOSEOUT DONE: tier-1 portfolio (22 members over 34 dimensions,
 `pipelines/digi_organizer/regression_portfolio.json`) derived and wired
 into `regression.py` — BOTH the summary line and the exit-code list —
 with `_w_digiorg` verifying via `compare_strict` (the only Mode-2
-family in the harness); 22/22 green. `mass_write.py` written (the
-corpus_sync binding + a PCM-sidecar orphan sweep, which
-ARTIFACT_SUFFIXES cannot see). Backlog item 30 DONE: 18 params keys →
+family in the harness); 22/22 green. MASS-WRITE RUN: 39 `.usf` + 39
+`.sidfinity.sid` + 306 PCM sidecars stored beside the originals, 8
+audited from disk (the stored .usf rebuilds the stored .sid AND the
+stored .sid still verifies cycle-strict). `mass_write.py` is the
+corpus_sync binding plus a PCM-sidecar orphan sweep, which
+ARTIFACT_SUFFIXES cannot see. Backlog item 30 DONE: 18 params keys →
 15 while the driver-class registry grew 11 → 14, all byte-identical.
+
+⚠ SEQUENCING, learned the hard way twice: the family's fingerprint
+closure is its whole directory, so deriving the portfolio AND editing
+`mass_write.py` each stranded a finished 39/39 batch and forced a
+re-run. Derive the portfolio and settle the writer BEFORE the batch
+that stamps the rows the mass-write will read. The underlying bug is
+backlog item 31.
 
 STILL OPEN for this family: the 92 music-paired members (C31-hetero +
 the $D418-ownership split verdict), and Rayden_Digi (item 28) on the
