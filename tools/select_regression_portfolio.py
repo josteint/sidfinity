@@ -667,24 +667,30 @@ def digi_organizer_features(sid: str) -> tuple[str, set] | None:
         f.add('speed:poke_pre')           # poke BEFORE core init
     if m.order_term == 'stop':
         f.add('order:stop')
+    # BOTH one-page forms are dimensions, and a member can carry both
+    # (Arnie-Rap has one degenerate row beside two explicit ones) — the
+    # branch they take differs, so neither excludes the other. NB
+    # `m.samples` is post-clamp, so an explicit row is one the extract
+    # did NOT record as degenerate.
     if m.onepage_degenerate:
         f.add('smptab:onepage_degenerate')     # the C40 3e branch
-    if any(e - s == 1 for s, e, _l in m.samples.values()
-           if True) and not m.onepage_degenerate:
+    if any(e - s == 1 and i not in m.onepage_degenerate
+           for i, (s, e, _l) in m.samples.items()):
         f.add('smptab:onepage_normal')
-    # composer-side layout paths, derived from the same facts the
-    # allocator sees (page totals, not placements — placement is chosen
-    # by the composer and is not a property of the member)
+    # composer-side layout paths. Thresholds, not observed placements:
+    # these are the sizes at which the composer's canonical map (largest
+    # hole 128 pages) and then its relocated map (~183 + 31) stop
+    # fitting, so they name the member property that forces each path.
     ranges = {(s, e) for s, e, _l in m.samples.values()}
     if len(ranges) != len(m.samples):
         f.add('pcm:shared_range')
-    tot = sum(e - s for s, e in ranges)
-    if max((e - s for s, e in ranges), default=0) > 0x80:
-        f.add('pcm:huge_blob')            # forces the relocated player
-    if tot > 0xC0:
-        f.add('pcm:overflow_join')        # forces the overlap join
-    end_img = m.load + len(open(sid, 'rb').read())
-    if any((e << 8) > end_img for _s, e in ranges):
+    if max((e - s for s, e in ranges), default=0) > 128:
+        f.add('pcm:blob_over_128p')       # forces the relocated player
+    if sum(e - s for s, e in ranges) > 192:
+        f.add('pcm:total_over_192p')      # forces the overlap join
+    from pipelines.digi_organizer.extract import load_image
+    _meta, load, img = load_image(sid)
+    if any((e << 8) > load + len(img) for _s, e in ranges):
         f.add('pcm:past_eof')             # C29 CPU-eye capture
     return sid, f
 
