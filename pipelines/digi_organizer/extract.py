@@ -106,6 +106,328 @@ class DigiOrganizerModel:
     # sample ids whose table row uses the engine's DEGENERATE one-page
     # form (end <= start, clamped to start+1 by a branch in the trigger)
     onepage_degenerate: list = field(default_factory=list)
+    # the measured facts a universal driver reproduces (see _driver_facts)
+    driver_facts: dict = field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# THE DRIVER DECODER — measure the facts, never recognise a shape
+# ---------------------------------------------------------------------------
+# opcode -> (mnemonic, length, cycles)
+_OPS = {
+    0x78: ('sei', 1, 2), 0x58: ('cli', 1, 2), 0x60: ('rts', 1, 6),
+    0x40: ('rti', 1, 6), 0xEA: ('nop', 1, 2),
+    0xA9: ('lda#', 2, 2), 0xA2: ('ldx#', 2, 2), 0xA0: ('ldy#', 2, 2),
+    0x85: ('staz', 2, 3), 0x86: ('stxz', 2, 3), 0x84: ('styz', 2, 3),
+    0x8D: ('sta', 3, 4), 0x8E: ('stx', 3, 4), 0x8C: ('sty', 3, 4),
+    0xAD: ('lda', 3, 4), 0xAE: ('ldx', 3, 4), 0xAC: ('ldy', 3, 4),
+    0xA5: ('ldaz', 2, 3),
+    0x20: ('jsr', 3, 6), 0x4C: ('jmp', 3, 3),
+    0xAA: ('tax', 1, 2), 0x8A: ('txa', 1, 2), 0xA8: ('tay', 1, 2),
+    0x98: ('tya', 1, 2), 0xE8: ('inx', 1, 2), 0xCA: ('dex', 1, 2),
+    0x48: ('pha', 1, 3), 0x68: ('pla', 1, 4),
+    0xEE: ('inc', 3, 6), 0xCE: ('dec', 3, 6), 0x0E: ('asl', 3, 6),
+    0x2C: ('bit', 3, 4), 0x29: ('and#', 2, 2), 0x09: ('ora#', 2, 2),
+    0xC9: ('cmp#', 2, 2), 0xE0: ('cpx#', 2, 2), 0xCD: ('cmp', 3, 4),
+    0xD0: ('bne', 2, 2), 0xF0: ('beq', 2, 2),
+    0x10: ('bpl', 2, 2), 0x30: ('bmi', 2, 2),
+}
+_STORES = {'sta': 'a', 'stx': 'x', 'sty': 'y',
+           'staz': 'a', 'stxz': 'x', 'styz': 'y'}
+
+
+def _decode_driver(img, load, meta, core_base, core_plus, tick_imm):
+    """Walk the member's driver and MEASURE what it contributes.
+
+    No catalogue of known shapes: the walk reports the machine STATE the
+    driver establishes, the CYCLES before it hands over to the core (the
+    sample clock's phase against the frame clock), what the CPU does
+    afterwards, and the per-interrupt wrapper — the four things that reach
+    the write stream (ledger C40). An unfamiliar driver is therefore
+    decoded rather than refused.
+    """
+    def at(pc):
+        o = img[pc - load]
+        if o not in _OPS:
+            raise DigiOrganizerUnsupported(
+                f'driver decode: unknown opcode ${o:02X} at ${pc:04X}')
+        mn, ln, cy = _OPS[o]
+        ops = img[pc - load + 1:pc - load + ln]
+        arg = (ops[0] | ops[1] << 8) if ln == 3 else (ops[0] if ln == 2 else None)
+        return mn, ln, cy, arg
+
+    def name(addr, val, regs):
+        """A store's token, recognising the few structural targets."""
+        if addr in (0xFFFE, 0xFFFF, 0x0314, 0x0315, 0xFFFA, 0xFFFB):
+            return None                       # vector halves, paired below
+        if addr == tick_imm:
+            # The sequencer's speed immediate. The POKED value is the
+            # member's tempo, so it is musical and must be recovered: the
+            # walk records where the value came from and reads it.
+            if isinstance(regs['a'], tuple) and regs['a'][0] == 'from':
+                poked.append(img[regs['a'][1] - load])
+            elif val is not None:
+                poked.append(val)
+            return 'SPD'
+        if isinstance(val, tuple):
+            val = img[val[1] - load] if val[0] == 'from' else None
+        if val is None:
+            # a store whose value the walk cannot know statically and which
+            # is not one of the structural targets: refuse rather than guess
+            raise DigiOrganizerUnsupported(
+                f'driver decode: store to ${addr:04X} of an unknown value')
+        if addr >= 0x0100 and not 0xD000 <= addr <= 0xDFFF:
+            # the driver's own scratch/SMC byte, not an environment
+            # register: private state, redirected to a byte of ours
+            return f'S{scratch.setdefault(addr, len(scratch))}={val:02x}'
+        return f'{addr:02x}={val:02x}' if addr < 0x100 else f'{addr:04x}={val:02x}'
+
+    toks, cyc, entry, pc = [], 0, None, meta['init']
+    cyc_post = 0
+    scratch = {}
+    post_pcs, post_cyc = [], {}
+    entry_jmp = False
+    poked = []
+    regs = {'a': 0, 'x': None, 'y': None}     # RSID enters with A = subtune
+    vec = {}
+    seen = set()
+    phase = 'pre'
+    post, tail, wrapper_addr = [], 'rts', None
+    guard = 0
+    while True:
+        guard += 1
+        if guard > 400:
+            raise DigiOrganizerUnsupported('driver decode: walk did not settle')
+        mn, ln, cy, arg = at(pc)
+        out = toks if phase == 'pre' else post
+        if mn in ('jsr', 'jmp') and arg in (core_base, core_plus):
+            if phase == 'pre':
+                cyc += cy
+                entry = 'core40' if arg == core_plus else 'core'
+                phase = 'post'
+                pc += ln
+                if mn == 'jmp':               # entered via a JSR'd sub: the
+                    entry_jmp = True          # core's RTS returns to the call
+                    return_pc = _RET.pop() if _RET else None
+                    if return_pc is not None:
+                        pc = return_pc
+                continue
+            raise DigiOrganizerUnsupported('driver decode: second core call')
+        if mn == 'jsr':                       # inline a helper subroutine
+            # Record WHERE the call happened: some drivers reach the core
+            # by JMP from inside such a helper, so the core's RTS returns
+            # to this call. A flat emission cannot express that, so the
+            # emitter needs the split point.
+            (toks if phase == 'pre' else post).append(
+                f'SUB@{cyc if phase == "pre" else cyc_post}')
+            _RET.append(pc + ln)
+            pc = arg
+            if phase == 'pre':
+                cyc += cy
+            else:
+                cyc_post += cy
+            continue
+        if mn == 'rts':
+            if _RET:
+                pc = _RET.pop()
+                if phase == 'pre':
+                    cyc += cy
+                continue
+            tail = 'rts'
+            break
+        if mn == 'jmp':
+            if arg == pc:                     # jmp self = the idle lock
+                tail = 'lock'
+                break
+            if arg in seen:
+                raise DigiOrganizerUnsupported('driver decode: loop in driver')
+            seen.add(arg)
+            if phase == 'pre':
+                cyc += cy
+            else:
+                cyc_post += cy      # a forward jump still costs its cycles
+            pc = arg
+            continue
+        here = cyc if phase == 'pre' else cyc_post
+        mark = len(out)
+        if mn == 'sei':
+            out.append(f'SEI@{here}')
+        elif mn == 'cli':
+            out.append(f'CLI@{here}')
+        elif mn in _STORES:
+            r = _STORES[mn]
+            if arg in (0xFFFE, 0xFFFF, 0x0314, 0x0315, 0xFFFA, 0xFFFB):
+                # a vector half; emit the token once BOTH halves are in,
+                # since originals install them in either order
+                vec[arg] = regs[r]
+                pair = {0xFFFE: (0xFFFE, 0xFFFF, 'IRQ'),
+                        0xFFFF: (0xFFFE, 0xFFFF, 'IRQ'),
+                        0x0314: (0x0314, 0x0315, 'IRQK'),
+                        0x0315: (0x0314, 0x0315, 'IRQK'),
+                        0xFFFA: (0xFFFA, 0xFFFB, 'NMI'),
+                        0xFFFB: (0xFFFA, 0xFFFB, 'NMI')}[arg]
+                lo_a, hi_a, tk = pair
+                if lo_a in vec and hi_a in vec and tk not in out:
+                    out.append(f'{tk}@{here}')
+                    if tk in ('IRQ', 'IRQK') and vec[hi_a] is not None:
+                        wrapper_addr = (vec[hi_a] << 8) | vec[lo_a]
+            elif isinstance(regs[r], tuple) and regs[r][0] == 'rmw' \
+                    and regs[r][1] == arg:
+                out.append(f'AND:{arg:04x}={regs[r][2]:02x}@{here}')
+            else:
+                t = name(arg, regs[r], regs)
+                if t:
+                    out.append(f'{t}@{here}')
+        elif mn in ('lda#', 'ldx#', 'ldy#'):
+            regs[mn[2]] = arg
+        elif mn in ('lda', 'ldx', 'ldy', 'ldaz'):
+            reg = mn[2] if mn != 'ldaz' else 'a'
+            if 0xD000 <= (arg or 0) <= 0xDFFF:
+                out.append(f'R:{arg:04x}@{here}')   # an interrupt ack
+                regs[reg] = None
+            else:
+                regs[reg] = ('from', arg)      # a value fetched from memory
+        elif mn in ('tax', 'txa', 'tay', 'tya'):
+            m = {'tax': ('a', 'x'), 'txa': ('x', 'a'),
+                 'tay': ('a', 'y'), 'tya': ('y', 'a')}[mn]
+            regs[m[1]] = regs[m[0]]
+        elif mn == 'inx':
+            regs['x'] = None if regs['x'] is None else (regs['x'] + 1) & 0xFF
+        elif mn == 'dex':
+            regs['x'] = None if regs['x'] is None else (regs['x'] - 1) & 0xFF
+        elif mn == 'and#':
+            # a read-modify-write on an environment register: its RESULT
+            # depends on what the environment already holds, so it is
+            # reproduced as the operation, not as a value
+            if out and out[-1].startswith('R:'):
+                regs['a'] = ('rmw', int(out.pop()[2:].split('@')[0], 16), arg)
+            else:
+                regs['a'] = None
+        elif mn == 'dec':
+            out.append(f'DEC:{arg:04x}@{here}')
+        elif mn in ('bne', 'beq', 'bpl', 'bmi'):
+            dest = pc + ln + (arg - 256 if arg > 127 else arg)
+            if dest <= pc:                     # backward = a loop
+                if phase != 'post':
+                    raise DigiOrganizerUnsupported(
+                        'driver decode: loop before the core call')
+                # A counted startup delay. It runs with interrupts LIVE, so
+                # its loop PERIOD is observable and the composer emits an
+                # equivalent loop over its own scratch counters — but the
+                # counter SEEDS are ordinary scheduled writes, so only the
+                # loop BODY is trimmed here. The body begins at the first
+                # decrement of a scratch byte after the CLI.
+                decs = [(tk, tpc) for tk, tpc in zip(post, post_pcs)
+                        if tk.startswith('DEC:')]
+                if not decs:
+                    raise DigiOrganizerUnsupported(
+                        'driver decode: a delay loop with no counter')
+                loop_at = min(tpc for _tk, tpc in decs)
+                outer = scratch.get(int(decs[0][0][4:].split('@')[0], 16))
+                inner = [i for a, i in sorted(scratch.items(), key=lambda kv: kv[1])
+                         if i != outer and any(
+                             t.startswith(f'S{i}=') for t in post)]
+                post[:] = [tk for tk, tpc in zip(post, post_pcs)
+                           if tpc < loop_at]
+                cyc_post = post_cyc.get(loop_at, cyc_post)
+                tail = 'delay=%s' % ':'.join(
+                    str(x) for x in ([outer] + inner[:2]))
+                break
+            if phase == 'pre':
+                cyc += cy + 1
+            pc = dest                          # assume taken (the init path)
+            continue
+        elif mn in ('nop', 'bit', 'cmp#', 'cpx#', 'ora#', 'cmp', 'inc',
+                    'asl', 'pha', 'pla'):
+            pass
+        while len(post_pcs) < len(post):
+            post_pcs.append(pc)
+        if phase == 'pre':
+            cyc += cy
+        else:
+            post_cyc.setdefault(pc, cyc_post)
+            cyc_post += cy
+        pc += ln
+    return dict(pre=','.join(toks), cyc=cyc, entry=entry or 'core',
+                post=','.join(post), cyc_post=cyc_post, tail=tail,
+                entry_jmp=entry_jmp,
+                wrapper=wrapper_addr,
+                speed_poke=(poked[0] if poked else None))
+
+
+_RET = []
+
+
+def _decode_wrapper(img, load, addr, core_plus3):
+    """Tokenise the per-interrupt wrapper into BEHAVIOURS.
+
+    This is the one part of a driver whose instruction boundaries are
+    observable — NMIs are non-maskable, so they fire while it runs and are
+    taken at whatever instruction is executing. So it is decoded to a token
+    sequence whose emitted lengths follow from the tokens, rather than to a
+    cycle count. The vocabulary is small and structural (save the
+    registers, acknowledge, wait for a scanline, call the tick, exit); a
+    wrapper built from an unseen COMBINATION of them needs no new code.
+    """
+    ins = []
+    pc, guard = addr, 0
+    while guard < 60:
+        guard += 1
+        o = img[pc - load]
+        if o not in _OPS:
+            raise DigiOrganizerUnsupported(
+                f'wrapper decode: unknown opcode ${o:02X} at ${pc:04X}')
+        mn, ln, _cy = _OPS[o]
+        ops = img[pc - load + 1:pc - load + ln]
+        arg = (ops[0] | ops[1] << 8) if ln == 3 else (ops[0] if ln == 2 else None)
+        ins.append((mn, arg, pc, ln))
+        if mn in ('rti', 'jmp'):
+            break
+        pc += ln
+    toks, i = [], 0
+    while i < len(ins):
+        mn, arg, at_, ln = ins[i]
+        nxt = ins[i + 1][0] if i + 1 < len(ins) else None
+        seq = [x[0] for x in ins[i:i + 6]]
+        if seq[:5] in (['pha', 'txa', 'pha', 'tya', 'pha'],
+                       ['pha', 'tya', 'pha', 'txa', 'pha']):
+            toks.append('save'); i += 5; continue
+        if seq[:6] == ['pla', 'tay', 'pla', 'tax', 'lda', 'pla'] \
+                and ins[i + 4][1] == 0xDC0D:
+            toks.append('restore_cia'); i += 6; continue
+        if seq[:5] in (['pla', 'tay', 'pla', 'tax', 'pla'],
+                       ['pla', 'tax', 'pla', 'tay', 'pla']):
+            toks.append('restore'); i += 5; continue
+        if mn in ('asl', 'inc', 'dec') and arg == 0xD019:
+            toks.append(f'ack={mn}'); i += 1; continue
+        if mn == 'lda#' and nxt == 'sta' and ins[i + 1][1] == 0xD019:
+            toks.append('ack=lda'); i += 2; continue
+        if mn == 'lda#' and nxt == 'cmp' and ins[i + 1][1] == 0xD012:
+            toks.append(f'spin={arg:02x}'); i += 3; continue
+        if mn in ('lda', 'ldaz') and nxt == 'cmp#' and ins[i + 2][0] == 'bne':
+            toks.append('gate'); i += 3; continue
+        if mn in ('lda', 'ldaz') and nxt == 'beq':
+            toks.append('gate_beq'); i += 2; continue
+        if mn == 'jsr' and arg == core_plus3:
+            toks.append('tick'); i += 1; continue
+        if mn == 'lda' and arg is not None and 0xD000 <= arg <= 0xDFFF:
+            toks.append(f'read={arg:04x}'); i += 1; continue
+        if mn == 'lda#' and nxt == 'sta':
+            toks.append(f'set={ins[i + 1][1]:04x}:{arg:02x}'); i += 2; continue
+        if mn == 'nop':
+            toks.append('pad=2'); i += 1; continue
+        if mn == 'bit':
+            toks.append('pad=4'); i += 1; continue
+        if mn == 'rti':
+            toks.append('rti'); i += 1; continue
+        if mn == 'jmp':
+            toks.append(f'jmp={arg:04x}'); i += 1; continue
+        raise DigiOrganizerUnsupported(
+            f'wrapper decode: unhandled {mn} at ${at_:04X}')
+    return ','.join(toks)
+
+
+_RET = []
 
 
 def extract_model(sid_path: str) -> DigiOrganizerModel:
@@ -267,512 +589,20 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
         return (0 <= off <= len(img) - len(pat)) and all(
             p is None or img[off + j] == p for j, p in enumerate(pat))
 
-    driver = None
-    dp = {}  # driver params
-
-    # class 'irq_vec' (Heavy-Beat / Suffer_the_Noise / TDU / Koester /
-    # Digi-Zak_4_Mix): SEI, port, IRQ vector, mask $81+ack, raster,
-    # $D011, stop TA, enable raster, JSR core, CLI RTS.
-    pat_a = [0x78, 0xA9, 0x35, 0x85, 0x01,
-             0xA9, None, 0x8D, 0xFE, 0xFF,
-             0xA9, None, 0x8D, 0xFF, 0xFF,
-             0xA9, 0x81, 0x8D, 0x0D, 0xDC,
-             0xAD, 0x0D, 0xDC,
-             0xA9, None, 0x8D, 0x12, 0xD0,
-             0xA9, None, 0x8D, 0x11, 0xD0,
-             0xA2, 0x00, 0x8E, 0x0E, 0xDC,
-             0xE8, 0x8E, 0x1A, 0xD0, 0x8E, 0x19, 0xD0,
-             0xA9, 0x00, 0x20, None, None,
-             0x58, 0x60]
-    wrap_ack = [0x48, 0x8A, 0x48, 0x98, 0x48, 0x0E, 0x19, 0xD0,
-                0x20, None, None, 0xAD, 0x0D, 0xDC,
-                0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40]
-    wrap_noack = [0x48, 0x8A, 0x48, 0x98, 0x48, 0x0E, 0x19, 0xD0,
-                  0x20, None, None,
-                  0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40]
-    if _match(iv, pat_a):
-        w = (img[iv + 6] | img[iv + 11] << 8) - load
-        if img[iv + 48] | img[iv + 49] << 8 != core_base:
-            raise DigiOrganizerUnsupported('irq_vec: JSR is not core init')
-        if _match(w, wrap_ack):
-            driver = 'irq_vec'
-            dp = {'raster': img[iv + 24], 'd011': img[iv + 29]}
-
-    # class 'nmi_first' (Digitune / N_H_Digi / Samples1 / Digi_Music_1 /
-    # Memomay / Lets_Do_It): [SEI] port, NMI vector pre-set, A=0 JSR
-    # core(+$40), IRQ vector, mask, ack, raster, $D011, X-form, CLI RTS.
-    if driver is None:
-        sei = img[iv:iv + 1] == b'\x78'
-        p0 = iv + (1 if sei else 0)
-        pat_b = [0xA9, 0x35, 0x85, 0x01,
-                 0xA9, None, 0x8D, 0xFB, 0xFF,
-                 0xA9, None, 0x8D, 0xFA, 0xFF,
-                 0xA9, 0x00, 0x20, None, None,
-                 0xA9, None, 0x8D, 0xFE, 0xFF,
-                 0xA9, None, 0x8D, 0xFF, 0xFF,
-                 0xA9, 0x81, 0x8D, 0x0D, 0xDC,
-                 0xAD, 0x0D, 0xDC,
-                 0xA9, None, 0x8D, 0x12, 0xD0,
-                 0xA9, None, 0x8D, 0x11, 0xD0,
-                 0xA2, 0x00, 0x8E, 0x0E, 0xDC,
-                 0xE8, 0x8E, 0x1A, 0xD0, 0x8E, 0x19, 0xD0,
-                 0x58, 0x60]
-        if _match(p0, pat_b):
-            entry = img[p0 + 17] | img[p0 + 18] << 8
-            if entry == core_base:
-                core_entry = 'core'
-            elif entry == core_base + 0x40:
-                core_entry = 'core40'
-            else:
-                raise DigiOrganizerUnsupported(
-                    'nmi_first: JSR is not core init')
-            # The NMI pre-set operands are DEAD (no NMI can fire before
-            # core init, which re-points the vector) — the composer
-            # emits its own idle label there; only the instruction
-            # shape matters for the cycle skeleton.
-            w = (img[p0 + 20] | img[p0 + 25] << 8) - load
-            if _match(w, wrap_noack):
-                driver = 'nmi_first'
-                dp = {'raster': img[p0 + 38], 'd011': img[p0 + 43],
-                      'sei': sei, 'core_entry': core_entry}
-
-    # class 'xreg' (Demi-Demo_4 / Simpsons / Xmas_Chortles ×2): X-reg
-    # form; ONE immediate serves raster line + both CIA masks; STA
-    # $DC0E relies on A=0 (the RSID song number).
-    if driver is None:
-        pat_c = [0x78, 0xA2, 0x35, 0x86, 0x01,
-                 0xA2, None, 0x8E, 0x12, 0xD0,
-                 0x8E, 0x0D, 0xDC, 0x8E, 0x0D, 0xDD,
-                 0xAE, 0x0D, 0xDC, 0xAE, 0x0D, 0xDD,
-                 0xA2, 0x01, 0x8E, 0x19, 0xD0, 0x8E, 0x1A, 0xD0,
-                 0x8D, 0x0E, 0xDC,
-                 0xA9, None, 0x8D, 0x11, 0xD0,
-                 0xA9, None, 0x8D, 0xFF, 0xFF,
-                 0xA9, None, 0x8D, 0xFE, 0xFF,
-                 0x20, None, None,
-                 0x58, 0x60]
-        wrap_inc = [0x48, 0x8A, 0x48, 0x98, 0x48, 0xEE, 0x19, 0xD0,
-                    0x20, None, None, 0xAD, 0x0D, 0xDC,
-                    0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40]
-        if _match(iv, pat_c[:-5]):
-            q = iv + len(pat_c) - 5          # after the vector stores
-            has_bit = img[q] == 0x2C
-            if has_bit:
-                q += 3                        # BIT abs filler (Xmas form)
-            if img[q] != 0x20 or img[q + 3:q + 5] != b'\x58\x60':
-                raise DigiOrganizerUnsupported('xreg: tail shape mismatch')
-            entry = img[q + 1] | img[q + 2] << 8
-            if entry == core_base:
-                core_entry = 'core'
-            elif entry == core_base + 0x40:
-                core_entry = 'core40'
-            else:
-                raise DigiOrganizerUnsupported('xreg: JSR is not core init')
-            w = (img[iv + 44] | img[iv + 39] << 8) - load
-            wrap_inc_bit = wrap_inc[:8] + [0x2C, None, None] + wrap_inc[8:]
-            if _match(w, wrap_inc_bit if has_bit else wrap_inc):
-                driver = 'xreg'
-                dp = {'raster': img[iv + 6], 'd011': img[iv + 34],
-                      'core_entry': core_entry, 'bit_pad': has_bit}
-
-    # class 'bare_stub' (the Morton_Adam shape ×7): LDA #0 JSR core JMP L;
-    # L: [NOP] IRQ vector, mask $7F, enable raster, ack, CLI RTS. No
-    # port / raster-line / $D011 writes — the environment's defaults
-    # serve, and they cancel between orig and rebuild by construction.
-    if driver is None:
-        pat_d0 = [0xA9, 0x00, 0x20, None, None, 0x4C, None, None]
-        if _match(iv, pat_d0):
-            if img[iv + 3] | img[iv + 4] << 8 != core_base:
-                raise DigiOrganizerUnsupported(
-                    'bare_stub: JSR is not core init')
-            t = (img[iv + 6] | img[iv + 7] << 8) - load
-            nop = img[t:t + 1] == b'\xEA'
-            p1 = t + (1 if nop else 0)
-            pat_d1 = [0xA9, None, 0x8D, 0xFE, 0xFF,
-                      0xA9, None, 0x8D, 0xFF, 0xFF,
-                      0xA9, 0x7F, 0x8D, 0x0D, 0xDC,
-                      0xA9, 0x01, 0x8D, 0x1A, 0xD0,
-                      0xAD, 0x0D, 0xDC, 0x58, 0x60]
-            if _match(p1, pat_d1):
-                w = (img[p1 + 1] | img[p1 + 6] << 8) - load
-                wrap_nops = wrap_ack[:11] + [0xEA, 0xEA, 0xEA] \
-                    + wrap_ack[11:]
-                # The NOP after the JMP is part of THE SHAPE, not a
-                # per-member knob: every corpus carrier has it (7/7), so
-                # the composer emits it unconditionally and a member
-                # without it is a DIFFERENT shape — refuse it (C13
-                # positive detection) rather than silently parametrize.
-                if not nop:
-                    raise DigiOrganizerUnsupported(
-                        'bare_stub: no NOP at the jump target — a shape '
-                        'this class has never carried; probe it')
-                if _match(w, wrap_ack):
-                    driver = 'bare_stub'
-                    dp = {}
-                elif _match(w, wrap_nops):
-                    driver = 'bare_stub'
-                    dp = {'wrap_nops': True}
-
-    # class 'jer_lock' (Jer Digimix ×3): SEI, port, IRQ vector via an
-    # A/X immediate pair, D01A=1 + a $DC0D=$01 write, $D011 read-AND-$7F
-    # writeback (env-relative — cancels when mirrored), raster, JSR
-    # core+$40, 14 NOPs, CLI, JMP-self LOCK (init never returns).
-    if driver is None:
-        pat_j = [0x78, 0xA9, 0x35, 0x85, 0x01,
-                 0xA9, None, 0xA2, None,
-                 0x8D, 0xFE, 0xFF, 0x8E, 0xFF, 0xFF,
-                 0xA9, 0x01, 0x8D, 0x1A, 0xD0, 0x8D, 0x0D, 0xDC,
-                 0xAD, 0x11, 0xD0, 0x29, 0x7F, 0x8D, 0x11, 0xD0,
-                 0xA9, None, 0x8D, 0x12, 0xD0,
-                 0x20, None, None] + [0xEA] * 14 + [0x58, 0x4C]
-        wrap_j = [0x48, 0x8A, 0x48, 0x98, 0x48, 0xEE, 0x19, 0xD0,
-                  0x20, None, None,
-                  0x68, 0xA8, 0x68, 0xAA, 0xAD, 0x0D, 0xDC,
-                  0x68, 0x40]
-        if _match(iv, pat_j):
-            if img[iv + 37] | img[iv + 38] << 8 != core_base + 0x40:
-                raise DigiOrganizerUnsupported('jer_lock: JSR not core+$40')
-            w = (img[iv + 6] | img[iv + 8] << 8) - load
-            if _match(w, wrap_j):
-                driver = 'jer_lock'
-                dp = {'raster': img[iv + 32], 'core_entry': 'core40'}
-
-    # class 'sphere' (Sphere_Chromance ×2): SEI, port, mask $7F, IRQ
-    # vector, D01A=1, A=X=Y=0, JSR core+$40, $D011 AFTER, CLI RTS. The
-    # WRAPPER re-writes $D011 + raster EVERY IRQ (push order Y-then-X).
-    if driver is None:
-        pat_s = [0x78, 0xA9, 0x35, 0x85, 0x01,
-                 0xA9, 0x7F, 0x8D, 0x0D, 0xDC,
-                 0xA9, None, 0x8D, 0xFE, 0xFF,
-                 0xA9, None, 0x8D, 0xFF, 0xFF,
-                 0xA9, 0x01, 0x8D, 0x1A, 0xD0,
-                 0xA9, 0x00, 0xA2, 0x00, 0xA0, 0x00,
-                 0x20, None, None,
-                 0xA9, None, 0x8D, 0x11, 0xD0,
-                 0x58, 0x60]
-        wrap_s = [0x48, 0x98, 0x48, 0x8A, 0x48, 0xEE, 0x19, 0xD0,
-                  0xA9, None, 0x8D, 0x11, 0xD0,
-                  0xA9, None, 0x8D, 0x12, 0xD0,
-                  0x20, None, None, 0xAD, 0x0D, 0xDC,
-                  0x68, 0xAA, 0x68, 0xA8, 0x68, 0x40]
-        if _match(iv, pat_s):
-            if img[iv + 32] | img[iv + 33] << 8 != core_base + 0x40:
-                raise DigiOrganizerUnsupported('sphere: JSR not core+$40')
-            w = (img[iv + 11] | img[iv + 16] << 8) - load
-            if _match(w, wrap_s):
-                driver = 'sphere'
-                dp = {'raster': img[w + 14], 'd011': img[w + 9],
-                      'd011_init': img[iv + 35], 'core_entry': 'core40'}
-
-    # class 'earbleed' (The_Mighty_Bulldozer ×2): SEI, port, $D011,
-    # raster, D01A/D019=1, mask $7F, ack, DC0E=0, IRQ vector, A=0, JSR
-    # core, CLI RTS; wrapper = INC-ack, no $DC0D read, no register-X/Y
-    # ack reorder.
-    if driver is None:
-        pat_e = [0x78, 0xA9, 0x35, 0x85, 0x01,
-                 0xA9, None, 0x8D, 0x11, 0xD0,
-                 0xA9, None, 0x8D, 0x12, 0xD0,
-                 0xA9, 0x01, 0x8D, 0x1A, 0xD0, 0x8D, 0x19, 0xD0,
-                 0xA9, 0x7F, 0x8D, 0x0D, 0xDC,
-                 0xAD, 0x0D, 0xDC,
-                 0xA9, 0x00, 0x8D, 0x0E, 0xDC,
-                 0xA9, None, 0x8D, 0xFE, 0xFF,
-                 0xA9, None, 0x8D, 0xFF, 0xFF,
-                 0xA9, 0x00, 0x20, None, None,
-                 0x58, 0x60]
-        wrap_e = [0x48, 0x8A, 0x48, 0x98, 0x48, 0xEE, 0x19, 0xD0,
-                  0x20, None, None,
-                  0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40]
-        if _match(iv, pat_e):
-            if img[iv + 49] | img[iv + 50] << 8 != core_base:
-                raise DigiOrganizerUnsupported('earbleed: JSR not core')
-            w = (img[iv + 37] | img[iv + 42] << 8) - load
-            if _match(w, wrap_e):
-                driver = 'earbleed'
-                dp = {'raster': img[iv + 11], 'd011': img[iv + 6]}
-
-    # class 'poke_stub' (the delayed Morton shape ×4): flag=0, JSR core,
-    # pokes counters ($D0 into two delay cells + $0B into an outer
-    # counter), OPTIONAL speed poke (`LDA src / STA $908E` — the runtime
-    # TEMPO; the image byte is only the first-row seed), JMP tail: SEI,
-    # IRQ vector, mask $7F, D01A=1, ack, CLI, then a nested busy-wait
-    # DELAY (~2 frames) before flag=1 unlocks the flag-gated wrapper.
-    if driver is None:
-        pat_p0 = [0xA9, 0x00, 0x8D, None, None,       # flag = 0
-                  0x20, None, None,                   # JSR core
-                  0xA9, None, 0x8D, None, None, 0x8D, None, None,
-                  0xA9, None, 0x8D, None, None]       # counter pokes
-        if _match(iv, pat_p0):
-            if img[iv + 6] | img[iv + 7] << 8 != core_base:
-                raise DigiOrganizerUnsupported('poke_stub: JSR not core')
-            q = iv + 21
-            speed_poke = None
-            speedb = load + tick + 7                  # the tick immediate
-            if img[q] == 0xAD and \
-                    img[q + 3] == 0x8D and \
-                    (img[q + 4] | img[q + 5] << 8) == speedb:
-                speed_poke = rd(img[q + 1] | img[q + 2] << 8)[0]
-                q += 6
-            if img[q] != 0x4C:
-                raise DigiOrganizerUnsupported('poke_stub: no JMP tail')
-            t = (img[q + 1] | img[q + 2] << 8) - load
-            tail_sei = img[t] == 0x78
-            if not tail_sei and img[t] != 0xEA:
-                raise DigiOrganizerUnsupported(
-                    f'poke_stub: tail lead ${img[t]:02X} not SEI/NOP')
-            pat_p1 = [None,
-                      0xA9, None, 0x8D, 0xFE, 0xFF,
-                      0xA9, None, 0x8D, 0xFF, 0xFF,
-                      0xA9, 0x7F, 0x8D, 0x0D, 0xDC,
-                      0xA9, 0x01, 0x8D, 0x1A, 0xD0,
-                      0xAD, 0x0D, 0xDC, 0x58,
-                      # delay: DEC outer / JSR sub / LDA outer / BNE /
-                      # INC flag / RTS
-                      0xCE, None, None, 0x20, None, None,
-                      0xAD, None, None, 0xD0, 0xF5,
-                      0xEE, None, None, 0x60,
-                      # sub: two DEC/LDA/CMP#0/BNE loops + RTS
-                      0xCE, None, None, 0xAD, None, None,
-                      0xC9, 0x00, 0xD0, 0xF6,
-                      0xCE, None, None, 0xAD, None, None,
-                      0xC9, 0x00, 0xD0, 0xF6, 0x60]
-            wrap_cmp = [0x48, 0x8A, 0x48, 0x98, 0x48,
-                        0xAD, None, None, 0xC9, 0x01, 0xD0, 0x03,
-                        0x20, None, None,
-                        0x0E, 0x19, 0xD0, 0xAD, 0x0D, 0xDC,
-                        0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40]
-            wrap_beq = [0x48, 0x8A, 0x48, 0x98, 0x48,
-                        0x0E, 0x19, 0xD0,
-                        0xAD, None, None, 0xF0, 0x03,
-                        0x20, None, None,
-                        0xAD, 0x0D, 0xDC,
-                        0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40]
-            if _match(t, pat_p1):
-                w = (img[t + 2] | img[t + 7] << 8) - load
-                gate_form = None
-                if _match(w, wrap_cmp):
-                    gate_form = 'cmp1'
-                elif _match(w, wrap_beq):
-                    gate_form = 'ackfirst_beq'
-                if gate_form:
-                    # The busy-wait seeds are CLASS CONSTANTS ($D0/$0B on
-                    # all four carriers — one editor's driver template),
-                    # so the composer emits them and we assert rather
-                    # than carry them. A member with different seeds has
-                    # a different pre-timer cycle count and needs its own
-                    # probed shape, not a silent build at the wrong grid
-                    # phase.
-                    if (img[iv + 9], img[iv + 17]) != (0xD0, 0x0B):
-                        raise DigiOrganizerUnsupported(
-                            f'poke_stub: delay seeds '
-                            f'${img[iv + 9]:02X}/${img[iv + 17]:02X} are not '
-                            f'the class constants $D0/$0B — parametrize')
-                    driver = 'poke_stub'
-                    dp = {'core_entry': 'core',
-                          'speed_poke': speed_poke,
-                          'tail_sei': tail_sei,
-                          'gate_form': gate_form}
-
-    # class 'kernal_irq' (Second_Thoughts): core FIRST, then SEI, mask,
-    # ack, $D011, raster, the KERNAL $0314 vector (port stays $37 — the
-    # wrapper exits via JMP $EA31), D019/D01A=1, CLI RTS.
-    if driver is None:
-        pat_k = ([0x20, None, None, 0x78,
-                  0xA9, 0x7F, 0x8D, 0x0D, 0xDC, 0xAD, 0x0D, 0xDC,
-                  0xA9, None, 0x8D, 0x11, 0xD0,
-                  0xA9, None, 0x8D, 0x12, 0xD0,
-                  0xA9, None, 0x8D, 0x14, 0x03,
-                  0xA9, None, 0x8D, 0x15, 0x03,
-                  0xA9, 0x01, 0x8D, 0x19, 0xD0, 0x8D, 0x1A, 0xD0,
-                  0x58, 0x60])
-        wrap_k = [0xA9, 0x01, 0x8D, 0x19, 0xD0, 0x20, None, None,
-                  0x4C, 0x31, 0xEA]
-        if _match(iv, pat_k):
-            if img[iv + 1] | img[iv + 2] << 8 != core_base:
-                raise DigiOrganizerUnsupported('kernal_irq: JSR not core')
-            w = (img[iv + 23] | img[iv + 28] << 8) - load
-            if _match(w, wrap_k):
-                driver = 'kernal_irq'
-                dp = {'raster': img[iv + 18], 'd011': img[iv + 13]}
-
-    # class 'kernal_lock' (Digi-Zak_3): A=1 serves D01A/mask/raster(!),
-    # $D011, DEC-ack, KERNAL $0314 vector, JSR core, CLI, JMP-self;
-    # wrapper DEC-acks and exits via JMP $EA81.
-    if driver is None:
-        pat_l = [0x78, 0xA9, 0x01,
-                 0x8D, 0x1A, 0xD0, 0x8D, 0x0D, 0xDC, 0x8D, 0x12, 0xD0,
-                 0xA9, None, 0x8D, 0x11, 0xD0,
-                 0xCE, 0x19, 0xD0,
-                 0xA9, None, 0x8D, 0x14, 0x03,
-                 0xA9, None, 0x8D, 0x15, 0x03,
-                 0x20, None, None, 0x58, 0x4C]
-        wrap_l = [0xCE, 0x19, 0xD0, 0x20, None, None, 0x4C, 0x81, 0xEA]
-        if _match(iv, pat_l):
-            if img[iv + 31] | img[iv + 32] << 8 != core_base:
-                raise DigiOrganizerUnsupported('kernal_lock: JSR not core')
-            w = (img[iv + 21] | img[iv + 26] << 8) - load
-            if _match(w, wrap_l):
-                driver = 'kernal_lock'
-                dp = {'raster': 1, 'd011': img[iv + 13]}
-
-    # class 'sub_jmp' (the JSR-sub/JMP-tail shape; carrier Arnie-Rap): SEI, mask, JSR sub {STA $DD0D(A=$7F),
-    # acks both CIAs, D019=1, JMP core — core RTSes back to the
-    # caller}, then port, vector hi-then-lo, DC0E=0, D01A/D019=1,
-    # raster, $D011, CLI RTS; wrap_inc wrapper.
-    if driver is None:
-        pat_r0 = [0x78, 0xA9, 0x7F, 0x8D, 0x0D, 0xDC, 0x20, None, None]
-        pat_sub = [0x8D, 0x0D, 0xDD, 0xAD, 0x0D, 0xDC, 0xAD, 0x0D, 0xDD,
-                   0xA9, 0x01, 0x8D, 0x19, 0xD0, 0x4C, None, None]
-        pat_r1 = [0xA9, 0x35, 0x85, 0x01,
-                  0xA9, None, 0x8D, 0xFF, 0xFF,
-                  0xA9, None, 0x8D, 0xFE, 0xFF,
-                  0xA9, 0x00, 0x8D, 0x0E, 0xDC,
-                  0xA9, 0x01, 0x8D, 0x1A, 0xD0, 0x8D, 0x19, 0xD0,
-                  0xA9, None, 0x8D, 0x12, 0xD0,
-                  0xA9, None, 0x8D, 0x11, 0xD0,
-                  0x58, 0x60]
-        if _match(iv, pat_r0):
-            sb = (img[iv + 7] | img[iv + 8] << 8) - load
-            if _match(sb, pat_sub) and \
-                    img[sb + 15] | img[sb + 16] << 8 == core_base and \
-                    _match(iv + 9, pat_r1):
-                w = (img[iv + 9 + 10] | img[iv + 9 + 5] << 8) - load
-                wrap_inc2 = [0x48, 0x8A, 0x48, 0x98, 0x48,
-                             0xEE, 0x19, 0xD0, 0x20, None, None,
-                             0xAD, 0x0D, 0xDC,
-                             0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40]
-                if _match(w, wrap_inc2):
-                    driver = 'sub_jmp'
-                    dp = {'raster': img[iv + 9 + 28],
-                          'd011': img[iv + 9 + 33]}
-
-    # The RASTER-WAIT family (Digibeatz ×2). Two things set it apart:
-    #  - the driver never ARMS a raster line ($D012 is left at the
-    #    environment default); the wrapper BUSY-WAITS `cmp $d012` until
-    #    the beam reaches its line, so THAT immediate is what places the
-    #    tick in the frame — it is this family's `raster`.
-    #  - a pre-core-init POKE of the tick's own speed immediate
-    #    (core+$8E). Being before `jsr core`, it feeds both the init
-    #    seed and every steady reload, so the IMAGE byte is stale for
-    #    both and the poked value is the member's tempo (C40's speed
-    #    poke, one layer earlier). The second poke, into a driver byte
-    #    two before the wrapper, is dead template residue — reproduced
-    #    for its 4 pre-timer cycles only, never read.
-    # Screen is BLANKED ($D011=$00) — no badlines, so the busy-wait is
-    # cycle-deterministic.
-    rwait_wrap = [0x0E, 0x19, 0xD0, 0xA9, None, 0xCD, 0x12, 0xD0,
-                  0xD0, 0xFB, 0x20, None, None]
-
-    def _rwait(w, tail):
-        """(raster, ok) for a busy-wait wrapper at image offset w."""
-        if not _match(w, rwait_wrap + tail):
-            return None
-        if img[w + 11] | img[w + 12] << 8 != core_base + 3:
-            raise DigiOrganizerUnsupported('rwait: JSR is not the seq tick')
-        return img[w + 4]
-
-    # class 'rwait_lock' (Digibeatz_1): SEI, port, $D01A, mask+ack both
-    # CIAs, the two pokes, IRQ vector lo/hi, JSR core, ack, blank, CLI,
-    # JMP-self LOCK; wrapper acks, waits, ticks, reads $DC0D, RTI.
-    if driver is None:
-        pat_w = [0x78, 0xA9, 0x35, 0x85, 0x01,
-                 0xA9, 0x81, 0x8D, 0x1A, 0xD0,
-                 0xA9, 0x7F, 0x8D, 0x0D, 0xDC, 0x8D, 0x0D, 0xDD,
-                 0xAD, 0x0D, 0xDC, 0xAD, 0x0D, 0xDD,
-                 0xA2, None, 0xA9, None,
-                 0x8E, None, None, 0x8D, None, None,
-                 0xA9, None, 0xA2, None,
-                 0x8D, 0xFE, 0xFF, 0x8E, 0xFF, 0xFF,
-                 0x20, None, None,
-                 0xA9, 0xFF, 0x8D, 0x19, 0xD0,
-                 0xA9, None, 0x8D, 0x11, 0xD0,
-                 0x58, 0x4C, None, None]
-        if _match(iv, pat_w) and \
-                img[iv + 29] | img[iv + 30] << 8 == core_base + 0x8E and \
-                img[iv + 45] | img[iv + 46] << 8 == core_base and \
-                img[iv + 59] | img[iv + 60] << 8 == load + iv + 58:
-            w = (img[iv + 35] | img[iv + 37] << 8) - load
-            r = _rwait(w, [0xAD, 0x0D, 0xDC, 0x40])
-            if r is not None:
-                driver = 'rwait_lock'
-                dp = {'raster': r, 'd011': img[iv + 53],
-                      'speed_preinit': img[iv + 25]}
-
-    # class 'rwait_rts' (Digibeatz_2): same family, but blanks the
-    # screen + border FIRST, pre-arms the NMI vector at a bare RTI stub
-    # (dead — core init re-points it), and RETURNS instead of locking;
-    # its wrapper skips the $DC0D read.
-    if driver is None:
-        pat_x = [0x78, 0xA9, 0x35, 0x85, 0x01,
-                 0xA9, None, 0x8D, 0x11, 0xD0, 0x8D, 0x20, 0xD0,
-                 0x8D, 0x21, 0xD0,
-                 0xA9, None, 0xA2, None, 0x8D, 0xFA, 0xFF, 0x8E, 0xFB, 0xFF,
-                 0xA9, 0x81, 0x8D, 0x1A, 0xD0,
-                 0xA9, 0x7F, 0x8D, 0x0D, 0xDC, 0x8D, 0x0D, 0xDD,
-                 0xAD, 0x0D, 0xDC, 0xAD, 0x0D, 0xDD,
-                 0xA2, None, 0xA9, None,
-                 0x8E, None, None, 0x8D, None, None,
-                 0xA9, None, 0xA2, None,
-                 0x8D, 0xFE, 0xFF, 0x8E, 0xFF, 0xFF,
-                 0x20, None, None,
-                 0xA9, 0xFF, 0x8D, 0x19, 0xD0,
-                 0xA9, None, 0x8D, 0x11, 0xD0,
-                 0x58, 0x60]
-        if _match(iv, pat_x) and \
-                img[iv + 50] | img[iv + 51] << 8 == core_base + 0x8E and \
-                img[iv + 66] | img[iv + 67] << 8 == core_base:
-            w = (img[iv + 56] | img[iv + 58] << 8) - load
-            r = _rwait(w, [0x40])
-            if r is not None:
-                driver = 'rwait_rts'
-                dp = {'raster': r, 'd011': img[iv + 74],
-                      'd011_init': img[iv + 6],
-                      'speed_preinit': img[iv + 46]}
-
-    # class 'song_head' (Damn_Fine_Digi): opens with an SMC SONG-SELECT
-    # head — the RSID subtune number in A is written into the `lda #imm`
-    # that is passed to core init (decremented for a non-zero song).
-    # The file declares ONE song, and this core's init ignores A, so the
-    # head is dead BEHAVIOURALLY; it is not dead CYCLE-wise, and those
-    # cycles precede the timer start, so they are grid phase. Also
-    # double-writes the port ($38 = all RAM, then $35) and pre-arms a
-    # dead NMI vector before entering the core at +$40.
-    if driver is None:
-        pat_s = [0xAA, 0x8E, None, None, 0xE0, 0x00, 0xF0, 0x05,
-                 0xCE, None, None, 0xA2, 0x01,
-                 0x78,
-                 0xA9, 0x38, 0x85, 0x01,
-                 0xA9, 0x35, 0x85, 0x01,
-                 0xA9, None, 0x8D, 0xFB, 0xFF,
-                 0xA9, None, 0x8D, 0xFA, 0xFF,
-                 0xA9, 0x00, 0x20, None, None,
-                 0xA9, None, 0x8D, 0xFE, 0xFF,
-                 0xA9, None, 0x8D, 0xFF, 0xFF,
-                 0xA9, 0x81, 0x8D, 0x0D, 0xDC,
-                 0xAD, 0x0D, 0xDC,
-                 0xA9, None, 0x8D, 0x12, 0xD0,
-                 0xA9, None, 0x8D, 0x11, 0xD0,
-                 0xA2, 0x00, 0x8E, 0x0E, 0xDC,
-                 0xE8, 0x8E, 0x1A, 0xD0, 0x8E, 0x19, 0xD0,
-                 0x58, 0x60]
-        imm = load + iv + 33          # the `lda #imm` the head pokes
-        if _match(iv, pat_s) and \
-                img[iv + 2] | img[iv + 3] << 8 == imm and \
-                img[iv + 9] | img[iv + 10] << 8 == imm and \
-                img[iv + 35] | img[iv + 36] << 8 == core_base + 0x40:
-            w = (img[iv + 38] | img[iv + 43] << 8) - load
-            if _match(w, wrap_noack):
-                driver = 'song_head'
-                dp = {'raster': img[iv + 56], 'd011': img[iv + 61],
-                      'core_entry': 'core40'}
-
-    if driver is None:
-        raise DigiOrganizerUnsupported(
-            'driver shape matches no probed class (irq_vec / nmi_first '
-            '/ xreg / bare_stub / jer_lock / sphere / earbleed / '
-            'poke_stub / kernal_irq / kernal_lock / sub_jmp / '
-            'rwait_lock / rwait_rts / song_head) — '
-            'parametrize before accepting')
+    # MEASURE the driver rather than recognise it (ledger C40). The walk
+    # below replaced fourteen hand-written shape probes: an unfamiliar
+    # driver is now decoded instead of refused, and the facts come from the
+    # binary instead of from a transcription (transcribing them by hand is
+    # exactly what went wrong the first time this was attempted).
+    _RET.clear()
+    facts = _decode_driver(img, load, meta, core_base, core_base + 0x40,
+                           load + tick + 7)
+    if facts['wrapper'] is None:
+        raise DigiOrganizerUnsupported('driver installs no IRQ vector')
+    facts['wrap'] = _decode_wrapper(img, load, facts['wrapper'], core_base + 3)
+    # a label for reports and the regression portfolio — never for emission
+    driver = f"{facts['tail']}/{facts['wrap'].split(',')[0]}"
+    dp = {'core_entry': facts['entry']}
 
     # Any class whose recorded entry is 'core' goes through the $9000
     # JMP (and may hit the port pre-init stub); a 'core40' entry
@@ -781,16 +611,19 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
     pre = _probe_port_preinit() if enters_via_jmp else None
     preinit_form, port_preinit = pre if pre else (None, None)
 
-    # A PRE-core-init poke of the tick's speed immediate (rwait family)
-    # lands before anything reads it, so it replaces the image byte for
-    # BOTH the init seed and every steady reload — the file's byte is
-    # editor residue. (Contrast poke_stub, which pokes AFTER core init:
-    # there the image byte really is the first row's duration.)
-    if 'speed_preinit' in dp:
-        speed_reload = speed_init = dp['speed_preinit']
+    # A poke of the tick's speed immediate BEFORE the core call lands
+    # before anything reads it, so it replaces the image byte for both the
+    # init seed and every steady reload — the file's byte is then editor
+    # residue. Poked AFTER, the image byte really is the first row's
+    # duration and the poked value is the steady tempo.
+    if facts['speed_poke'] is not None:
+        if 'SPD' in facts['pre']:
+            speed_reload = speed_init = facts['speed_poke']
+        else:
+            dp['speed_poke'] = facts['speed_poke']
 
     m = DigiOrganizerModel(
-        sid_path=sid_path, load=load, meta=meta,
+        sid_path=sid_path, load=load, meta=meta, driver_facts=facts,
         driver=driver, driver_params=dp, port_preinit=port_preinit,
         preinit_form=preinit_form, nmi_vec=nmi_vec,
         core_tail=core_tail,

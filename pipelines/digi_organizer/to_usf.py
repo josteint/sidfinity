@@ -112,37 +112,31 @@ def model_to_usf(m, usf_dir: str, basename: str) -> UsfFile:
         # digi proposal for the owner rather than grown silently here.
         # Defaults elided: sei=True, core_entry='core', nop=False.
         params=Params(fields={
-            'digi_driver': m.driver,
-            **({'digi_tick_raster': m.raster_line}
-               if m.raster_line is not None else {}),
-            **({'digi_tick_d011': m.d011} if m.d011 is not None else {}),
-            **({'digi_driver_sei': False}
-               if m.driver_params.get('sei') is False else {}),
-            **({'digi_core_entry': 'core40'}
-               if m.driver_params.get('core_entry') == 'core40' else {}),
+            # THE DRIVER, as the facts a universal emitter reproduces
+            # rather than the name of one of our code templates. See
+            # `_driver_facts` and ledger C40: the only things a driver
+            # contributes to the write stream are the machine STATE it
+            # leaves, the CYCLES before the sample timer starts (the
+            # sample clock's phase against the frame clock), what the CPU
+            # does between interrupts, and the per-interrupt wrapper.
+            'digi_drv_pre': m.driver_facts['pre'],
+            'digi_drv_cyc': m.driver_facts['cyc'],
+            'digi_drv_post': m.driver_facts['post'],
+            'digi_drv_pcyc': m.driver_facts['cyc_post'],
+            'digi_drv_tail': m.driver_facts['tail'],
+            'digi_drv_wrap': m.driver_facts['wrap'],
+            **({'digi_drv_entry': 'core40'}
+               if m.driver_facts['entry'] == 'core40' else {}),
+            **({'digi_drv_subjmp': True} if m.driver_facts['entry_jmp'] else {}),
             **({'digi_base_latch': m.base_latch}
                if m.base_latch != 0x70 else {}),
             **({'digi_port_preinit': m.port_preinit,
                 'digi_preinit_form': m.preinit_form}
                if m.port_preinit is not None else {}),
-            **({'digi_d011_init': m.driver_params['d011_init']}
-               if m.driver_params.get('d011_init') is not None
-               and m.driver_params.get('d011_init')
-               != m.driver_params.get('d011') else {}),
-            **({'digi_driver_gate': m.driver_params['gate_form']}
-               if m.driver == 'poke_stub' else {}),
-            **({'digi_driver_tail_sei': False}
-               if m.driver_params.get('tail_sei') is False else {}),
-            **({'digi_speed_poke_present': True}
-               if m.driver_params.get('speed_poke') is not None else {}),
-            **({'digi_driver_wrap_nops': True}
-               if m.driver_params.get('wrap_nops') else {}),
             **({'digi_core_tail': m.core_tail}
                if m.core_tail != 'rts' else {}),
             **({'digi_nmi_vec': '0318'}
                if m.nmi_vec == '0318' else {}),
-            **({'digi_driver_bit': True}
-               if m.driver_params.get('bit_pad') else {}),
             # Which one-page sample rows use the engine's DEGENERATE
             # form (end <= start). Same audio either way — the engine
             # clamps to start+1 — but the clamp is a BRANCH, so the
