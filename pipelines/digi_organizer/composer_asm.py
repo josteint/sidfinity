@@ -427,6 +427,8 @@ def _emit_state(ops: str, ctx: dict) -> str:
             return f'\tdec ${tok[4:]}\n', 0, 6
         if tok == 'PAD2':
             return '\tnop\n', 0, 2
+        if tok == 'SUB':
+            return '\tjsr drv_sub\n', 0, 6
         if tok == 'DEAD':
             addr, v = 'drv_dead', '00'
         elif tok.startswith('S') and '=' in tok and tok[1:2].isdigit():
@@ -646,9 +648,19 @@ def _emit_driver(p: dict, speed: int, L: dict) -> str:
     if budget and _cycles(pre) + 6 > budget:
         ctx['elide'] = True                # only then, buy cycles back
         pre = _emit_state(p.get('digi_drv_pre', ''), ctx)
-    body = pre
-    asm = ('driver_init:\n' + body + _pad(budget - _cycles(body) - 6)
-           + f'\tjsr ${entry:04X}\n' + post)
+    # A driver that reaches the core by JMP from inside a helper (so the
+    # core's RTS returns to the helper's caller) cannot be emitted flat:
+    # split at the recorded call and let the helper end with the JMP.
+    if p.get('digi_drv_subjmp') and '\tjsr drv_sub\n' in pre:
+        head, _, rest = pre.partition('\tjsr drv_sub\n')
+        sub = (rest + _pad(budget - _cycles(pre) - 3) + f'\tjmp ${entry:04X}\n')
+        asm = ('driver_init:\n' + head + '\tjsr drv_sub\n' + post)
+        subtail = 'drv_sub:\n' + sub
+    else:
+        body = pre
+        asm = ('driver_init:\n' + body + _pad(budget - _cycles(body) - 6)
+               + f'\tjsr ${entry:04X}\n' + post)
+        subtail = ''
     tail = p.get('digi_drv_tail', 'rts')
     # the CLI is placed by the decoded state, not by the tail
     if tail == 'lock':
@@ -669,7 +681,7 @@ def _emit_driver(p: dict, speed: int, L: dict) -> str:
                 '\trts\n')
     else:
         raise DigiComposeError(f'unknown driver tail {tail!r}')
-    asm += _emit_wrapper(p.get('digi_drv_wrap', ''), ctx)
+    asm += subtail + _emit_wrapper(p.get('digi_drv_wrap', ''), ctx)
     asm += ('drv_nmi:\n\trti\n'
             + ''.join(f'drv_s{i}:\t.byt $00\n' for i in range(8))
             + 'drv_dead:\t.byt $03,$00\n'

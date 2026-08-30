@@ -186,6 +186,7 @@ def _decode_driver(img, load, meta, core_base, core_plus, tick_imm):
     cyc_post = 0
     scratch = {}
     post_pcs, post_cyc = [], {}
+    entry_jmp = False
     poked = []
     regs = {'a': 0, 'x': None, 'y': None}     # RSID enters with A = subtune
     vec = {}
@@ -206,16 +207,25 @@ def _decode_driver(img, load, meta, core_base, core_plus, tick_imm):
                 phase = 'post'
                 pc += ln
                 if mn == 'jmp':               # entered via a JSR'd sub: the
-                    return_pc = _RET.pop() if _RET else None   # core RTSes back
+                    entry_jmp = True          # core's RTS returns to the call
+                    return_pc = _RET.pop() if _RET else None
                     if return_pc is not None:
                         pc = return_pc
                 continue
             raise DigiOrganizerUnsupported('driver decode: second core call')
         if mn == 'jsr':                       # inline a helper subroutine
+            # Record WHERE the call happened: some drivers reach the core
+            # by JMP from inside such a helper, so the core's RTS returns
+            # to this call. A flat emission cannot express that, so the
+            # emitter needs the split point.
+            (toks if phase == 'pre' else post).append(
+                f'SUB@{cyc if phase == "pre" else cyc_post}')
             _RET.append(pc + ln)
             pc = arg
             if phase == 'pre':
                 cyc += cy
+            else:
+                cyc_post += cy
             continue
         if mn == 'rts':
             if _RET:
@@ -234,6 +244,8 @@ def _decode_driver(img, load, meta, core_base, core_plus, tick_imm):
             seen.add(arg)
             if phase == 'pre':
                 cyc += cy
+            else:
+                cyc_post += cy      # a forward jump still costs its cycles
             pc = arg
             continue
         here = cyc if phase == 'pre' else cyc_post
@@ -338,6 +350,7 @@ def _decode_driver(img, load, meta, core_base, core_plus, tick_imm):
         pc += ln
     return dict(pre=','.join(toks), cyc=cyc, entry=entry or 'core',
                 post=','.join(post), cyc_post=cyc_post, tail=tail,
+                entry_jmp=entry_jmp,
                 wrapper=wrapper_addr,
                 speed_poke=(poked[0] if poked else None))
 

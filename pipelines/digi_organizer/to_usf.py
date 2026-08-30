@@ -127,6 +127,7 @@ def model_to_usf(m, usf_dir: str, basename: str) -> UsfFile:
             'digi_drv_wrap': m.driver_facts['wrap'],
             **({'digi_drv_entry': 'core40'}
                if m.driver_facts['entry'] == 'core40' else {}),
+            **({'digi_drv_subjmp': True} if m.driver_facts['entry_jmp'] else {}),
             **({'digi_base_latch': m.base_latch}
                if m.base_latch != 0x70 else {}),
             **({'digi_port_preinit': m.port_preinit,
