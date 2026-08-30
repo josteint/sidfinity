@@ -8,7 +8,35 @@ metadata:
   modified: 2026-08-30T17:00:59.082Z
 ---
 
-## 2026-08-30 — round 4: **39/39 FULL — the standalone family is CLOSED**
+## 2026-08-30 (late) — the driver is PARAMETRIZED; registry gone
+
+**39/39 FULL still, with the 14 driver templates AND the 14 shape probes
+DELETED** (merge c7fa9789, batch_diff 0 regressions, net −212 lines).
+A generic instruction walk MEASURES each member's driver; one emitter
+synthesises code for it. Backlog 33 done.
+
+The owner rejected the first attempt — an ordered write-list plus a
+cycles-to-core number — as distilled machinery rather than anything the
+audio needs. Correct: that is the original's instruction sequence as
+data. Three experiments then fixed what is actually observable:
+reordering a member's init writes, and re-emitting them with different
+registers and opcodes at equal cycles, both keep it FULL (the
+instruction SEQUENCE is irrelevant); but replacing a busy-wait with an
+armed raster — same schedule, cleaner mechanism — drops a member to
+match=1, because the spin is a window where the CPU runs a tight
+7-cycle loop and interrupts land on different boundaries.
+
+⚠ THE SPLIT BETWEEN FREE AND OBSERVABLE FALLS ON THE INTERRUPT MASK:
+the init runs under SEI, so only its schedule and final state matter;
+the wrapper and any delay loop run with NMIs live, so THEIR instruction
+boundaries matter. Everything the build got wrong sat on that line —
+see ledger C40 (points 1-2 corrected, 3d/3e added) for the bugs, of
+which the sharpest was assuming the RSID entry A=0 still held AFTER the
+core call (core init leaves the speed there, so a bare `sta $dc0e`
+wrote the tempo, left CIA1 running, and re-entered the wrapper every
+~94 cycles forever — post-init `--peek-post-init` named it in one shot).
+
+## 2026-08-30 — round 4: 39/39 FULL — the standalone family is CLOSED
 
 **Status: 39 FULL / 0 partial / 0 unsupported of 39 standalone**
 (full re-batch, `batch_diff` 0 regressions at every step). Nine members
