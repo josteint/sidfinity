@@ -852,7 +852,11 @@ practice, not code to factor).
   QUANTIZED ×16 across a member class = speed-nibble arming drift.
 - CANONICAL: make the decoder test the EXACT injective discriminator; emit
   the distinguishing flag ALWAYS (incl. zero values) and decode on flag
-  PRESENCE, not truthiness. Check injectivity when adding any fx rendering.
+  PRESENCE, not truthiness. Check injectivity when adding any fx rendering —
+  and ALSO of every value the engine NORMALISES/CLAMPS/DEFAULTS at runtime:
+  a clamp is a BRANCH, so the pre-clamp form stays observable even when the
+  post-clamp value does not (4th occ, the ENCODER-side mirror — the USF held
+  no discriminator at all; digi_organizer one-page sample rows, C40 3e).
 - FULL ENTRY: [`ledger/C22.md`](ledger/C22.md) — read it before applying.
 
 ### C23 — a play-phase TOKEN hides a per-member behavioural ambiguity

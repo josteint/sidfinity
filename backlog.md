@@ -5,7 +5,7 @@
 # dozen measured-but-unfinished investigations. Moved to the repo root and
 # tracked for exactly that reason.
 #
-# NEXT_ITEM: 32   <- autoincrement: a NEW item takes this number, then bump it.
+# NEXT_ITEM: 33   <- autoincrement: a NEW item takes this number, then bump it.
 #
 # CONVENTIONS (owner-set 2026-08-28):
 #  - A done item is REMOVED COMPLETELY — no tombstone, no summary line. The
@@ -1605,3 +1605,43 @@
     tools/engine_deps.json and falls back to the declared directory glob.
     Whichever way it lands, it is the same KEY-DEFINITION change and wants
     the same migration step.
+
+32. OWNER DECISION — SAMPLE WINDOWS: the USF cannot say "these instruments
+    are slices of ONE recording", so it stores the slices (measured
+    2026-08-30, digi_organizer closeout). A sampler musician's ordinary
+    move is to record once and carve several instruments out of it at
+    different offsets; Morton/Digibeatz_2 does exactly that with TWELVE
+    overlapping windows into one recording. `SampleInstrument` names a
+    whole FLAC and nothing else, so to_usf emits twelve separate sidecars
+    whose audio overlaps: **429 pages stored for 216 pages of sound**.
+
+    The composer currently recovers the relationship CONTENT-ADDRESSEDLY at
+    build time (`_cluster_blobs`, C40 3d): it byte-compares the blobs, finds
+    the page-aligned overlaps in either direction and stacks them back. That
+    works — the member is FULL, and without it the family could not have
+    closed, since 429 pages exceed the machine's free RAM. But it is
+    recovering by inference what the format threw away.
+
+    WHY IT MATTERS BEYOND SIZE (Principle §9 tiebreaker, "the relationship
+    over the frozen measurement"): twelve near-identical audio blobs are
+    unlearnable — a model can only memorise them, and they are semantically
+    undefined the moment anyone edits the music (edit the recording and the
+    twelve copies silently disagree). The relationship "one recording,
+    twelve windows" is the musical fact, and it is the fact a sampler user
+    would recognise.
+
+    SHAPE OF THE FIX (needs approval — a typed-field addition):
+    `SampleInstrument { sample, offset, length, rate_cycles }`, with
+    offset/length elided at their defaults so every existing member's .usf
+    is unchanged and the corpus stays readable. The extract already knows
+    the windows (it reads start/end pages from the engine's own table); the
+    composer's clustering then becomes a placement detail rather than a
+    reconstruction. NB it interacts with C40 3e's `digi_onepage_rows`: both
+    are facts about how the sample TABLE was written, and a typed window
+    might absorb the one-page-row distinction as `length == 1` vs an
+    explicit end — worth checking before designing either further.
+
+    EXPOSURE: 39 standalone digi_organizer members today (12 windows in
+    Digibeatz_2, 24 of 39 members carry at least one shared range); the
+    92 music-paired members are unmeasured; Rayden_Digi is the next family
+    on the same schema and will have the same authoring idiom.
