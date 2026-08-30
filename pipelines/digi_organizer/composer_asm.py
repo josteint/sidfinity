@@ -196,11 +196,11 @@ def _blob_pages(blobs, fname):
     raise KeyError(fname)
 
 
-def _driver_pages(p: dict, raster: int, d011: int, speed: int) -> int:
+def _driver_pages(p: dict, speed: int) -> int:
     """How many pages the emitted driver occupies. MEASURED, not
     guessed: its byte length is layout-independent (every operand is
     absolute), so the canonical emission answers for any base."""
-    text = _emit_driver(p, raster, d011, speed, _layout(CORE))
+    text = _emit_driver(p, speed, _layout(CORE))
     stubs = ''.join(f'{n} = ${CORE + off:04X}\n' for n, off in
                     (('st1', 0x8D), ('idle_nmi', 0x100)))
     return (len(assemble(f'* = $c000\n' + stubs + text)) + 0xFF) >> 8
@@ -395,10 +395,21 @@ def _emit_state(ops: str, ctx: dict) -> str:
         if tok == 'CLI':
             return '\tcli\n', 0, 2
         if tok in ('IRQ', 'IRQK', 'NMI'):
+            # The NMI pre-arm points at a BARE RTI of our own, not at the
+            # core's idle handler: the originals arm it first precisely so
+            # that an early NMI is swallowed WITHOUT acknowledging CIA2
+            # (the core's idle handler reads $DD0D and would ack it). That
+            # is what the vector-first shape exists to do.
             lo, hi, lbl = {'IRQ': ('$fffe', '$ffff', 'irq_wrapper'),
                            'IRQK': ('$0314', '$0315', 'irq_wrapper'),
-                           'NMI': ('$fffa', '$fffb', 'idle_nmi')}[tok]
+                           'NMI': ('$fffa', '$fffb', 'drv_nmi')}[tok]
             regs['x'] = None
+            # HI then LO for the NMI vector, matching the originals: the
+            # half-written window is the dangerous one, and they close it
+            # by leaving the LOW byte until last.
+            if tok == 'NMI':
+                return (f'\tldx #>{lbl}\n\tstx {hi}\n'
+                        f'\tldx #<{lbl}\n\tstx {lo}\n'), 8, 12
             return (f'\tldx #<{lbl}\n\tstx {lo}\n'
                     f'\tldx #>{lbl}\n\tstx {hi}\n'), 8, 12
         if tok == 'SPD':
@@ -608,17 +619,22 @@ def _cycles(asm: str) -> int:
     return tot
 
 
-def _emit_driver(p: dict, raster: int, d011: int, speed: int,
-                 L: dict) -> str:
+def _emit_driver(p: dict, speed: int, L: dict) -> str:
     """THE driver — synthesised from the member's measured facts."""
     CORE = L['CORE']
     ctx = {'CORE': CORE, 'speed': speed}
     pre = _emit_state(p.get('digi_drv_pre', ''), ctx)
-    pctx = dict(ctx)
+    # The post-core section runs AFTER core init, which leaves its own
+    # value in A (the speed immediate) — so nothing may be assumed about
+    # the registers there. Assuming A=0 emitted a bare `sta $dc0e` that
+    # wrote the speed instead of zero, leaving CIA1's timer running and
+    # its interrupt firing forever.
+    pctx = dict(ctx, a_in=None)
     post = _emit_state(p.get('digi_drv_post', ''), pctx)
     pbudget = int(p.get('digi_drv_pcyc', 0))
     if pbudget and _cycles(post) > pbudget:
         pctx['elide'] = True
+        pctx['a_in'] = None
         post = _emit_state(p.get('digi_drv_post', ''), pctx)
     if pbudget:
         post += _pad(pbudget - _cycles(post))
@@ -654,7 +670,8 @@ def _emit_driver(p: dict, raster: int, d011: int, speed: int,
     else:
         raise DigiComposeError(f'unknown driver tail {tail!r}')
     asm += _emit_wrapper(p.get('digi_drv_wrap', ''), ctx)
-    asm += (''.join(f'drv_s{i}:\t.byt $00\n' for i in range(8))
+    asm += ('drv_nmi:\n\trti\n'
+            + ''.join(f'drv_s{i}:\t.byt $00\n' for i in range(8))
             + 'drv_dead:\t.byt $03,$00\n'
             'drv_flag:\t.byt $00\n'
             'drv_c1:\t.byt $00\ndrv_c2:\t.byt $00\ndrv_c3:\t.byt $00\n')
@@ -683,11 +700,9 @@ def compose_asm(usf: UsfFile, usf_dir: str) -> str:
             if usf.init and usf.init.sid and
             usf.init.sid.master_vol is not None else 0x0F)
     p = usf.params.fields if usf.params else {}
-    raster = int(p.get('digi_tick_raster', 0x81))
-    d011 = int(p.get('digi_tick_d011', 0x1B))
     base_latch = int(p.get('digi_base_latch', 0x70))
 
-    drv_pages = _driver_pages(p, raster, d011, speed)
+    drv_pages = _driver_pages(p, speed)
     base, blob_pages, pcm_chunks = _place(usf, usf_dir, drv_pages)
     L = _layout(base)
     CORE = L['CORE']
@@ -971,7 +986,7 @@ def compose_asm(usf: UsfFile, usf_dir: str) -> str:
     segs = [(SMPTAB, _byt('smptab', smptab)),
             (ORDERLIST, _byt('orderlist', entries)),
             (PATTERNS, _byt('patterns', patmem)),
-            (driver_addr, _emit_driver(p, raster, d011, speed, L))]
+            (driver_addr, _emit_driver(p, speed, L))]
     blk_end = driver_addr + (drv_pages << 8)
     for addr, packed in pcm_chunks:
         segs.append((addr, _byt(f'pcm_{addr:04X}', packed)))
