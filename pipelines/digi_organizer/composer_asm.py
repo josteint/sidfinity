@@ -416,7 +416,8 @@ def _emit_driver(p: dict, raster: int, d011: int, speed: int,
                 f'\tjsr ${entry:04X}\n'
                 '\tcli\n\trts\n' + wrap)
     if cls == 'bare_stub':
-        nop = '\tnop\n' if p.get('digi_driver_nop') else ''
+        # the NOP at the jump target is part of the class shape (the
+        # extract refuses a bare_stub without it), not a knob
         wrap = _WRAP_ACK
         if p.get('digi_driver_wrap_nops'):
             wrap = _WRAP_ACK.replace(
@@ -426,7 +427,8 @@ def _emit_driver(p: dict, raster: int, d011: int, speed: int,
                 '\tlda #$00\n'
                 f'\tjsr ${CORE:04X}\n'
                 '\tjmp drv_l\n'
-                'drv_l:\n' + nop +
+                'drv_l:\n'
+                '\tnop\n'
                 '\tlda #<irq_wrapper\n\tsta $fffe\n'
                 '\tlda #>irq_wrapper\n\tsta $ffff\n'
                 '\tlda #$7f\n\tsta $dc0d\n'
@@ -504,8 +506,8 @@ def _emit_driver(p: dict, raster: int, d011: int, speed: int,
         # busy-wait after CLI before the sequencer unlocks; optional
         # runtime SPEED POKE into the tick immediate (the image byte
         # is only the first-row seed).
-        dseed = int(p.get('digi_delay_seed', 0xD0))
-        oseed = int(p.get('digi_delay_outer', 0x0B))
+        # busy-wait seeds: CLASS CONSTANTS, asserted by the extract
+        dseed, oseed = 0xD0, 0x0B
         lead = '\tsei\n' if p.get('digi_driver_tail_sei', True) else '\tnop\n'
         gate = p.get('digi_driver_gate', 'cmp1')
         has_poke = bool(p.get('digi_speed_poke_present'))

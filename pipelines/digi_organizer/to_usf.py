@@ -120,8 +120,6 @@ def model_to_usf(m, usf_dir: str, basename: str) -> UsfFile:
                if m.driver_params.get('sei') is False else {}),
             **({'digi_core_entry': 'core40'}
                if m.driver_params.get('core_entry') == 'core40' else {}),
-            **({'digi_driver_nop': True}
-               if m.driver_params.get('nop') else {}),
             **({'digi_base_latch': m.base_latch}
                if m.base_latch != 0x70 else {}),
             **({'digi_port_preinit': m.port_preinit,
@@ -131,9 +129,7 @@ def model_to_usf(m, usf_dir: str, basename: str) -> UsfFile:
                if m.driver_params.get('d011_init') is not None
                and m.driver_params.get('d011_init')
                != m.driver_params.get('d011') else {}),
-            **({'digi_delay_seed': m.driver_params['delay_seed'],
-                'digi_delay_outer': m.driver_params['outer_seed'],
-                'digi_driver_gate': m.driver_params['gate_form']}
+            **({'digi_driver_gate': m.driver_params['gate_form']}
                if m.driver == 'poke_stub' else {}),
             **({'digi_driver_tail_sei': False}
                if m.driver_params.get('tail_sei') is False else {}),

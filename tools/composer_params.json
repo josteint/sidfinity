@@ -357,10 +357,6 @@
       "category": "temporal-dispatch",
       "licensed_by": "digi proposal — driver class sub-shape"
     },
-    "digi_driver_nop": {
-      "category": "temporal-dispatch",
-      "licensed_by": "digi proposal — driver class sub-shape"
-    },
     "digi_port_preinit": {
       "category": "environment",
       "licensed_by": "digi proposal — Morton-variant core-entry port stub (probed; sets $01 the driver omits)"
@@ -376,14 +372,6 @@
     "digi_d011_init": {
       "category": "temporal-dispatch",
       "licensed_by": "digi proposal — driver class sub-shape (cycle skeleton); sphere: $D011 primed post-core-init differs from the wrapper value"
-    },
-    "digi_delay_seed": {
-      "category": "temporal-dispatch",
-      "licensed_by": "digi proposal — driver class sub-shape (cycle skeleton); poke_stub: busy-wait inner counter seed (start delay length)"
-    },
-    "digi_delay_outer": {
-      "category": "temporal-dispatch",
-      "licensed_by": "digi proposal — driver class sub-shape (cycle skeleton); poke_stub: busy-wait outer counter seed"
     },
     "digi_driver_gate": {
       "category": "temporal-dispatch",

@@ -397,12 +397,21 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
                 w = (img[p1 + 1] | img[p1 + 6] << 8) - load
                 wrap_nops = wrap_ack[:11] + [0xEA, 0xEA, 0xEA] \
                     + wrap_ack[11:]
+                # The NOP after the JMP is part of THE SHAPE, not a
+                # per-member knob: every corpus carrier has it (7/7), so
+                # the composer emits it unconditionally and a member
+                # without it is a DIFFERENT shape — refuse it (C13
+                # positive detection) rather than silently parametrize.
+                if not nop:
+                    raise DigiOrganizerUnsupported(
+                        'bare_stub: no NOP at the jump target — a shape '
+                        'this class has never carried; probe it')
                 if _match(w, wrap_ack):
                     driver = 'bare_stub'
-                    dp = {'nop': nop}
+                    dp = {}
                 elif _match(w, wrap_nops):
                     driver = 'bare_stub'
-                    dp = {'nop': nop, 'wrap_nops': True}
+                    dp = {'wrap_nops': True}
 
     # class 'jer_lock' (Jer Digimix ×3): SEI, port, IRQ vector via an
     # A/X immediate pair, D01A=1 + a $DC0D=$01 write, $D011 read-AND-$7F
@@ -546,10 +555,20 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
                 elif _match(w, wrap_beq):
                     gate_form = 'ackfirst_beq'
                 if gate_form:
+                    # The busy-wait seeds are CLASS CONSTANTS ($D0/$0B on
+                    # all four carriers — one editor's driver template),
+                    # so the composer emits them and we assert rather
+                    # than carry them. A member with different seeds has
+                    # a different pre-timer cycle count and needs its own
+                    # probed shape, not a silent build at the wrong grid
+                    # phase.
+                    if (img[iv + 9], img[iv + 17]) != (0xD0, 0x0B):
+                        raise DigiOrganizerUnsupported(
+                            f'poke_stub: delay seeds '
+                            f'${img[iv + 9]:02X}/${img[iv + 17]:02X} are not '
+                            f'the class constants $D0/$0B — parametrize')
                     driver = 'poke_stub'
                     dp = {'core_entry': 'core',
-                          'delay_seed': img[iv + 9],
-                          'outer_seed': img[iv + 17],
                           'speed_poke': speed_poke,
                           'tail_sei': tail_sei,
                           'gate_form': gate_form}
