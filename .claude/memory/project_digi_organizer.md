@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: eeee45ad-d522-49c1-8391-1946b3565085
-  modified: 2026-08-30T07:29:34.090Z
+  modified: 2026-08-30T07:34:38.901Z
 ---
 
 ## 2026-08-30 — round 4: **39/39 FULL — the standalone family is CLOSED**
@@ -63,17 +63,15 @@ The other six:
   that decides nothing (one song, init ignores A) but whose cycles are
   grid phase, so it is mirrored exactly.
 
-RESIDUE (3, all one class — content-complete, sub-frame cycle phase):
-Second_Thoughts (+5-then-−1 idle phase) · Arnie-Rap (322/10081 fr) ·
-Trace_Loop (1551/2028). Trace_Loop measured this round: its trigger
-path and BOTH NMI handlers are byte-identical to a FULL sibling's, and
-both inter-write delta patterns (74/88 and 77/85, same mean) occur on
-BOTH sides — so it is phase accumulated at a sample switch, not
-structure. Next step is a pc-trace comparison across the switch, which
-is the first real investment any of the three needs.
-
-NOT yet: regression.py wiring, mass-write, the 92 music-paired members,
-backlog item 30 (params consolidation, scheduled for closeout).
+HOW THE LAST THREE WERE FOUND, since the route generalizes: they read
+as pure phase (content-complete, deltas alternating 74/88 in the orig
+and 77/85 in the rebuild — SAME MEAN, different split), and the trigger
+path plus both NMI handlers were byte-identical to a FULL sibling's, so
+there was nothing structural to diff. The pc-trace settled it, but only
+after converting the writelog's COMPACTED frame index to a raw one
+(C36) — the naive index traced a window where both sides were in
+perfect lockstep, which reads as "no bug here". At the right frame the
+two sides took different branches on one `CMP smptab+1,y`.
 
 ## 2026-08-29 (late night) — round 3: 30/39 FULL, verdicts CURRENT
 
