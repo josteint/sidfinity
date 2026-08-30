@@ -1588,3 +1588,20 @@
 
     Found because digi_organizer's mass-write refused all 39 current rows
     right after its portfolio was derived.
+
+    ⚠ THE PORTFOLIO IS NOT THE ONLY CONSUMER LIVING IN THE HASHED DIR, and
+    the exclusion list names only artifacts, not tools. `mass_write.py` sits
+    in `pipelines/<family>/` for every family that has one, so EDITING A
+    MASS-WRITER invalidates that family's verdicts — measured the same day:
+    a one-line fix to digi_organizer's writer stranded a 39/39 batch that
+    had just finished, and the same shape holds for `pipelines/dmc/
+    mass_write.py` against ~8,400 DMC rows. A writer cannot change a
+    verdict by construction (it consumes rows and emits artifacts; the
+    verifier never imports it), so it belongs outside the closure with the
+    portfolio. That is an argument for DERIVING the set (tools/derive_deps.py
+    measures the real per-(engine, consumer) closure and would simply never
+    see a writer the batch does not import) rather than growing the
+    exclusion list by hand — digi_organizer currently has no entry in
+    tools/engine_deps.json and falls back to the declared directory glob.
+    Whichever way it lands, it is the same KEY-DEFINITION change and wants
+    the same migration step.
