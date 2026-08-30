@@ -707,11 +707,49 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
                       'd011_init': img[iv + 6],
                       'speed_preinit': img[iv + 46]}
 
+    # class 'song_head' (Damn_Fine_Digi): opens with an SMC SONG-SELECT
+    # head — the RSID subtune number in A is written into the `lda #imm`
+    # that is passed to core init (decremented for a non-zero song).
+    # The file declares ONE song, and this core's init ignores A, so the
+    # head is dead BEHAVIOURALLY; it is not dead CYCLE-wise, and those
+    # cycles precede the timer start, so they are grid phase. Also
+    # double-writes the port ($38 = all RAM, then $35) and pre-arms a
+    # dead NMI vector before entering the core at +$40.
+    if driver is None:
+        pat_s = [0xAA, 0x8E, None, None, 0xE0, 0x00, 0xF0, 0x05,
+                 0xCE, None, None, 0xA2, 0x01,
+                 0x78,
+                 0xA9, 0x38, 0x85, 0x01,
+                 0xA9, 0x35, 0x85, 0x01,
+                 0xA9, None, 0x8D, 0xFB, 0xFF,
+                 0xA9, None, 0x8D, 0xFA, 0xFF,
+                 0xA9, 0x00, 0x20, None, None,
+                 0xA9, None, 0x8D, 0xFE, 0xFF,
+                 0xA9, None, 0x8D, 0xFF, 0xFF,
+                 0xA9, 0x81, 0x8D, 0x0D, 0xDC,
+                 0xAD, 0x0D, 0xDC,
+                 0xA9, None, 0x8D, 0x12, 0xD0,
+                 0xA9, None, 0x8D, 0x11, 0xD0,
+                 0xA2, 0x00, 0x8E, 0x0E, 0xDC,
+                 0xE8, 0x8E, 0x1A, 0xD0, 0x8E, 0x19, 0xD0,
+                 0x58, 0x60]
+        imm = load + iv + 33          # the `lda #imm` the head pokes
+        if _match(iv, pat_s) and \
+                img[iv + 2] | img[iv + 3] << 8 == imm and \
+                img[iv + 9] | img[iv + 10] << 8 == imm and \
+                img[iv + 35] | img[iv + 36] << 8 == core_base + 0x40:
+            w = (img[iv + 38] | img[iv + 43] << 8) - load
+            if _match(w, wrap_noack):
+                driver = 'song_head'
+                dp = {'raster': img[iv + 56], 'd011': img[iv + 61],
+                      'core_entry': 'core40'}
+
     if driver is None:
         raise DigiOrganizerUnsupported(
             'driver shape matches no probed class (irq_vec / nmi_first '
             '/ xreg / bare_stub / jer_lock / sphere / earbleed / '
-            'poke_stub / kernal_irq / kernal_lock / sub_jmp) — '
+            'poke_stub / kernal_irq / kernal_lock / sub_jmp / '
+            'rwait_lock / rwait_rts / song_head) — '
             'parametrize before accepting')
 
     # Any class whose recorded entry is 'core' goes through the $9000

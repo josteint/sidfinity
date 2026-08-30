@@ -618,6 +618,40 @@ def _emit_driver(p: dict, raster: int, d011: int, speed: int,
                 '\tlda #$01\n\tsta $d019\n'
                 f'\tjmp ${CORE:04X}\n'
                 + _WRAP_INC)
+    if cls == 'song_head':
+        # SMC song-select head: the subtune number in A is poked into
+        # the immediate handed to core init. This core's init ignores A
+        # and the file declares one song, so the head decides nothing —
+        # but it runs before the timer starts, so its cycles are the NMI
+        # grid's phase and are mirrored exactly (A=0 ⇒ the BEQ is taken,
+        # same as the original). The port is written twice ($38 = all
+        # RAM, then $35) and a dead NMI vector pre-armed, both likewise
+        # for their cycles.
+        return ('driver_init:\n'
+                '\ttax\n'
+                '\tstx songimm+1\n'
+                '\tcpx #$00\n'
+                '\tbeq shd1\n'
+                '\tdec songimm+1\n'
+                '\tldx #$01\n'
+                'shd1:\n'
+                '\tsei\n'
+                '\tlda #$38\n\tsta $01\n'
+                '\tlda #$35\n\tsta $01\n'
+                '\tlda #>idle_nmi\n\tsta $fffb\n'
+                '\tlda #<idle_nmi\n\tsta $fffa\n'
+                'songimm:\n'
+                '\tlda #$00\n'
+                f'\tjsr ${CORE + 0x40:04X}\n'
+                '\tlda #<irq_wrapper\n\tsta $fffe\n'
+                '\tlda #>irq_wrapper\n\tsta $ffff\n'
+                '\tlda #$81\n\tsta $dc0d\n'
+                '\tlda $dc0d\n'
+                f'\tlda #${raster:02X}\n\tsta $d012\n'
+                f'\tlda #${d011:02X}\n\tsta $d011\n'
+                '\tldx #$00\n\tstx $dc0e\n\tinx\n'
+                '\tstx $d01a\n\tstx $d019\n'
+                '\tcli\n\trts\n' + _WRAP_NOACK)
     if cls in ('rwait_lock', 'rwait_rts'):
         # RASTER-WAIT family (Digibeatz ×2). No raster line is ARMED —
         # the IRQ fires at the environment default and the wrapper
