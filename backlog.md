@@ -5,7 +5,7 @@
 # dozen measured-but-unfinished investigations. Moved to the repo root and
 # tracked for exactly that reason.
 #
-# NEXT_ITEM: 36   <- autoincrement: a NEW item takes this number, then bump it.
+# NEXT_ITEM: 37   <- autoincrement: a NEW item takes this number, then bump it.
 #
 # CONVENTIONS (owner-set 2026-08-28):
 #  - A done item is REMOVED COMPLETELY — no tombstone, no summary line. The
@@ -1779,6 +1779,51 @@
     precisely what `tools/derive_deps.py` measures. That is the argument for
     deriving rather than for extending the exclusion list one suffix at a
     time.
+
+36. basic_program WRITES status 'FULL'; EVERY SHARED TOOL TESTS == 'full'
+    (measured 2026-08-31). Its batch stamps UPPERCASE for the pass status and
+    lowercase for every failure ({'FULL': 489, 'build_fail': 12,
+    'unsup_legato_variable': 10, ...}) — inconsistent even with itself. Every
+    other family stamps lowercase 'full'. The shared tools all compare
+    literally.
+
+    DEMONSTRATED, not theorised — batch_diff on the real store:
+
+      $ python3 tools/batch_diff.py <copy> tmp/basic_program_research/family_batch.jsonl
+      old: full=0 partial=0 (524 members)
+      new: full=0 partial=0 (524 members)
+      REGRESSIONS: 0        gains (not-full -> full): 0
+
+    489 FULL members read as full=0. So for this family `batch_diff` can
+    NEVER report a gain or a regression, whatever happened — and CLAUDE.md
+    mandates it at every closeout as THE regression detector (ledger C20
+    sixth layer, the one that exists because net counts masked 4 real
+    regressions for a week). basic_program's closeouts have been running
+    with that detector silently disabled.
+
+    ⚠ THE LATENT ONE IS WORSE: `src/corpus_sync.py:124` gates on
+    `d.get('status') == 'full'` to decide what is FULL, and everything not
+    FULL has its stored artifacts DELETED as an orphan. basic_program does
+    not use corpus_sync today (it writes artifacts inline from its batch,
+    which is also why it has no audit_rebuild — see item 34), so this is
+    armed, not firing. Wire that family to corpus_sync as-is and all 489
+    stored .usf are deleted on the first sync.
+
+    Other literal comparisons found: tools/divergence_census.py:154 (would
+    mislabel every row as a detect-reject), tools/derive_deps.py:191
+    (degrades safely — falls back to the whole group),
+    tools/verdict_staleness_probe.py:62 (mine; this is how I found it, it
+    sampled 0 members for the family).
+
+    FIX — normalise at ONE boundary, not at each call site: have
+    `src/batch_results` lowercase `status` as rows are loaded, and fix the
+    basic_program batch to stamp 'full'. Both, so old stored rows and new
+    ones agree. Then grep the literal comparisons above and leave them
+    alone, since the boundary now guarantees the invariant.
+    ⚠ Changing the batch's stamp touches `pipelines/basic_program/`, which
+    IS in that family's closure — it moves the key. Cheap there (524
+    members, ~25 min at the measured 2.9 s/member) but sequence it with
+    item 31 rather than paying twice.
 
 32. OWNER DECISION — SAMPLE WINDOWS: the USF cannot say "these instruments
     are slices of ONE recording", so it stores the slices (measured
