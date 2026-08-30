@@ -5,7 +5,7 @@
 # dozen measured-but-unfinished investigations. Moved to the repo root and
 # tracked for exactly that reason.
 #
-# NEXT_ITEM: 33   <- autoincrement: a NEW item takes this number, then bump it.
+# NEXT_ITEM: 34   <- autoincrement: a NEW item takes this number, then bump it.
 #
 # CONVENTIONS (owner-set 2026-08-28):
 #  - A done item is REMOVED COMPLETELY — no tombstone, no summary line. The
@@ -1645,3 +1645,52 @@
     Digibeatz_2, 24 of 39 members carry at least one shared range); the
     92 music-paired members are unmeasured; Rayden_Digi is the next family
     on the same schema and will have the same authoring idiom.
+
+33. REPLACE THE DIGI_ORGANIZER DRIVER-CLASS REGISTRY WITH A PARAMETRIC
+    DRIVER (owner-directed 2026-08-30, evidence measured). `_emit_driver`
+    holds 14 hand-written 6502 templates and the `.usf` selects one by name
+    via `params['digi_driver']` — a composer-held library the USF indexes
+    into, which is the Principle §7/§8 shape in the plainest terms. Six of
+    the 14 have a single carrier. The approved design doc
+    (`docs/digi_parametrization_proposal.md` §6 test 2) asserts "no field
+    indexes composer code", which this makes false; that sentence needs
+    correcting whatever else happens.
+
+    ⚠ IT WAS NOT FORCED BY MODE 2. The reasoning that produced it — "cycles
+    are signal, therefore mirror the original's instruction shapes,
+    therefore one emitter per shape" — is a slide; only the first step
+    follows from the verdict. Ledger C40's points 1-2 have been corrected
+    accordingly.
+
+    MEASURED (39 members, prototype kept at
+    `pipelines/digi_organizer/docs/driver_decode_prototype.py`):
+      - a GENERIC instruction walk from the init vector reaches the core on
+        39/39 members with no pattern matching at all;
+      - every class reduces to (ordered env writes, cycles-to-core, core
+        entry, tail form, wrapper shape);
+      - env writes come from a 13-address vocabulary ($01, $FFFA/B,
+        $FFFE/F, $0314/5, $D011/12/19/1A/20/21, $DC0D/0E, $DD0D);
+      - cycles-to-core spans 6..88, and the per-class VARIANCE is fully
+        explained by existing sub-shape flags (nmi_first 25/27 = the SEI
+        flag; xreg 67/71 = the BIT filler);
+      - wrappers: 8 of 14 structurally identical (save A/X/Y, ack, tick,
+        restore, RTI); all four ack forms cost exactly 6 cycles; 6 distinct
+        shapes among the 19 the prototype resolves (the other 20 install
+        their vector AFTER the core call, which the prototype walk stops
+        before — a prototype limit, not a finding).
+
+    PLAN: (a) generic driver DECODER in extract, replacing the 14 pattern
+    probes — it also ACCEPTS unseen members instead of refusing them, which
+    is a coverage win for the 92 music-paired members and for Rayden_Digi;
+    (b) ONE universal driver EMITTER driven by the decoded facts, with NOP
+    filler to hit cycles-to-core exactly; (c) delete `digi_driver` and its
+    sub-shape flags. GATE: the family batch must stay 39/39 (~6 min), and
+    where the emission coincides, byte-identity.
+
+    HOME OF THE FACTS: params bag first (autonomous, and it already removes
+    the enum). The fully principled home is the typed `environment` block —
+    these are exactly the trichotomy's §4.3 temporal/environment category —
+    but that is a typed-field addition behind the approval gate, and the
+    promotion from params to typed is a cheap byte-identity carrier
+    refactor (C33) once the shape is settled. Do not let that gate delay
+    (a)-(c).

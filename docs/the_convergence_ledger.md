@@ -1562,11 +1562,18 @@ practice, not code to factor).
   not content: identical `(reg,val)` at shifted cycles; a late/early
   playback start that then tracks; one extra/missing value exactly at a
   sample switch; or a silent rebuild while the orig plays.
-- CANONICAL: mirror instruction SHAPES per driver-CLASS registry (C13
-  probes, refuse unclassified; name classes by SHAPE never author — §8
-  smell), own the layout/data; the init-entry→timer-start cycles set
-  the interrupt-grid phase, and unwritten environment defaults CANCEL
-  when shapes match. Diagnosis table: constant per-write delta =
+- CANONICAL: match the cycle SCHEDULE, own the code — ⚠ NOT "mirror
+  instruction shapes per driver-CLASS registry", which is what this
+  entry used to say and is a §7 leak (corrected 2026-08-30; the
+  registry had reached 14 classes, 6 of them single-carrier, indexed
+  by name from the USF). Producing the same schedule does not require
+  producing it the same way. DECODE the driver generically (a plain
+  instruction walk reached the core on 39/39 Digi-Organizer members
+  with no pattern matching) into (env writes, cycles-to-core, entry,
+  tail, wrapper shape) and emit ONE parametric driver; a generic
+  decoder also ACCEPTS new members where a registry refuses them.
+  The init-entry→timer-start cycles set the interrupt-grid phase, and
+  unwritten environment defaults CANCEL when the schedule matches. Diagnosis table: constant per-write delta =
   IDLE-LOOP PHASE vs the grid (a 1-byte post-timer tail re-phases
   latency); late start = TIMER GRID ORIGIN (probe the base latch, never
   derive from sample latches); switch-point content shift = grid
