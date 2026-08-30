@@ -585,7 +585,7 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
                 driver = 'kernal_lock'
                 dp = {'raster': 1, 'd011': img[iv + 13]}
 
-    # class 'arnie' (Arnie-Rap): SEI, mask, JSR sub {STA $DD0D(A=$7F),
+    # class 'sub_jmp' (the JSR-sub/JMP-tail shape; carrier Arnie-Rap): SEI, mask, JSR sub {STA $DD0D(A=$7F),
     # acks both CIAs, D019=1, JMP core — core RTSes back to the
     # caller}, then port, vector hi-then-lo, DC0E=0, D01A/D019=1,
     # raster, $D011, CLI RTS; wrap_inc wrapper.
@@ -612,7 +612,7 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
                              0xAD, 0x0D, 0xDC,
                              0x68, 0xA8, 0x68, 0xAA, 0x68, 0x40]
                 if _match(w, wrap_inc2):
-                    driver = 'arnie'
+                    driver = 'sub_jmp'
                     dp = {'raster': img[iv + 9 + 28],
                           'd011': img[iv + 9 + 33]}
 
@@ -620,7 +620,7 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
         raise DigiOrganizerUnsupported(
             'driver shape matches no probed class (irq_vec / nmi_first '
             '/ xreg / bare_stub / jer_lock / sphere / earbleed / '
-            'poke_stub / kernal_irq / kernal_lock / arnie) — '
+            'poke_stub / kernal_irq / kernal_lock / sub_jmp) — '
             'parametrize before accepting')
 
     # Any class whose recorded entry is 'core' goes through the $9000

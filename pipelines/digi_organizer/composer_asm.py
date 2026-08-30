@@ -424,7 +424,7 @@ def _emit_driver(p: dict, raster: int, d011: int, speed: int) -> str:
                 '\tdec $d019\n'
                 f'\tjsr ${CORE + 3:04X}\n'
                 '\tjmp $ea81\n')
-    if cls == 'arnie':
+    if cls == 'sub_jmp':
         # SEI, mask, JSR sub {STA $DD0D (A=$7F), acks, D019=1, JMP
         # core — core's RTS returns to the caller}, port, vector
         # hi-then-lo, DC0E=0, D01A/D019=1, raster, $D011, CLI RTS.
