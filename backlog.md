@@ -1631,7 +1631,28 @@
       dmc_v5        60/60
       fc_standard   60/60   (also spans the 2026-08-23 directory move)
 
-    So the ~16 h re-batch is avoidable IF the owner accepts byte-identity
+    ==== CONFIRMED BY FULL RE-VERIFICATION (2026-08-31 01:21) ====
+    The spot check's prediction was then tested the expensive way: dmc_v5
+    was re-batched in full, 2,078 members, 1 h 42 m. Result:
+
+      pre-run   1211 full / 867 partial
+      re-run    1211 full / 867 partial
+      status changes, member by member ................ 0
+      partials whose first-divergence signature moved .. 0
+
+    Not merely equal TOTALS (which mask churn — C20 sixth layer) but
+    identical per member, down to the flat_div position of every one of the
+    867 partials. The digi schema landing moved literally nothing. That is
+    the byte-identity argument confirmed at the verdict level on a whole
+    family, and it is the empirical case for a `--prove-by-rebuild` restamp.
+
+    ⏱ RE-BATCH COST, RECALIBRATED: 2,078 v5 members took 102 min on the
+    X230 = ~2.9 s/member, so DMC v4's 8,419 members is ~7 h, not the ~16 h
+    this item and CLAUDE.md assume. The 16 h figure came from scaling the
+    EPYC number by 16x; the measured factor is nearer 7x. Full regression
+    is 29 min, not the ~2.7 h the same scaling predicts.
+
+    So the ~7 h re-batch is avoidable IF the owner accepts byte-identity
     as the proof. `migrate_verdict_rows` cannot express that today — it
     refuses on git CONTENT change and has no byte-identity mode. Adding one
     (`--prove-by-rebuild N`: sample N stored artifacts per family, restamp
