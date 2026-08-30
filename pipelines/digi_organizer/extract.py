@@ -185,6 +185,7 @@ def _decode_driver(img, load, meta, core_base, core_plus, tick_imm):
     toks, cyc, entry, pc = [], 0, None, meta['init']
     cyc_post = 0
     scratch = {}
+    post_pcs, post_cyc = [], {}
     poked = []
     regs = {'a': 0, 'x': None, 'y': None}     # RSID enters with A = subtune
     vec = {}
@@ -236,6 +237,7 @@ def _decode_driver(img, load, meta, core_base, core_plus, tick_imm):
             pc = arg
             continue
         here = cyc if phase == 'pre' else cyc_post
+        mark = len(out)
         if mn == 'sei':
             out.append(f'SEI@{here}')
         elif mn == 'cli':
@@ -297,15 +299,27 @@ def _decode_driver(img, load, meta, core_base, core_plus, tick_imm):
                 if phase != 'post':
                     raise DigiOrganizerUnsupported(
                         'driver decode: loop before the core call')
-                seeds = [t for t in post
-                         if '=' in t and not t.startswith(('R:', 'AND:', 'DEC:'))
-                         and not 0xD000 <= int(t.split('=')[0].lstrip('S:'), 16)
-                         <= 0xDFFF]
-                vals = [t.split('=')[1].split('@')[0] for t in seeds[:3]]
-                tail = ('delay=' + ':'.join(vals) if len(vals) == 3
-                        else 'delay=d0:d0:0b')
-                for t in seeds[:3]:
-                    post.remove(t)
+                # A counted startup delay. It runs with interrupts LIVE, so
+                # its loop PERIOD is observable and the composer emits an
+                # equivalent loop over its own scratch counters — but the
+                # counter SEEDS are ordinary scheduled writes, so only the
+                # loop BODY is trimmed here. The body begins at the first
+                # decrement of a scratch byte after the CLI.
+                decs = [(tk, tpc) for tk, tpc in zip(post, post_pcs)
+                        if tk.startswith('DEC:')]
+                if not decs:
+                    raise DigiOrganizerUnsupported(
+                        'driver decode: a delay loop with no counter')
+                loop_at = min(tpc for _tk, tpc in decs)
+                outer = scratch.get(int(decs[0][0][4:].split('@')[0], 16))
+                inner = [i for a, i in sorted(scratch.items(), key=lambda kv: kv[1])
+                         if i != outer and any(
+                             t.startswith(f'S{i}=') for t in post)]
+                post[:] = [tk for tk, tpc in zip(post, post_pcs)
+                           if tpc < loop_at]
+                cyc_post = post_cyc.get(loop_at, cyc_post)
+                tail = 'delay=%s' % ':'.join(
+                    str(x) for x in ([outer] + inner[:2]))
                 break
             if phase == 'pre':
                 cyc += cy + 1
@@ -314,9 +328,12 @@ def _decode_driver(img, load, meta, core_base, core_plus, tick_imm):
         elif mn in ('nop', 'bit', 'cmp#', 'cpx#', 'ora#', 'cmp', 'inc',
                     'asl', 'pha', 'pla'):
             pass
+        while len(post_pcs) < len(post):
+            post_pcs.append(pc)
         if phase == 'pre':
             cyc += cy
         else:
+            post_cyc.setdefault(pc, cyc_post)
             cyc_post += cy
         pc += ln
     return dict(pre=','.join(toks), cyc=cyc, entry=entry or 'core',

@@ -523,10 +523,10 @@ def _emit_wrapper(spec: str, ctx: dict) -> str:
             out.append(f'\tlda #${int(tok[5:], 16):02X}\n'
                        'drv_spin:\n\tcmp $d012\n\tbne drv_spin\n')
         elif tok == 'gate':
-            out.append('\tlda drv_flag\n\tcmp #$01\n\tbne drv_skip\n')
+            out.append('\tlda drv_s0\n\tcmp #$01\n\tbne drv_skip\n')
             gated = True
         elif tok == 'gate_beq':
-            out.append('\tlda drv_flag\n\tbeq drv_skip\n')
+            out.append('\tlda drv_s0\n\tbeq drv_skip\n')
             gated = True
         elif tok == 'tick':
             out.append(f"\tjsr ${ctx['CORE'] + 3:04X}\n")
@@ -640,16 +640,16 @@ def _emit_driver(p: dict, raster: int, d011: int, speed: int,
     elif tail == 'rts':
         asm += '\trts\n'
     elif tail.startswith('delay='):
-        # A startup delay run with interrupts LIVE, so its loop period is
-        # observable: mirror the period and the counts, not the code.
-        a, b, c = (int(x, 16) for x in tail[6:].split(':'))
-        asm += (f'\tlda #${a:02X}\n\tsta drv_c1\n\tsta drv_c2\n'
-                f'\tlda #${c:02X}\n\tsta drv_c3\n'
-                'dloop:\n\tdec drv_c3\n\tjsr dsub\n'
-                '\tlda drv_c3\n\tbne dloop\n'
-                '\tinc drv_flag\n\trts\n'
-                'dsub:\n\tdec drv_c1\n\tlda drv_c1\n\tcmp #$00\n\tbne dsub\n'
-                'dsub2:\n\tdec drv_c2\n\tlda drv_c2\n\tcmp #$00\n\tbne dsub2\n'
+        # A counted startup delay that runs with interrupts LIVE, so its
+        # loop PERIOD is what is observable — reproduce the structure over
+        # our own counters, whose seeds the schedule already wrote.
+        ids = tail[6:].split(':')
+        o, c1, c2 = (f'drv_s{k}' for k in (ids + ['1', '2'])[:3])
+        asm += (f'dloop:\n\tdec {o}\n\tjsr dsub\n'
+                f'\tlda {o}\n\tbne dloop\n'
+                '\tinc drv_s0\n\trts\n'
+                f'dsub:\n\tdec {c1}\n\tlda {c1}\n\tcmp #$00\n\tbne dsub\n'
+                f'dsub2:\n\tdec {c2}\n\tlda {c2}\n\tcmp #$00\n\tbne dsub2\n'
                 '\trts\n')
     else:
         raise DigiComposeError(f'unknown driver tail {tail!r}')
