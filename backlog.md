@@ -1694,6 +1694,49 @@
         their vector AFTER the core call, which the prototype walk stops
         before — a prototype limit, not a finding).
 
+    MEASURED FURTHER (three experiments, 2026-08-30, after the owner
+    rejected the first proposal as "distilled values from the original
+    machinery, not anything necessary for audio" — which was right: an
+    ordered write-list plus a cycles-to-core number is the original's
+    instruction sequence rendered as data, i.e. the same 14 versions moved
+    from Python into 39 data blobs):
+
+      1. REORDER the init's environment writes (same values, same count,
+         same cycles): Heavy-Beat FULL 4249/4249.
+      2. Emit the same writes with DIFFERENT REGISTERS AND OPCODES
+         (lda/sta where the original used ldx/stx/inx, equal cycles):
+         FULL 4249/4249. Both changes together: FULL.
+      => the driver's INSTRUCTION SEQUENCE is irrelevant. The composer may
+         synthesise its own code freely; only the FINAL MACHINE STATE and
+         the CYCLE COUNT are observable. (A cross-class swap of irq_vec ->
+         earbleed fails at match=1, but that is a SETTINGS difference —
+         $DC0D $81 vs $7F — not a mechanism one.)
+      3. THE BOUNDARY: replace rwait_lock's busy-wait (spin until the beam
+         reaches $32) with the equivalent INTENT expressed differently —
+         arm $D012=$32 after the core call and drop the wait entirely.
+         Digibeatz_1 FULL 5882/5882 as shipped, match=1 armed. Cause: the
+         spin is a window in which the CPU executes a tight 7-cycle loop,
+         so interrupts arriving during it are taken at different
+         instruction boundaries. WHAT THE CPU DOES BETWEEN INTERRUPTS IS
+         OBSERVABLE — not as code, but as an instruction-boundary period.
+
+    SO THE ABSTRACTION IS (state + schedule + idle granularity), four facts,
+    none of them a write sequence:
+      - `state`      the machine settings to establish (a SET, not an order):
+                     screen on/off (badlines steal cycles, so this is
+                     audible), which interrupt sources are live, banking.
+                     This is the trichotomy's PRIMING category extended from
+                     SID registers to the VIC/CIA environment.
+      - `grid_phase` when the NMI timer starts = the phase of the sample
+                     clock against the frame clock. One number.
+      - `tick`       what triggers the sequencer and where in the frame.
+                     Already carried as digi_tick_raster.
+      - `idle`       what the CPU sits in between interrupts, as a PERIOD
+                     (host loop / lock / spin), because latency is a
+                     deterministic function of (timer phase mod period).
+    The 14 templates become 14 POINTS in that space, most of them
+    coinciding. Nothing is copied and nothing is enumerated.
+
     PLAN: (a) generic driver DECODER in extract, replacing the 14 pattern
     probes — it also ACCEPTS unseen members instead of refusing them, which
     is a coverage win for the 92 music-paired members and for Rayden_Digi;
