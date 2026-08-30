@@ -266,7 +266,7 @@ def _place(usf: UsfFile, usf_dir: str, drv_pages: int):
                 raise
 
 
-def _score_tables(usf: UsfFile, blob_pages: dict):
+def _score_tables(usf: UsfFile, blob_pages: dict, onepage_rows=()):
     """Rebuild orderlist / pattern / sample-table bytes from USF."""
     sub = usf.subtunes[0]
     dv = sub.digi_voice
@@ -282,6 +282,16 @@ def _score_tables(usf: UsfFile, blob_pages: dict):
             raise DigiComposeError(
                 f'sample_instrument {si.id}: rate_cycles '
                 f'${si.rate_cycles:04X} exceeds the 8-bit TA-lo latch')
+        if si.id in onepage_rows:
+            # DEGENERATE one-page row: the trigger clamps end to start+1
+            # through a branch, so the sample is the same single page but
+            # the trigger costs 2 cycles less — a Mode-2-visible fact the
+            # original states in its table and we must state in ours.
+            if e - s != 1:
+                raise DigiComposeError(
+                    f'sample_instrument {si.id}: degenerate one-page row '
+                    f'but the blob is {e - s} pages')
+            e = s
         smptab[si.id * 4:si.id * 4 + 4] = bytes(
             (s, e, si.rate_cycles, 0x00))
 
@@ -750,7 +760,9 @@ def compose_asm(usf: UsfFile, usf_dir: str) -> str:
     STATE_PTRHI, STATE_REPEAT = L['STATE_PTRHI'], L['STATE_REPEAT']
     ORDERLIST, SMPTAB, PATTERNS = L['ORDERLIST'], L['SMPTAB'], L['PATTERNS']
 
-    entries, patmem, smptab = _score_tables(usf, blob_pages)
+    onepage = {int(t) for t in str(p.get('digi_onepage_rows', '')).split(',')
+               if t.strip()}
+    entries, patmem, smptab = _score_tables(usf, blob_pages, onepage)
 
     port_preinit = p.get('digi_port_preinit')
     a = []

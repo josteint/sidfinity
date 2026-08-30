@@ -103,6 +103,9 @@ class DigiOrganizerModel:
     patterns: dict = field(default_factory=dict)   # id -> [row bytes], $FF-truncated
     samples: dict = field(default_factory=dict)    # id -> (start_pg, end_pg, latch)
     pcm: dict = field(default_factory=dict)        # (start_pg,end_pg) -> nibble list
+    # sample ids whose table row uses the engine's DEGENERATE one-page
+    # form (end <= start, clamped to start+1 by a branch in the trigger)
+    onepage_degenerate: list = field(default_factory=list)
 
 
 def extract_model(sid_path: str) -> DigiOrganizerModel:
@@ -824,7 +827,16 @@ def extract_model(sid_path: str) -> DigiOrganizerModel:
     for sid_ in used:
         s, e, latch = rd(smp_base + sid_ * 4, 3)
         if s >= e:
+            # The engine's DEGENERATE one-page row: the trigger clamps
+            # `end = start + 1`, so the sample is one page either way and
+            # the audio is identical to a row written `end = start + 1`.
+            # But the clamp is a BRANCH, so which form the row uses costs
+            # 2 cycles in the trigger — signal under the Mode-2 verdict,
+            # and NOT derivable from the page count (the corpus has both
+            # forms at one page). Recorded so the composer can emit the
+            # same form; never a musical difference.
             e = s + 1
+            m.onepage_degenerate.append(sid_)
         m.samples[sid_] = (s, e, latch)
         key = (s, e)
         if key not in m.pcm:

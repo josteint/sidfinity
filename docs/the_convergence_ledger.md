@@ -1575,6 +1575,16 @@ practice, not code to factor).
   it is one field). Gate static probes on entry-path REACHABILITY
   (unreached leftover stubs false-trip). State coverage x/standalone
   AND x/claimed (digi carriers mostly PAIR with other engines').
+- CLAMPS (3e): where the mirrored code CLAMPS/normalises a data value,
+  the PRE-clamp form is cycle skeleton — two table rows describing the
+  same sample through different arithmetic differ by a BRANCH (2 cyc),
+  which re-phases every following interrupt. Carry the form as a
+  registered mechanism knob (audio identical ⇒ 33rd-occ test passes);
+  do NOT infer it from the post-clamp value (both forms coexisted).
+  TELL: content-identical writelog whose inter-write deltas alternate
+  with the same MEAN but a different SPLIT. Localize by pc-tracing both
+  and diffing CYCLES not PCs — after converting the COMPACTED writelog
+  frame index to a raw one (C36), else you trace the wrong window.
 - LAYOUT (3d): relocating the mirrored player is cycle-neutral only
   PAGE-GRANULARLY and only as a WHOLE (all 6502 variable timing depends
   on LOW bytes) — and then check what the mirrored init reads as DATA:

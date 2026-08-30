@@ -147,6 +147,15 @@ def model_to_usf(m, usf_dir: str, basename: str) -> UsfFile:
                if m.nmi_vec == '0318' else {}),
             **({'digi_driver_bit': True}
                if m.driver_params.get('bit_pad') else {}),
+            # Which one-page sample rows use the engine's DEGENERATE
+            # form (end <= start). Same audio either way — the engine
+            # clamps to start+1 — but the clamp is a BRANCH, so the
+            # form costs 2 cycles in the trigger, which the Mode-2
+            # verdict sees. Not derivable: the corpus has both forms at
+            # one page (19 normal / 5 degenerate rows).
+            **({'digi_onepage_rows':
+                ','.join(str(i) for i in m.onepage_degenerate)}
+               if m.onepage_degenerate else {}),
         }),
         init=init,
         digi=DigiConfig(technique='volume_4bit', idle_level=None,
