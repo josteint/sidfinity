@@ -135,8 +135,11 @@ def main() -> None:
         if plan.orphans:
             ts(f'removing {corpus_sync.remove_orphans(plan)} orphaned artifacts')
         rels = [d['path'] for d in plan.write]
-        ts(f'building {len(rels)} members ({default_jobs(len(rels))} workers)')
-        with Pool(default_jobs(len(rels))) as pool:
+        # default_jobs' first positional is an ENV VAR NAME, not a task
+        # count — the task count is the `cap` keyword.
+        jobs = default_jobs(cap=len(rels))
+        ts(f'building {len(rels)} members ({jobs} workers)')
+        with Pool(jobs) as pool:
             res = pool.map(write_member, rels)
         ok = [rel for rel, good, _e in res if good]
         for rel, good, err in res:
