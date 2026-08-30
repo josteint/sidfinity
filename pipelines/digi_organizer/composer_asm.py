@@ -38,6 +38,27 @@ PATTERNS = 0x9500
 DRIVER = 0x9340
 PCM_BASE = 0xA000
 
+_LAYOUT_NAMES = ('CORE', 'STATE_SPEEDCTR', 'STATE_ORDPOS', 'STATE_ROWPOS',
+                 'STATE_PTRLO', 'STATE_PTRHI', 'STATE_REPEAT', 'ORDERLIST',
+                 'SMPTAB', 'PATTERNS', 'DRIVER')
+
+
+def _layout(base: int) -> dict:
+    """The canonical player layout shifted to `base` (page-aligned).
+
+    Placement is pure layout under the core tenet, but under Mode 2 it
+    must not change the CYCLE SKELETON — so the block only ever moves as
+    a WHOLE, by a multiple of $100. That preserves every low byte, and
+    every 6502 timing quantity that is not fixed depends only on low
+    bytes: taken-branch page crossings, indexed-read page crossings (the
+    $x2FC sample-table cross is deliberately canonical), and the SMC
+    pointer walk. Absolute reads cost 4 cycles wherever they point.
+    """
+    if base & 0xFF:
+        raise DigiComposeError(f'player base ${base:04X} is not page-aligned')
+    sh = base - CORE
+    return {n: globals()[n] + sh for n in _LAYOUT_NAMES}
+
 
 class DigiComposeError(Exception):
     pass
@@ -51,20 +72,13 @@ def _byt(label, data, per_row=16):
     return '\n'.join(rows) + '\n'
 
 
-def _score_tables(usf: UsfFile, usf_dir: str):
-    """Rebuild orderlist / pattern / sample-table / PCM bytes from USF."""
-    sub = usf.subtunes[0]
-    dv = sub.digi_voice
-    if dv is None:
-        raise DigiComposeError('subtune has no digi_voice')
+def _alloc_pcm(usf: UsfFile, usf_dir: str, regions: list):
+    """Place the PCM blobs page-aligned, first-fit over `regions`.
 
-    # --- PCM blobs: FLAC sidecar → nibble stream → packed bytes.
-    # Page-aligned first-fit over the FREE regions: below the player
-    # ($1000-$8FFF), then $A000-$CFFF (NOT $D000+ — port=$35 maps I/O
-    # there), then under the KERNAL ($E000-$FEFF; the NMI vector at
-    # $FFFA bounds it). Absolute reads cost 4 cycles anywhere, so
-    # placement is pure layout.
-    regions = [[0x10, 0x90], [0xA0, 0xD0], [0xE0, 0xFF]]
+    Absolute reads cost 4 cycles anywhere, so placement is pure layout;
+    `regions` is [[first_page, end_page_exclusive], ...] and is consumed
+    (mutated) as blobs are placed.
+    """
     blob_pages = {}
     pcm_chunks = []
     # decreasing-size placement (an 80-page blob must see the big
@@ -109,6 +123,59 @@ def _score_tables(usf: UsfFile, usf_dir: str):
         blob_pages[fname] = (page, page + n_pages)
         pcm_chunks.append((page << 8, packed))
         placed.append((page, packed))
+    return blob_pages, pcm_chunks
+
+
+def _place(usf: UsfFile, usf_dir: str):
+    """Choose the player base + place the PCM. Returns (base, blob_pages,
+    pcm_chunks).
+
+    CANONICAL first: player at $9000, PCM below it ($1000-$8FFF), then
+    $A000-$CFFF (NOT $D000+ — port=$35 maps I/O there), then under the
+    KERNAL ($E000-$FEFF; the NMI vector at $FFFA bounds it). A blob too
+    big for every hole gets a RETRY with the player block moved LOW,
+    which opens $1000-$CFFF as ONE hole — Jer's Digimix_2 plays 152
+    contiguous pages (its sample table carves the whole $0800-$A000
+    memory, every other sample a page-aligned sub-range of it, so the
+    content-addressed dedup places exactly one blob).
+    """
+    try:
+        blob_pages, pcm_chunks = _alloc_pcm(
+            usf, usf_dir, [[0x10, 0x90], [0xA0, 0xD0], [0xE0, 0xFF]])
+        return CORE, blob_pages, pcm_chunks
+    except DigiComposeError as e:
+        if 'no region fits' not in str(e):
+            raise
+    # The block spans CORE..PATTERNS+patmem plus the page-aligned driver
+    # (well under a page of code; +2 pages of slack, and compose_asm
+    # asserts the real extent against the placed PCM). Park it as HIGH
+    # as RAM allows — just under the $D000 I/O window, which is RAM
+    # under every port this family uses — so the hole below it is the
+    # largest single run available.
+    #
+    # ⚠ NOT arbitrarily: the mirrored core init seeds the repeat counter
+    # with `sty` reusing Y = >idle_nmi (the original's byte-saving
+    # trick), and the seed must be NEGATIVE for the first order fetch to
+    # latch its entry's repeat. Under Mode 2 we cannot add a separate
+    # load — the init's cycle count IS the interrupt-grid phase — so the
+    # player must live where its handler page is >= $80. build_sid
+    # asserts it from the assembled labels.
+    pats = usf.subtunes[0].digi_voice.patterns
+    size = ((PATTERNS - CORE) +
+            32 * (max((q.id for q in pats), default=0) + 1)
+            + 0xFF & ~0xFF) + 0x200
+    base = 0xD000 - size
+    blob_pages, pcm_chunks = _alloc_pcm(
+        usf, usf_dir, [[0x10, base >> 8], [0xE0, 0xFF]])
+    return base, blob_pages, pcm_chunks
+
+
+def _score_tables(usf: UsfFile, blob_pages: dict):
+    """Rebuild orderlist / pattern / sample-table bytes from USF."""
+    sub = usf.subtunes[0]
+    dv = sub.digi_voice
+    if dv is None:
+        raise DigiComposeError('subtune has no digi_voice')
 
     # --- sample table (id*4 entries: start, end, latch, pad) ---
     max_id = max(si.id for si in usf.sample_instruments)
@@ -150,33 +217,42 @@ def _score_tables(usf: UsfFile, usf_dir: str):
     if ol.loop_to not in (None, 0):
         raise DigiComposeError('engine loops to position 0 only')
 
-    return entries, patmem, smptab, pcm_chunks
+    return entries, patmem, smptab
 
 
-_WRAP_ACK = ('irq_wrapper:\n'
-             '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
-             '\tasl $d019\n'
-             f'\tjsr ${CORE + 3:04X}\n'
-             '\tlda $dc0d\n'
-             '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
-
-_WRAP_NOACK = ('irq_wrapper:\n'
-               '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
-               '\tasl $d019\n'
-               f'\tjsr ${CORE + 3:04X}\n'
-               '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
-
-_WRAP_INC = ('irq_wrapper:\n'
-             '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
-             '\tinc $d019\n'
-             f'\tjsr ${CORE + 3:04X}\n'
-             '\tlda $dc0d\n'
-             '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
+def _wrap_ack(CORE):
+    return ('irq_wrapper:\n'
+            '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
+            '\tasl $d019\n'
+            f'\tjsr ${CORE + 3:04X}\n'
+            '\tlda $dc0d\n'
+            '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
 
 
-def _emit_driver(p: dict, raster: int, d011: int, speed: int) -> str:
+def _wrap_noack(CORE):
+    return ('irq_wrapper:\n'
+            '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
+            '\tasl $d019\n'
+            f'\tjsr ${CORE + 3:04X}\n'
+            '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
+
+
+def _wrap_inc(CORE):
+    return ('irq_wrapper:\n'
+            '\tpha\n\ttxa\n\tpha\n\ttya\n\tpha\n'
+            '\tinc $d019\n'
+            f'\tjsr ${CORE + 3:04X}\n'
+            '\tlda $dc0d\n'
+            '\tpla\n\ttay\n\tpla\n\ttax\n\tpla\n\trti\n')
+
+
+def _emit_driver(p: dict, raster: int, d011: int, speed: int,
+                 L: dict) -> str:
     """The standalone driver, mirrored per CLASS (extract's registry).
     Instruction shapes = the cycle skeleton; operands are ours."""
+    CORE = L['CORE']
+    _WRAP_ACK, _WRAP_NOACK, _WRAP_INC = (
+        _wrap_ack(CORE), _wrap_noack(CORE), _wrap_inc(CORE))
     cls = p.get('digi_driver', 'irq_vec')
     if cls == 'irq_vec':
         return ('driver_init:\n'
@@ -474,7 +550,15 @@ def compose_asm(usf: UsfFile, usf_dir: str) -> str:
     d011 = int(p.get('digi_tick_d011', 0x1B))
     base_latch = int(p.get('digi_base_latch', 0x70))
 
-    entries, patmem, smptab, pcm_chunks = _score_tables(usf, usf_dir)
+    base, blob_pages, pcm_chunks = _place(usf, usf_dir)
+    L = _layout(base)
+    CORE = L['CORE']
+    STATE_SPEEDCTR, STATE_ORDPOS = L['STATE_SPEEDCTR'], L['STATE_ORDPOS']
+    STATE_ROWPOS, STATE_PTRLO = L['STATE_ROWPOS'], L['STATE_PTRLO']
+    STATE_PTRHI, STATE_REPEAT = L['STATE_PTRHI'], L['STATE_REPEAT']
+    ORDERLIST, SMPTAB, PATTERNS = L['ORDERLIST'], L['SMPTAB'], L['PATTERNS']
+
+    entries, patmem, smptab = _score_tables(usf, blob_pages)
 
     port_preinit = p.get('digi_port_preinit')
     a = []
@@ -747,9 +831,16 @@ def compose_asm(usf: UsfFile, usf_dir: str) -> str:
     segs = [(SMPTAB, _byt('smptab', smptab)),
             (ORDERLIST, _byt('orderlist', entries)),
             (PATTERNS, _byt('patterns', patmem)),
-            (driver_addr, _emit_driver(p, raster, d011, speed))]
+            (driver_addr, _emit_driver(p, raster, d011, speed, L))]
     for addr, packed in pcm_chunks:
         segs.append((addr, _byt(f'pcm_{addr:04X}', packed)))
+        # the PCM holes were reserved from an ESTIMATE of the player
+        # extent — assert the real one, so a layout slip is a build
+        # error and never a silently overwritten sample.
+        if addr < driver_addr + 0x100 and addr + len(packed) > CORE:
+            raise DigiComposeError(
+                f'PCM at ${addr:04X}+{len(packed)} overlaps the player '
+                f'block ${CORE:04X}-${driver_addr + 0xFF:04X}')
     core_text = '\n'.join(a)
     # KERNAL-path core variant: every NMI vector-swap targets the
     # KERNAL RAM vector $0318/$0319 instead of the hardware $FFFA/$FFFB
@@ -772,6 +863,16 @@ def build_sid(usf_path: str, out_path: str) -> str:
     usf_dir = os.path.dirname(usf_path) or '.'
     asm = compose_asm(usf, usf_dir)
     blob, labels = assemble(asm, return_labels=True)
+    # Layout invariants the mirrored core encodes (see _place):
+    #  - the repeat-counter seed is Y = >idle_nmi and must be NEGATIVE;
+    #  - the NMI vector swap writes only the LOW byte, so all three
+    #    handlers must share one page.
+    if not labels['idle_nmi'] >> 8 & 0x80:
+        raise DigiComposeError(
+            f'player layout: idle_nmi at ${labels["idle_nmi"]:04X} gives a '
+            f'POSITIVE repeat seed — the first order fetch would not latch')
+    if len({labels[n] >> 8 for n in ('idle_nmi', 'hi_nmi', 'lo_nmi')}) != 1:
+        raise DigiComposeError('player layout: NMI handlers span pages')
     load = int(asm.split('=', 1)[1].split('\n', 1)[0].strip().
                lstrip('$'), 16)
     # Clock is SIGNAL under Mode 2: the raster-IRQ tick runs at the
