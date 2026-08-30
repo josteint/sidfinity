@@ -1525,15 +1525,20 @@
     recording), and the `rwait_lock`/`rwait_rts`/`song_head` driver
     classes. C40 grew a 3d (layout invariants inside mirrored init +
     the RSID load/init address rules, which fail SILENTLY).
-    NEXT: (a) the 3 remaining partials — ONE class, content-complete
-    sub-frame cycle phase (Second_Thoughts / Arnie-Rap / Trace_Loop);
-    Trace_Loop is measured down to "phase accumulated at a sample
-    switch, trigger path and both NMI handlers byte-identical to a
-    FULL sibling's", and the next step for any of them is a pc-trace
-    comparison across the switch; (b) regression.py wiring +
-    mass-write at family closeout; (c) the 92 music-paired members
-    (C31-hetero + the $D418-ownership split verdict); (d) Rayden_Digi
-    (item 28) on the same schema.
+    ✅ STANDALONE FAMILY CLOSED, same day: **39/39 FULL**. The last
+    three partials were ONE cause — the engine clamps a sample row whose
+    end <= its start to end = start+1 THROUGH A BRANCH, so two rows
+    describing the same single page by different arithmetic play
+    identical audio 2 cycles apart, which Mode 2 sees (ledger C40 3e;
+    not derivable — the corpus has 19 explicit and 5 degenerate one-page
+    rows). Closeout done: tier-1 portfolio (22 members / 34 dimensions)
+    derived + wired into regression.py (summary AND exit code), and
+    pipelines/digi_organizer/mass_write.py. Item 30's params
+    consolidation landed with it (18 keys -> 15 while the class registry
+    grew 11 -> 14, all byte-identical).
+    NEXT: (a) the 92 music-paired members (C31-hetero + the
+    $D418-ownership split verdict); (b) Rayden_Digi (item 28) on the
+    same schema.
 
     BUCKET B — per-subtune start divergences (the C31/C37 family, same as
     f1's bucket B): Andy/Jumping_Jack (6 subs m=1), Riot/Enzyme (subs 1-8
@@ -1545,29 +1550,6 @@
 
     All 15 are formerly-invisible members — virgin residue, no regressions.
     Cross-ref: f1 counterpart assessment = item 28.
-
-30. DIGI_ORGANIZER PARAMS CONSOLIDATION — deferred from the 2026-08-30 canon
-    audit, scheduled for the standalone-family CLOSEOUT (the 5 decoded
-    unsupported members LANDED 2026-08-30; what remains before closeout is
-    the 3 cycle-phase partials, or a decision that the grind has saturated).
-    NB round 4 added THREE more driver classes (rwait_lock / rwait_rts /
-    song_head) and deliberately gave them NO new keys — every sub-shape
-    rides an existing one — so the census below should now find the key
-    count flat against a larger class registry. The registry grew ~17
-    registered params keys;
-    several per-class SUB-SHAPE booleans (digi_driver_gate/_tail_sei/_bit/
-    _nop/_wrap_nops, digi_delay_seed/_outer, digi_d011_init) are 1:1 with a
-    single class and are approaching, one flag at a time, the "driver
-    op-encoding in params" rejected at design time as Pole-B-for-mechanism
-    (the audit's aggregate-trend finding). TASK: census key-by-key which
-    booleans/scalars are (a) constant across all carriers of their class →
-    fold into the class definition (emitter constant), (b) genuinely
-    per-member → keep as params. Gate = the byte-identity carrier-refactor
-    recipe over ALL 39 members (build pre/post, MD5-compare every .sid —
-    the digi .usf text changes by design), then a restamp batch +
-    batch_diff. Registry rows for folded keys are DELETED (composer_param_
-    lint flags stale rows). NOT owner-gated (params-bag mechanism, C33-style
-    carrier refactor) but the audit trail should note what folded where.
 
 31. CODE_FINGERPRINT'S TEST-SELECTION EXCLUSION IS INERT FOR 6 OF 7 FAMILIES
     (measured 2026-08-30). `_SELECTION_SUFFIXES` in src/code_fingerprint.py
