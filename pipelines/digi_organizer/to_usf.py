@@ -122,6 +122,7 @@ def model_to_usf(m, usf_dir: str, basename: str) -> UsfFile:
             'digi_drv_pre': m.driver_facts['pre'],
             'digi_drv_cyc': m.driver_facts['cyc'],
             'digi_drv_post': m.driver_facts['post'],
+            'digi_drv_pcyc': m.driver_facts['cyc_post'],
             'digi_drv_tail': m.driver_facts['tail'],
             'digi_drv_wrap': m.driver_facts['wrap'],
             **({'digi_drv_entry': 'core40'}
