@@ -5,7 +5,7 @@
 # dozen measured-but-unfinished investigations. Moved to the repo root and
 # tracked for exactly that reason.
 #
-# NEXT_ITEM: 31   <- autoincrement: a NEW item takes this number, then bump it.
+# NEXT_ITEM: 32   <- autoincrement: a NEW item takes this number, then bump it.
 #
 # CONVENTIONS (owner-set 2026-08-28):
 #  - A done item is REMOVED COMPLETELY — no tombstone, no summary line. The
@@ -1568,3 +1568,41 @@
     batch_diff. Registry rows for folded keys are DELETED (composer_param_
     lint flags stale rows). NOT owner-gated (params-bag mechanism, C33-style
     carrier refactor) but the audit trail should note what folded where.
+
+31. CODE_FINGERPRINT'S TEST-SELECTION EXCLUSION IS INERT FOR 6 OF 7 FAMILIES
+    (measured 2026-08-30). `_SELECTION_SUFFIXES` in src/code_fingerprint.py
+    excludes portfolio files from the hash so that re-deriving a portfolio
+    cannot invalidate a family's verdicts — its comment says "matched by
+    suffix so a new family's portfolio is excluded automatically". It is
+    matched as `rel.endswith('_regression_portfolio.json')`, with a literal
+    LEADING UNDERSCORE, and only ONE portfolio in the repo has one:
+
+      HASHED   pipelines/digi_organizer/regression_portfolio.json
+      HASHED   pipelines/future_composer/regression_portfolio.json
+      HASHED   pipelines/dmc/regression_portfolio.json
+      EXCLUDED pipelines/dmc/f2_regression_portfolio.json
+      HASHED   pipelines/dmc/v5/regression_portfolio.json
+      HASHED   pipelines/basic_program/regression_portfolio.json
+      HASHED   pipelines/music_assembler/regression_portfolio.json
+      EXCLUDED pipelines/dmc/roster.json
+
+    So the documented protection has never applied to dmc_v4, dmc_v5,
+    fc_standard, basic_program, music_assembler or digi_organizer: for all
+    six, re-deriving the portfolio moves the family key and marks every
+    stored verdict stale — which is backwards, since choosing a different
+    regression SAMPLE cannot change what the composer emits. CLAUDE.md tells
+    you to re-derive "whenever a new fix lands a big new clump of FULLs", so
+    this fires often.
+
+    FIX is one line: `_SELECTION_SUFFIXES = ('regression_portfolio.json',
+    'roster.json')`. NOT DONE HERE because it is a KEY-DEFINITION change:
+    measured, it moves the key for all six families at once (goattracker_v1
+    unaffected — no portfolio file), so it must land with
+    `tools/migrate_verdict_rows.py` in the same step, and a refusal there
+    means re-batching a family (~16 h for DMC on the X230). Sequence it with
+    a planned batch, the way the #85 rename was. Until then the workaround is
+    to derive a portfolio BEFORE the batch that stamps the rows the
+    mass-write will read, not after.
+
+    Found because digi_organizer's mass-write refused all 39 current rows
+    right after its portfolio was derived.

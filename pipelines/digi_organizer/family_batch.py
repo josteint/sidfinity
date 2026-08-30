@@ -68,12 +68,20 @@ def main():
     db = SL.load_database(glob.glob('hvsc85/DOCUMENTS/Songlengths.md5')[0])
     ch = code_fingerprint('digi_organizer')
     mem = members()
+    # RESUME GATE: a row counts as done only if its verdict was earned by
+    # the CURRENT code (C20). Keying on the path alone silently reuses
+    # verdicts across a composer change — this batch reported a tidy
+    # "0 of 39 members" and TOTALS from stale rows right after a fold,
+    # and the mass-write (which DOES check the hash) then refused all 39.
     done = set()
     if os.path.exists(RESULTS):
         with open(RESULTS) as f:
             for line in f:
                 try:
-                    done.add(json.loads(line)['path'])
+                    r = json.loads(line)
+                    if ch and r.get('code_hash') != ch:
+                        continue
+                    done.add(r['path'])
                 except Exception:
                     pass
     todo = [m for m in mem if m not in done]

@@ -5,15 +5,37 @@ metadata:
   node_type: memory
   type: project
   originSessionId: eeee45ad-d522-49c1-8391-1946b3565085
-  modified: 2026-08-30T06:46:38.706Z
+  modified: 2026-08-30T07:29:34.090Z
 ---
 
-## 2026-08-30 — round 4: 36/39 FULL, 0 unsupported, verdicts CURRENT
+## 2026-08-30 — round 4: **39/39 FULL — the standalone family is CLOSED**
 
-**Status: 36 FULL / 3 partial / 0 unsupported of 39 standalone**
-(full re-batch, `batch_diff` 0 regressions vs both prior batches, +6).
-Every member the family claims now BUILDS; the whole residue is one
-class. Six landed:
+**Status: 39 FULL / 0 partial / 0 unsupported of 39 standalone**
+(full re-batch, `batch_diff` 0 regressions at every step). Nine members
+landed this round, from 30/39.
+
+CLOSEOUT DONE: tier-1 portfolio (22 members over 34 dimensions,
+`pipelines/digi_organizer/regression_portfolio.json`) derived and wired
+into `regression.py` — BOTH the summary line and the exit-code list —
+with `_w_digiorg` verifying via `compare_strict` (the only Mode-2
+family in the harness); 22/22 green. `mass_write.py` written (the
+corpus_sync binding + a PCM-sidecar orphan sweep, which
+ARTIFACT_SUFFIXES cannot see). Backlog item 30 DONE: 18 params keys →
+15 while the driver-class registry grew 11 → 14, all byte-identical.
+
+STILL OPEN for this family: the 92 music-paired members (C31-hetero +
+the $D418-ownership split verdict), and Rayden_Digi (item 28) on the
+same schema.
+
+The last three partials were ONE cause, and the most transferable
+finding of the round: the engine CLAMPS a sample row whose end <= its
+start to `end = start+1` **through a branch**, so two rows describing
+the same single page by different arithmetic play identical audio 2
+cycles apart — signal under Mode 2. Not derivable (19 explicit vs 5
+degenerate one-page rows in the corpus; a blanket rule traded three
+partials for two regressions when measured). Ledger C40 3e.
+
+The other six:
 
 - **Digi_Zak_1 + _2 (Sphere)** — the parked "first-tick phase slip"
   was the **NTSC header flag**. The raster-IRQ tick runs at the FRAME
