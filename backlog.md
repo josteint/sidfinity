@@ -1745,6 +1745,25 @@
     sub-shape flags. GATE: the family batch must stay 39/39 (~6 min), and
     where the emission coincides, byte-identity.
 
+    STARTED, PARKED ON BRANCH `digi-universal-driver` (2026-08-30). The
+    composer's 14 templates are GONE there, replaced by one emitter that
+    synthesises a driver from the facts; the extract derives them and
+    to_usf carries them instead of a class name. THREE classes verify FULL
+    through it with no hand-copied code (earbleed 4621/4621, kernal_lock
+    11000/11000, sphere 1200/1200), which proves the emitter — including
+    its optimiser (group writes by value, read into X to preserve A, model
+    A=0 at the RSID entry), without which it could not come in under the
+    terse originals' budgets; xreg hits its 67 cycles exactly.
+    ELEVEN classes still diverge: my hand transcription of their facts is
+    wrong somewhere, and each needs its own comparison against the
+    original. The emitter is not in question. One real bug was found and
+    fixed en route: the value-grouping hoisted writes ABOVE the SEI, so
+    they ran with interrupts live — SEI/CLI are now order barriers.
+    Not merged because main is 39/39 and the branch is not. RESUME by
+    diffing each failing class's facts against its original; better still,
+    do (a) FIRST and let the generic decoder produce the facts, since hand
+    transcription is exactly what went wrong.
+
     HOME OF THE FACTS: params bag first (autonomous, and it already removes
     the enum). The fully principled home is the typed `environment` block —
     these are exactly the trichotomy's §4.3 temporal/environment category —
