@@ -5,7 +5,7 @@
 # dozen measured-but-unfinished investigations. Moved to the repo root and
 # tracked for exactly that reason.
 #
-# NEXT_ITEM: 38   <- autoincrement: a NEW item takes this number, then bump it.
+# NEXT_ITEM: 39   <- autoincrement: a NEW item takes this number, then bump it.
 #
 # CONVENTIONS (owner-set 2026-08-28):
 #  - A done item is REMOVED COMPLETELY — no tombstone, no summary line. The
@@ -100,6 +100,43 @@
            $0Dxx operands) — NOT the plain '85 head; needs a real
            disassembly pass before classifying.
          Migration itself deferred (full per-tune sessions).
+
+38. OWNER DECISION — THE DIGI SAMPLE LOOP POINT (Rayden_Digi, measured
+    2026-08-31). `SampleInstrument` today carries {id, sample, rate_cycles}.
+    That is enough for Digi-Organizer, whose engine has an END pointer and
+    plays each sample ONCE. Rayden's engine instead reloads its pointer from
+    a per-sample LOOP target when it hits the in-stream terminator, and all
+    three behaviours occur in the corpus:
+
+      loop == start            the whole sample sustains  (Morbital s0-s2)
+      loop == the terminator   one-shot, then silence     (all Spelling_Around,
+                                                           Embarassed s2-s6)
+      loop inside the sample   attack + sustain loop      (Morbital s8-s13,
+                                                           e.g. start $4630
+                                                           loop $4D48)
+
+    A digi row carries a DURATION, so the composer must know whether the
+    sample sustains past its own length and from where. It is not derivable
+    from the PCM, and it is audible. So the third case cannot be written to
+    USF today, which blocks `to_usf.py` for 3 of the 4 gated V2 members.
+
+    OPTIONS
+      A (recommended) `SampleInstrument.loop_start: Optional[int]` — the
+        sample offset where playback resumes at the end; absent = one-shot
+        (Digi-Organizer's present behaviour, so every stored file is
+        unaffected). This is the standard sampler loop marker: musically
+        named, ordered, and not an index into anything the engine owns.
+      B  bake the loop into the PCM by repeating it. Lossy (the loop plays
+         for an unbounded time) and it destroys the attack/sustain
+         structure a model could learn.
+      C  carry it in `params.fields`. Named here only to reject it: a typed
+         sibling family exists (option A is one field beside `rate_cycles`),
+         which is exactly the case CLAUDE.md says must be raised rather than
+         quietly taken.
+
+    NOT TAKEN pending owner approval (representation gate). Until then
+    `to_usf.py` can serve one-shot-only members and must refuse the rest
+    loudly. Detail + the measurements: pipelines/rayden_digi/RE_NOTES.md.
 
 37. THE MIRROR OF ITEM 9 — #85 REMOVED MEMBERS, AND NOBODY COUNTED THEM
     (measured 2026-08-31, from the fc_standard re-batch). Item 9 counts what

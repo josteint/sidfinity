@@ -924,6 +924,17 @@ class _T(Transformer):
     def digi_voice_block(self, items):
         orderlist = items[0]
         patterns = list(items[1:])
+        # The orderlist rule is shared with the SID voices, so it hands back
+        # a per-entry `None` for each absent transpose/voiceinc modifier.
+        # `voice_block` collapses those to `[]` (the dataclass's documented
+        # "modifier absent" form) and this rule must too, or an extract that
+        # CONSTRUCTS a digi Orderlist fails `parse(write(x)) == x`. Invisible
+        # to `usf_spec_lint`, whose round-trip starts from a parsed object
+        # and so compares `[None]*n` with itself. A digi voice has no
+        # transpose or voiceinc semantics at all, so `[]` is the only
+        # correct value here.
+        orderlist.transposes = []
+        orderlist.voiceincs = []
         return ('_digi_voice',
                 VoiceBlock(id=0, orderlist=orderlist, patterns=patterns))
 

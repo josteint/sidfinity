@@ -126,6 +126,7 @@ practice, not code to factor).
 | song-end REST before the repeat (no fade; silence by NOT CALLING the player; RESTART first then rest) · typed `MusicSubtune.song_restart_gap` = the rest in play() calls · trigger is STRUCTURAL (every voice has entered its FINAL orderlist entry — a dedicated terminator pattern; peek whether the next track byte is the loop marker) · ⚠ do NOT store the orig's sentinel note (INAUDIBLE, and not even in the pattern data after transposition — §7) nor the survivors (save/restore around the restart, C31 medley carry) · MEASURE the rest (seeds say 255, truth 256) · probe: the rest must be preceded by the init's clear sweep, else a musical silence false-fires · ARM PER SUBTUNE | C38 | logged |
 | song-end master-vol FADE → silence → whole-song RESTART loop · appended PLAY wrapper counts play() to N → `dec` mvol every STEP (note-init `ora mvol/sta $D418` emits it) → `$D418=$00` silence for SIL plays → JMP re-init loop · diverges DEEP in the REPLAY · restart re-runs the SHARED init (clears $1718-$179D, LEAVES $100F-$1018 survivors) · MEASURE schedule + survivors from libsidplayfp not py65 (pc-watch fade STA=N/STEP, writelog $00-run=SIL, memwatch-on-write d418 over silence=note-state) · modular wrapper (count/ramp/silence/songrestart) · ⚠ prime EXACTLY the init-uncleared block (gatemask/curnote/curinst=$1015/shadow17) NOT cinst (the ACTIVE pulse-record $174D that init CLEARS — over-prime sweeps a soft-glide voice's PW) · fade = C10 parametric mvol, restart = C37 sibling (whole-song loop not per-subtune) | C38 | logged |
 | cycle-strict SELF-DRIVEN member (RSID play=0, Mode 2) · interrupt-paced write stream · constant per-write cycle delta = idle-loop phase · late start = timer grid origin · driver cycle-shape mirror + class registry · reachability-gated probes · claimed-vs-batched denominator | C40 | logged |
+| extract landed but the family has NO COMPOSER yet · nothing to judge it · gate it by PREDICTING an observable of the original (the write stream) and walking the measurement with a cursor · CONTENT + TIMING as separate verdicts · every break named, never a mismatch tolerance | C41 | logged |
 | a data table the extract reads at a FIXED OFFSET from another table is a packer-patched OPERAND that can relocate INDEPENDENTLY · DMC filter step-DURATION table assumed at op_filtdef+10 (interleaved) but read via its own `LDA fdu,Y` operand → some members put it elsewhere (Vai/Hardtechno +165, all zeros = never-advancing filter steps) · TELL: a table-driven value right at the start then a DIFFERENT CONTOUR · resolve the table from the PLAY operand (gated on the canon opcode, fallback = the assumed offset, byte-identical) · distinct from C2 (index runs off the table END; here the BASE is wrong) | C39 | logged |
 
 ---
@@ -1514,7 +1515,12 @@ practice, not code to factor).
   produces that run. Validate any new tap by CROSS-EMULATOR byte-identity of
   the captured state (also subsumes the non-perturbation gate). NB
   `writelog_capture` frame indices are COMPACTED (writes-only frames) vs raw
-  siddump frames — localize with same-process captures.
+  siddump frames — localize with same-process captures. ⚠ 2nd GAP: on an
+  INTERRUPT-PACED member the tap UNDER-COUNTS (~90%) — a fast NMI lands
+  between the watched instruction's opcode and operand fetches and breaks
+  the run — so never use `--pc-watch` as a RATE meter there (Rayden_Digi:
+  1.79 calls/frame reported vs a proven 2.0025); a missed event does not
+  make a reported one wrong, only the COUNT is unreliable.
 - FULL ENTRY: [`ledger/C36.md`](ledger/C36.md) — read it before applying.
 
 ### C38 — song-end master-vol FADE → silence → whole-song RESTART loop (appended play wrapper)
@@ -1549,6 +1555,19 @@ practice, not code to factor).
   C37 sibling (survivor-preserving re-init) but a WHOLE-SONG play()-counter loop,
   not a per-subtune dispatch; distinct from C19 (static single-value poke).
 - FULL ENTRY: [`ledger/C38.md`](ledger/C38.md) — read it before applying.
+
+### C41 — an extract with no composer yet: gate it on a PREDICTED write stream
+- PRESENTS: a new family's extract is built, the composer is sessions away,
+  so no rebuild exists and the normal verdict machinery has nothing to judge
+  — the model sits unverified while later work is built on top of it.
+- CANONICAL: if the model determines an observable, PREDICT it and compare
+  against `siddump --writelog`. Walk the measurement with a CURSOR (advance
+  while the current event explains it); every BREAK must be explained by a
+  NAMED engine behaviour, never by a generic mismatch tolerance. Split
+  CONTENT (values + order) from TIMING (durations/rates, fitted with ONE
+  global constant — judge the residual SPREAD, not the absolute scale), and
+  refuse to let an ambiguous alignment inherit content's pass.
+- FULL ENTRY: [`ledger/C41.md`](ledger/C41.md) — read it before applying.
 
 ### C39 — a fixed-offset table read is a packer-patched OPERAND that can relocate independently
 - PRESENTS: a table-driven value (DMC filter cutoff) follows the RIGHT initial

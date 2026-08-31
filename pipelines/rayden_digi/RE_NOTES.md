@@ -1,9 +1,22 @@
 # Rayden_Digi — reverse-engineering notes
 
-**Status (head = current). Family OPENED 2026-08-31; no extract, no composer
+**Status (head = current). EXTRACT BUILT AND GATED 2026-08-31; no composer
 yet.** This is phase 3 of `docs/digi_parametrization_proposal.md` (schema
 landed 2026-08-29; Digi-Organizer, phase 2, closed at 39/39). 17 carriers,
 all `MUSICIANS/R/Rayden/`.
+
+`pipelines/rayden_digi/extract.py` decodes the score, the sample table and
+the playback core; `verify_score.py` gates the result against the
+libsidplayfp `$D418` write stream. Morbital, Morbital_plus and
+Spelling_Around pass BOTH checks (every one of 390,050 / 385,155 / 654,065
+digi writes explained, per-event timing residual p90 ≤ 0.3%);
+Embarassed_Emotions passes CONTENT but its timing is not corroborated (see
+the 2026-08-31 extract section). No USF writer yet.
+
+⚠ **The V1/V2 label is dead for build purposes** — 13 of the 17 carriers,
+NINE of them sidid `Rayden_Digi_V1`, run the SAME sequencer. See "one
+sequencer, two playback cores" below; it is the measured backing for the §8
+guard, not just an argument.
 
 ## 2026-08-31 — family opened; V1 vs V2 are DIFFERENT PACING TOPOLOGIES
 
@@ -305,6 +318,210 @@ sample-vs-rate, and each command is followed by its duration byte.
 **V2 is extract-ready.** Every musical degree of freedom has a home and the
 composer keeps every mechanism.
 
+## 2026-08-31 — ONE SEQUENCER, TWO PLAYBACK CORES (the V1/V2 label dies)
+
+The sequencer is located by a signature that assumes nothing about the
+version: a `JMP reset / JMP tick` head whose tick opens with the duration
+countdown `DEC zp / BEQ +1 / RTS`. Run over all 17 carriers it finds **13**,
+and nine of those are sidid `Rayden_Digi_V1`:
+
+    found (13)   1970s_style_Hammond_Organ $0820  4_Ever_Young_2SID   $0840
+                 Cyclones_Birthday        $0820  Embarassed_Emotions $0820
+                 Fast_Moving              $0820  Im_So_Excited-I_Just $0820
+                 Lost_Patrol_v2           $0820  Lost_Super_Scrotum   $0820
+                 Morbital                 $0820  Morbital_plus        $0820
+                 Panzer_im_Kopp           $2620  Popel_Premiere_2SID  $0820
+                 Spelling_Around          $0820
+    not found (4) Boot_Zak_v2, Knusprig_Sampl_Checka,
+                  Smooth_Mumu_Operating, Trinkhoffs_and_Doenerpuste
+
+So the family splits as **one score/sample/rate model + (at least) two
+playback cores**, not as two engines. What sidid calls V1 vs V2 is the CORE
+(unrolled raster burst vs vector-swapped NMI handlers), and the raster-burst
+census already showed that burst has exactly ONE carrier. The build must
+branch on the measured core, never on the version string — the §8 guard
+above now has a measurement behind it.
+
+⚠ The head is NOT at the PSID load address on every member: Spelling_Around
+loads at `$0801` with the module at `$0820`, and Panzer_im_Kopp's module is
+at `$2620`. Locate it; do not compute it.
+
+## 2026-08-31 — THE EXTRACT, AND WHAT THE WRITE STREAM PROVES
+
+### The sequencer, decoded from its own operands
+
+    head+0  JMP reset      reset:  clear sample/rate/block vars, load the
+    head+3  JMP tick               score pointer from head+6, set dur = 1
+    head+6  score start pointer (lo,hi)
+    head+8  loop-back pointer   (lo,hi)
+
+`tick` is called from the member's raster IRQ (Morbital: from 2 of its 4
+multispeed slots ⇒ a measured 2.0025 ticks/frame). It counts the duration
+down and, on expiry, decodes the next command:
+
+    byte >= $80   SAMPLE: sample# = byte & $0F, then a RATE byte follows
+    byte <  $80   RATE only: re-trigger the CURRENT sample at a new pitch
+    then          a DURATION byte, in ticks ($00 = 256)
+
+Every command ends in the trigger, so **a rate-only command is a full
+re-trigger** — every event is a note-on. Two-level members
+(Embarassed_Emotions, Spelling_Around) put an ORDERLIST of block indices in
+front of this, each entry indexing a word table of block pointers; `$FF`
+ends a block, `$FF` in the orderlist reloads from head+8. Single-level
+members (Morbital) run one block that `$FF` loops directly.
+
+Two SMC knobs ride the sample path and are simulated, never modelled:
+Morbital patches the LATCH TABLE BASE (`LDX #$60 / STX <operand>`),
+Embarassed patches a rate-index BIAS (`ADC #imm`, $0C for samples 0-1 and
+$00 above — a per-sample rate-table bank), Spelling has both patch stores
+neutered to `BIT` and a fixed latch immediate. All of it collapses into the
+resolved per-event latch.
+
+### The sample table's second word is a LOOP pointer, not an end pointer
+
+`(start, loop)` word tables, both indexed by sample#×2. Playback runs from
+`start` to the in-stream `$1F` terminator, then reloads the pointer from
+`loop`. That target is either DATA (a sustain loop — Morbital's sample 1
+plays $2A02.. then loops $3200..) or **the terminator byte itself**, which
+makes the sample a ONE-SHOT: the handler then re-terminates every NMI and
+the voice is silent until the next trigger (every Spelling sample, and
+Embarassed's 2-6). Morbital's sample 0 is a 1-byte `$99` + terminator — a
+constant level 9, i.e. the tune's silence.
+
+### The latch table is a 12-TET TUNING TABLE
+
+`$1C60` (Morbital) / `$0F00` (Embarassed) hold `$019E $0187 $0171 $015C
+$0149 $0136 $0125 $0114 $0105 $00F6 …` — successive ratios 1.0588…, against
+2^(1/12) = 1.0595. The score's rate byte is therefore a NOTE INDEX and the
+digi voice is a pitched, melodic channel, not a drum track.
+
+🔶 **OWNER QUESTION, not acted on.** The landed schema carries this as a
+per-row `rate=$XXXX` latch override, which is what this extract will emit —
+a genuine parameter (ordered, interpolable), so it is not the §7 forbidden
+shape and needs no approval. But `SampleInstrument.rate_cycles` + per-row
+latches spend a tuning table's worth of structure on magic constants, where
+SID voices get `Pitch` + a `freq_table`. Carrying the digi voice as
+note + digi tuning table would put both channels in ONE parameter space
+(§9 test 4) and is what the §9 tiebreaker's "relationship over the frozen
+measurement" points at. It is a schema change, so it is parked as a
+question rather than taken.
+
+### What the write stream proves (`verify_score.py`)
+
+The model predicts the entire `$D418` stream, so the extract has a verdict
+without a composer. CONTENT walks the measured stream and requires the
+current event to explain every write until it breaks, and each break to be
+either an insertion or the next event's onset; TIMING fits ONE
+cycles-per-tick constant across all segments.
+
+Measured over each member's FULL songlength (see the warning below — a 60 s
+window gave a materially different, better-looking answer):
+
+| member | digi writes explained | events | ticks/frame | residual p90 |
+|---|---:|---:|---:|---:|
+| Morbital (280 s) | 1,957,156 / 1,957,156 | 468 | 2.0017 | 0.151% |
+| Morbital_plus (460 s) | 3,152,731 / 3,152,731 | 737 | 2.0004 | 0.140% |
+| Spelling_Around (345 s) | 3,704,788 / 3,704,790 | 1388 | 1.1169 | 3.454% |
+| Embarassed_Emotions (270 s) | 1,935,059 / 1,935,065 | 964 | — | ⚠ not corroborated |
+
+Morbital and Morbital_plus land on their raster IRQ's two tick calls per
+frame to within 0.09% — an independent confirmation of the whole chain
+(score walk, sample tables, `latch + 1` NMI period, terminator ratio).
+
+Spelling's fitted RATE reads ~12% low AND its residuals cluster around a
+systematic ~3.4%, because its 67-cycle NMI period is short enough that VIC
+badlines swallow interrupts; the residual SPREAD, not the absolute scale, is
+what validates the score there.
+
+### ⚠ THE 60-SECOND ANSWER WAS WRONG, AND IT LOOKED BETTER THAN THE TRUE ONE
+
+At a 60 s capture all three of those members reported "every write
+explained". At full songlength the same code lost alignment at 28-65% of
+each song. The cause is a genuinely ambiguous case, not a model error: a
+re-trigger INSIDE a long constant run of the outgoing sample is locally
+invisible — the cursor sails past the true boundary and only breaks where
+the run ends, so no candidate near the break is right. Morbital's silence
+sample is one byte (`$99` + terminator), so its runs are tens of thousands
+of writes long.
+
+The fix is a TWO-PASS alignment: pass 1 fits the tick rate from whatever
+aligns unambiguously, pass 2 uses it to place the hidden onsets, and pass 2
+is kept only if it explains more of the stream. The consequence to remember
+is that CONTENT and TIMING are then **not fully independent** — a member
+leaning on the prior has a content result that partly assumes timing, which
+is why `verify` reports `run_resolved_onsets`.
+
+This is the project's "measure a digi member over its FULL songlength" rule
+paying for itself (it was written for a different failure — a short window
+landing in an idle intro). Note the shape: **the short measurement did not
+look truncated or noisy, it looked CLEAN.** A partial capture of a looping
+score reports a perfect prefix.
+
+Embarassed passes CONTENT but 1.2% of its writes go through the insertion
+path, because its dominant sample is a 1-byte constant AND its IRQ asserts
+an idle level every frame — so event boundaries inside a silent run are not
+pinned down and its durations/latches stay unverified. `verify_score`
+reports this explicitly (`timing_ok`) rather than calling it a pass.
+
+### Three engine facts the gate had to learn (all visible in the stream)
+
+1. **Re-trigger phase.** The trigger does NOT reset the NMI vector. With
+   handler B pending, B writes one STALE nibble (the previous sample byte's
+   high nibble, still sitting in its own `LDA` operand) and INCs the
+   pointer PAST the new sample's first byte — so the event starts at sample
+   offset 2. Both phases occur throughout every member.
+2. **Per-frame idle assertion.** Embarassed's raster IRQ runs
+   `JSR <music play> / LDA <or_mask slot> / ORA #$0A / STA $D418 / JSR
+   <digi tick>` — an idle-level write inserted into the sample stream every
+   frame without touching the digi pointer. That is the schema's
+   `DigiConfig.idle_level`; Morbital and Spelling have no such write.
+3. **The NMI period is `latch + 1`.** Per-write deltas ALTERNATE (Morbital
+   at latch $68: 96 / 219 for a 2-writes-per-3-NMI sample) because handler
+   A reaches its `STA $D418` ~9 cycles later than handler B; only the
+   pair-sum is a clean multiple. The `latch+1` model is what makes the
+   timing fit land on exactly 2.0025 ticks/frame.
+
+### or_mask is the MUSIC's filter mode, poked into the handlers
+
+The DMC player's filter note-init at `$12A5`/`$12A7` (Morbital `$12A7`/
+`$12A9`) does `LDA filtdef,y / AND #$0F / ASL ×4 / STA <handler A mask> /
+STA <handler B mask>` — a C19-family wedge that re-points the canon
+`$D418` mode|vol store into the digi's `ORA #imm` operands. So the mask is
+literally the music's filter routing, carried through because the digi owns
+the register. It is CONSTANT per member over the whole song (measured, all
+four), which is why `DigiConfig.or_mask` is the right home — but the
+extract MEASURES it and refuses on any member where it moves, rather than
+assuming. A member whose filter defs disagreed would need a per-event
+carrier.
+
+### A latent USF round-trip bug the first digi EXTRACT surfaced
+
+Building the objects (`to_usf.roundtrip`) immediately failed
+`parse(write(x)) == x`: the shared orderlist grammar rule hands back a
+per-entry `None` for every absent transpose/voiceinc modifier, `voice_block`
+collapses those to `[]`, and `digi_voice_block` did not — so a digi voice
+parsed as `transposes=[None]*n` while any extract CONSTRUCTS it as `[]`.
+
+`usf_spec_lint` structurally cannot see this: its round-trip starts from a
+PARSED object, so it compares `[None]*n` with itself and passes. It only
+bites when something builds an Orderlist directly — which, before Rayden,
+only Digi-Organizer's `to_usf` did, and it never compared. Fixed in
+`src/usf/parser.py`; 12,731 stored `.usf` still parse and `usf_spec_lint` is
+clean. Worth remembering as a shape: **a writer/parser asymmetry is
+invisible to any check that starts from the parser's own output.**
+
+### ⚠ `--pc-watch` UNDER-COUNTS on an NMI-paced member (ledger C36 corollary)
+
+Counting sequencer calls with `--pc-watch` gave 1.79 ticks/frame where the
+write stream proves 2.0025 — a systematic ~10% loss. C36's execution
+discriminator needs three consecutive ascending bus reads, and an NMI firing
+every ~105-210 cycles regularly lands between a watched instruction's opcode
+and operand fetches, breaking the signature. There is deliberately no
+tick-rate probe in `extract.py` for this reason; the rate comes out of the
+timing fit instead. (The tick's own entry is additionally invisible to
+pc-watch: `DEC zp` is 2 bytes and its third bus read is the zero-page
+operand, not PC+2 — watch the head's 3-byte `JMP` instead.)
+
 ## OPENER FOR A FRESH SESSION (written 2026-08-31)
 
 ⚠ An opener rots — backlog item 18's had to be banner-marked SUPERSEDED.
@@ -314,13 +531,16 @@ reality, and re-date or delete this block when V2's extract lands.
 
 ▎ Continue the Rayden_Digi migration (phase 3 of
 ▎ docs/digi_parametrization_proposal.md). Read
-▎ pipelines/rayden_digi/RE_NOTES.md FIRST — the whole V2 player is
-▎ decoded there and the five RE questions are closed.
+▎ pipelines/rayden_digi/RE_NOTES.md FIRST — the player is decoded, the
+▎ five RE questions are closed, and the extract is built and gated.
 ▎
-▎ Do V2 first (4 members; Morbital is the decoded one, Morbital_plus
-▎ shares its player). V1 is 13 members, same schema, playback core not
-▎ yet decoded; Boot_Zak_v2 additionally needs a raster-burst path and is
-▎ the ONLY carrier of it.
+▎ The extract (extract.py) + its ground-truth gate (verify_score.py) are
+▎ done: 3 of the 4 sidid-"V2" members explain their ENTIRE $D418 stream.
+▎ Next is to_usf.py (NEXT item 7), then the 9 other members the locator
+▎ already finds — they are sidid "V1" but run the SAME sequencer, and
+▎ only their playback CORE is undecoded (decode_core refuses anything
+▎ outside zero page, so it will say so). Boot_Zak_v2 additionally needs
+▎ a raster-burst path and is the ONLY carrier of it.
 ▎
 ▎ Non-negotiables, all of which cost time to learn:
 ▎ - The file image LIES. V2's handlers are copied to zero page and their
@@ -348,15 +568,36 @@ reality, and re-date or delete this block when V2's extract lands.
 ▎ music and digi init come from one routine. Settle it on a real member
 ▎ before writing the composer's init path.
 
-## NEXT (in order)
+## NEXT (in order, updated 2026-08-31 after the extract landed)
 
-1. ~~Measure the V2 relocation~~ ✅ done above (zero page).
-2. ~~Confirm the nibble packing~~ ✅ done above (`table[b]=b>>4`, low-first).
-3. ~~The CIA2 latch (playback rate)~~ ✅ MEASURED — see below.
-4. ~~The sample TABLE / score~~ ✅ MAPPED — see below. V2 is extract-ready.
-5. ~~V1 raster-burst~~ ✅ ANSWERED — see below. ONE carrier in 17.
-6. Only then: extract → `digi_voice` + `sample_instrument` rows, reusing the
-   Digi-Organizer path for V2.
+1. ~~Measure the V2 relocation~~ ✅ zero page.
+2. ~~Confirm the nibble packing~~ ✅ `table[b]=b>>4`, low-first.
+3. ~~The CIA2 latch (playback rate)~~ ✅ MEASURED; and the table is 12-TET.
+4. ~~The sample TABLE / score~~ ✅ MAPPED and decoded.
+5. ~~V1 raster-burst~~ ✅ ANSWERED. ONE carrier in 17.
+6. ~~Extract~~ ✅ `extract.py` + `verify_score.py`; 3 of 4 V2 members pass
+   both checks against the write stream.
+7. **`to_usf.py`** — `digi {}` + `sample_instrument` + a `digi_voice` whose
+   rows are (instr, `rate=$XXXX`, duration). Two-level members map straight
+   onto orderlist+patterns; single-level ones are a one-entry looping
+   orderlist. Rayden is the FIRST producer of the per-row `rate=` override,
+   so round-trip it through `usf_corpus_check` + `usf_spec_lint` early.
+   ⛔ **BLOCKED on backlog item 38 for 3 of the 4 gated members**: the
+   sample LOOP POINT has no home in `SampleInstrument`, and Rayden's engine
+   uses all three forms (loop-to-start / one-shot / attack+sustain loop).
+   Parked as an owner decision, NOT worked around via `params`. A writer can
+   serve one-shot-only members (Spelling_Around) meanwhile.
+8. **Run the locator + gate over the other 9 located members** (all sidid
+   V1). Their playback core is not yet decoded — `decode_core` refuses
+   anything outside zero page — so expect the refusal to name the work.
+9. **The 4 members with no head match** (Boot_Zak_v2, Knusprig_Sampl_Checka,
+   Smooth_Mumu_Operating, Trinkhoffs_and_Doenerpuste): find out whether the
+   sequencer is a variant shape or genuinely different.
+10. The composer, and with it the §5 verification split. NOTE the measured
+    complication: in Embarassed the DIGI ENGINE itself writes `$D418` from
+    the raster IRQ every frame (the idle level), so "the digi owns $D418"
+    holds but "one writer" does not — the composer must reproduce that
+    write's placement, and it is Mode-2 signal.
 
 ## Verification (from the proposal §5, unchanged)
 
