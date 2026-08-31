@@ -305,6 +305,49 @@ sample-vs-rate, and each command is followed by its duration byte.
 **V2 is extract-ready.** Every musical degree of freedom has a home and the
 composer keeps every mechanism.
 
+## OPENER FOR A FRESH SESSION (written 2026-08-31)
+
+⚠ An opener rots — backlog item 18's had to be banner-marked SUPERSEDED.
+THIS FILE is the durable entry point; the block below is a convenience.
+Before pasting it, check that the ✅ marks in "NEXT" below still match
+reality, and re-date or delete this block when V2's extract lands.
+
+▎ Continue the Rayden_Digi migration (phase 3 of
+▎ docs/digi_parametrization_proposal.md). Read
+▎ pipelines/rayden_digi/RE_NOTES.md FIRST — the whole V2 player is
+▎ decoded there and the five RE questions are closed.
+▎
+▎ Do V2 first (4 members; Morbital is the decoded one, Morbital_plus
+▎ shares its player). V1 is 13 members, same schema, playback core not
+▎ yet decoded; Boot_Zak_v2 additionally needs a raster-burst path and is
+▎ the ONLY carrier of it.
+▎
+▎ Non-negotiables, all of which cost time to learn:
+▎ - The file image LIES. V2's handlers are copied to zero page and their
+▎   operands are $EA filler; the static ORA says $00 where the runtime
+▎   says $30. Every value comes from siddump (--peek-post-init,
+▎   --pc-watch, --memwatch-on-write), never py65 and never an image byte.
+▎ - Locate every store PER MEMBER. Watching one member's PCs against
+▎   another's image returns a confidently wrong answer.
+▎ - Measure over the FULL songlength. A short window on a bursty digi
+▎   reports a constant value and reads as a stuck master volume.
+▎ - §8 GUARD: no rayden_v1/rayden_v2 branch in the composer, and no
+▎   "detect V2 -> call the Digi-Organizer emitter". Branch only on
+▎   technique/or_mask/rate_cycles/score. All three of those vary per
+▎   MEMBER and cut across the V1/V2 line anyway.
+▎
+▎ The schema is landed and needs nothing new — but the per-row
+▎ `rate=$XXXX` override has NO producer and no corpus member, so Rayden
+▎ is its first real user. Round-trip it early.
+▎
+▎ Verification: split the stream by $D418 ownership — music Mode 1 flat,
+▎ digi Mode 2 cycle-strict (proposal §5).
+▎
+▎ Open design question, unmeasured: Digi-Organizer's members are
+▎ digi-only, so nothing has tested a SHARED music+digi init. Rayden's
+▎ music and digi init come from one routine. Settle it on a real member
+▎ before writing the composer's init path.
+
 ## NEXT (in order)
 
 1. ~~Measure the V2 relocation~~ ✅ done above (zero page).
