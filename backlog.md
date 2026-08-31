@@ -74,6 +74,16 @@
        GoatTracker_V2.x     7,797         263 new +238 rec = 501
        Soundmonitor         3,682          44     + 38     =  82
        JCH_NewPlayer        3,687          13     + 67     =  80
+       SIDDuzz'It           1,006      new/rec not measured (added 2026-08-31)
+         `engine_docs` state is already OK and research sits at
+         `pipelines/sidduzzit/`, so this one is CLEARED TO DISASSEMBLE —
+         it is on this list for lack of a pipeline, not for lack of docs.
+         It first mattered on 2026-08-31 as a DMC BLOCKER, which is why it
+         is here rather than waiting its turn by size: Blues_Muz/Tanks_3000
+         (f1) packs a SIDDuzz'It player at $1000 beside 1 DMC v4 + 5 DMC v5
+         players, with 5 of its 13 subtunes routed to it — so that member is
+         C35 (one file, more than one COMPOSER) and cannot close until this
+         family has a composer. Full diagnosis in item 28's bucket B.
        Rob_Hubbard            289 total — the 2 new/recovered need
          per-engine EngineConfigs (the Hubbard path is per-tune, not a
          wide batch). ✅ IDENTIFIED 2026-08-20 (both are truncation-fix
@@ -1532,6 +1542,20 @@
         1 only, sub 2 = chip 2 only with ONE $D418 write — **subtune 2 has
         no digi at all**. The member is blocked wholesale by the assert, but
         a third of it needs no digi support.
+      * ⛔ THAT DOES NOT GENERALISE — censused 2026-08-31 over all 17
+        carriers / 22 subtunes, each at its full songlength (per-chip
+        $D418 rate + value spread): **20 of 22 subtunes are digi, 2 are
+        digi-free**, and the 2 are exactly the third subtune of the two
+        2SID members (Popel sub 2: chip 1 emits 1 write all song while
+        chip 2 carries 281,829 writes / 364 $D418 at rate 0.04 = ordinary
+        DMC music; 4_Ever_Young_2SID sub 2: chip 1 emits 2, chip 2 280,626).
+        Every single-chip member is digi on every subtune.
+        CONSEQUENCE: there is NO partial-credit path. Both digi-free
+        subtunes belong to members whose OTHER subtunes are digi, so no
+        member of this class can reach FULL before the digi schema lands.
+        Do not go looking for "some of these might build today" — measured,
+        none can. The whole class waits on the owner-gated
+        `docs/digi_parametrization_proposal.md`.
         ⛔ Do NOT "fix" this by adding `master_vol_static` to
         MULTISID_PER_CHIP_KEYS (a 1-word change; both sides already carry
         per-chip keys as ';'-separated parts). It would let the merge
