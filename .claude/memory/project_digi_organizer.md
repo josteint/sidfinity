@@ -8,7 +8,17 @@ metadata:
   modified: 2026-08-30T20:43:02.506Z
 ---
 
-## 2026-08-30 (22:40) — ⚠ THE STORED ARTIFACTS ARE STALE: re-run the mass-write
+## 2026-08-31 (06:25) — ✅ RESOLVED: artifacts re-synced under the new driver
+
+Mass-write re-run at the owner's go: 39/39 written, 12 audited from disk,
+and the independent probe (`tools/verdict_staleness_probe.py`) now reports
+39/39 byte-identical where it reported 0/39. `usf_corpus_check` green
+(12,731 stored .usf, 0 fail). The stored `.usf` now carry the parametric
+`digi_drv_*` surface. Verdicts and artifacts agree again.
+
+What it was (kept, because the SHAPE recurs — C20 third layer):
+
+## 2026-08-30 (22:40) — the stored artifacts were stale: re-run the mass-write
 
 Verdicts are current (39/39 FULL, current code_hash), but the 39 stored
 `.usf` on disk are NOT: all 39 raise `DigiComposeError: driver overshoots

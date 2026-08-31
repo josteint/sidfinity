@@ -1905,54 +1905,6 @@
     92 music-paired members are unmeasured; Rayden_Digi is the next family
     on the same schema and will have the same authoring idiom.
 
-34. ⚠ DIGI_ORGANIZER'S 39 STORED .usf DO NOT REBUILD THEIR STORED .sid
-    (measured 2026-08-30 22:37, found while measuring item 31; the family
-    was declared CLOSED and mass-written this morning). Rebuilding each
-    stored `.usf` under current code raises on ALL 39:
-
-      DigiComposeError: driver overshoots its cycle budget by 6
-      (pipelines/digi_organizer/composer_asm.py:575)
-
-    CAUSE — tonight's universal-driver parametrization (c999ff81 20:23
-    through c42e5e6c 21:39) replaced the driver's params surface. Diffed
-    on 2NY/Heavy-Beat, stored vs a fresh extract:
-
-      stored (09:38)          fresh (now)
-        digi_driver: irq_vec    digi_drv_cyc / digi_drv_pcyc / digi_drv_post
-        digi_tick_d011: 27      digi_drv_pre / digi_drv_tail / digi_drv_wrap
-        digi_tick_raster: 129
-
-    The mass-write ran at ~09:38, BEFORE the driver work. The batch re-ran
-    at 21:44 and reports 39/39 FULL with a current code_hash — correctly,
-    because a batch EXTRACTS FRESH and never reads the stored .usf.
-
-    So: rows current, artifacts stale. Ledger C20 third layer, in its
-    exact documented shape — and invisible to every other gate:
-      * code_hash    — green (the rows really were earned by current code)
-      * corpus_check — green (the old .usf still PARSES; the dead keys sit
-                       in the wild `params` bag, which is why nothing
-                       type-checks them)
-      * regression   — green (portfolio members build from a fresh extract)
-    The ONE gate that sees it is `corpus_sync.audit_rebuild`, which
-    digi_organizer's mass_write.py already binds (--audit) — it simply has
-    not been re-run since the driver landed.
-
-    FIX (cheap, 39 members): re-run
-      python3 pipelines/digi_organizer/mass_write.py --audit 12
-    NOT DONE TONIGHT — it mutates the stored corpus, and the owner may
-    want to look at the universal-driver work first. Deliberately left for
-    a waking decision rather than done unattended.
-
-    GENERAL LESSON, worth more than the incident: a family closeout has
-    TWO write-side steps that can drift apart — the batch (verdicts) and
-    the mass-write (artifacts) — and a composer change lands between them
-    silently. The rule "re-run the mass-write after ANY composer change,
-    not just after a batch" belongs in the closeout checklist. Note also
-    that basic_program, music_assembler and goattracker_v1 do not use
-    corpus_sync at all, so they have no audit_rebuild binding and this
-    class is currently undetectable for them (basic_program has 489 stored
-    .usf written inline by its batch).
-
 35. REVIEW THE UNIVERSAL DIGI DRIVER (landed 2026-08-30 20:23-21:39, not yet
     reviewed). Five commits in ~3 h replaced the 14-entry driver CLASS
     REGISTRY with a generic instruction-walk decoder plus one parametric
@@ -2008,9 +1960,13 @@
       d. The two prototypes committed into `pipelines/digi_organizer/docs/`
          (c431fb6e) are item 31's third instance — do they still earn a place
          beside the family now the work has landed?
-      e. 39/39 FULL was measured on FRESH extracts; item 34 shows the stored
-         artifacts never rebuilt. Re-run the mass-write as part of accepting
-         this work, not separately.
+      e. ✅ SETTLED 2026-08-31: the stored artifacts had never been rebuilt
+         under the new driver (all 39 raised on the old params surface). The
+         mass-write was re-run at the owner's go: 39/39 written, 12 audited
+         from disk, and the independent probe now reports 39/39 byte-
+         identical. So the driver work is self-consistent end to end — that
+         is no longer a reason to withhold acceptance, and the design
+         question in this item stands on its own.
 
     NOT URGENT: the family verifies, nothing is blocked on it, and the
     coverage claim is honest. This is a design review of a fast, large,
