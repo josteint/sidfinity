@@ -1512,12 +1512,26 @@
         Spelling_Around (V2 beside ROB_HUBBARD — not even a DMC member).
       * ✅ CONFIRMED 2026-08-31, and the tempting fix REFUTED. Popel's
         assert (`chips disagree on player params: [{'master_vol_static': 9},
-        {}]`) is DOWNSTREAM OF THE DIGI, not a separate bug: measured on the
-        original, chip 1 writes its $D418 **63,944 times in 1,000 frames**
-        (rate 63.9/frame, 63,895 of them the value $09) while chip 2 writes
-        its own 49 times. The `master_vol_static` probe fires on chip 1
-        because that player's canon $D418 stores really are neutered — but
-        the register is owned by the Rayden digi driver, not held static.
+        {}]`) is DOWNSTREAM OF THE DIGI, not a separate bug: over a FULL
+        180 s capture chip 1's $D418 carries a real 4-bit PCM distribution
+        ($09 ×164,664 / $08 ×81,599 / $07 ×76,203 / $06 ×62,492 / $0A
+        ×39,740 / $05 ×34,977 / ...), ~64 writes per frame, with 3,285
+        frames changing value WITHIN the frame; chip 2 writes its own $D418
+        49 times. The `master_vol_static` probe fires on chip 1 because that
+        player's canon $D418 stores really are neutered — and $09 is the
+        digi's IDLE LEVEL, written once by the init wrapper. So the param is
+        literally true about the init and wrong as a model: the register is
+        owned by the Rayden NMI driver, not held static.
+        ⚠ CAPTURE-WINDOW TRAP, hit here: a 20 s capture lands entirely in
+        the intro, where the driver idles, and reports "63,895 writes of a
+        CONSTANT $09" — which reads as a stuck master volume rather than a
+        sample. The digi is BURSTY: 4,844 of 9,000 frames carry writes and
+        they stop at frame ~4,843 (~97 s). Measure a digi member over its
+        songlength, never a short window (C20 eighth layer's cousin).
+        ⚠ USEFUL: the digi is PER-SUBTUNE. sub 0 = both chips, sub 1 = chip
+        1 only, sub 2 = chip 2 only with ONE $D418 write — **subtune 2 has
+        no digi at all**. The member is blocked wholesale by the assert, but
+        a third of it needs no digi support.
         ⛔ Do NOT "fix" this by adding `master_vol_static` to
         MULTISID_PER_CHIP_KEYS (a 1-word change; both sides already carry
         per-chip keys as ';'-separated parts). It would let the merge
