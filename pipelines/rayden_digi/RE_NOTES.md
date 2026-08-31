@@ -149,13 +149,49 @@ is the sample (FLAC sidecar, C7-C), `$30` is `DigiConfig.or_mask`, the
 pointer/terminator/table/vector-swap are all MECHANISM and stay in the
 composer.
 
+## 2026-08-31 (later still) — THE RATE MODEL (proposal §8, `rate_cycles`)
+
+CIA2 timer A latch, read by watching each member's OWN `STA $DD04`/`$DD05`
+sites (`--pc-watch`, A sampled pre-instruction on a 3-byte store) and then
+counting every runtime write to `$DD04` over 60 s:
+
+| member | ver | init latch | distinct latches at runtime | model |
+|---|---|---|---:|---|
+| Boot_Zak_v2 | V1 | `$0072` (114c, 8643 Hz) | **1** | fixed |
+| Spelling_Around | V2 | `$0042` (66c, 14928 Hz) | **1** | fixed |
+| Lost_Patrol_v2 | V1 | `$008A` | 7 (`$A4 $9B $8A $B8 $AE …`) | per-event |
+| Morbital | V2 | `$0068` | 10 (`$68 $7B $6E $8A $52 …`) | per-event |
+| Morbital_plus | V2 | `$0068` | — | (same player as Morbital) |
+| Embarassed_Emotions | V2 | `$00CF` | 7 (`$68` ×103, `$74` ×35, …) | per-event |
+
+**Per-event pitch appears in BOTH V1 and V2, and so does the fixed-rate
+case** — like `or_mask`, the rate model is a PER-MEMBER property, not a
+version property. Latch high byte is `$00` on all six.
+
+Maps onto the landed schema with nothing new: `SampleInstrument.rate_cycles`
+carries the per-sample default, a per-row rate override carries the pitched
+events (the proposal's "optional rate override"). Carry the LATCH, not Hz —
+the integer cycle count is the authored quantity (Principle §9 tiebreaker).
+
+⚠ TWO TRAPS, both hit while measuring this:
+- **The init latch is NOT the playback rate.** Embarassed_Emotions programs
+  `$CF` at init and then uses it 4 times out of 165; its real workhorse is
+  `$68`. An extract that reads the init store alone gets a rate that is
+  wrong by 2× for most of the song. Read the runtime distribution.
+- **The store SITES differ per member** ($08CE/$08D4 on Morbital,
+  $08DA/$08E0 on Embarassed + Spelling, $0CA0/$0CA6 on Boot_Zak,
+  $08D2/$08D8+$2854 on Lost_Patrol). Watching one member's PCs against
+  another's image returns a plausible WRONG latch — it did here, reporting
+  `$7E70` and `$486F` before the sites were scanned per member. Locate the
+  store in each image first; never generalise an address.
+- Cross-check that validates the whole method: Boot_Zak's latch `$72` = 114
+  cycles and its dominant measured inter-write delta is 114c ×362,052.
+
 ## NEXT (in order)
 
 1. ~~Measure the V2 relocation~~ ✅ done above (zero page).
 2. ~~Confirm the nibble packing~~ ✅ done above (`table[b]=b>>4`, low-first).
-3. **The CIA2 latch (playback rate)** — read $DD04/$DD05 as PROGRAMMED, not
-   from the image; it is `SampleInstrument.rate_cycles`. The measured
-   $D418 rates (110-217/frame) imply the latch varies per member.
+3. ~~The CIA2 latch (playback rate)~~ ✅ MEASURED — see below.
 4. **The sample TABLE / score**: where the (sample, rate, duration) event
    stream lives for V2, and whether $2A00 is a fixed base or per-event.
 5. **V1 raster-burst**: measure which members use it and whether it is a
