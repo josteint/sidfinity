@@ -98,19 +98,70 @@ or_mask, rate latch, the relocated handler base) must come from
 ([[feedback_ground_truth]] third failure mode; the hook fired on exactly
 this during the session and was right to).
 
+## 2026-08-31 (later) — V2 PLAYBACK CORE FULLY DECODED (proposal §8 q1 CLOSED)
+
+**The handlers are copied into ZERO PAGE.** `--pc-trace` settles it: the
+executing PCs are $0020/$0022/$0025/$0027 and $0037/$003A/$003C (~205 hits
+each in 2 frames), while $28A2 is just the `CLI / JMP *` idle loop. That is
+why `$FFFB` reads `$00` — the NMI vector really is `$00xx`. Zero page is
+chosen so the sample pointer can BE an instruction operand and be `INC`d
+directly (below).
+
+Read back with `--peek-post-init 0020-0060` (zero page is RAM — no banking
+question, unlike `$FFFA` under the KERNAL):
+
+    $0020  STA $3B            save A (never restored — the idle loop is a
+                              bare `JMP *`, so a clobbered A is harmless)
+    $0022  LDA $2A00          ⟵ the operand bytes ARE $0023/$0024 = the
+                              16-bit sample pointer, self-modified in place
+    $0025  CMP #$1F           in-stream terminator (same as V1)
+    $0027  BEQ $0058          → LDA #$00/STA $23, LDA #$2A/STA $24 = LOOP
+                              the pointer back to $2A00
+    $0029  STA $40            raw byte → handler B's LDA operand LOW byte
+    $002B  AND #$0F           LOW nibble
+    $002D  ORA #$30           ⟵ or_mask  (THE FILE IMAGE SAYS $00)
+    $002F  STA $D418
+    $0032  LDA #$3D / STA $FFFA      swap NMI vector → handler B
+    $0037  BIT $DD0D / RTI           ack CIA2
+
+    $003D  STA $56
+    $003F  LDA $2699          ⟵ operand LO was written by A = table[raw]
+    $0042  ORA #$30
+    $0044  STA $D418
+    $0047  INC $23 / BNE / INC $24   advance the sample pointer (ONE byte
+                                     per PAIR of writes ⇒ 2 samples/byte)
+    $004D  LDA #$20 / STA $FFFA      swap back → handler A
+    $0052  BIT $DD0D / RTI
+
+**Nibble packing, confirmed by reading the table**: `--peek-post-init
+2600-262F` returns `00 ×16, 01 ×16, 02 ×16 …` — i.e. `table[b] = b >> 4`, a
+256-byte high-nibble lookup at $2600. So the high nibble is fetched by TABLE
+READ rather than four `LSR`s (cheaper in the NMI), and handler A's `STA $40`
+is what indexes it.
+
+So V2 = **2 samples per byte, LOW nibble first then HIGH**, two
+vector-swapped zero-page handlers, `$1F` terminator, pointer self-modified in
+the operand. NB Digi-Organizer's order is HIGH then LOW (proposal §2) — same
+technique, opposite phase; the composer must not assume one.
+
+Everything here is MUSICAL CONTENT the schema already has: the nibble stream
+is the sample (FLAC sidecar, C7-C), `$30` is `DigiConfig.or_mask`, the
+pointer/terminator/table/vector-swap are all MECHANISM and stay in the
+composer.
+
 ## NEXT (in order)
 
-1. **Measure the V2 relocation**: `--peek-post-init` over the handler pages
-   to find where the two handlers land and read their PATCHED operands
-   (base, sample pointer, or_mask, CIA latch). That closes proposal §8's
-   "V2 bit layout/pacing".
-2. **Confirm the nibble packing** from the running handlers — handlerA does
-   `AND #$0F` (low nibble) but handlerB has no shift in the image copy;
-   resolve against the relocated code, not this one.
-3. **V1 raster-burst**: measure which members use it and whether it is a
+1. ~~Measure the V2 relocation~~ ✅ done above (zero page).
+2. ~~Confirm the nibble packing~~ ✅ done above (`table[b]=b>>4`, low-first).
+3. **The CIA2 latch (playback rate)** — read $DD04/$DD05 as PROGRAMMED, not
+   from the image; it is `SampleInstrument.rate_cycles`. The measured
+   $D418 rates (110-217/frame) imply the latch varies per member.
+4. **The sample TABLE / score**: where the (sample, rate, duration) event
+   stream lives for V2, and whether $2A00 is a fixed base or per-event.
+5. **V1 raster-burst**: measure which members use it and whether it is a
    fixed part of the player or per-member (proposal §8 open question 2).
    Boot_Zak_v2's stride-$10 run at $2200-$2498 is the anchor.
-4. Only then: extract → `digi_voice` + `sample_instrument` rows, reusing the
+6. Only then: extract → `digi_voice` + `sample_instrument` rows, reusing the
    Digi-Organizer path for V2.
 
 ## Verification (from the proposal §5, unchanged)
