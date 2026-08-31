@@ -225,13 +225,74 @@ GENERAL LESSON, worth more than the answer: both wrong detectors were
 THRESHOLDS over a derived quantity; the right one is a PHYSICAL CONSTANT of
 the machine. When a census needs a magic number, suspect it.
 
+## 2026-08-31 — V2's DATA MODEL, COMPLETE (the family is extract-ready)
+
+Found by pc-tracing and grepping the trace for the WRITERS of each state
+byte, rather than by reading the image (which is a pre-relocation template).
+
+### The trigger routine — $08B3, called per sample event
+
+    $08B3  LDY $F2                  ; sample index
+    $08B5  LDA $1C00,Y -> STA $23   ; sample start pointer LO
+    $08BA  LDA $1C01,Y -> STA $24   ; sample start pointer HI  (= the NMI's
+                                    ;   self-modified operand, see above)
+    $08BF  LDA $1C20,Y -> STA $59   ; second pointer LO  (end / length)
+    $08C4  LDA $1C21,Y -> STA $5D   ; second pointer HI
+    $08C9  LDY $F3                  ; rate index
+    $08CB  LDA $1C60,Y -> STA $DD04 ; CIA2 timer-A latch LO
+    $08D1  LDA $1C61,Y -> STA $DD05 ; latch HI
+    $08D7  LDA #$81 / STA $DD0E     ; start timer + arm NMI
+    $08DF  RTS
+
+⚠ **$08CE/$08D4 are NOT init code.** They are this subroutine, called once
+per event — which is exactly why the "init latch" is unrepresentative
+(above): it is just the first call. Anything that reads them as init is
+reading one sample's rate and calling it the member's rate.
+
+### Parallel tables (Morbital), all Y-indexed with stride 2
+
+    $1C00 / $1C01 , Y=$F2   sample START pointer (lo,hi)
+    $1C20 / $1C21 , Y=$F2   sample END pointer   (lo,hi)
+    $1C60 / $1C61 , Y=$F3   CIA2 latch = PLAYBACK RATE (lo,hi)
+
+Observed: `$F2=0` → start `$2A00`, end `$2A00`; `$F3=$30` → latch `$0068`.
+The `$2A00` the NMI's terminator branch resets to is therefore the CURRENT
+sample's start, reloaded — not a fixed base.
+
+### The score — a command byte stream at ($F0),Y
+
+    $0867  LDA ($F0),Y      ; next score byte
+    $0869  CMP #$FF         ; $FF = end / loop
+    $0879  BPL $0899        ; < $80 -> RATE path ; >= $80 -> SAMPLE path
+    $0899  ASL A / STA $F3  ; rate index (byte $18 -> $30, which is exactly
+                            ;   the Y the trigger routine then uses)
+    $089D  LDA ($F0),Y      ; following byte -> $07   (duration)
+    $08A3  INY / TYA / CLC  ; advance the stream pointer
+
+`$F0/$F1` is the score pointer, seeded at $082B from `$0826/$0827`. So the
+score is the proposal's predicted **(sample, rate, duration) event stream**,
+encoded as a command-byte stream with a `$FF` terminator — high bit selects
+sample-vs-rate, and each command is followed by its duration byte.
+
+### How this maps to the LANDED schema — still nothing new needed
+
+| engine fact | USF |
+|---|---|
+| sample start/end pointers ($1C00/$1C20) | the PCM window → FLAC sidecar (C7-C) |
+| latch table ($1C60) | `SampleInstrument.rate_cycles` + per-row override |
+| score stream at ($F0),Y | the digi voice's ROWS (instrument + rate + duration) |
+| `$30` or_mask, `$1F` terminator | `DigiConfig.or_mask`; terminator is mechanism |
+| zero-page handlers, table lookup, vector swap, SMC pointer | composer mechanism |
+
+**V2 is extract-ready.** Every musical degree of freedom has a home and the
+composer keeps every mechanism.
+
 ## NEXT (in order)
 
 1. ~~Measure the V2 relocation~~ ✅ done above (zero page).
 2. ~~Confirm the nibble packing~~ ✅ done above (`table[b]=b>>4`, low-first).
 3. ~~The CIA2 latch (playback rate)~~ ✅ MEASURED — see below.
-4. **The sample TABLE / score**: where the (sample, rate, duration) event
-   stream lives for V2, and whether $2A00 is a fixed base or per-event.
+4. ~~The sample TABLE / score~~ ✅ MAPPED — see below. V2 is extract-ready.
 5. ~~V1 raster-burst~~ ✅ ANSWERED — see below. ONE carrier in 17.
 6. Only then: extract → `digi_voice` + `sample_instrument` rows, reusing the
    Digi-Organizer path for V2.
