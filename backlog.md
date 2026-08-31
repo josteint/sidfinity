@@ -5,7 +5,7 @@
 # dozen measured-but-unfinished investigations. Moved to the repo root and
 # tracked for exactly that reason.
 #
-# NEXT_ITEM: 37   <- autoincrement: a NEW item takes this number, then bump it.
+# NEXT_ITEM: 38   <- autoincrement: a NEW item takes this number, then bump it.
 #
 # CONVENTIONS (owner-set 2026-08-28):
 #  - A done item is REMOVED COMPLETELY — no tombstone, no summary line. The
@@ -90,6 +90,46 @@
            $0Dxx operands) — NOT the plain '85 head; needs a real
            disassembly pass before classifying.
          Migration itself deferred (full per-tune sessions).
+
+37. THE MIRROR OF ITEM 9 — #85 REMOVED MEMBERS, AND NOBODY COUNTED THEM
+    (measured 2026-08-31, from the fc_standard re-batch). Item 9 counts what
+    the #85 update ADDED per family and each family's next batch picks those
+    up. Nothing counts what it took AWAY, and those members keep their
+    verdict rows forever: the row is keyed by PATH, the batch simply stops
+    enumerating that path, and no gate looks for a row nobody claims.
+
+    fc_standard, measured: the store holds 4,140 members, last night's batch
+    enumerated 4,093. The 47 difference are all pre-#85 paths whose `.sid` is
+    GONE from disk — last recorded 32 full / 11 flagged / 4 partial.
+
+      37 of 47 are RENAMES — the same basename is covered by a current row,
+                             so the member is verified, just at a new path.
+      10 of 47 are UNCOVERED (7 of them previously FULL): Iceman_01,
+         Fristie-Noise_02, Danko_Tomas/{Contact_2,Light_Intro},
+         Deek/Rapjazz, Fate/Fate_01, Louie/DSI-Faces_Co-Op_part_5,
+         Stember_Rudolf/{Exception,Madness_2}, Zagor/Variety_tune_2.
+         Either dropped from HVSC, renamed to a different FILENAME, or no
+         longer classified FC — not yet determined, and that is the open
+         question here.
+
+    ✅ NOT a disk problem: 0 orphaned `.usf`/`.sidfinity.sid` at those 47
+    paths, so the #85 artifact migration did its job. This is purely the
+    VERDICT STORE carrying dead rows.
+
+    WHY IT MATTERS: it silently inflates the denominator, and the number is
+    already quoted. MEMORY.md records FC at "2,604 FULL" (item 9's Aug-18/19
+    sweep). Last night's re-batch measured 2,572 — and 2,604 − 2,572 = 32 =
+    exactly the vanished FULLs. So the recorded figure counts 32 members
+    that no longer exist. Same arithmetic will apply to any family whose
+    numbers predate #85.
+
+    FIX: this is DMC's `route.py --gaps` MIRROR check ("a verdict row the
+    roster claims for NOBODY", already implemented there and passing) —
+    generalise it so every family gets it, rather than one more per-family
+    script. CLAUDE.md already says "add the equivalent for any family that
+    grows a roster"; the measurement says the rows-with-no-member direction
+    is the one that actually bit, and it bites families with no roster at
+    all. Cheap: compare the store's key set against the batch's enumeration.
 
 10. E5 (Phase E) — ML-PROXY METRICS: token stats + engine-predictability of
     fields. "The eventual ground truth of the philosophy, not built now" —
