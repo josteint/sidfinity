@@ -5289,8 +5289,39 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc85',
                 layout = 'family2'
                 base = _ib
         if layout is None:
+            # CLASSIFY the refusal rather than just reporting the address.
+            # Three things reach here and they want different follow-ups, but
+            # the message used to name only the base — so a foreign engine
+            # packed in a compilation was indistinguishable from a relocation
+            # target whose RAM view we failed to take.
+            #
+            # ⚠ DIAGNOSIS ONLY — DO NOT PROMOTE THIS TO A PRE-VALIDATION GATE.
+            # Measured over all 5,445 f1 members (2026-08-31): exactly 5 carry
+            # a claimed base matching no known layout, and 4 of the 5 BUILD
+            # (Canyon_Tank_Duel's dmc_sfx player at +$1B2/+$F0; the relocating
+            # wrappers of Super_Seven / Pour_le_merite / Black_It, whose base
+            # is all-zero in the file image and only appears post-init). A
+            # strict "unknown layout => refuse" check regresses all four. The
+            # empty-vs-code split below is threshold-free (0 nonzero vs
+            # 68-245) but still does NOT separate the last two cases —
+            # Canyon_Tank_Duel builds and Tanks_3000 does not, both being
+            # "code, unknown layout". Only the build decides. Ledger C13's
+            # dual: the head selects a CANDIDATE, never the reference.
+            _nz = sum(1 for _b in mem[base_override:base_override + 0x100] if _b)
+            if mem[base_override] != 0x4C or mem[base_override + 3] != 0x4C:
+                _why = 'no JMP head'
+            else:
+                _i = mem[base_override + 1] | (mem[base_override + 2] << 8)
+                _p = mem[base_override + 4] | (mem[base_override + 5] << 8)
+                _shape = (f'init+${(_i - base_override) & 0xFFFF:03X} '
+                          f'play+${(_p - base_override) & 0xFFFF:03X}')
+                _why = (f'{_shape}, region EMPTY in the file image '
+                        f'(relocating wrapper? expected a post-init RAM view)'
+                        if _nz < 16 else
+                        f'{_shape}, {_nz}/256 nonzero — code, but matching no '
+                        f'DMC v4/v5 layout (a packed player of another engine?)')
             raise DMCV4Unsupported(
-                'base_override_not_player', f'${base_override:04X}')
+                'base_override_not_player', f'${base_override:04X} [{_why}]')
     for b in ([] if base_override is not None else (s['play'] - 3, s['load'])):
         layout = _jt_layout(b)
         if layout:

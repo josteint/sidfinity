@@ -1510,6 +1510,27 @@
         (the C27 params-merge error, also tagged V1) + 2 with no verdict row
         anywhere (unrouted): Embarassed_Emotions (DMC|V2) and
         Spelling_Around (V2 beside ROB_HUBBARD — not even a DMC member).
+      * ✅ CONFIRMED 2026-08-31, and the tempting fix REFUTED. Popel's
+        assert (`chips disagree on player params: [{'master_vol_static': 9},
+        {}]`) is DOWNSTREAM OF THE DIGI, not a separate bug: measured on the
+        original, chip 1 writes its $D418 **63,944 times in 1,000 frames**
+        (rate 63.9/frame, 63,895 of them the value $09) while chip 2 writes
+        its own 49 times. The `master_vol_static` probe fires on chip 1
+        because that player's canon $D418 stores really are neutered — but
+        the register is owned by the Rayden digi driver, not held static.
+        ⛔ Do NOT "fix" this by adding `master_vol_static` to
+        MULTISID_PER_CHIP_KEYS (a 1-word change; both sides already carry
+        per-chip keys as ';'-separated parts). It would let the merge
+        succeed and emit ONE $D418 write where the original emits 63,895 —
+        trading an honest error for a confidently wrong build. The assert is
+        doing its job; leave it until the digi schema lands.
+        ⚠ NB the capture needs `force_rsid=True` (play=$0000): the default
+        writelog capture returns 0 frames and reads as capture death.
+      * f1 RESIDUE MAP (measured 2026-08-31): Rayden_Digi is **15 of the 25
+        non-FULL members = 60%**, and ZERO of the 17 carriers is FULL — a
+        perfect separation. The remaining 10 are Tanks_3000 (C35, below) and
+        9 ordinary bucket-B/C partials. So f1's residue is really "one
+        unmigrated digi family + 9 members of grind + 1 foreign engine".
       * WHAT IT NEEDS = the same as item 29 bucket A: heterogeneous
         music+digi handling, Mode-2 cycle-strict verification for the digi
         part (core tenet: digi = cycle-exact), FLAC-sidecar PCM (C7-C), and
@@ -1539,6 +1560,38 @@
     Signature = per-subtune dispatch/data selection, the C31/C37 family.
     Tanks_3000 error `base_override_not_player: $1000` is the same story one
     step earlier (the compilation scan proposes a bogus base).
+
+    ==== TANKS_3000, RESOLVED TO A CAUSE 2026-08-31 (and one fix REFUTED) ====
+    The "bogus base" is a REAL PLAYER OF ANOTHER ENGINE. The file packs 7
+    things behind an SMC dispatch (13 songs); scanning the image for valid
+    heads finds exactly SIX — $2000 v4-canonical + five v5 family-4
+    ($2F00/$3E00/$4E00/$5D00/$6D00). $1000 is a third head whose targets are
+    scattered (init+$EAA / play+$0F1) and which is followed by the ASCII
+    title `-TANKS 3000 MUSI`. Byte-identity places it: $1000 is **3.4%**
+    identical to the canon v4 player and 2.9% to v5, where the file's own
+    $2000 is 48.9% and its v5 players 68-70%. sidid names it —
+    `DMC|(DMC_V4.x)|(DMC_V5.x)|Geir_Tjelta/SIDDuzz'It`. So the 7th player is
+    SIDDuzz'It (1,006 HVSC carriers, `engine_docs` state OK, research at
+    `pipelines/sidduzzit/`, no migration pipeline). 5 of the 13 subtunes
+    route to it ⇒ dropping the base loses 5 subtunes; this is C35 (one file,
+    more than one COMPOSER), not a detection bug to be patched away.
+
+    ⛔ REFUTED — "make detect_compilation validate each base and refuse":
+    measured over all 5,445 f1 members, exactly 5 carry a claimed base
+    matching no known layout, and FOUR OF THE FIVE BUILD:
+      Canyon_Tank_Duel $3000  dmc_sfx sub-player at init+$1B2/play+$0F0
+      Super_Seven      $3800  ⎫ relocating wrappers — the base is ALL-ZERO in
+      Pour_le_merite   $1000  ⎬ the file image and only exists post-init, so
+      Black_It   $1000/$F200  ⎭ any file-image layout check sees nothing
+    A strict "unknown layout ⇒ refuse" regresses all four. A threshold-free
+    empty-vs-code split (0 nonzero vs 68-245, a total gap) separates the
+    relocating three, but still does NOT separate the last two: both
+    Canyon_Tank_Duel $3000 and Tanks_3000 $1000 are "code, unknown layout"
+    and one builds. **Only the build decides** — C13's dual, the head is a
+    candidate not a reference. LANDED instead: the refusal now CLASSIFIES
+    itself (head offsets + empty-vs-code + a plain-language reading), so the
+    next reader gets the diagnosis without re-deriving it. Acceptance logic
+    unchanged — the 5 members rebuild byte-identical.
 
     BUCKET C — small real content divergences: Ed/Solved_Track (m=370),
     Party_Party (m=34), Flubble subs 1-3 (m=32/37), Alioth sub 0 (m=26),
