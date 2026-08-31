@@ -85,6 +85,7 @@ before quoting the number (measured 2026-08-22).
 ### Engineering reflexes
 - [Use 6502 mindset](feedback_6502_mindset.md) — all bugs are pointer errors; think in exact byte offsets
 - [Writelog divergence recipe](feedback_writelog_divergence_recipe.md) — the full step-by-step protocol behind CLAUDE.md's "start with find_first_divergence" convention. (Recovered 2026-07-14.)
+- [Physical constant over threshold](feedback_physical_constant_over_threshold.md) — a detector keyed on a tuned threshold over a derived quantity looks right and is wrong; key on a C64 physical constant (63c rasterline) or report the raw measurement. Worked example took 3 tries, 2 false positives.
 - [Measure mechanism before precedent](feedback_measure_mechanism_before_precedent.md) — diagnostic ordering: pc-trace the ACTUAL read before matching it to a prior round's index; read the WHOLE multi-stage pipeline before instrumenting one stage. Round-91 retrospective; spawned `pipelines/dmc/offtable_probe.py`, `--find-write`, `dmc_build_one --localize` auto-target.
 - [Residue claim is a measurement](feedback_residue_claim_is_measured.md) — a "hard boundary / can't-reproduce" verdict must be MEASURED (siddump, never py65 for divergent memory), never inferred. DMC Verdict_01 mis-claimed it 3× → each fell to one measurement → FULL.
 - [SMC disasm check](feedback_smc_disasm_check.md) — before trusting a static disasm, scan for STA into instruction operands; SMC makes the static reading lie. (Recovered 2026-07-14.)

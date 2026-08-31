@@ -60,6 +60,24 @@ Digi-Organizer** (proposal §2), which is the family we have already built.
 That is the useful finding: V2 should reuse phase-2 machinery, and V1's
 raster-burst is the genuinely new pacing.
 
+> ⛔ **§8 GUARD — READ BEFORE WRITING ANY COMPOSER CODE FROM THAT SENTENCE.**
+> "Reuse the phase-2 machinery" means reuse the PARAMETRIC EMITTER. It does
+> NOT mean "detect V2 and call the Digi-Organizer player", and it does not
+> mean a `rayden_v1` / `rayden_v2` branch anywhere in the composer. That is
+> Principle §8 exactly — engine identification selecting an engine library —
+> and this codebase committed it here, in this family's sibling, on
+> 2026-08-30: fourteen hand-written driver templates chosen by name from
+> `params['digi_driver']`, six of them single-carrier (backlog 35, ledger
+> C40 points 1-2, since corrected).
+>
+> The composer may branch ONLY on measured, musically-named facts —
+> `technique`, `or_mask`, `rate_cycles`, the score — never on which author's
+> player or which sidid version string a member came from. Note the measured
+> support for this: `or_mask`, the rate model and the raster burst ALL vary
+> per MEMBER and cut across the V1/V2 line, so a version branch would be
+> wrong on the facts as well as on the principle. The V1/V2 label is a
+> research shorthand for a pacing topology; it must not reach the build.
+
 V2 handler skeleton, as it sits in the file image (Morbital $28B8/$28D5):
 
     handlerA  STA $3b / LDA <smc ptr> / CMP #$1F  (in-stream terminator)

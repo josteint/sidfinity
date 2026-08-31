@@ -1,34 +1,44 @@
 #!/usr/bin/env python3
-"""d418_shape_census.py — how does the ORIGINAL drive $D418?
+"""d418_shape_census.py — MEASURE how the ORIGINAL drives $D418.
 
-READ-ONLY measurement. Builds nothing, stamps no verdict, touches no stored
-artifact — so it is immune to any pending key-definition change.
+READ-ONLY. Builds nothing, stamps no verdict, touches no stored artifact —
+so it is immune to any pending key-definition change and safe to run against
+a stale results file.
 
-WHY: 47% of the DMC v5 verify-partials (404 of 853 clustered, 2026-08-30)
-share one first-divergence signature — the original writes a voice register
-where OUR rebuild writes $D418. Our composer emits $D418 per filter
-note-init; several originals do not, and DMC v4 already carries a family of
-C19 wedge knobs for exactly that (`master_vol_static`, `d418_noteinit_dead`,
-`d418_play_wrapper`, `filter_static`). This measures which shape each
-original actually has, so the residue can be attacked by class instead of
-member by member.
+The output that matters is the RAW PER-MEMBER MEASUREMENT: total $D418
+writes, writes per frame, how many distinct values, whether they all fall in
+the first frame, and the top values. Those are facts. The coarse bucket
+printed beside them is a LABELLING CONVENIENCE ONLY — see the warning below
+before you lean on it.
 
-The classification is deliberately made from the ORIGINAL alone: it needs no
-build, so it cannot be skewed by a member our composer currently refuses, and
-one bad member cannot take the sweep down.
+⚠ THE HYPOTHESIS THIS TOOL WAS BUILT FOR WAS REFUTED (2026-08-30, and the
+refutation is the finding — backlog 18). 47% of the DMC v5 verify-partials
+(404 of 853) share one first-divergence signature: the original writes a
+voice register where OUR rebuild writes $D418. The obvious reading was that
+v5 lacks v4's C19 $D418 wedge knobs (`master_vol_static`,
+`d418_noteinit_dead`, `filter_static`), i.e. that those originals barely
+touch $D418. Measured over all 867: **531 perplay, 336 dense, and ZERO
+static / sparse / silent.** Every original drives $D418 at >= 0.25
+writes/frame, most above 1.3. So the divergence is about WHEN and HOW MANY,
+not a wedge that removed the write — C16 (emission order) or C24 (a doubled
+filter tail), not the C19 family. Do not re-run that hypothesis.
 
-  static    total $D418 <= 2 and all of them in the first frame
-            -> the C19 36th shape: set once at init, never during play.
-            TELL from the ledger: "orig's TOTAL $D418 count ~2 vs the
-            rebuild's hundreds".
-  sparse    writes $D418, but at < 0.25 per play() — far below a
-            per-note-init rate; a fade, or an occasional re-assert.
-  perplay   >= 0.9 per play() and low distinct values -> the $D418-every-play
-            wrapper shape.
-  dense     otherwise: genuinely per-note-init, i.e. what our composer
-            already does. These members' divergence is NOT a $D418 shape and
-            should be triaged elsewhere.
-  silent    no $D418 write at all after init.
+⚠⚠ THE BUCKETS ARE TUNED THRESHOLDS OVER A DERIVED QUANTITY, which is a
+failure mode this session hit twice within hours (a "55-70 cycle" window that
+merely matched one member's own NMI latch; an "unexplained delta" metric
+whose mass was inter-burst silence). A threshold census tells you where a
+number falls, never what mechanism put it there. When a detector needs a
+magic number, prefer a PHYSICAL CONSTANT of the machine — the working
+Rayden burst detector keys on 63 cycles = one PAL rasterline and separates
+with a 30x gap. Treat the bucket here as a sorting aid for eyeballing, and
+argue from the raw columns.
+
+Buckets, with their arbitrary constants stated rather than hidden:
+  silent   no $D418 write at all
+  static   total <= 2 AND all in frame 0   (the C19 "set once at init" shape)
+  perplay  rate >= 0.9 and <= 2 distinct values
+  sparse   rate < 0.25
+  dense    anything else
 
 Usage:
     python3 tools/d418_shape_census.py --results tmp/dmc_v5_r3_results.jsonl
@@ -158,14 +168,17 @@ def main():
 
     print()
     print('=' * 70)
-    print(f'$D418 SHAPE OF THE ORIGINAL — {len(todo)} {a.status} members')
+    print(f'$D418 MEASUREMENT — {len(todo)} {a.status} members')
     print('=' * 70)
     for shape, n in tally.most_common():
         print(f'  {shape:10s} {n:5d}  ({100*n/max(1,len(todo)):4.1f}%)')
     print()
-    print('  static/perplay/sparse/silent = the original does NOT drive $D418')
-    print('  per note-init as our composer does -> a C19 $D418 wedge class.')
-    print('  dense = same shape as ours; triage those elsewhere.')
+    print('  ⚠ Buckets are TUNED THRESHOLDS (static: total<=2 & frame 0 only;')
+    print('    perplay: rate>=0.9 & <=2 values; sparse: rate<0.25). They sort;')
+    print('    they do not explain. Argue from the raw columns in the jsonl')
+    print('    (total_d418, rate, distinct_values, init_only, top_values), and')
+    print('    prefer a physical constant over a threshold when building a')
+    print('    real detector — see this file\'s docstring.')
     print(f'\n  rows: {out}')
     return 0
 

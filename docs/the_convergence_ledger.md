@@ -355,6 +355,12 @@ practice, not code to factor).
   37 members, ZERO FULL. TELL = a whole sub-population at zero coverage. REFLEX:
   when a family has >1 constructor, every probe added to one is a bug in the
   others until proven otherwise — grep the siblings when a probe lands.
+- 12th occ: THE INIT STORE MAY BE A PER-EVENT SETTER — a statically-located
+  `STA` you read as init can sit inside a per-event subroutine, so its value
+  is one event's, not the member's (Rayden V2 latch: init says $CF, runtime
+  uses $68 ×103 / $CF ×4). MEASURE HOW OFTEN THE STORE RUNS before believing
+  it is init; a value DISTRIBUTION with >1 member is the tell. And LOCATE THE
+  STORE PER MEMBER — another member's PCs return a confidently wrong latch.
 - FULL ENTRY: [`ledger/C9.md`](ledger/C9.md) — read it before applying.
 
 ### C10 — chip-global ($D415-$D418) automation that varies during the song
@@ -826,6 +832,14 @@ practice, not code to factor).
   FIRST, then per-family batch + mass-write (a wrongly-scoped mass-write can
   regenerate 5,221 members and fix zero). Non-FULL members are skipped by
   every mass-write, so their leftover .usf must be DELETED, not rebuilt.
+- TENTH LAYER — the MIRROR: a verdict the current code reproduces EXACTLY but
+  the key marks stale (a byte-neutral schema/move edit). PROVE it nominal
+  instead of re-batching: rebuild a build_path-STRATIFIED sample from the
+  STORED .usf and compare to the stored .sid (`verdict_staleness_probe`);
+  byte-identity ⇒ same write stream ⇒ same verdict, ~100× cheaper. Measured
+  2026-08-31: 311-member spot check predicted, then 8,082 members re-batched
+  across 4 families with 0 status changes. `migrate_verdict_rows` cannot
+  express this proof (owner territory, backlog 31).
 - FULL ENTRY: [`ledger/C20.md`](ledger/C20.md) — read it before applying.
 
 ### C21 — trichotomy-verdict alignment (rebuild emits its own init)
@@ -1611,4 +1625,8 @@ practice, not code to factor).
 - Trichotomy note: Mode-2 members are EXEMPT from the universal-init
   verdict (init cycles are signal); the trichotomy's categories still
   route the content.
+- MEASUREMENT WINDOW: measure a digi member over its FULL songlength. A short
+  window does not read as truncated — it manufactures a COHERENT WRONG story
+  (Popel 20 s: 63,895 writes of a constant $09 = 'stuck master volume'; 180 s:
+  a full 4-bit PCM distribution). Digi is bursty, and it is PER-SUBTUNE/chip.
 - FULL ENTRY: [`ledger/C40.md`](ledger/C40.md) — read it before applying.

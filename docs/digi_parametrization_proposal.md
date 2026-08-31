@@ -1,6 +1,13 @@
 # The digi parametrization — one representation for the sample channel
 
-**Status: PROPOSAL, owner-gated (2026-08-29). Nothing here is landed.**
+**Status: OPTION A APPROVED AND LANDED (schema 2026-08-29, `532b3931`).**
+`DigiConfig` / `SampleInstrument` / `digi_voice` are live in
+`src/usf/types.py`; phase 2 (Digi-Organizer) is CLOSED at 39/39 standalone
+FULL; phase 3 (Rayden_Digi) is in RE — see `pipelines/rayden_digi/RE_NOTES.md`.
+Phases 4-5 remain open. *(This header said "PROPOSAL … nothing here is landed"
+until 2026-08-31, five weeks of work after it stopped being true; it misled a
+session into telling the owner their approval was still pending. A status line
+is load-bearing — see `feedback_deprecate_stale_docs`.)*
 This is the design backlog item 5's tripwire demands: the SECOND digi
 engine must PARAMETRIZE (`digi { technique, rate }`) instead of adding a
 row to `_digi_player_registry`. Two engine families are now waiting on
@@ -174,6 +181,36 @@ score (the actual musical content) unrepresented.
 - RSID play=$0000: the rebuild ships as self-driven RSID like Chimera's
   original combined build did; the trichotomy governs init (universal
   reset + priming; the environment block carries the self-drive rate).
+
+  ⚠ **AMENDED 2026-08-31 — the parenthesis above is WRONG for these
+  members, and was already wrong when written.** Hours after this document,
+  the trichotomy doc gained its **Mode-2 exemption** (recorded 2026-08-29
+  from Digi-Organizer): a Mode-2 member is EXEMPT from the universal-init
+  verdict shift, because under cycle-strict comparison the init writes'
+  CYCLES are signal and a universal reset fails by construction. The
+  composer MIRRORS the member's init cycle-shape instead (ledger C40), and
+  that is what the landed Digi-Organizer build actually does.
+
+  For the music+digi members this document is about, the resolution is:
+
+  * **Init FORM follows Mode 2 — mirror the cycle shape, do NOT emit a
+    universal reset.** The init is one code path serving both sides, and
+    C40 is explicit that the init-entry→timer-start cycle count sets the
+    interrupt grid's phase. A universal reset would move that phase and
+    break the digi verdict even if every music write were perfect.
+  * **The trichotomy's CATEGORIES still route the content** — priming to
+    `init.sid`, temporal facts to `environment`. The exemption suspends the
+    verdict shift, never the classification.
+
+  This is applying existing canon rather than deciding anything new: the
+  exemption is owner-recorded and Digi-Organizer already ships it.
+
+  🔶 GENUINELY OPEN, and it is new with Rayden: Digi-Organizer's closed
+  members are digi-only, so nothing tested a SHARED init. Here the music
+  player's Mode-1 init writes and the digi's Mode-2 cycle-shape come out of
+  the same routine. Whether the music side needs any separate treatment —
+  or whether mirroring the whole init subsumes it — is unmeasured. Settle
+  it on a real member before writing the composer's init path.
 
 ## 6. The four tests (Principle §9), run against Option A
 
