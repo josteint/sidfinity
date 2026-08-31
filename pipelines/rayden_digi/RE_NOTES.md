@@ -187,6 +187,44 @@ the integer cycle count is the authored quantity (Principle §9 tiebreaker).
 - Cross-check that validates the whole method: Boot_Zak's latch `$72` = 114
   cycles and its dominant measured inter-write delta is 114c ×362,052.
 
+## 2026-08-31 — THE RASTER BURST IS ONE MEMBER (proposal §8 q2 ANSWERED)
+
+§8 asked: "the Rayden raster-burst mode — per-member schedule, or a fixed
+part of the V1 player?" **Neither: it is ONE MEMBER of 17.** Census over all
+carriers, 30 s each, share of inter-write deltas at 63 ±2 cycles (the PAL
+raster line):
+
+    Boot_Zak_v2 (V1)   21.1%      <-- the only carrier
+    everyone else      <= 0.7%    (14 of 16 are 0.0-0.1%)
+
+Boot_Zak_v2 runs its 114-cycle CIA NMI AND a 63-cycle per-rasterline burst
+concurrently; that is the stride-$10 unrolled run at $2200-$2498. It is also
+the member the proposal RE'd, which is exactly why the burst read as "a
+second pacing topology within V1" — a one-carrier feature seen through the
+one member that was disassembled.
+
+CONSEQUENCE: the composer needs the CIA-NMI path for 16 of 17 members, and
+the burst for Boot_Zak_v2 alone. Do not design the family around it.
+
+### ⚠ METHOD — two plausible detectors were WRONG first; recorded so the
+### next reader does not re-derive them
+
+1. **"share of deltas in 55-70c"** — flagged Spelling_Around at 42.7%. FALSE
+   POSITIVE: its programmed latch is `$42` = 66 cycles, so that window is its
+   own NMI rate. A fixed cycle window cannot separate "burst" from "a member
+   whose latch happens to be fast".
+2. **"deltas not explainable by any programmed latch"** — flagged 15 of 17.
+   FALSE POSITIVE twice over: the unexplained mass is inter-burst GAPS
+   (263c, 488c — longer than any latch, i.e. silence between samples), and
+   the latch set itself was polluted by non-digi `$DD04` writes (it reported
+   a "5-cycle latch" for Popel, which is physically impossible).
+3. **A 63 ±2 population** — physically grounded (one PAL rasterline), and it
+   separates with a 30x gap. Use this one.
+
+GENERAL LESSON, worth more than the answer: both wrong detectors were
+THRESHOLDS over a derived quantity; the right one is a PHYSICAL CONSTANT of
+the machine. When a census needs a magic number, suspect it.
+
 ## NEXT (in order)
 
 1. ~~Measure the V2 relocation~~ ✅ done above (zero page).
@@ -194,9 +232,7 @@ the integer cycle count is the authored quantity (Principle §9 tiebreaker).
 3. ~~The CIA2 latch (playback rate)~~ ✅ MEASURED — see below.
 4. **The sample TABLE / score**: where the (sample, rate, duration) event
    stream lives for V2, and whether $2A00 is a fixed base or per-event.
-5. **V1 raster-burst**: measure which members use it and whether it is a
-   fixed part of the player or per-member (proposal §8 open question 2).
-   Boot_Zak_v2's stride-$10 run at $2200-$2498 is the anchor.
+5. ~~V1 raster-burst~~ ✅ ANSWERED — see below. ONE carrier in 17.
 6. Only then: extract → `digi_voice` + `sample_instrument` rows, reusing the
    Digi-Organizer path for V2.
 
