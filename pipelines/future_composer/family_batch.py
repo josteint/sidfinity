@@ -68,14 +68,26 @@ def run(sp):
     return rec
 
 
-if __name__ == '__main__':
+def members() -> list[str]:
+    """Every HVSC member this batch enumerates, HVSC-relative.
+
+    Module level so `tools/verdict_gaps.py` can ask the batch itself what it
+    claims instead of re-writing the query (backlog item 37): a gap check
+    that duplicates the enumeration drifts away from it, and the drift is
+    invisible in exactly the direction that matters.
+    """
     import sys as _sys
     _sys.path.insert(0, ROOT)
     from src import sid_db
-    db = sid_db.connect()
-    sids = [p for (p,) in db.execute(
+    return [p for (p,) in sid_db.connect().execute(
         "SELECT path FROM sids WHERE engine LIKE '%FutureComposer%' "
         "ORDER BY path")]
+
+
+if __name__ == '__main__':
+    import sys as _sys
+    _sys.path.insert(0, ROOT)
+    sids = members()
     done = set()
     if os.path.exists(OUT):
         with open(OUT) as f:

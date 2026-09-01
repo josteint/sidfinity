@@ -108,6 +108,15 @@ def run_member(item) -> dict:
         signal.alarm(0)
 
 
+def members() -> list[tuple]:
+    """(path, songlength_s) for every member this batch enumerates (see the
+    note in future_composer/family_batch.members — backlog item 37)."""
+    from src import sid_db
+    rows = sid_db.query("SELECT path, songlength_s FROM sids "
+                        "WHERE engine='GoatTracker_V1.x' ORDER BY path")
+    return [(p, s or 0) for p, s in rows]
+
+
 def main():
     global OUT
     sample = 0
@@ -119,12 +128,9 @@ def main():
         elif a == '--out':
             OUT = args.pop(0)
 
-    from src import sid_db
-    rows = sid_db.query("SELECT path, songlength_s FROM sids "
-                        "WHERE engine='GoatTracker_V1.x' ORDER BY path")
-    members = [(p, s or 0) for p, s in rows]
+    work = members()
     if sample:
-        members = members[::max(1, len(members) // sample)][:sample]
+        work = work[::max(1, len(work) // sample)][:sample]
 
     done = set()
     if os.path.exists(OUT):
@@ -135,8 +141,8 @@ def main():
                 d = json.loads(l)
                 if d.get('code_hash') == CODE_HASH:
                     done.add(d['path'])
-    todo = [m for m in members if m[0] not in done]
-    print(f'{len(members)} members, {len(done)} done, {len(todo)} to go',
+    todo = [m for m in work if m[0] not in done]
+    print(f'{len(work)} members, {len(done)} done, {len(todo)} to go',
           flush=True)
 
     stats = collections.Counter()

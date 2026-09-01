@@ -77,11 +77,17 @@ def run(sp):
     return rec
 
 
-if __name__ == '__main__':
+def members() -> list[str]:
+    """Every HVSC member this batch enumerates (see the note in
+    future_composer/family_batch.members — backlog item 37)."""
     from src import sid_db
-    sids = [p for (p,) in sid_db.connect().execute(
+    return [p for (p,) in sid_db.connect().execute(
         "SELECT path FROM sids WHERE engine LIKE '%Music_Assembler%' "
         "ORDER BY path")]
+
+
+if __name__ == '__main__':
+    sids = members()
     done = set()
     if os.path.exists(OUT):
         with open(OUT) as f:

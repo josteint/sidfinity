@@ -81,17 +81,23 @@ def process(args):
     return res
 
 
+def members() -> list[tuple]:
+    """(path, songlength_s) for every member this batch enumerates (see the
+    note in future_composer/family_batch.members — backlog item 37)."""
+    rows = subprocess.run(["duckdb", "-noheader", "-list", "-c",
+        "SELECT path, COALESCE(songlength_s,10) FROM read_parquet('%s/hvsc85.parquet')"
+        " WHERE engine='Basic_Program' ORDER BY path" % ROOT],
+        capture_output=True, text=True).stdout.strip().split("\n")
+    return [(r.rsplit("|", 1)[0], float(r.rsplit("|", 1)[1])) for r in rows if r]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--write', action='store_true', help='mass-write .usf+.sidfinity.sid for FULL members')
     ap.add_argument('--limit', type=int, default=0)
     ap.add_argument('--stride', type=int, default=1)
     a = ap.parse_args()
-    rows = subprocess.run(["duckdb", "-noheader", "-list", "-c",
-        "SELECT path, COALESCE(songlength_s,10) FROM read_parquet('%s/hvsc85.parquet')"
-        " WHERE engine='Basic_Program' ORDER BY path" % ROOT],
-        capture_output=True, text=True).stdout.strip().split("\n")
-    allwork = [(r.rsplit("|", 1)[0], float(r.rsplit("|", 1)[1])) for r in rows if r]
+    allwork = members()
     work = allwork[::a.stride]
     if a.limit: work = work[:a.limit]
     done = {}
