@@ -37,6 +37,27 @@ Worked example (Rayden_Digi, 2026-08-31 — three attempts, same question):
 Note both failures were *plausible* and *self-consistent*. Only the third
 had a reason to exist independent of the data.
 
+Second worked example, a different family and a different shape of number
+(register_ownership, 2026-09-01 — the day after the one above, which is the
+point: this is not a Rayden lesson). Question: does the DIGI engine own $D418
+exclusively, or does the music player write it too? First classifier: **"a PC
+firing more than 8x per frame is the digi"** — a threshold over a derived
+quantity, and it reported 16 of 92 members `shared`. Wrong for most of them:
+Boot_Zak_v2's digi is an UNROLLED burst across 42 distinct PCs, each below
+the threshold, so an unrolled digi read as "slow, therefore music";
+Embarassed_Emotions drives $D418 from two zero-page NMI handlers plus a
+once-per-window third. The cure was not a better threshold but a different
+QUESTION: ownership is a property of an ENGINE, and an engine is a contiguous
+region of code, so ask whether the digi register's writer PCs are DISJOINT
+from every other register's writer PCs. Structural, no tuning, and the
+grouping unit (a 6502 page) is a fact about the machine. Re-measured: 74
+exclusive / 12 shared / 6 no-digi.
+
+**The transferable half:** RATE is a property of a LOOP; the thing being
+classified was an ENGINE. When a threshold looks necessary, check whether the
+quantity you are thresholding is even a property of the thing you are
+classifying.
+
 **How to apply:** before shipping a census, ask "what physical fact of the
 C64 makes this number mean what I claim?" No answer ⇒ either find one or
 demote the classifier to a reported measurement with its constants printed.
