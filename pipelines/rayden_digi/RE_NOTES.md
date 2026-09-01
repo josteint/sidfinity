@@ -562,25 +562,45 @@ timing fit instead. (The tick's own entry is additionally invisible to
 pc-watch: `DEC zp` is 2 bytes and its third bus read is the zero-page
 operand, not PC+2 — watch the head's 3-byte `JMP` instead.)
 
-## OPENER FOR A FRESH SESSION (written 2026-08-31)
+## OPENER FOR A FRESH SESSION (updated 2026-09-01 — THE MUSIC SIDE)
 
 ⚠ An opener rots — backlog item 18's had to be banner-marked SUPERSEDED.
 THIS FILE is the durable entry point; the block below is a convenience.
 Before pasting it, check that the ✅ marks in "NEXT" below still match
-reality, and re-date or delete this block when V2's extract lands.
+reality, and re-date this block whenever the task changes.
 
 ▎ Continue the Rayden_Digi migration (phase 3 of
 ▎ docs/digi_parametrization_proposal.md). Read
 ▎ pipelines/rayden_digi/RE_NOTES.md FIRST — the player is decoded, the
 ▎ five RE questions are closed, and the extract is built and gated.
 ▎
-▎ The extract (extract.py) + its ground-truth gate (verify_score.py) are
-▎ done: 3 of the 4 sidid-"V2" members explain their ENTIRE $D418 stream.
-▎ Next is to_usf.py (NEXT item 7), then the 9 other members the locator
-▎ already finds — they are sidid "V1" but run the SAME sequencer, and
-▎ only their playback CORE is undecoded (decode_core refuses anything
-▎ outside zero page, so it will say so). Boot_Zak_v2 additionally needs
-▎ a raster-burst path and is the ONLY carrier of it.
+▎ The extract (extract.py) + its gate (verify_score.py) are done: 3 of
+▎ the 4 decoded members explain their ENTIRE $D418 stream. to_usf.py
+▎ builds all four and round-trips (loop_start landed 2026-09-01).
+▎
+▎ THE TASK IS NOW THE MUSIC SIDE, and it is TWO pieces, not one:
+▎  (1) THE JOIN. These files carry MUSIC beside the digi channel — 16 are
+▎      DMC (whose extract ALREADY works: they build today and diverge only
+▎      because the digi is absent from the rebuild), 1 is a Rob Hubbard
+▎      player (Spelling_Around). ONE .usf must carry the music voices AND
+▎      the digi_voice. This is the C31-heterogeneous shape; the precedent
+▎      to read is pipelines/music_assembler/heterogeneous.py (the
+▎      Freespace_2075 DMC+MA member).
+▎  (2) THE VERIFICATION SPLIT — proposal phase 4, and IT DOES NOT EXIST.
+▎      Split the captured stream by REGISTER OWNERSHIP: the digi owns
+▎      $D418 exclusively during play, so music verifies Mode 1 flat and
+▎      digi verifies Mode 2 cycle-strict. It is the C27/C28 "split the
+▎      stream, verify each half in its own mode" shape applied to
+▎      REGISTERS instead of chips. Build it once and share it.
+▎ ⛔ Do NOT do (1) without (2). A joined .usf with no verdict looks like
+▎ progress and is not — that is exactly why the extract got its C41
+▎ prediction gate instead. If sequencing, build (2) first against a
+▎ member whose digi half is already gated (Morbital).
+▎
+▎ AFTER that: the 9 other members the locator already finds — sidid "V1"
+▎ but the SAME sequencer, only their playback CORE undecoded (decode_core
+▎ refuses anything outside zero page and says so). Boot_Zak_v2
+▎ additionally needs a raster-burst path and is its ONLY carrier.
 ▎
 ▎ Non-negotiables, all of which cost time to learn:
 ▎ - The file image LIES. V2's handlers are copied to zero page and their
@@ -596,9 +616,9 @@ reality, and re-date or delete this block when V2's extract lands.
 ▎   technique/or_mask/rate_cycles/score. All three of those vary per
 ▎   MEMBER and cut across the V1/V2 line anyway.
 ▎
-▎ The schema is landed and needs nothing new — but the per-row
-▎ `rate=$XXXX` override has NO producer and no corpus member, so Rayden
-▎ is its first real user. Round-trip it early.
+▎ The schema is landed and needs nothing new. Rayden is the first real
+▎ user of BOTH the per-row `rate=$XXXX` override and
+▎ `SampleInstrument.loop_start`; both round-trip today, keep it that way.
 ▎
 ▎ Verification: split the stream by $D418 ownership — music Mode 1 flat,
 ▎ digi Mode 2 cycle-strict (proposal §5).
