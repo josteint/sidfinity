@@ -144,10 +144,18 @@ def report(out_path: str, top: int = 25) -> None:
                 rows.append(json.loads(line))
             except Exception:
                 pass
-    good = [r for r in rows if r.get('ok') and r.get('plays_compared', 0) >= 20]
+    good = [r for r in rows if r.get('ok') and not r.get('no_play_entries')
+            and r.get('plays_compared', 0) >= 20]
     bad = [r for r in rows if not r.get('ok')]
-    thin = [r for r in rows if r.get('ok') and r.get('plays_compared', 0) < 20]
-    ts(f'{len(good)} measured, {len(thin)} too-few-plays, {len(bad)} errored')
+    # NOT MEASURABLE, and it must be reported separately: a self-driven RSID
+    # (play=$0000) has no play() invocations to bucket by, so the question
+    # this tool asks does not apply to it. Whole families are in this state.
+    nope = [r for r in rows if r.get('ok') and r.get('no_play_entries')]
+    thin = [r for r in rows if r.get('ok') and not r.get('no_play_entries')
+            and r.get('plays_compared', 0) < 20]
+    ts(f'{len(good)} measured, {len(nope)} self-driven (no play vector — '
+       f'not measurable by this instrument), {len(thin)} too-few-plays, '
+       f'{len(bad)} errored')
     if not good:
         return
 

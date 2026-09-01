@@ -154,9 +154,14 @@ def capture_plays(sid_path: str, subtune: int, duration: float) -> Capture:
     """Run siddump and regroup its write log into true play() invocations
     with ABSOLUTE cycle stamps.  `subtune` is 0-indexed (project
     convention); siddump's --subtune is 1-based."""
+    # --force-rsid: siddump skips RSID files by default, so without it every
+    # RSID original captures as EMPTY while its PSID rebuild captures fine —
+    # the member then looks like "too few plays" rather than "not measured".
+    # (It does not make a play=$0000 member measurable; see `no_play_entries`
+    # in the caller. Nothing here changes for a PSID.)
     cmd = [SIDDUMP, sid_path, '--subtune', str(subtune + 1),
            '--duration', str(duration),
-           '--writelog-per-irq', '--per-irq-debug', '--raw']
+           '--writelog-per-irq', '--per-irq-debug', '--raw', '--force-rsid']
     r = subprocess.run(cmd, capture_output=True, text=True)
     meta = _parse_stderr(r.stderr)
     frames = _parse_stdout(r.stdout)
@@ -333,6 +338,19 @@ def compare(orig_sid: str, rebuild_sid: str, subtune: int,
     """
     co = capture_plays(orig_sid, subtune, duration)
     cr = capture_plays(rebuild_sid, subtune, duration)
+    if not co.plays or not cr.plays:
+        # A self-driven member (RSID play=$0000) has no play() invocations to
+        # bucket by, so this instrument has nothing to say about it — the
+        # question "where inside its play() did this write land" does not
+        # apply. Report that, distinctly, instead of letting it read as a
+        # thin sample. Whole families are in this state (basic_program, every
+        # digi family), and burying them in a "too few plays" bucket
+        # overstates the corpus the measurement actually covers.
+        return {'orig': os.path.relpath(orig_sid, ROOT),
+                'rebuild': os.path.relpath(rebuild_sid, ROOT),
+                'subtune': subtune, 'duration': duration,
+                'plays_orig': len(co.plays), 'plays_rebuild': len(cr.plays),
+                'no_play_entries': True, 'plays_compared': 0}
     so, sr = _chip_seq(co), _chip_seq(cr)
 
     onset, spread = [], []
