@@ -100,6 +100,21 @@ STILL OPEN for this family: the 92 music-paired members (C31-hetero +
 the $D418-ownership split verdict), and Rayden_Digi (item 28) on the
 same schema.
 
+**2026-09-02 — the paired members' precondition is now MEASURED.** The
+split verdict exists (`verify_cycle.compare_split_by_register`, music
+Mode 1 / digi Mode 2, controls in
+`pipelines/hubbard/tests/test_split_verdict.py`), and
+`tools/register_ownership.py` measured whether the digi actually owns
+$D418 on all 92, over each member's songlength x 1.1: **81 exclusive /
+11 shared / 0 no-digi**. So the split is clean for 81 and the other 11
+need the composer to place a music-side $D418 write cycle-exactly — in
+10 of them that is a single once-per-frame master-volume assertion
+inside a ~120/frame sample stream. ⚠ Two refutations worth carrying:
+the first classifier keyed on write RATE and read an UNROLLED digi
+burst as "music", and the first scan used a fixed 25 s window and
+called six members digi-less when one of them starts its digi 430
+SECONDS in. Detail in `docs/digi_parametrization_proposal.md` §5.
+
 The last three partials were ONE cause, and the most transferable
 finding of the round: the engine CLAMPS a sample row whose end <= its
 start to `end = start+1` **through a branch**, so two rows describing
