@@ -169,6 +169,41 @@ score (the actual musical content) unrepresented.
   verify music flat (Mode 1) + digi cycle-strict (Mode 2) — the C27/C28
   "split the stream, verify each in its own mode" shape, applied to
   register ownership instead of chip tag.
+  ✅ **BUILT 2026-09-01** — `verify_cycle.compare_split_by_register`,
+  shared, with controls in `pipelines/hubbard/tests/test_split_verdict.py`.
+  It degenerates exactly (no strict regs ⇒ `compare_instruction_stream`;
+  all regs strict ⇒ `compare_strict`) and it SEPARATES: a $D418-only cycle
+  shift fails the digi side and not the music side; a music-register value
+  change fails the music side and not the digi side; a music-only cycle
+  shift is tolerated (Trap B, stated as a test).
+
+  📐 **THE PRECONDITION IS NOW MEASURED, and the premise above is NOT
+  universal.** `tools/register_ownership.py` (new, engine-blind: pc-trace
+  the busiest window and classify each writer PC by its per-frame rate)
+  over all 92 Digi-Organizer music-paired members:
+
+  | verdict | n | meaning |
+  |---|---:|---|
+  | `exclusive` | 69 | the digi core is the only $D418 writer — split clean |
+  | `shared` | 16 | the MUSIC player writes $D418 too |
+  | `no_fast_writer` | 7 | no kHz-rate writer in the busiest window |
+
+  The two populations are separated by two orders of magnitude — the digi
+  writes $D418 71–149×/frame, the music engine's writes total 4–19×/frame
+  across ALL registers — so the classification is not a tuned threshold.
+
+  For a `shared` member the music's own $D418 write lands INSIDE the
+  digi's sample stream, i.e. it IS one sample slot of the audible
+  waveform, so the register split still puts it in the right place: it
+  belongs on the cycle-strict side. What changes is the COMPOSER's job
+  (it must place a music-side write cycle-exactly), not the verdict's
+  shape. Record the measured class beside the verdict; do not assume it.
+
+  The 7 `no_fast_writer` members are unresolved — 6 of them write $D418
+  only 2–3 times in 20 s (Feekzoid ×5 + TSM), so they are sidid-tagged
+  Digi-Organizer carriers whose digi never plays in that window, or at
+  all. They need a look before they are counted as anything.
+
 - PRECONDITION to confirm per family: the same ownership must hold for
   Digi-Organizer pairings (its `| $10` mask suggests it also owns
   $D418; the paired music engine's mvol behavior must be probed, and

@@ -633,3 +633,84 @@ def compare_instruction_stream(a: list[Frame], b: list[Frame],
     }
 
 
+
+
+# ---------------------------------------------------------------------------
+# THE SPLIT VERDICT — one member, two verification modes, split by REGISTER.
+#
+# A member that plays digi CONCURRENTLY with music carries both modes in one
+# stream: the digi is Mode 2 (cycle-strict — the write timing IS the
+# waveform) and the music is Mode 1 (flat `(reg,val)`; within-frame cycle
+# position is observation, core tenet Trap B).  This is the C27/C28 shape —
+# "split the stream, verify each substream in its own mode, because the two
+# halves are physically independent" — applied to REGISTER OWNERSHIP instead
+# of chip tag.  Proposed in `docs/digi_parametrization_proposal.md` §5.
+#
+# ⚠ THE SPLIT IS ONLY SOUND WHERE OWNERSHIP IS EXCLUSIVE, and that is a
+# MEASUREMENT, not an assumption.  `tools/register_ownership.py` makes it:
+# it pc-traces the busiest window and asks which code writes each register.
+# Measured 2026-09-01 over the 92 Digi-Organizer music-paired members:
+#
+#     69  exclusive        the digi core is the only $D418 writer  -> split OK
+#     16  shared           the MUSIC player writes $D418 too       -> see below
+#      7  no_fast_writer   no kHz-rate writer in the busy window
+#
+# So the proposal's premise ("the digi engine owns $D418 exclusively") holds
+# for three quarters of the population and NOT for the rest.  For a `shared`
+# member the music's own $D418 write lands INSIDE the digi's sample stream,
+# so it is a sample slot like any other and belongs on the cycle-strict side
+# — which is what this function does.  That is a real, harder constraint on
+# the composer (a music-side write it must place cycle-exactly), not a flaw
+# in the verdict.  Callers should record the measured ownership class beside
+# the verdict rather than assume it.
+# ---------------------------------------------------------------------------
+
+DIGI_REGS_D418 = frozenset({0x18})
+
+
+def compare_split_by_register(a: list[Frame], b: list[Frame],
+                              strict_regs=DIGI_REGS_D418,
+                              mode: str = 'legacy',
+                              close_tol: int = 176,
+                              n_chips: int = 1) -> dict:
+    """Verify a music+digi capture with each substream in its own mode.
+
+    `strict_regs` — the registers the DIGI engine owns.  Their writes are
+    compared cycle-strictly (`compare_strict`); every other register's
+    writes are compared as a flat instruction stream
+    (`compare_instruction_stream`).
+
+    Degenerate cases reduce exactly, and both are asserted by the tool's
+    self-test:
+      * `strict_regs=frozenset()`  -> pure `compare_instruction_stream`
+      * `strict_regs` = all 0x00-0x1F over a single-chip capture, on a
+        member with no music writes -> pure `compare_strict`
+
+    Returns the two sub-verdicts plus a combined `is_full`.  The register
+    masks are matched on `reg & 0x1F`, so a chip-tagged multi-SID capture
+    (reg = chip*0x20 + reg&0x1F, ledger C27) splits correctly on every chip.
+    """
+    strict_regs = frozenset(r & 0x1F for r in strict_regs)
+
+    def _keep(frames, want_strict):
+        return [[w for w in fr if ((w[1] & 0x1F) in strict_regs) is want_strict]
+                for fr in frames]
+
+    digi = compare_strict(_keep(a, True), _keep(b, True))
+    music = compare_instruction_stream(_keep(a, False), _keep(b, False),
+                                       mode=mode, close_tol=close_tol,
+                                       n_chips=n_chips)
+
+    # compare_strict has no `is_full`: it is full iff every frame's
+    # (cycle, reg, val) list matched AND neither side has extra frames.
+    digi_full = (digi['match'] == digi['frames']
+                 and digi['len_a'] == digi['len_b'])
+    return {
+        'mode': 'split_by_register',
+        'strict_regs': sorted(f'{r:02X}' for r in strict_regs),
+        'digi': digi,
+        'digi_full': digi_full,
+        'music': music,
+        'music_full': bool(music['is_full']),
+        'is_full': digi_full and bool(music['is_full']),
+    }

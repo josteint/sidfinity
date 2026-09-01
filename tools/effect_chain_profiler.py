@@ -72,7 +72,8 @@ _ABS_STORE = re.compile(r'\bST[AXY]a\s+d4([0-9a-fA-F]{2})\s*$', re.I)
 _CYCLE = re.compile(r'\((\d+)\)')
 
 
-def _capture(sid_path: str, subtune: int, start_frame: int, end_frame: int):
+def _capture(sid_path: str, subtune: int, start_frame: int, end_frame: int,
+             force_rsid: bool = False):
     """Run siddump and return the ordered $D4xx store stream.
 
     Returns [(pc, reg, val, cycle)] for every `ST[AXY]` instruction whose
@@ -92,7 +93,8 @@ def _capture(sid_path: str, subtune: int, start_frame: int, end_frame: int):
              '--subtune', str(subtune + 1),
              '--duration', str(duration),
              '--pc-trace', pc_path,
-             str(start_frame), str(end_frame)],
+             str(start_frame), str(end_frame)]
+            + (['--force-rsid'] if force_rsid else []),
             capture_output=True, text=True)
         if r.returncode not in (0, 2):
             print(f'siddump error (rc={r.returncode}):\n{r.stderr}',
@@ -169,6 +171,11 @@ def main() -> int:
     p.add_argument('--register', default=None,
                    help='Filter to specific $D4xx register(s), '
                         'comma-separated hex (e.g. D408 or 02,03)')
+    p.add_argument('--force-rsid', action='store_true',
+                   help='Process RSID files, which siddump skips by default. '
+                        'Without it this tool is blind to every self-driven '
+                        'RSID member (the whole digi corpus: Digi-Organizer, '
+                        'Rayden_Digi, Chimera originals).')
     p.add_argument('--find-write', default=None, metavar='REG=VAL',
                    help='Find every write of REG=VAL (e.g. D408=B7) and report '
                         'its PC + play index — no frame guess needed. This is '
@@ -212,7 +219,7 @@ def main() -> int:
                 v -= 0xD400
             reg_filter.add(v)
 
-    pcw = _capture(args.sid, args.subtune, sf, ef)
+    pcw = _capture(args.sid, args.subtune, sf, ef, args.force_rsid)
     if not pcw:
         print('No $D4xx stores captured. siddump stderr above may explain.',
               file=sys.stderr)
