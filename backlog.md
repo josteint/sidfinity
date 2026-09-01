@@ -5,7 +5,7 @@
 # dozen measured-but-unfinished investigations. Moved to the repo root and
 # tracked for exactly that reason.
 #
-# NEXT_ITEM: 40   <- autoincrement: a NEW item takes this number, then bump it.
+# NEXT_ITEM: 41   <- autoincrement: a NEW item takes this number, then bump it.
 #
 # CONVENTIONS (owner-set 2026-08-28):
 #  - A done item is REMOVED COMPLETELY — no tombstone, no summary line. The
@@ -230,6 +230,78 @@
     Related: `tools/oracle_fault_injection.py` is the same shape one layer
     over (what the write-stream verdict cannot see); this is its audio
     sibling and the two should probably merge eventually.
+
+40. THE RAYDEN MUSIC SIDE — and it is 60% OF THE WHOLE DMC f1 RESIDUE
+    (opened 2026-09-01, measured; the blocker under queue item 3, "the
+    Rayden join").
+
+    ==== THE FINDING THAT REFRAMES IT ====
+    The 17 Rayden_Digi carriers are DMC v4 members with a digi engine
+    wrapped round them, and they are ALREADY IN the DMC family-1 batch as
+    residue. Measured from tmp/dmc_f1_85_results.jsonl:
+
+        dmc_v4 f1:  5450 full / 23 partial / 2 error   -> 25 non-full
+                    of those 25, FIFTEEN are MUSICIANS/R/Rayden/   (60%)
+        dmc_v4 f2:  2929 full / 14 partial / 1 error   -> 0 Rayden
+
+    So "the Rayden join" is not a side quest beside the DMC grind: it IS
+    the largest single lever left in DMC family-1. The other ten f1
+    non-fulls are singletons (Bayliss x3, Behdad, Blues_Muz, Daf, Ed,
+    PVCF, Praiser, Zyron).
+
+    ==== WHAT IS MEASURED ABOUT THE MUSIC SIDE (Morbital) ====
+    * `dmc_v4_config` ACCEPTS the member: base $1000, canon geometry, and
+      it builds. So this is not a detection or dispatch problem.
+    * The ENVIRONMENT is wrong by default. The member is RSID play=$0000
+      (self-driven, ledger C40), so every C9/C18 probe that needs a play
+      vector returns nothing and the member is built as a 50 Hz vblank
+      tune. Measured from the original instead:
+        - the music player is entered 4x per PAL frame, always at PC $160D
+          (pc-trace, absolute cycles: 32 gaps, mean 4912 = 19656/4).
+          ⚠ the MEDIAN gap (4524) is NOT the rate — the gaps are bimodal,
+          24x ~4450 and 8x ~6300, i.e. four raster IRQs at ~72/72/72/96
+          lines. Use the mean.
+        - the per-call write footprint is period-4 P F F F: one call in
+          four carries the filter tail ($D416/$D417), the other three do
+          not. $D416 runs 0.82/frame against $D400's 3.26.
+        - the music rate is INDEPENDENT of the digi rate
+          (corr(D418/frame, D400/frame) = +0.004 over 1000 frames), so it
+          is not "every Nth digi NMI".
+      => song rate 50 Hz, 4x multispeed, C18 schedule P_F123_F123_F123.
+    * ⛔ SUPPLYING THAT ENVIRONMENT IS NOT ENOUGH, and this is the part
+      that matters. With cia_period=4913 + play_phases the write COUNT
+      comes right (76,140 orig vs 84,824 rebuild, was 22,925) but the
+      music stream still diverges at flat position 35 — the first play().
+      All four rotations of the schedule are equal-or-worse (35/24/24/24),
+      and dropping play_phases entirely also gives 35. The schedule is not
+      the lever.
+    * THE DIVERGENCE IS CONTENT, NOT TIMING. Both sides agree through the
+      init clear sweep (positions 0-34). Then:
+        orig     V1flo=$D1 V1fhi=$12 V1pwl=$00 V1pwh=$00 V1ctl=$11
+        rebuild  V1sr=$FD V1ad=$24 V1flo=$0C V1fhi=$07 V1pwl=$00
+                 V1pwh=$08 V1ctl=$09
+      Two independent differences: (a) the orig's first play writes NO
+      AD/SR — either a C23 deferred note-init or an F phase first; and
+      (b) the freq/PW/ctrl VALUES are unrelated ($12D1 vs $070C), so the
+      song data our extract decoded is not what the original plays. (b) is
+      the real blocker and (a) cannot be judged until it is fixed.
+
+    ==== NEXT MEASUREMENT ====
+    Find out WHY the decoded song differs. Candidates, in the order a
+    DMC session would try them: a forced/remapped tune record (C19's
+    forced_subtune family — the RSID init wrapper is the digi installer
+    and may set A itself); song data generated or relocated at init
+    (C26 — check with a pre/post-init RAM diff, NOT an operand-range
+    heuristic); or a C37 save-state resume. `pipelines/dmc/state_addr.py`
+    and `build_one.py --localize` are the tools; note that build_one
+    builds these as PSID so its own verify is against the wrong
+    environment.
+
+    ⚠ The Rayden members must be verified with the SPLIT verdict
+    (`verify_cycle.compare_split_by_register`, landed 2026-09-01), not the
+    plain DMC one: their $D418 belongs to the digi engine, measured
+    `exclusive` on 16 of the 17 (tools/register_ownership.py). A plain
+    trichotomy verdict on the merged stream can never pass.
 
 10. E5 (Phase E) — ML-PROXY METRICS: token stats + engine-predictability of
     fields. "The eventual ground truth of the philosophy, not built now" —
@@ -1839,6 +1911,26 @@
 
     ⚠ MEMORY.md's "verdicts CURRENT" lines for DMC and basic_program are
     stale as of 2026-08-29 16:40 and should be re-marked.
+
+    ==== ✅ THE CODE FIX LANDED 2026-09-01 (7fe22507) ====
+    The suffix typo is corrected and `digi_organizer` is derived (133
+    modules, mass_write.py + the docs prototypes now outside its closure;
+    `derive_deps --check` clean). It needed a `_worker_init` on that batch
+    or the derivation would have run with no songlength database and
+    recorded a silently-too-narrow set. `dmc_v6` is deliberately NOT
+    derived — no composer means no per-member work to snapshot, so a
+    derivation would be narrower than the declared glob (the unsafe
+    direction); the reason is recorded in derive_deps' registry.
+
+    Keys moved exactly as predicted (7 of 8; goattracker_v1 has no
+    portfolio file so it is unchanged), and every family with stored
+    artifacts re-checked byte-identical first — dmc_v4 37/37 over all 7
+    build paths, dmc_v5 6/6, fc_standard 6/6, digi_organizer 6/6 — so the
+    staleness the move carries is nominal.
+
+    STILL OPEN in this item: the `--prove-by-rebuild` restamp mode for
+    `migrate_verdict_rows` (owner territory — it changes what counts as
+    PROOF for a restamp), and the MEMORY.md re-marking above.
 
     ==== AND THE STALENESS IS NOMINAL, NOT REAL ====
     A byte-identity spot check (rebuild the STORED .usf under current code,
