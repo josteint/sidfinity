@@ -1,7 +1,8 @@
 # Rayden_Digi — reverse-engineering notes
 
-**Status (head = current). EXTRACT BUILT AND GATED 2026-08-31; no composer
-yet.** This is phase 3 of `docs/digi_parametrization_proposal.md` (schema
+**Status (head = current). EXTRACT BUILT AND GATED 2026-08-31; to_usf builds
+all four decoded members 2026-09-01; no composer yet, and nothing STORED
+(the music side is the remaining blocker).** This is phase 3 of `docs/digi_parametrization_proposal.md` (schema
 landed 2026-08-29; Digi-Organizer, phase 2, closed at 39/39). 17 carriers,
 all `MUSICIANS/R/Rayden/`.
 
@@ -17,6 +18,45 @@ the 2026-08-31 extract section). No USF writer yet.
 NINE of them sidid `Rayden_Digi_V1`, run the SAME sequencer. See "one
 sequencer, two playback cores" below; it is the measured backing for the §8
 guard, not just an argument.
+
+## 2026-09-01 — `loop_start` landed; to_usf builds all four members
+
+Backlog 38 closed: the owner approved `SampleInstrument.loop_start`, so the
+sample loop point has a typed home and `to_usf.py` no longer refuses
+sustaining members. All four decoded members now build USF objects and
+`parse(write(x)) == x` holds for each.
+
+**The mapping.** The engine holds a loop ADDRESS; USF holds the OFFSET into
+the recording. The extract already walks both — `pcm[s] = (head, loop)` where
+`head` runs from the start pointer to the terminator and `loop` from the loop
+pointer — so the offset falls out as `len(head) - len(loop)`, with an empty
+loop walk meaning one-shot (field absent). The code ASSERTS the suffix
+property (`loop == head[-len(loop):]`) and refuses loudly if it fails, rather
+than emitting an offset that would quietly mean something else.
+
+**Units: the offset is in NIBBLES (samples), not packed bytes** — and that is
+independently confirmed. Item 38 recorded Morbital sample 8 as start $4630 /
+loop $4D48, a delta of $718 = 1816 bytes; the extract yields `loop_start =
+3632 = 2 x 1816`. Two nibbles per byte, so the field is a true PCM sample
+offset, which is what a sampler loop marker should be.
+
+Measured per member:
+
+    Morbital / Morbital_plus   s0=0 (whole-sample sustain), s1=4092,
+                               s2=6320, s8-s13 = 2496..3632
+    Spelling_Around            all six one-shot (no field emitted)
+    Embarassed_Emotions        s15=0, s2-s6 one-shot, the rest 1738..9116
+
+⚠ Item 38 described "loop == start" as covering Morbital s0-s2; measured,
+only s0 is a whole-sample loop — s1 and s2 are attack+tail with offsets 4092
+and 6320. Its other groupings check out exactly (Spelling_Around all
+one-shot; Embarassed s2-s6 one-shot).
+
+⛔ STILL NOT STORED, and this is now the ONLY blocker: these files carry MUSIC
+(DMC, or a Rob Hubbard player on Spelling_Around) beside the digi channel. A
+`.usf` holding only the digi voice would be an incomplete description of the
+tune, and every corpus tool would treat it as the member's artifact. The
+writer builds objects for round-tripping; storing waits for the music side.
 
 ## 2026-08-31 — family opened; V1 vs V2 are DIFFERENT PACING TOPOLOGIES
 

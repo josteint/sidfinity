@@ -14,12 +14,14 @@ enforces.  Two-level members map their block orderlist straight onto
 `Orderlist` + `Pattern`; single-level members are a one-entry looping
 orderlist.
 
-⛔ **This does not yet write a member's `.usf`.**  Two things are missing and
-both are deliberate rather than forgotten:
+The sample LOOP POINT lands as `SampleInstrument.loop_start` (owner-approved
+2026-09-01, backlog 38 closed): the engine holds a loop ADDRESS, USF holds the
+OFFSET into the recording, and absent means one-shot.  All three corpus
+behaviours are expressible — one-shot, whole-sample sustain, and attack +
+tail loop.
 
-  * The sample LOOP POINT has no home in `SampleInstrument`, so any member
-    with a sustaining sample is REFUSED here — backlog item 38, parked for
-    the owner rather than smuggled through `params`.
+⛔ **This still does not write a member's `.usf`**, for one remaining reason:
+
   * These files carry MUSIC (DMC, or Rob Hubbard on Spelling_Around) beside
     the digi channel.  A `.usf` holding only the digi voice would be an
     incomplete description of the tune, and every corpus tool would then
@@ -71,20 +73,37 @@ def _blocks(m):
 def model_to_usf(m, sample_files: dict) -> UsfFile:
     """Build the UsfFile.  `sample_files` maps engine sample id -> sidecar
     filename; the caller writes the FLACs (this module never touches disk)."""
-    sustaining = [s for s, (start, loop) in m.samples.items()
-                  if m.pcm[s][1]]
-    if sustaining:
-        raise RaydenDigiUnsupported(
-            f'samples {sorted(sustaining)} SUSTAIN by looping and '
-            f'SampleInstrument has no loop point — backlog item 38 '
-            f'(owner decision), not to be worked around via params')
+    # The sidecar carries the HEAD nibbles (the recording from its start
+    # pointer to the terminator).  The engine's loop pointer is an ADDRESS;
+    # what USF wants is the OFFSET into that recording, so the two decoded
+    # walks give it directly: the loop walk is the tail of the head walk, and
+    # `loop_start = len(head) - len(loop)`.
+    #     loop empty            -> one-shot           -> loop_start absent
+    #     len(loop) == len(head)-> whole sample loops -> loop_start 0
+    #     0 < offset < len      -> attack + tail loop
+    loop_start = {}
+    for s in sorted(m.samples):
+        head, loop = m.pcm[s]
+        if not loop:
+            continue                       # one-shot; leave the field absent
+        if list(loop) != list(head[len(head) - len(loop):]):
+            # The offset model only holds while the loop walk is a SUFFIX of
+            # the head walk. Refuse loudly rather than emit an offset that
+            # silently means something else.
+            raise RaydenDigiUnsupported(
+                f'sample {s}: the loop walk is not a suffix of the sample '
+                f'(head {len(head)} nibbles, loop {len(loop)}) — its loop '
+                f'pointer does not lie inside the recording, so a single '
+                f'loop_start offset cannot express it')
+        loop_start[s] = len(head) - len(loop)
     # per-instrument default rate = the latch it is most often triggered at
     latches = {}
     for e in m.events:
         latches.setdefault(e['sample'], Counter())[e['latch']] += 1
     instruments = [
         SampleInstrument(id=s, sample=sample_files[s],
-                         rate_cycles=latches[s].most_common(1)[0][0])
+                         rate_cycles=latches[s].most_common(1)[0][0],
+                         loop_start=loop_start.get(s))
         for s in sorted(m.samples)]
     default_rate = {s: latches[s].most_common(1)[0][0] for s in latches}
 
