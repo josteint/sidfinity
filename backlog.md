@@ -213,109 +213,72 @@
        across a flattened stream, and the init-length difference means frame
        k of the original is not frame k of the rebuild.
 
-    ==== PROPOSED DESIGN (measure the physical quantity first) ====
-    Do NOT start with a perceptual metric. Start with the quantity Trap B is
-    actually about — the within-frame write-time delta:
+    ==== ✅ BUILT AND MEASURING, 2026-09-01 ====
+    `tools/write_timing_delta.py` (one member) + `tools/write_timing_sweep.py`
+    (the corpus, ranked) + `tools/render_pair.py` (the listening test).
 
-    (a) For a FULL Mode-1 member, align the PLAY streams (drop init; reuse
-        the trichotomy shift `verify_cycle._trichotomy_compare` already
-        recovers). For a FULL member the per-frame write SEQUENCE is
-        identical by construction, so write i of frame f corresponds
-        one-to-one. Histogram `cycle_orig(f,i) − cycle_rebuild(f,i)`.
-    (b) That distribution IS the claim. If deltas are tens of cycles, Trap B
-        is safe on physical grounds and no perceptual test is needed. If some
-        members show deltas of thousands of cycles (a write landing much
-        later in its frame), those are the exposed ones.
-    (c) RANK members by p99 delta and LISTEN to the worst — a targeted
-        listening test instead of a blind one. The owner's ear is the
-        project's stated final judge; consider a second listener given the
-        self-noted hardware caveat.
-    (d) Only if (c) is inconclusive, reach for a real perceptual metric
-        (PEAQ / bark-band loudness), never a hand-rolled spectral norm.
+    WHAT IT MEASURES, per play() invocation, PER CHIP:
+      ONSET   (w_o[0]-E_o) - (w_r[0]-E_r)   how much later the burst starts
+              after the IRQ. A constant onset is pure latency (inaudible by
+              construction); its VARIANCE is jitter, which is what could be
+              heard.
+      SPREAD  (w_o[i]-w_o[0]) - (w_r[i]-w_r[0])   how much the burst's
+              INTERNAL shape changed — the relative timing of gate edges and
+              envelope starts against each other. Trap B's own quantity.
+      plus each side's BURST WIDTH, which is the explanatory variable.
+
+    HEADLINE (interim, 889 members): **median spread p99 = 183 cycles =
+    0.93% of a frame ≈ 0.19 ms**, p90 293, p99 376. The tail is the Hubbard
+    '85 family (Commando 2099, Monty 2395, Thing_on_a_Spring 2405, 5 Title
+    Tunes 2574) and the cause is visible in the burst widths: Commando's
+    ORIGINAL emits its three voices in 602 cycles, our composer takes 775
+    typically and up to 3628 on note-init frames — ~1,650 cycles between
+    voices where the original takes ~270. So on the worst frames voice 1's
+    note-on lands ~2.8 ms later RELATIVE TO voice 3's than in the original.
+    Whether that is audible is the listening test, not a number.
+
+    ==== HOW IT IS BUILT (each point cost a wrong answer first) ====
+    * Absolute cycles come from `--writelog-per-irq --per-irq-debug`'s STDERR
+      (`base` = absolute PHI1 at frame start, `entry0` = the play entry).
+      No siddump change: siddump is inside code_fingerprint's toolchain hash,
+      so touching it would invalidate every family's verdict rows.
+    * A frame with writes but NO play entry has no base line; that play is
+      EXCLUDED and counted (~5-7%), never half-measured.
+    * ⚠ THE PLAY-INDEX OFFSET MUST BE RECOVERED, NOT ASSUMED (ledger C21,
+      4th implementation). The rebuild's init takes a different number of
+      IRQs — Go_Funk: 460 plays vs 461. At shift 0 that reads as 356/390
+      mismatched where the truth is 31/417, and the plays that coincide are
+      the STATIC ones, so the timing numbers come from the wrong pairs.
+      Measured impact: 0.5% of members — but for those the tool reported
+      spread_p99 = 0, i.e. wrong in the FLATTERING direction.
+    * ⚠ EVERYTHING IS PER CHIP (ledger C28). Comparing the merged stream
+      called 4-22% of plays "content mismatch" on every 2SID member. On
+      Bamse_Bert_2SID chip 1's burst sits 3.6k-16.7k cycles after the play
+      entry (p10..p90) against chip 0's ~400, so a 60-cycle delta decides
+      which bucket owns it. The tool now REPORTS that band per chip, raw —
+      it is the Trap B BOUNDARY made visible per member.
+    * ⚠ SELF-DRIVEN MEMBERS ARE NOT MEASURABLE by this instrument and say so
+      (`no_play_entries`): RSID play=$0000 has no play() to bucket by.
+      basic_program and every digi family are in this state. They were
+      briefly hidden inside a "too-few-plays" bucket, which overstated
+      coverage.
+
+    ==== WHAT IS LEFT ====
+    (c) The listening test on the ranked worst, with `render_pair.py`. The
+        owner's ear is the stated final judge; consider a second listener
+        given the self-noted hardware caveat.
+    (d) Only if (c) is inconclusive, a REAL perceptual metric (PEAQ,
+        bark-band loudness) — never a hand-rolled spectral norm. The four
+        withdrawn measurements above say why.
+    Also open: a per-play CONTENT mismatch that survives both the shift
+    recovery and the chip split is the Trap B BOUNDARY class (writes
+    redistributed across play boundaries) and the flat verdict is blind to
+    it. Count them when the full sweep lands; that count is a statement
+    about the verdict, not about the tool.
 
     Related: `tools/oracle_fault_injection.py` is the same shape one layer
     over (what the write-stream verdict cannot see); this is its audio
     sibling and the two should probably merge eventually.
-
-40. THE RAYDEN MUSIC SIDE — and it is 60% OF THE WHOLE DMC f1 RESIDUE
-    (opened 2026-09-01, measured; the blocker under queue item 3, "the
-    Rayden join").
-
-    ==== THE FINDING THAT REFRAMES IT ====
-    The 17 Rayden_Digi carriers are DMC v4 members with a digi engine
-    wrapped round them, and they are ALREADY IN the DMC family-1 batch as
-    residue. Measured from tmp/dmc_f1_85_results.jsonl:
-
-        dmc_v4 f1:  5450 full / 23 partial / 2 error   -> 25 non-full
-                    of those 25, FIFTEEN are MUSICIANS/R/Rayden/   (60%)
-        dmc_v4 f2:  2929 full / 14 partial / 1 error   -> 0 Rayden
-
-    ⚠ CAVEAT ON THOSE COUNTS, stated because the session that measured them
-    also invalidated them: they are read from rows stamped BEFORE backlog
-    31's key fix landed the same night, so they are ⚠STALE-VERDICTS. The
-    byte-identity spot check says the staleness is nominal (dmc_v4 37/37
-    identical over all 7 build paths), and the 15 Rayden members are
-    partial for a reason no key change can move, so the SHARE is safe. Only
-    the exact 25 would shift if a re-batch moved anything.
-
-    So "the Rayden join" is not a side quest beside the DMC grind: it IS
-    the largest single lever left in DMC family-1. The other ten f1
-    non-fulls are singletons (Bayliss x3, Behdad, Blues_Muz, Daf, Ed,
-    PVCF, Praiser, Zyron).
-
-    ==== WHAT IS MEASURED ABOUT THE MUSIC SIDE (Morbital) ====
-    * `dmc_v4_config` ACCEPTS the member: base $1000, canon geometry, and
-      it builds. So this is not a detection or dispatch problem.
-    * The ENVIRONMENT is wrong by default. The member is RSID play=$0000
-      (self-driven, ledger C40), so every C9/C18 probe that needs a play
-      vector returns nothing and the member is built as a 50 Hz vblank
-      tune. Measured from the original instead:
-        - the music player is entered 4x per PAL frame, always at PC $160D
-          (pc-trace, absolute cycles: 32 gaps, mean 4912 = 19656/4).
-          ⚠ the MEDIAN gap (4524) is NOT the rate — the gaps are bimodal,
-          24x ~4450 and 8x ~6300, i.e. four raster IRQs at ~72/72/72/96
-          lines. Use the mean.
-        - the per-call write footprint is period-4 P F F F: one call in
-          four carries the filter tail ($D416/$D417), the other three do
-          not. $D416 runs 0.82/frame against $D400's 3.26.
-        - the music rate is INDEPENDENT of the digi rate
-          (corr(D418/frame, D400/frame) = +0.004 over 1000 frames), so it
-          is not "every Nth digi NMI".
-      => song rate 50 Hz, 4x multispeed, C18 schedule P_F123_F123_F123.
-    * ⛔ SUPPLYING THAT ENVIRONMENT IS NOT ENOUGH, and this is the part
-      that matters. With cia_period=4913 + play_phases the write COUNT
-      comes right (76,140 orig vs 84,824 rebuild, was 22,925) but the
-      music stream still diverges at flat position 35 — the first play().
-      All four rotations of the schedule are equal-or-worse (35/24/24/24),
-      and dropping play_phases entirely also gives 35. The schedule is not
-      the lever.
-    * THE DIVERGENCE IS CONTENT, NOT TIMING. Both sides agree through the
-      init clear sweep (positions 0-34). Then:
-        orig     V1flo=$D1 V1fhi=$12 V1pwl=$00 V1pwh=$00 V1ctl=$11
-        rebuild  V1sr=$FD V1ad=$24 V1flo=$0C V1fhi=$07 V1pwl=$00
-                 V1pwh=$08 V1ctl=$09
-      Two independent differences: (a) the orig's first play writes NO
-      AD/SR — either a C23 deferred note-init or an F phase first; and
-      (b) the freq/PW/ctrl VALUES are unrelated ($12D1 vs $070C), so the
-      song data our extract decoded is not what the original plays. (b) is
-      the real blocker and (a) cannot be judged until it is fixed.
-
-    ==== NEXT MEASUREMENT ====
-    Find out WHY the decoded song differs. Candidates, in the order a
-    DMC session would try them: a forced/remapped tune record (C19's
-    forced_subtune family — the RSID init wrapper is the digi installer
-    and may set A itself); song data generated or relocated at init
-    (C26 — check with a pre/post-init RAM diff, NOT an operand-range
-    heuristic); or a C37 save-state resume. `pipelines/dmc/state_addr.py`
-    and `build_one.py --localize` are the tools; note that build_one
-    builds these as PSID so its own verify is against the wrong
-    environment.
-
-    ⚠ The Rayden members must be verified with the SPLIT verdict
-    (`verify_cycle.compare_split_by_register`, landed 2026-09-01), not the
-    plain DMC one: their $D418 belongs to the digi engine, measured
-    `exclusive` on 16 of the 17 (tools/register_ownership.py). A plain
-    trichotomy verdict on the merged stream can never pass.
 
 10. E5 (Phase E) — ML-PROXY METRICS: token stats + engine-predictability of
     fields. "The eventual ground truth of the philosophy, not built now" —
