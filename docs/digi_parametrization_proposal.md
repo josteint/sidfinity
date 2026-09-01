@@ -207,30 +207,20 @@ score (the actual musical content) unrepresented.
   the busiest window and classify each writer PC by its per-frame rate)
   over all 92 Digi-Organizer music-paired members:
 
-  ⚠ **THE PAIRED COLUMN BELOW IS WITHDRAWN AS OF 2026-09-01 (later the same
-  night) AND IS BEING RE-MEASURED.** It was taken over a fixed 25-second
-  scan window, and six members reported `no_digi_in_window` on that basis.
-  Every one of the six turned out to have a digi — Xanadu has 2,558,796
-  $D418 writes with its busiest window 430 SECONDS in. A fixed window turns
-  "I did not look there" into a statement about the member. The scan is now
-  the ratified songlength x 1.1
-  (`feedback_subtune_frames_not_arbitrary`), and the `shared` count in
-  particular can only move DOWN or UP with more evidence, not stay
-  authoritative. The Rayden and standalone columns are less exposed (short
-  members) but were taken the same way.
+  Measured over each member's own **songlength x 1.1** (the ratified verify
+  window — see the refutation below for why that matters):
 
   | verdict | paired (92) | Rayden (17) | standalone (39) |
   |---|---:|---:|---:|
-  | `exclusive` — digi's writer PCs are disjoint from the music's | **74** | **16** | 0 |
-  | `shared` — a $D418 write comes from the music's own code page | 12 | 1 | 0 |
+  | `exclusive` — digi's writer PCs are disjoint from the music's | **81** | **16** | 0 |
+  | `shared` — a $D418 write comes from the music's own code page | 11 | 1 | 0 |
   | `digi_only` — nothing else writes the SID (vacuously clean) | 0 | 0 | 39 |
-  | `no_digi_in_window` — no $D418 activity found | 6 | 0 | 0 |
 
-  So the premise holds for **90 of the 109 members that have music at all**
-  (83%), and Rayden — the family the proposal's sentence was written about
-  — is 16/17.
+  So the premise holds for **97 of the 109 members that have music at all**
+  (89%), and Rayden — the family the proposal's sentence was written about —
+  is 16/17.
 
-  In 10 of the 12 `shared` members the music contributes 1–2 of ~300–400
+  In 10 of the 12 `shared` members the music contributes 1-2 of ~300-400
   $D418 writes per 3-frame window (<1%): a once-per-frame master-volume
   assertion sitting inside the digi's ~120/frame sample stream. For those
   the register split still puts the write in the RIGHT place — it IS one
@@ -239,9 +229,16 @@ score (the actual musical content) unrepresented.
   cycle-exactly), not the verdict's shape. Record the measured class
   beside the verdict; never assume it.
 
-  The 6 `no_digi_in_window` members (Feekzoid ×5, TSM) write $D418 only
-  2–3 times in 25 s. They are sidid-tagged Digi-Organizer carriers whose
-  digi does not play — they need a look before being counted as anything.
+  ⚠ **A SECOND REFUTATION, and the numbers above are the corrected ones.**
+  The first pass scanned a fixed 25 seconds and reported 74 exclusive / 12
+  shared / **6 `no_digi_in_window`**. Every one of the six has a digi —
+  Xanadu writes $D418 **2,558,796** times, with its busiest window 430
+  SECONDS in. A fixed N-second window turns "I did not look there" into a
+  statement about the member. Re-scanned at songlength x 1.1, all six became
+  `exclusive` and one `shared` member (Mistery_Arts_Intro) did too: 7 of 92
+  verdicts moved, all in the same direction. Rayden's 16/1 was unchanged
+  (short members, digi throughout), which is exactly why the paired set
+  needed checking rather than assuming.
 
   ⚠ **A REFUTED FIRST ANSWER, kept because it was plausible.** The tool
   first classified writers by per-PC RATE ("> 8 writes/frame ⇒ digi") and

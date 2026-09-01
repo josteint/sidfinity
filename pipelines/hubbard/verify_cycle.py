@@ -672,14 +672,15 @@ def compare_instruction_stream(a: list[Frame], b: list[Frame],
 # ⚠ THE SPLIT IS ONLY SOUND WHERE OWNERSHIP IS EXCLUSIVE, and that is a
 # MEASUREMENT, not an assumption.  `tools/register_ownership.py` makes it:
 # it pc-traces the busiest window and asks which code writes each register.
-# Measured 2026-09-01 over the 92 Digi-Organizer music-paired members:
+# Measured 2026-09-02 over each member's own songlength x 1.1:
 #
-#     69  exclusive        the digi core is the only $D418 writer  -> split OK
-#     16  shared           the MUSIC player writes $D418 too       -> see below
-#      7  no_fast_writer   no kHz-rate writer in the busy window
+#                        paired(92)  Rayden(17)  standalone(39)
+#     exclusive                  81          16               0
+#     shared                     11           1               0
+#     digi_only (vacuous)         0           0              39
 #
 # So the proposal's premise ("the digi engine owns $D418 exclusively") holds
-# for three quarters of the population and NOT for the rest.  For a `shared`
+# for 97 of the 109 members that have music at all, and NOT for the rest.  For a `shared`
 # member the music's own $D418 write lands INSIDE the digi's sample stream,
 # so it is a sample slot like any other and belongs on the cycle-strict side
 # — which is what this function does.  That is a real, harder constraint on
