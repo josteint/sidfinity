@@ -63,7 +63,16 @@ def process(args):
         res.update(status='build_fail', detail='too_many_pitches'); return res
     if status == 'not_clean':
         res.update(status='not_clean'); return res
-    res.update(status=status, match=match, len_a=la, len_b=lb)
+    # ⚠ STAMP LOWERCASE. `RT.best_attempt` returns 'FULL' as its internal
+    # pass token, but every shared tool — batch_diff, corpus_sync,
+    # divergence_census, derive_deps, verdict_staleness_probe — compares
+    # `status == 'full'` literally. Stamping the internal token made 489 FULL
+    # members read as zero everywhere outside this file, which silently
+    # disabled batch_diff (CLAUDE.md's mandated closeout regression detector,
+    # ledger C20 sixth layer) for this family and armed corpus_sync to delete
+    # all 489 stored artifacts as orphans the day the family is wired to it.
+    # backlog item 36; `batch_results.load_latest` normalises old rows too.
+    res.update(status=status.lower(), match=match, len_a=la, len_b=lb)
     if status == 'FULL' and do_write:                 # mass-write next to the HVSC original
         dst = os.path.join(ROOT, 'hvsc85', os.path.dirname(relpath))
         write_file(usf, os.path.join(dst, base + '.usf'))
@@ -104,12 +113,13 @@ def main():
             if (i + 1) % 25 == 0: print(f"  {i+1}/{len(todo)}", flush=True)
     results = [r for r in results if r['path'] in {p for p, _ in work}]
     st = Counter(r['status'] for r in results); n = len(results)
-    print(f"\n=== Basic_Program through-USF COVERAGE: {st.get('FULL',0)}/{n} FULL "
-          f"({100*st.get('FULL',0)/n:.1f}%) ===")
+    n_full = st.get('full', 0) + st.get('FULL', 0)   # 'FULL' = pre-fix rows
+    print(f"\n=== Basic_Program through-USF COVERAGE: {n_full}/{n} FULL "
+          f"({100*n_full/n:.1f}%) ===")
     for s, c in st.most_common(): print(f"  {s:26s} {c}")
     byst = defaultdict(list)
     for r in results:
-        if r['status'] != 'FULL': byst[r['status']].append(r)
+        if r['status'].lower() != 'full': byst[r['status']].append(r)
     print("\n=== residue examples ===")
     for s, items in sorted(byst.items(), key=lambda kv: -len(kv[1])):
         print(f"  [{s}] ({len(items)})")

@@ -146,6 +146,19 @@ def load_latest(results_path: str, path_key: str = 'path') -> dict:
     Blank lines are skipped. Rows without `path_key` are skipped rather than
     raising — a partially-flushed final line from a killed batch should not
     take down a read-only analysis tool.
+
+    `status` is LOWERCASED here, at the one boundary every reader passes
+    through. basic_program's batch stamped `'FULL'` for the pass status and
+    lowercase for every failure, while every shared tool compares literally
+    against `'full'` — so 489 FULL members read as zero, and `batch_diff`
+    (which CLAUDE.md mandates at every closeout as THE regression detector,
+    ledger C20's sixth layer) could never report a gain or a regression for
+    that family, whatever happened. Worse and still latent: `corpus_sync`
+    decides what is FULL the same way and DELETES the stored artifacts of
+    everything else, so wiring that family to corpus_sync would have
+    orphaned all 489. Normalising at the call sites would have left the next
+    reader to rediscover it; normalising here makes the invariant true for
+    rows already on disk as well as new ones. (backlog item 36)
     """
     latest: dict = {}
     with open(results_path) as f:
@@ -158,6 +171,9 @@ def load_latest(results_path: str, path_key: str = 'path') -> dict:
                 continue
             key = row.get(path_key)
             if key is not None:
+                st = row.get('status')
+                if isinstance(st, str):
+                    row['status'] = st.lower()
                 latest[key] = row
     return latest
 
