@@ -35,7 +35,26 @@ def members():
     return [p for p, e in rows if e == 'Digi-Organizer']
 
 
-def run_member(rel: str, db) -> dict:
+_DB = None
+
+
+def _worker_init():
+    """Load the songlength database into a module global.
+
+    `tools/derive_deps.py` calls this before running one member in a clean
+    interpreter; without it `run_member` would be handed no database, fall
+    back to the 120 s default window and derive a closure that never touched
+    `src.songlengths` — the silently-too-narrow dependency set that tool
+    exists to prevent."""
+    global _DB
+    if _DB is None:
+        _DB = SL.load_database(glob.glob('hvsc85/DOCUMENTS/Songlengths.md5')[0])
+    return _DB
+
+
+def run_member(rel: str, db=None) -> dict:
+    if db is None:
+        db = _worker_init()
     row = {'path': rel, 'ts': time.strftime('%Y-%m-%dT%H:%M:%S')}
     try:
         base = os.path.splitext(os.path.basename(rel))[0]

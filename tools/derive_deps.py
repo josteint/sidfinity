@@ -113,6 +113,18 @@ CONSUMERS = {
         'path_key': 'path',
         'arg': lambda r: [r['path'], r.get('songlength') or 0],
     },
+    'digi_organizer': {
+        'consumer': 'digi_organizer_family_batch',
+        'module': 'pipelines.digi_organizer.family_batch', 'fn': 'run_member',
+        'results': _stores('digi_organizer'),
+        'path_key': 'path',
+        'arg': lambda r: r['path'],
+    },
+    # ⚠ dmc_v6 is deliberately ABSENT. It has no composer, so its batch does
+    # no per-member work to snapshot (every row is `unsupported: no_composer`)
+    # and a derivation would record the import-time closure of a build that
+    # never happens — narrower than the declared glob, i.e. the unsafe
+    # direction. It stays on the declared fallback until it can build.
     'basic_program': {
         'consumer': 'basic_program_batch',
         'module': 'pipelines.basic_program.family_batch', 'fn': 'process',

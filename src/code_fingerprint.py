@@ -183,7 +183,15 @@ _KEY_MANAGEMENT = frozenset({'src/code_fingerprint.py'})
 # SELF-INVALIDATED"). Excluding it is SAFE in the direction that matters: a
 # roster change alters the SET of members a batch visits, never the bytes any
 # one member builds to, and verdict rows are per-member.
-_SELECTION_SUFFIXES = ('_regression_portfolio.json', 'roster.json')
+# ⚠ NO LEADING UNDERSCORE on the portfolio suffix. It carried one from 2026
+# until 2026-09-01, so of the six portfolios in the repo it matched exactly
+# ONE — `pipelines/dmc/f2_regression_portfolio.json`, the only file whose
+# name happens to have an underscore before `regression_portfolio.json`. The
+# other five were hashed, i.e. the exclusion this comment describes was inert
+# for every family but DMC family-2, and re-deriving any of their portfolios
+# invalidated that family's whole verdict store. The docstring above claimed
+# "a new family's portfolio is excluded automatically"; it was not.
+_SELECTION_SUFFIXES = ('regression_portfolio.json', 'roster.json')
 
 
 def _iter_files(root: Path):
