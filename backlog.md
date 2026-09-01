@@ -101,45 +101,51 @@
            disassembly pass before classifying.
          Migration itself deferred (full per-tune sessions).
 
-37. THE MIRROR OF ITEM 9 — #85 REMOVED MEMBERS, AND NOBODY COUNTED THEM
-    (measured 2026-08-31, from the fc_standard re-batch). Item 9 counts what
-    the #85 update ADDED per family and each family's next batch picks those
-    up. Nothing counts what it took AWAY, and those members keep their
-    verdict rows forever: the row is keyed by PATH, the batch simply stops
-    enumerating that path, and no gate looks for a row nobody claims.
+37. DEAD VERDICT ROWS FROM THE #85 UPDATE — ONE DECISION LEFT.
 
-    fc_standard, measured: the store holds 4,140 members, last night's batch
-    enumerated 4,093. The 47 difference are all pre-#85 paths whose `.sid` is
-    GONE from disk — last recorded 32 full / 11 flagged / 4 partial.
+    ✅ THE FIX LANDED 2026-09-01 (fdefdbc3). `tools/verdict_gaps.py` gives
+    every non-DMC family the check DMC has as `route.py --gaps`, in both
+    directions (a member with no row; a row with no member), asking each
+    batch's own `members()` rather than re-writing its query. Wired into
+    CLAUDE.md as a closeout step. It reproduces this item's original
+    fc_standard measurement exactly and found a family nobody had checked:
 
-      37 of 47 are RENAMES — the same basename is covered by a current row,
-                             so the member is verified, just at a new path.
-      10 of 47 are UNCOVERED (7 of them previously FULL): Iceman_01,
-         Fristie-Noise_02, Danko_Tomas/{Contact_2,Light_Intro},
-         Deek/Rapjazz, Fate/Fate_01, Louie/DSI-Faces_Co-Op_part_5,
-         Stember_Rudolf/{Exception,Madness_2}, Zagor/Variety_tune_2.
-         Either dropped from HVSC, renamed to a different FILENAME, or no
-         longer classified FC — not yet determined, and that is the open
-         question here.
+      store            claimed  rows  orphans (renamed uncovered lost FULL)
+      basic_program        524   524        0       0         0         0
+      digi_organizer        39    39        0       0         0         0
+      fc_standard         4093  4140       47      37        10         7
+      goattracker_v1      1387  1387        0       0         0         0
+      music_assembler     6462  6489       27       9        18        12
 
-    ✅ NOT a disk problem: 0 orphaned `.usf`/`.sidfinity.sid` at those 47
-    paths, so the #85 artifact migration did its job. This is purely the
-    VERDICT STORE carrying dead rows.
+      FULL in store -> FULL over CLAIMED:
+        fc_standard      2604 -> 2572   (62.8% of 4,093)
+        music_assembler  4021 -> 4002   (61.9% of 6,462)
 
-    WHY IT MATTERS: it silently inflates the denominator, and the number is
-    already quoted. MEMORY.md records FC at "2,604 FULL" (item 9's Aug-18/19
-    sweep). Last night's re-batch measured 2,572 — and 2,604 − 2,572 = 32 =
-    exactly the vanished FULLs. So the recorded figure counts 32 members
-    that no longer exist. Same arithmetic will apply to any family whose
-    numbers predate #85.
+    Both MEMORY.md figures were corrected (2e695c8e).
 
-    FIX: this is DMC's `route.py --gaps` MIRROR check ("a verdict row the
-    roster claims for NOBODY", already implemented there and passing) —
-    generalise it so every family gets it, rather than one more per-family
-    script. CLAUDE.md already says "add the equivalent for any family that
-    grows a roster"; the measurement says the rows-with-no-member direction
-    is the one that actually bit, and it bites families with no roster at
-    all. Cheap: compare the store's key set against the batch's enumeration.
+    ✅ THE OPEN QUESTION IS ANSWERED for the FC ten. Checked against the #85
+    catalogue by basename: EIGHT are simply GONE (no file of that name
+    anywhere in #85) — Iceman_01, Fristie-Noise_02, Danko_Tomas/Contact_2,
+    Deek/Rapjazz, Fate/Fate_01, Louie/DSI-Faces_Co-Op_part_5,
+    Stember_Rudolf/Madness_2, Zagor/Variety_tune_2. TWO have a basename
+    elsewhere under a DIFFERENT engine — Danko_Tomas/Light_Intro ->
+    DEMOS/UNKNOWN/Light_Intro (Groovy_Bits), Stember_Rudolf/Exception ->
+    Artlace/ or Kitana/Exception (Artlace / DMC). Those two cannot be
+    settled further: identity across an HVSC update is the PSID PAYLOAD hash
+    (C20 seventh layer) and the old bytes are no longer on disk, so
+    "reclassified member" and "coincidental basename" are indistinguishable
+    from here.
+
+    ⏳ THE RESIDUAL, and it is an OWNER DECISION: should the dead rows be
+    PRUNED from the stores, or left with `verdict_gaps` as the lens?
+      * Leaving them costs nothing now that the honest number is one command
+        away, and keeps the history (a pruned row cannot be un-pruned).
+      * Pruning makes a naive read of the store correct, which matters
+        because naive reads are what put the wrong numbers in MEMORY.md in
+        the first place.
+    A middle option exists: keep the rows but stamp them `removed_in: 85`,
+    so they stay readable as history and every consumer skips them. That is
+    a schema-ish change to the store format, hence the gate.
 
 39. MEASURE MODE-1 AUDIO FIDELITY — the canon's "inaudible" has never been
     measured (opened 2026-09-01, owner-requested).
