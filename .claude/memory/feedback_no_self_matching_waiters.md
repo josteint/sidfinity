@@ -17,6 +17,31 @@ one session (2026-06-27), each respawning a `sleep`, and needed a manual
 PID-by-PID kill to clean up (while carefully sparing the PARALLEL DMC session's
 real `dmc_family_batch.py` workers + its own poller).
 
+**THIRD OCCURRENCE, 2026-09-02 — and the new part is that it was a SCRIPT
+waiting on the pattern, not just a one-liner.** A serial overnight chain
+
+```bash
+while pgrep -f "tools/regression.py" >/dev/null 2>&1; do sleep 60; done
+```
+
+never advanced past step one, because by then SIX earlier harness waiters —
+each itself a `bash -c ... pgrep -f "tools/regression.py" ...` — were sitting
+in the process table with the pattern in their argv. They matched each other
+and the chain matched all of them, so the whole set waited on itself while the
+job they were watching had already finished with exit 0. The chain's two
+remaining steps (a re-batch and a corpus sweep) simply never ran.
+
+⚠ THE MULTIPLIER IS THE NEW LESSON: every waiter you spawn becomes a decoy for
+the NEXT one. One is a bug; several make the pattern permanently true, and the
+symptom is indistinguishable from "the job is still running".
+
+**Cures, in order of preference:** (1) rely on the harness task notification —
+it is exact and it already told us; (2) if a script genuinely must poll, use a
+pattern that cannot match a shell wrapper (`pgrep -f "[t]ools/regression.py"`,
+or `pgrep -x python3` plus a check on the child's own output file); (3) have
+the long job WRITE A SENTINEL on completion and poll for the file, which no
+argv can imitate.
+
 **Why:** a foreground `sleep` is blocked by the harness, so the instinct is to
 background a poll loop — but `pgrep -f` over a self-describing command is the
 classic self-match. Escaping the dot (`family_batch\.py`) avoids matching the
