@@ -62,8 +62,13 @@ backlog item 40; the short form:
 `verify_cycle.compare_split_by_register` (landed 2026-09-01) puts $D418 on
 the cycle-strict side and everything else on the Mode-1 side. Their $D418 is
 measured `exclusive` to the digi engine on 16 of the 17
-(`tools/register_ownership.py`; the one exception, 4_Ever_Young_2SID, has a
-single music-page $D418 write in 452). A plain trichotomy verdict on the
+(`tools/register_ownership.py` at songlength x 1.1; the one exception,
+4_Ever_Young_2SID, has a single music-page $D418 write in 452). ⚠ That 16/1
+was measured twice — once over a fixed 25 s window and once over full
+songlengths — and did NOT move, unlike the Digi-Organizer paired set where
+7 of 92 verdicts changed. Rayden members are short and their digi runs
+throughout; do not generalise that robustness to a family whose digi may
+start minutes in. A plain trichotomy verdict on the
 merged stream can never pass.
 
 ⚠ **The V1/V2 label is dead for build purposes** — 13 of the 17 carriers,
