@@ -33,12 +33,31 @@ each SID register, and is the digi register set disjoint from the music's?
    raw 204-206 is the busy one.
 2. `--pc-trace` that window and attribute every $D4xx store to the exact PC
    of its store instruction.
-3. Classify each PC as DIGI-RATE or FRAME-RATE by how often it fires per
-   frame.  A digi player writes its output register hundreds of times a
-   frame; a music player writes any register a handful of times.  No engine
-   name, no address range, no signature — the pacing is the discriminator.
-4. Report ownership: for each register, which rate-class writes it; and the
-   verdict `exclusive` / `shared` / `no_digi`.
+3. Ask whether the code that writes the digi register is DISJOINT from the
+   code that writes everything else, by comparing the two sets of writer PC
+   PAGES.  Ownership is a statement about which ENGINE owns a register, and
+   an engine is a contiguous region of code — so locality is the honest
+   discriminator.
+4. Report the verdict `exclusive` / `shared` / `no_digi`, plus the raw PC
+   sets so a caller can see exactly what was decided and why.
+
+⚠ THE FIRST VERSION OF THIS TOOL CLASSIFIED BY PER-PC WRITE RATE ("a PC
+firing >8x/frame is the digi") AND IT WAS WRONG — recorded here because the
+wrong answer looked entirely plausible.  It reported 16 of the 92 paired
+members `shared`; inspecting the PCs showed most were not shared at all:
+
+  * Boot_Zak_v2's digi is an UNROLLED burst — 42 distinct PCs from $2218 to
+    $2498, each writing $D418 twice per window, beside the main $0F09 loop.
+    Every one of them falls under the rate threshold, so an unrolled digi
+    read as "a slow writer therefore music".
+  * Embarassed_Emotions writes $D418 from two zero-page NMI handlers plus a
+    once-per-window $0A18 — again all digi.
+
+Only Nibbles and Frogs_and_Flies were genuinely shared, and locality says
+so cleanly: their $D418 writers include a PC in the same page as the
+music's other-register writers ($85xx, $26xx), while Boot_Zak's $D418 pages
+{$0F,$22-$24} are disjoint from its music pages {$10,$16}.  Rate is a
+property of a LOOP; ownership is a property of an ENGINE.
 
 RSID is handled (`--force-rsid`): every self-driven digi member is RSID and
 siddump skips those by default.
@@ -69,12 +88,14 @@ _PC = re.compile(r'^\s*([0-9a-fA-F]{4})\s+\S\s+[0-9a-fA-F]{2}\s')
 _EFF = re.compile(r'\[d([4-7])([0-9a-fA-F]{2})\]', re.I)
 _ABS = re.compile(r'\bST[AXY]a\s+d([4-7])([0-9a-fA-F]{2})\s*$', re.I)
 
-# A PC firing more often than this per frame is paced by an interrupt faster
-# than the frame — i.e. a digi player.  A music player's busiest register
-# store runs a few times per frame (per voice, per effect).  The gap between
-# the two populations is two orders of magnitude, so the threshold is not a
-# tuned knob; it is reported alongside the raw rate so the split is visible.
-DIGI_RATE_PER_FRAME = 8.0
+# Writer PCs are grouped into code regions at this granularity.  A 6502
+# player is a contiguous blob well under a page in its hot loop, and the
+# music and digi engines in these members sit in different pages by
+# construction (the digi core is copied to its own page at init).  Coarser
+# than the true region, deliberately: an overlap then means "these two
+# engines are close enough that we cannot tell them apart from the trace" —
+# it flags for inspection instead of asserting a clean split.
+PC_REGION_SHIFT = 8            # one page
 
 
 def busiest_window(sid: str, subtune: int, reg: int, duration: float,
@@ -151,43 +172,43 @@ def measure(sid: str, subtune: int = 0, duration: float = 20.0,
         return res
 
     frames = max(1, e - s + 1)
-    per_pc = Counter(pc for pc, _ in stores)
-    pc_regs = defaultdict(set)
-    for pc, reg in stores:
-        pc_regs[pc].add(reg)
+    digi_pcs = {pc for pc, r in stores if r == digi_reg}
+    other_pcs = {pc for pc, r in stores if r != digi_reg}
+    digi_pages = {pc >> PC_REGION_SHIFT for pc in digi_pcs}
+    other_pages = {pc >> PC_REGION_SHIFT for pc in other_pcs}
+    shared_pages = digi_pages & other_pages
+    # A PC that writes BOTH the digi register and another one is the
+    # strongest possible evidence of a shared writer, independent of the
+    # page grouping.
+    dual_pcs = digi_pcs & other_pcs
 
-    fast = {pc for pc, n in per_pc.items() if n / frames > DIGI_RATE_PER_FRAME}
-    slow = set(per_pc) - fast
-
-    fast_regs = set()
-    for pc in fast:
-        fast_regs |= pc_regs[pc]
-    slow_regs = set()
-    for pc in slow:
-        slow_regs |= pc_regs[pc]
-
+    n_digi_writes = sum(1 for _, r in stores if r == digi_reg)
     res.update({
         'stores_in_window': len(stores),
         'frames_in_window': frames,
-        'fast_pcs': sorted(f'{p:04X}' for p in fast),
-        'fast_rate_per_frame': round(
-            sum(per_pc[p] for p in fast) / frames, 1),
-        'slow_rate_per_frame': round(
-            sum(per_pc[p] for p in slow) / frames, 1),
-        'fast_regs': sorted(f'{r:02X}' for r in fast_regs),
-        'slow_regs': sorted(f'{r:02X}' for r in slow_regs),
-        'overlap_regs': sorted(f'{r:02X}' for r in (fast_regs & slow_regs)),
+        'digi_writes_in_window': n_digi_writes,
+        'digi_rate_per_frame': round(n_digi_writes / frames, 1),
+        'digi_pcs': sorted(f'{p:04X}' for p in digi_pcs)[:64],
+        'n_digi_pcs': len(digi_pcs),
+        'digi_pages': sorted(f'{p:02X}xx' for p in digi_pages),
+        'other_pages': sorted(f'{p:02X}xx' for p in other_pages),
+        'shared_pages': sorted(f'{p:02X}xx' for p in shared_pages),
+        'dual_pcs': sorted(f'{p:04X}' for p in dual_pcs),
+        # writes to the digi register coming from a page that also writes
+        # something else — the size of the exception, not just its presence
+        'foreign_digi_writes': sum(
+            1 for pc, r in stores
+            if r == digi_reg and (pc >> PC_REGION_SHIFT) in shared_pages),
     })
-    if not fast:
-        # The digi register is written, but by nothing running faster than
-        # the frame — this is not a concurrent digi player.
-        res['verdict'] = 'no_fast_writer'
-    elif fast_regs & slow_regs:
+    if n_digi_writes == 0:
+        res['verdict'] = 'no_digi_in_window'
+    elif not other_pcs:
+        # Nothing else writes the SID at all: this is a digi-ONLY member,
+        # so "exclusive" would be vacuously true and would inflate any
+        # count of members the split is PROVEN clean for.
+        res['verdict'] = 'digi_only'
+    elif shared_pages:
         res['verdict'] = 'shared'
-    elif fast_regs != {digi_reg}:
-        # Exclusive, but the digi touches more than the assumed register —
-        # the split is still clean, it just owns a bigger set.
-        res['verdict'] = 'exclusive_wider'
     else:
         res['verdict'] = 'exclusive'
     return res
@@ -258,20 +279,17 @@ def main() -> int:
     print(f'=== ${digi_reg:02X} OWNERSHIP over {len(results)} member(s) ===')
     for v, n in Counter(r['verdict'] for r in results).most_common():
         print(f'  {n:5d}  {v}')
-    bad = [r for r in results if r['verdict'] not in
-           ('exclusive', 'exclusive_wider')]
+    bad = [r for r in results
+           if r['verdict'] not in ('exclusive', 'digi_only')]
     if bad:
         print('\n  members NOT cleanly split:')
         for r in bad[:40]:
-            print(f"    {r['verdict']:<22} overlap="
-                  f"{r.get('overlap_regs')} fast={r.get('fast_regs')} "
-                  f"{r['sid']}")
-    wider = [r for r in results if r['verdict'] == 'exclusive_wider']
-    if wider:
-        print('\n  digi owns MORE than the assumed register '
-              '(still a clean split):')
-        for r in wider[:20]:
-            print(f"    fast={r['fast_regs']}  {r['sid']}")
+            print(f"    {r['verdict']:<18} "
+                  f"digi {r.get('digi_rate_per_frame', 0):6.1f}/f from "
+                  f"{r.get('n_digi_pcs', 0):3d} PC(s)  "
+                  f"shared_pages={r.get('shared_pages')} "
+                  f"foreign={r.get('foreign_digi_writes')} "
+                  f"dual={r.get('dual_pcs')}  {r['sid']}")
     return 0
 
 

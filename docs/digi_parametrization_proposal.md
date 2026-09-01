@@ -182,27 +182,38 @@ score (the actual musical content) unrepresented.
   the busiest window and classify each writer PC by its per-frame rate)
   over all 92 Digi-Organizer music-paired members:
 
-  | verdict | n | meaning |
-  |---|---:|---|
-  | `exclusive` | 69 | the digi core is the only $D418 writer — split clean |
-  | `shared` | 16 | the MUSIC player writes $D418 too |
-  | `no_fast_writer` | 7 | no kHz-rate writer in the busiest window |
+  | verdict | paired (92) | Rayden (17) | standalone (39) |
+  |---|---:|---:|---:|
+  | `exclusive` — digi's writer PCs are disjoint from the music's | **74** | **16** | 0 |
+  | `shared` — a $D418 write comes from the music's own code page | 12 | 1 | 0 |
+  | `digi_only` — nothing else writes the SID (vacuously clean) | 0 | 0 | 39 |
+  | `no_digi_in_window` — no $D418 activity found | 6 | 0 | 0 |
 
-  The two populations are separated by two orders of magnitude — the digi
-  writes $D418 71–149×/frame, the music engine's writes total 4–19×/frame
-  across ALL registers — so the classification is not a tuned threshold.
+  So the premise holds for **90 of the 109 members that have music at all**
+  (83%), and Rayden — the family the proposal's sentence was written about
+  — is 16/17.
 
-  For a `shared` member the music's own $D418 write lands INSIDE the
-  digi's sample stream, i.e. it IS one sample slot of the audible
-  waveform, so the register split still puts it in the right place: it
-  belongs on the cycle-strict side. What changes is the COMPOSER's job
-  (it must place a music-side write cycle-exactly), not the verdict's
-  shape. Record the measured class beside the verdict; do not assume it.
+  In 10 of the 12 `shared` members the music contributes 1–2 of ~300–400
+  $D418 writes per 3-frame window (<1%): a once-per-frame master-volume
+  assertion sitting inside the digi's ~120/frame sample stream. For those
+  the register split still puts the write in the RIGHT place — it IS one
+  sample slot of the audible waveform, so cycle-strict is correct. What
+  gets harder is the COMPOSER's job (place a music-side write
+  cycle-exactly), not the verdict's shape. Record the measured class
+  beside the verdict; never assume it.
 
-  The 7 `no_fast_writer` members are unresolved — 6 of them write $D418
-  only 2–3 times in 20 s (Feekzoid ×5 + TSM), so they are sidid-tagged
-  Digi-Organizer carriers whose digi never plays in that window, or at
-  all. They need a look before they are counted as anything.
+  The 6 `no_digi_in_window` members (Feekzoid ×5, TSM) write $D418 only
+  2–3 times in 25 s. They are sidid-tagged Digi-Organizer carriers whose
+  digi does not play — they need a look before being counted as anything.
+
+  ⚠ **A REFUTED FIRST ANSWER, kept because it was plausible.** The tool
+  first classified writers by per-PC RATE ("> 8 writes/frame ⇒ digi") and
+  reported 16 shared. Inspecting the PCs showed most were not shared:
+  Boot_Zak_v2's digi is an UNROLLED burst across 42 PCs ($2218…$2498),
+  each below the rate threshold, and Embarassed_Emotions drives $D418
+  from two zero-page NMI handlers. Rate is a property of a LOOP;
+  ownership is a property of an ENGINE, so the discriminator is PC
+  LOCALITY. Four of the six "Rayden shared" members were this artifact.
 
 - PRECONDITION to confirm per family: the same ownership must hold for
   Digi-Organizer pairings (its `| $10` mask suggests it also owns
