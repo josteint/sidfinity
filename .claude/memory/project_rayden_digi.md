@@ -12,6 +12,24 @@ Newest-first. **Read `pipelines/rayden_digi/RE_NOTES.md` first** — it holds
 the player anatomy, the measurements and the per-item NEXT list; this file
 holds status and the decisions.
 
+## 2026-09-01 — the music side is the blocker, and it is 60% of the DMC f1 residue
+
+The 17 carriers are DMC v4 members with a digi engine round them, already
+sitting in the DMC f1 batch as residue: **15 of f1's 25 non-full members are
+`MUSICIANS/R/Rayden/`**. So the join is the largest single lever left in DMC
+family-1, not a side quest. Measured, recorded in backlog item 40 and
+RE_NOTES: the music runs 4x per PAL frame in a period-4 P/F/F/F schedule
+(the mean pc-trace gap, NOT the median — the gaps are bimodal), independent
+of the digi rate; supplying that environment fixes the write COUNT and does
+NOT fix the stream, which diverges at the first play() on CONTENT. The
+decoded song is not the song the original plays; that is the next question.
+
+The verdict shape for these members exists now:
+`verify_cycle.compare_split_by_register` (music Mode 1 / digi Mode 2, split
+by register). Their $D418 is measured `exclusive` to the digi on 16 of 17
+(`tools/register_ownership.py`).
+
+
 ## 2026-08-31 — extract built and gated; USF writer blocked on one decision
 
 17 carriers, all `MUSICIANS/R/Rayden/`, all RSID `play=$0000` (ledger C40's

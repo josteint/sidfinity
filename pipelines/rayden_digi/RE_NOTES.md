@@ -14,6 +14,58 @@ digi writes explained, per-event timing residual p90 ≤ 0.3%);
 Embarassed_Emotions passes CONTENT but its timing is not corroborated (see
 the 2026-08-31 extract section). No USF writer yet.
 
+## 2026-09-01 — THE MUSIC SIDE, MEASURED (and it is the DMC f1 residue)
+
+**The join's blocker is the DMC half, and solving it is the largest single
+lever left in DMC family-1.** Full detail + the next measurement are in
+backlog item 40; the short form:
+
+* The 17 carriers are DMC v4 members wearing a digi engine, and they are
+  ALREADY in the DMC f1 batch as residue. f1 stands at 5450 full / 23
+  partial / 2 error, and **15 of those 25 non-full members are
+  `MUSICIANS/R/Rayden/`** — 60% of the whole f1 residue. (f2: zero.)
+* `dmc_v4_config` ACCEPTS Morbital (base $1000, canon geometry) and builds
+  it. Not a detection problem.
+* The ENVIRONMENT is what the probes cannot see: play=$0000 means every
+  C9/C18 probe that needs a play vector returns nothing, so the member is
+  built as a 50 Hz vblank tune. Measured from the original instead:
+  - the music player is entered **4x per PAL frame**, always at PC $160D.
+    ⚠ from the pc-trace's ABSOLUTE cycles, the MEAN gap is 4912 = 19656/4;
+    the MEDIAN (4524) is NOT the rate, because the gaps are bimodal —
+    24x ~4450 and 8x ~6300, i.e. four raster IRQs at roughly 72/72/72/96
+    lines. A median here reads as 217 Hz and is wrong.
+  - the per-call footprint is a period-4 **P F F F**: one call in four
+    carries the filter tail ($D416/$D417 at 0.82/frame against $D400's
+    3.26). So: song rate 50 Hz, 4x multispeed, C18 `P_F123_F123_F123`.
+  - the music rate is INDEPENDENT of the digi rate (corr(D418/frame,
+    D400/frame) = +0.004 over 1000 frames), so it is not "every Nth NMI".
+* ⛔ **Supplying that environment is NOT enough — record this before
+  anyone re-derives it.** With `cia_period=4913` + the schedule the write
+  COUNT comes right (76,140 orig vs 84,824 rebuild, up from 22,925) but the
+  music stream still diverges at flat position 35, the first play(). All
+  four rotations of the schedule score equal or worse, and dropping the
+  schedule entirely scores the same. The schedule is not the lever.
+* **The divergence is CONTENT.** Both sides agree through the init clear
+  sweep, then:
+
+      orig     V1flo=$D1 V1fhi=$12 V1pwl=$00 V1pwh=$00 V1ctl=$11
+      rebuild  V1sr=$FD V1ad=$24 V1flo=$0C V1fhi=$07 V1pwl=$00 V1pwh=$08
+               V1ctl=$09
+
+  Two independent differences: the orig's first play writes no AD/SR (a
+  C23 deferred note-init, or an F phase first), and the freq/PW/ctrl VALUES
+  are unrelated — the song our extract decoded is not the song the original
+  plays. The second is the real blocker; the first cannot be judged until
+  it is fixed.
+
+⚠ **Verify these members with the SPLIT verdict**, never the plain DMC one:
+`verify_cycle.compare_split_by_register` (landed 2026-09-01) puts $D418 on
+the cycle-strict side and everything else on the Mode-1 side. Their $D418 is
+measured `exclusive` to the digi engine on 16 of the 17
+(`tools/register_ownership.py`; the one exception, 4_Ever_Young_2SID, has a
+single music-page $D418 write in 452). A plain trichotomy verdict on the
+merged stream can never pass.
+
 ⚠ **The V1/V2 label is dead for build purposes** — 13 of the 17 carriers,
 NINE of them sidid `Rayden_Digi_V1`, run the SAME sequencer. See "one
 sequencer, two playback cores" below; it is the measured backing for the §8
