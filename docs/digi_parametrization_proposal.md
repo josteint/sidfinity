@@ -166,9 +166,24 @@ score (the actual musical content) unrepresented.
   in the Rayden members the music player's $D418 stores are patched
   away — **the digi engine owns $D418 exclusively during play**. So:
   split the captured stream by register class ($D418 vs the rest), and
-  verify music flat (Mode 1) + digi cycle-strict (Mode 2) — the C27/C28
-  "split the stream, verify each in its own mode" shape, applied to
-  register ownership instead of chip tag.
+  verify music flat (Mode 1) + digi cycle-strict (Mode 2).
+
+  ⚠ **CORRECTION 2026-09-01 (diligence audit): this is NOT the C27/C28
+  shape, and calling it that — as the sentence here originally did, and as
+  the first implementation's comments repeated — imports a justification
+  that does not hold.** C28 splits by CHIP because two chips are independent
+  hardware and cross-chip order is PHYSICALLY UNOBSERVABLE. Here ONE SID
+  latches both the digi's $D418 writes and the music's voice writes, so
+  their interleaving IS observable and this split stops checking it. The
+  honest argument is weaker and worth stating in full: the digi half is
+  verified MORE strictly than the merged flat verdict manages today (every
+  $D418 write pinned to its cycle); the music half exactly as strictly as
+  Mode 1 requires; and the single fact dropped — the order of a pinned digi
+  write against a free-floating music write — is one Trap B already licenses
+  on the music side. It is dropped by CHOICE, not by physics. The boundary
+  that follows: a member needing the music's position against the digi
+  stream to be right (the Trap B BOUNDARY class, Techno-Rap) is invisible to
+  this verdict and needs a per-call structural check beside it.
   📐 **WHERE `strict_regs` COMES FROM — settle it before the first caller.**
   The register a digi engine owns FOLLOWS FROM ITS TECHNIQUE, and the
   technique is already musical content in the schema (`technique:

@@ -641,10 +641,33 @@ def compare_instruction_stream(a: list[Frame], b: list[Frame],
 # A member that plays digi CONCURRENTLY with music carries both modes in one
 # stream: the digi is Mode 2 (cycle-strict — the write timing IS the
 # waveform) and the music is Mode 1 (flat `(reg,val)`; within-frame cycle
-# position is observation, core tenet Trap B).  This is the C27/C28 shape —
-# "split the stream, verify each substream in its own mode, because the two
-# halves are physically independent" — applied to REGISTER OWNERSHIP instead
-# of chip tag.  Proposed in `docs/digi_parametrization_proposal.md` §5.
+# position is observation, core tenet Trap B).  Proposed in
+# `docs/digi_parametrization_proposal.md` §5.
+#
+# ⚠ THE JUSTIFICATION IS NOT C28's, AND SAYING SO WAS A MISTAKE I MADE FIRST
+# (corrected by the 2026-09-01 diligence audit).  C28 splits a multi-SID
+# stream by CHIP because two chips are independent hardware, so cross-chip
+# order is PHYSICALLY UNOBSERVABLE.  That argument does not transfer here:
+# one SID latches both the digi's $D418 writes and the music's voice writes,
+# so their interleaving IS observable, and this split stops checking it.
+#
+# What makes the split sound is a different and weaker argument, which
+# should be stated as such:
+#
+#   * The digi substream is verified MORE strictly than the merged flat
+#     verdict does today — every $D418 write is pinned to its exact cycle.
+#   * The music substream is verified exactly as strictly as Mode 1 requires,
+#     which is the canon's own standard for tracker music.
+#   * The one fact dropped is the ORDER between a cycle-pinned digi write and
+#     a free-floating music write. Trap B already licenses the music write's
+#     within-frame position, so this drops nothing the canon was relying on —
+#     but it is a real fact about a single chip, not an unobservable one, and
+#     it is dropped by choice rather than by physics.
+#
+# The boundary that follows: if a member ever needs the music's position
+# against the digi stream to be right (the Trap B BOUNDARY class — work
+# deliberately spread across the frame, Techno-Rap), this verdict cannot see
+# it and a per-call structural check is needed beside it.
 #
 # ⚠ THE SPLIT IS ONLY SOUND WHERE OWNERSHIP IS EXCLUSIVE, and that is a
 # MEASUREMENT, not an assumption.  `tools/register_ownership.py` makes it:
