@@ -250,6 +250,14 @@
                     of those 25, FIFTEEN are MUSICIANS/R/Rayden/   (60%)
         dmc_v4 f2:  2929 full / 14 partial / 1 error   -> 0 Rayden
 
+    ⚠ CAVEAT ON THOSE COUNTS, stated because the session that measured them
+    also invalidated them: they are read from rows stamped BEFORE backlog
+    31's key fix landed the same night, so they are ⚠STALE-VERDICTS. The
+    byte-identity spot check says the staleness is nominal (dmc_v4 37/37
+    identical over all 7 build paths), and the 15 Rayden members are
+    partial for a reason no key change can move, so the SHARE is safe. Only
+    the exact 25 would shift if a re-batch moved anything.
+
     So "the Rayden join" is not a side quest beside the DMC grind: it IS
     the largest single lever left in DMC family-1. The other ten f1
     non-fulls are singletons (Bayliss x3, Behdad, Blues_Muz, Daf, Ed,
