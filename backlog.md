@@ -227,6 +227,68 @@
               envelope starts against each other. Trap B's own quantity.
       plus each side's BURST WIDTH, which is the explanatory variable.
 
+    ==== ✅ THE FULL-CORPUS RESULT, 2026-09-02 ====
+    12,708 stored rebuilds swept; **12,167 measured**, 532 self-driven (no
+    play vector, structurally not measurable), 9 too-few-plays, 0 errors.
+
+      spread p99 PER MEMBER: median 141 cyc = **0.72% of a frame = 0.14 ms**
+                             p90 273, p99 511, max 2666
+      jitter p99 per member: median 41 cyc, p90 112
+
+      by engine (median spread p99):
+        Rob_Hubbard          n=11     1723      <- OUR OWN composer, the tail
+        MoN/FutureComposer   n=2533    257
+        Companion/Jay_Derrett n=15     187
+        DMC                  n=9590    123
+        Companion            n=17      103
+
+    So for the corpus as a whole a write lands within ~0.14 ms of where the
+    original put it inside the frame, and the exposure is concentrated in
+    ELEVEN Hubbard '85 members — the family our own composer emits.
+
+    TOP OF THE RANKING, RE-MEASURED AT FULL SONGLENGTH (the 15 s sweep
+    window ranks, it does not verify):
+
+      Monty_on_the_Run   p99 3303  max 4522 (23% of a frame)  burst o/r 798/1009
+      Praiser/Mega_Mix   p99 2659  max 2776                   burst o/r 4735/2234
+      Confuzion          p99 2499  max 2962                   burst o/r 9/8
+      Thing_on_a_Spring  p99 2222  max 3062                   burst o/r 554/714
+      Devils_Galop       p99 2215  max 2692                   burst o/r 476/625
+
+    ⏳ LISTENING TEST READY: `tmp/listen/*.wav`, those five pairs at 45 s,
+    rendered by `tools/render_pair.py`. This is step (c) and it is the
+    owner's call, not a number.
+
+    ==== 🔍 THE OTHER FINDING: 22 MEMBERS THE FLAT VERDICT CANNOT SEE ====
+    181 of 12,167 members show a per-play CONTENT mismatch. 17 are multi-SID
+    cross-chip bucketing and 142 are single-chip MULTISPEED members whose
+    play entries this tool has to interpolate — both instrument artifacts.
+    The remaining **22 are single-chip with exact entries**, and at least one
+    is a real defect the Mode-1 verdict is structurally blind to:
+
+      MUSICIANS/T/Tichelmann_Kay/3rd_Voice.sid — flat verdict FULL
+      (17,215 = 17,215 writes, complete match_all). But the ORIGINAL's play
+      entries are spaced exactly 19,656 cycles (vblank) and the REBUILD's
+      18,834.7 — our player is invoked **4.4% more often**. Both runs span
+      the identical absolute window, and the write counts are near-identical
+      (16,074 vs 16,094) because the extra invocations are EMPTY (43 empty
+      plays vs 17). So the rebuild dispatches at the wrong rate, does the
+      same work, and the flat stream is byte-identical.
+      Same shape, lower magnitude: SilverFox/No_End (689 vs 692),
+      Bayliss/Poing_Ultra (689 vs 698), Bayliss/Nyaaaah_5, Bayliss/
+      Abyssal_Karma-Part_One, Praiser/Sid_Extension, Derrett_Jay/Stratton
+      and Road_Warrior.
+
+    ⚠ THE OBVIOUS FOLLOW-UP MEASUREMENT WAS ATTEMPTED AND IS INVALID —
+    do not repeat it as written. "Compare the ABSOLUTE cycle of write i on
+    both sides" was run by flattening each side's CLEAN plays independently,
+    which drops different plays on each side and so compares unaligned
+    lists; the control (Commando, known clean) came back seq_same=False,
+    which is how the flaw was caught. A correct version must align by the
+    write SEQUENCE first. Until that is done, whether these members' writes
+    land at the same absolute times is UNKNOWN, and it is the question that
+    decides whether this class is audible.
+
     HEADLINE (interim, 889 members): **median spread p99 = 183 cycles =
     0.93% of a frame ≈ 0.19 ms**, p90 293, p99 376. The tail is the Hubbard
     '85 family (Commando 2099, Monty 2395, Thing_on_a_Spring 2405, 5 Title

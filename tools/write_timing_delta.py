@@ -254,7 +254,7 @@ def _same_content(a: list, b: list) -> bool:
                for k in ca)
 
 
-def _recover_shift(co: Capture, cr: Capture, window: int = 6) -> int:
+def _recover_shift(co: Capture, cr: Capture, window: int = 0) -> int:
     """The play-index offset that aligns the two runs.
 
     ⚠ NOT OPTIONAL, and assuming 0 gave a WRONG ANSWER (measured 2026-09-01,
@@ -273,7 +273,12 @@ def _recover_shift(co: Capture, cr: Capture, window: int = 6) -> int:
     offset is strictly better. Without that, a pair with NO matching plays
     anywhere (the cross-subtune control) returned the first shift tried, a
     confident -6.
+
+    The window is DERIVED from the two runs' play-count difference — see
+    `_recover_chip_shift` for the member that proved a fixed one wrong.
     """
+    if not window:
+        window = max(6, abs(len(co.plays) - len(cr.plays)) + 4)
     best, best_n = 0, -1
     order = sorted(range(-window, window + 1), key=lambda k: (abs(k), k))
     for sh in order:
@@ -305,9 +310,22 @@ def _chip_seq(cap: Capture) -> dict:
     return out
 
 
-def _recover_chip_shift(a: list, b: list, window: int = 6) -> int:
+def _recover_chip_shift(a: list, b: list, window: int = 0) -> int:
     """Play-index offset aligning one chip's substream. Same rule as
-    `_recover_shift`: |shift| order, strict improvement, fall back to 0."""
+    `_recover_shift`: |shift| order, strict improvement, fall back to 0.
+
+    ⚠ THE SEARCH WINDOW IS DERIVED, NOT FIXED. It was a fixed +/-6 until
+    2026-09-02, and that is too small whenever the two runs' inits differ by
+    more than six play() invocations: Tichelmann_Kay/3rd_Voice captures 689
+    plays for the original and 719 for the rebuild in the same 15 s, so the
+    true offset is ~30 and the search returned its own boundary value (6)
+    with 69% of plays "content mismatched". Same failure shape as the fixed
+    scan window in register_ownership — a bound chosen for convenience
+    reported as a fact about the member. The bound now comes from the
+    quantity that causes the offset: the difference in play counts.
+    """
+    if not window:
+        window = max(6, abs(len(a) - len(b)) + 4)
     best, best_n = 0, -1
     for sh in sorted(range(-window, window + 1), key=lambda k: (abs(k), k)):
         n = 0
