@@ -715,6 +715,18 @@ def compare_split_by_register(a: list[Frame], b: list[Frame],
     remove.  A family constant (like `n_chips`, which the pipeline knows
     from the PSID header) is acceptable; an engine name is not.
 
+    ⚠ `mode` IS THE CALLER'S DECISION AND THE DEFAULT IS THE LOOSE ONE.
+    `'legacy'` passes if EITHER the whole stream or the post-init stream
+    matches, i.e. it will accept a rebuild whose music-register INIT writes
+    differ.  For a music+digi member that is probably wrong: the proposal's
+    amendment says these members are Mode-2 EXEMPT from the trichotomy's
+    verdict shift, so the composer MIRRORS the init cycle-shape rather than
+    emitting a universal reset — and if the init is mirrored, its music
+    writes should match too.  The first real caller should pass a mode that
+    says so, and should not inherit this default by accident.  (The digi
+    half already covers init-time $D418 writes: `compare_strict` compares
+    every frame, frame 0 included.)
+
     Degenerate cases reduce exactly, and both are asserted by the tool's
     self-test:
       * `strict_regs=frozenset()`  -> pure `compare_instruction_stream`
