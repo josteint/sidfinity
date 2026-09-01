@@ -224,13 +224,50 @@ def _pctl(xs: list, q: float) -> float:
     return float(s[i])
 
 
+def _recover_shift(co: Capture, cr: Capture, window: int = 6) -> int:
+    """The play-index offset that aligns the two runs.
+
+    ⚠ NOT OPTIONAL, and assuming 0 gave a WRONG ANSWER (measured 2026-09-01,
+    Ed/Go_Funk). A rebuild's init takes a different number of IRQs than the
+    original's, so it can carry one extra play() before the music starts —
+    Go_Funk's original has 460 plays and its rebuild 461. Compared at shift 0
+    that reads as 356 of 390 plays with mismatched CONTENT, and the writes
+    that DO coincide are the static ones, so every spread number computed
+    from them is biased. At shift +1 it is 31 of 417. The flat Mode-1 verdict
+    never sees this, because it concatenates across play boundaries — which
+    is exactly why a per-play instrument has to recover the shift itself.
+
+    Chosen by maximising content-matching plays. Ties, and the all-zero case
+    of a member with nothing to match, resolve to 0: shifts are tried in
+    order of |shift| and the comparison is strict, so 0 wins unless another
+    offset is strictly better. Without that, a pair with NO matching plays
+    anywhere (the cross-subtune control) returned the first shift tried, a
+    confident -6.
+    """
+    best, best_n = 0, -1
+    order = sorted(range(-window, window + 1), key=lambda k: (abs(k), k))
+    for sh in order:
+        n = 0
+        for i in range(max(0, -sh), min(len(co.plays), len(cr.plays) - sh)):
+            a, b = co.plays[i], cr.plays[i + sh]
+            if not (a.clean and b.clean and a.writes and b.writes):
+                continue
+            if [(w[1], w[2]) for w in a.writes] == \
+                    [(w[1], w[2]) for w in b.writes]:
+                n += 1
+        if n > best_n:
+            best, best_n = sh, n
+    return best if best_n > 0 else 0
+
+
 def compare(orig_sid: str, rebuild_sid: str, subtune: int,
             duration: float) -> dict:
     """Measure onset + spread deltas between an original and its rebuild."""
     co = capture_plays(orig_sid, subtune, duration)
     cr = capture_plays(rebuild_sid, subtune, duration)
+    shift = _recover_shift(co, cr)
 
-    n = min(len(co.plays), len(cr.plays))
+    n = min(len(co.plays), len(cr.plays) - shift)
     onset = []
     spread = []
     compared = 0
@@ -238,8 +275,8 @@ def compare(orig_sid: str, rebuild_sid: str, subtune: int,
     content_mismatch = 0
     empty = 0
 
-    for i in range(n):
-        po, pr = co.plays[i], cr.plays[i]
+    for i in range(max(0, -shift), n):
+        po, pr = co.plays[i], cr.plays[i + shift]
         if not po.clean or not pr.clean:
             skipped_unclean += 1
             continue
@@ -277,6 +314,7 @@ def compare(orig_sid: str, rebuild_sid: str, subtune: int,
         'duration': duration,
         'plays_orig': len(co.plays),
         'plays_rebuild': len(cr.plays),
+        'play_shift': shift,
         'plays_compared': compared,
         'plays_skipped_unclean': skipped_unclean,
         'plays_content_mismatch': content_mismatch,
@@ -349,9 +387,14 @@ def main() -> int:
     a = ap.parse_args()
 
     rebuild = a.rebuild or (a.orig[:-4] + '.sidfinity.sid')
-    with phase(f'measure {os.path.basename(a.orig)} sub {a.subtune} '
-               f'({a.duration}s x2 captures)'):
+    if a.json:
+        # keep stdout pure JSON — the phase banner would corrupt a caller
+        # that pipes this straight into a parser
         res = compare(a.orig, rebuild, a.subtune, a.duration)
+    else:
+        with phase(f'measure {os.path.basename(a.orig)} sub {a.subtune} '
+                   f'({a.duration}s x2 captures)'):
+            res = compare(a.orig, rebuild, a.subtune, a.duration)
     print(json.dumps(res) if a.json else _fmt(res))
     return 0
 
