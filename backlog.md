@@ -5,7 +5,7 @@
 # dozen measured-but-unfinished investigations. Moved to the repo root and
 # tracked for exactly that reason.
 #
-# NEXT_ITEM: 39   <- autoincrement: a NEW item takes this number, then bump it.
+# NEXT_ITEM: 40   <- autoincrement: a NEW item takes this number, then bump it.
 #
 # CONVENTIONS (owner-set 2026-08-28):
 #  - A done item is REMOVED COMPLETELY — no tombstone, no summary line. The
@@ -178,7 +178,7 @@
     is the one that actually bit, and it bites families with no roster at
     all. Cheap: compare the store's key set against the batch's enumeration.
 
-38. MEASURE MODE-1 AUDIO FIDELITY — the canon's "inaudible" has never been
+39. MEASURE MODE-1 AUDIO FIDELITY — the canon's "inaudible" has never been
     measured (opened 2026-09-01, owner-requested).
 
     THE CLAIM UNDER TEST is the core tenet's Trap B: "within-frame cycle

@@ -21,7 +21,7 @@ core + `pipelines/hubbard/chimera/extract/to_usf.py` adapter writing
 - Digi subtunes 2, 3: 108/108 + 138/138 writelog cycle-strict (when
   verified via the original RSID); writeset-match flatten via the
   PSID rebuild's slightly different dispatcher cycle count.
-  ⚠ MEASURED 2026-09-01 (backlog 38): the shipped verdict really is the
+  ⚠ MEASURED 2026-09-01 (backlog 39): the shipped verdict really is the
   FLATTEN — orig is RSID play=$0000 self-driven, rebuild is PSID
   play=$9FB9, so cycle equality is structurally impossible, not merely
   unachieved. Audio consequence measured and it is benign: content
