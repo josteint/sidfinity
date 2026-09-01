@@ -558,10 +558,22 @@ once: the mass-write skips it (stale `code_hash`), its orphan removal only
 iterates members it knows about, and no census counts it. One carrier today
 (`Surgeon/Nice_Dream_2SID`, FULL as `multisid` under a dead hash, refused by
 `dmc_v4_config` now, artifacts still on disk).
-**RUN IT AT EVERY CLOSEOUT, and add the equivalent for any family that grows a
-roster.** Note what it is NOT: `roster_staleness` watches the routing CODE, and
-`code_hash` watches whether a row is current — neither can see a member that
-has no row at all, nor a row that has no member.
+**RUN IT AT EVERY CLOSEOUT.** Note what it is NOT: `roster_staleness` watches
+the routing CODE, and `code_hash` watches whether a row is current — neither
+can see a member that has no row at all, nor a row that has no member.
+
+**EVERY OTHER FAMILY: `python3 tools/verdict_gaps.py`** (seconds, read-only,
+exit 1 on a gap) — the same two directions, without needing a roster. It asks
+each batch's own `members()` what it enumerates and diffs that against its
+store, so it cannot drift from the batch the way a re-written query would. It
+also prints **FULL-over-CLAIMED beside FULL-in-store**, which is the honest
+coverage: the gap between them is the dead rows an HVSC update leaves behind
+(rows are keyed by PATH, so a removed member's row lives forever and inflates
+both numerator and denominator). Measured 2026-09-01: fc_standard 2,604 -> 2,572
+and music_assembler 4,021 -> 4,002, both recorded figures counting members #85
+had removed. Orphans are split into RENAMED (basename still claimed — an HVSC
+re-file, C20 seventh layer) and UNCOVERED, which is the finding. Wiring a new
+family in = one `ENUMERATORS` row plus a module-level `members()` on its batch.
 
 **Reading a batch results jsonl — always via `src/batch_results.load_latest`.**
 The file is APPEND-ONLY (a resume, or a `code_hash` invalidation, appends fresh
