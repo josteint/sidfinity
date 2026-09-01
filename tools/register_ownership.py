@@ -81,6 +81,25 @@ from src.tslog import ts, phase          # noqa: E402
 
 SIDDUMP = os.path.join(ROOT, 'tools', 'siddump')
 
+# The scan window defaults to the member's own SONGLENGTH x 1.1 — the
+# project's ratified verify window (feedback_subtune_frames_not_arbitrary),
+# never an arbitrary N seconds.
+# ⚠ IT WAS AN ARBITRARY 25s UNTIL 2026-09-01 AND THAT PRODUCED A WRONG
+# ANSWER: six paired members reported `no_digi_in_window`, and re-scanning
+# at 60s showed THREE of them running 31k-119k $D418 writes — their digi
+# simply starts later. A fixed window turns "I did not look there" into a
+# statement about the member.
+def _songlength(sid_path: str, subtune: int) -> float:
+    try:
+        import glob
+        from src import songlengths as SL
+        db = SL.load_database(
+            glob.glob(os.path.join(ROOT, 'hvsc85', 'DOCUMENTS',
+                                   'Songlengths.md5'))[0])
+        return max(20.0, SL.get_durations(sid_path, db)[subtune] * 1.1)
+    except Exception:
+        return 120.0
+
 _PC = re.compile(r'^\s*([0-9a-fA-F]{4})\s+\S\s+[0-9a-fA-F]{2}\s')
 # The pc-trace prints an indexed store as `STAay d400,Y [d400]` and an
 # absolute store as `STAa  d418`.  Both forms must be matched or the
@@ -155,8 +174,10 @@ def stores_in_window(sid: str, subtune: int, start: int, end: int) -> list:
             pass
 
 
-def measure(sid: str, subtune: int = 0, duration: float = 20.0,
+def measure(sid: str, subtune: int = 0, duration: float = 0.0,
             digi_reg: int = 0x18, width: int = 3) -> dict:
+    if not duration:
+        duration = _songlength(sid, subtune)
     s, e, n_win, n_tot = busiest_window(sid, subtune, digi_reg, duration,
                                         width)
     res = {'sid': os.path.relpath(sid, ROOT), 'subtune': subtune,
@@ -200,7 +221,14 @@ def measure(sid: str, subtune: int = 0, duration: float = 20.0,
             1 for pc, r in stores
             if r == digi_reg and (pc >> PC_REGION_SHIFT) in shared_pages),
     })
-    if n_digi_writes == 0:
+    if n_digi_writes <= frames:
+        # ⚠ NOT A THRESHOLD OVER A DERIVED QUANTITY — a physical argument.
+        # Sample playback needs MANY samples per frame; at one write per
+        # frame even at the member's DENSEST point, there is no digi to own
+        # anything, and calling the result `exclusive` would dress two stray
+        # $D418 writes up as evidence. (Measured: Xanadu and
+        # Leave_the_Brain_with_Samples write $D418 2-3 times in 60 s and
+        # were reported `exclusive` before this check existed.)
         res['verdict'] = 'no_digi_in_window'
     elif not other_pcs:
         # Nothing else writes the SID at all: this is a digi-ONLY member,
@@ -221,7 +249,9 @@ def main() -> int:
                     help="measure a whole population: 'digi_organizer_paired'"
                          " | 'rayden' | 'digi_organizer_standalone'")
     ap.add_argument('--subtune', type=int, default=0)
-    ap.add_argument('--duration', type=float, default=20.0)
+    ap.add_argument('--duration', type=float, default=0.0,
+                    help='seconds to scan; 0 = the member''s own '
+                         'songlength x 1.1 (the ratified window)')
     ap.add_argument('--digi-reg', default='18')
     ap.add_argument('--jobs', type=int, default=0)
     ap.add_argument('--out', default=None)
@@ -253,8 +283,9 @@ def main() -> int:
     jobs = a.jobs or default_jobs('REGOWN_JOBS', cap=max(1, len(sids)))
 
     results = []
+    win = f'{a.duration}s' if a.duration else 'full-songlength'
     with phase(f'measuring register ownership on {len(sids)} member(s), '
-               f'{a.duration}s scan + a 3-frame pc-trace ({jobs} workers)'):
+               f'{win} scan + a 3-frame pc-trace ({jobs} workers)'):
         with ProcessPoolExecutor(max_workers=jobs) as ex:
             futs = {ex.submit(measure, os.path.join(ROOT, s) if not
                               os.path.isabs(s) else s,
