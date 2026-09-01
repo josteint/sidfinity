@@ -911,6 +911,9 @@ class _T(Transformer):
     def si_rate(self, items):
         return ('rate_cycles', int(items[0]))
 
+    def si_loop(self, items):
+        return ('loop_start', int(items[0]))
+
     def sample_instrument_block(self, items):
         si_id = int(items[0])
         d = dict(items[1:])
@@ -918,7 +921,8 @@ class _T(Transformer):
             raise UsfParseError(
                 f'sample_instrument {si_id}: needs sample + rate_cycles')
         return SampleInstrument(id=si_id, sample=d['sample'],
-                                rate_cycles=d['rate_cycles'])
+                                rate_cycles=d['rate_cycles'],
+                                loop_start=d.get('loop_start'))
 
     # ----- digi voice (the sample channel inside a music subtune) -----
     def digi_voice_block(self, items):

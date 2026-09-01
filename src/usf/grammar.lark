@@ -25,6 +25,10 @@ digi_cfg_field: "technique" ":" CNAME      -> digi_technique
 sample_instrument_block: "sample_instrument" INT "{" si_field+ "}"
 si_field: "sample" ":" SAMPLE_PATH         -> si_sample
         | "rate_cycles" ":" number         -> si_rate
+        // Sampler LOOP MARKER: the offset playback resumes from when the
+        // note outlasts the recording. ABSENT = one-shot (the pre-existing
+        // behaviour, so every file written before this field is unchanged).
+        | "loop_start" ":" number          -> si_loop
 
 // ----- default (idle) filter / pulse sweeps (DMC V5) -----
 // The default cutoff / PW modulation the engine applies before/between explicit

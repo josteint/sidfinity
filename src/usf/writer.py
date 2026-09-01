@@ -1149,6 +1149,8 @@ def write(usf: UsfFile) -> str:
         lines.append(f'sample_instrument {si.id} {{')
         lines.append(f'  sample: {si.sample}')
         lines.append(f'  rate_cycles: {_hex(si.rate_cycles, 4)}')
+        if getattr(si, 'loop_start', None) is not None:
+            lines.append(f'  loop_start: {_hex(si.loop_start, 4)}')
         lines.append('}')
     for sub in sorted(usf.subtunes, key=lambda x: x.id):
         lines.append('')

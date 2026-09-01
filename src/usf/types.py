@@ -463,10 +463,29 @@ class SampleInstrument:
     authored, exact, ordered quantity (principle §9 tiebreaker — the
     engines' own tables state the latch; Hz is a derivation). A row
     overrides per event with the `rate=$XXXX` fx flag.
+
+    `loop_start` — the sample OFFSET at which playback resumes when it
+    runs past the end of the recording, i.e. the standard sampler loop
+    marker. ABSENT = one-shot: the sound plays once and stops. This is
+    musical content and it is not derivable from the PCM — a digi row
+    carries a DURATION, so a note held longer than its recording sounds
+    completely different depending on whether (and from where) the sound
+    sustains, and the recording itself looks identical either way.
+
+    The three behaviours all occur in the corpus (Rayden_Digi, measured
+    2026-08-31):
+        loop_start absent          one-shot, then silence
+        loop_start == 0            the whole sample sustains
+        0 < loop_start < length    attack played once, then the tail
+                                   loops — the plucked-string shape
+    Digi-Organizer's engine has an END pointer and plays each sample
+    once, so every file written before this field existed means
+    `absent`, unchanged.
     """
     id: int
     sample: str
     rate_cycles: int
+    loop_start: Optional[int] = None
 
 
 @dataclass
