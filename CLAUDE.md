@@ -278,6 +278,32 @@ HVSC original at `hvsc85/MUSICIANS/H/Hubbard_Rob/<Engine>.{usf, sidfinity.sid}`.
     frame boundary (the price of Trap-C robustness), to LEADING BLANK FRAMES,
     and to losing ≤128 trailing writes. Run it before trusting a FULL on a
     member whose suspected bug is one of those shapes.
+  - `tools/write_timing_delta.py ORIG [REBUILD]` + `tools/write_timing_sweep.py`
+    — **HOW FAR a write moved INSIDE its play() burst**, i.e. the quantity the
+    core tenet's Trap B declares inaudible, which had never been measured.
+    Regroups both write logs into true `play()` invocations with ABSOLUTE
+    cycle stamps and reports ONSET (burst start after the IRQ; its variance is
+    jitter) + SPREAD (the burst's internal shape) + each side's burst WIDTH.
+    Absolute cycles come from `--writelog-per-irq --per-irq-debug`'s STDERR,
+    so siddump is untouched (it is inside code_fingerprint's toolchain hash).
+    ⚠ THREE things it must do and any sibling instrument must too: RECOVER the
+    play-index offset rather than assume 0 (ledger C21 — the rebuild's init
+    takes a different number of IRQs, and assuming 0 is wrong in the
+    FLATTERING direction); work PER CHIP (C28); and report a self-driven
+    RSID (play=$0000) as NOT MEASURABLE rather than as a thin sample.
+    ⚠ The sweep's 15 s window RANKS; re-measure the top at full songlength.
+    `tools/render_pair.py` renders a pair to WAV for the listening test.
+  - `tools/register_ownership.py [--family ...]` — **which CODE writes which
+    SID register**, so a music+digi member can be given the split verdict
+    (`verify_cycle.compare_split_by_register`, music Mode 1 / digi Mode 2).
+    pc-traces the busiest window and asks whether the digi register's writer
+    PCs are DISJOINT from every other register's. ⚠ Classify by PC LOCALITY,
+    never by write RATE — rate is a property of a LOOP, ownership of an
+    ENGINE, and a rate threshold reads an UNROLLED digi burst as "music".
+    ⚠ Scan the ratified songlength, never a fixed N: a 25 s scan reported six
+    members as having no digi when one starts its digi 430 seconds in.
+  - `tools/verdict_gaps.py` — see the closeout section above; every non-DMC
+    family's "member with no row / row with no member" check.
   - `pipelines/dmc/v5/build_one.py <member> [--verify] [--localize]` — the v5
     per-member tool (v4's `dmc_build_one` equivalent). Prints the dispatch facts
     FIRST (base / family-4-vs-canon / CIA latch), because family-4 is a
