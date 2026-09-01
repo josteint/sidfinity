@@ -680,6 +680,18 @@ def compare_split_by_register(a: list[Frame], b: list[Frame],
     writes are compared as a flat instruction stream
     (`compare_instruction_stream`).
 
+    ⚠ WHERE `strict_regs` COMES FROM IS A PRINCIPLE QUESTION, and it should
+    be settled before the first caller rather than after.  The register a
+    digi engine owns FOLLOWS FROM ITS TECHNIQUE, and the technique is
+    already musical content in the schema (`digi { technique: volume_4bit }`
+    ⇒ $D418).  So derive it from the USF's digi declaration.  Do NOT supply
+    it from a per-engine table keyed on which player the member came from:
+    that is Principle §8's shape — a verdict that needs engine identity —
+    even though §8 is written about the composer, and it would put back
+    exactly the engine-library indexing the digi schema was designed to
+    remove.  A family constant (like `n_chips`, which the pipeline knows
+    from the PSID header) is acceptable; an engine name is not.
+
     Degenerate cases reduce exactly, and both are asserted by the tool's
     self-test:
       * `strict_regs=frozenset()`  -> pure `compare_instruction_stream`

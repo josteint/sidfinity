@@ -169,6 +169,16 @@ score (the actual musical content) unrepresented.
   verify music flat (Mode 1) + digi cycle-strict (Mode 2) — the C27/C28
   "split the stream, verify each in its own mode" shape, applied to
   register ownership instead of chip tag.
+  📐 **WHERE `strict_regs` COMES FROM — settle it before the first caller.**
+  The register a digi engine owns FOLLOWS FROM ITS TECHNIQUE, and the
+  technique is already musical content in the schema (`technique:
+  volume_4bit` ⇒ $D418). Derive the split from the USF's digi declaration.
+  Do NOT supply it from a per-engine table keyed on which player the member
+  came from — that is Principle §8's shape (a verdict needing engine
+  identity), and it would reinstate exactly the engine-library indexing the
+  digi schema exists to remove. A family constant like `n_chips`, which the
+  pipeline reads from the PSID header, is fine; an engine name is not.
+
   ✅ **BUILT 2026-09-01** — `verify_cycle.compare_split_by_register`,
   shared, with controls in `pipelines/hubbard/tests/test_split_verdict.py`.
   It degenerates exactly (no strict regs ⇒ `compare_instruction_stream`;
