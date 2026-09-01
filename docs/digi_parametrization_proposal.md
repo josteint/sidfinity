@@ -207,6 +207,18 @@ score (the actual musical content) unrepresented.
   the busiest window and classify each writer PC by its per-frame rate)
   over all 92 Digi-Organizer music-paired members:
 
+  ⚠ **THE PAIRED COLUMN BELOW IS WITHDRAWN AS OF 2026-09-01 (later the same
+  night) AND IS BEING RE-MEASURED.** It was taken over a fixed 25-second
+  scan window, and six members reported `no_digi_in_window` on that basis.
+  Every one of the six turned out to have a digi — Xanadu has 2,558,796
+  $D418 writes with its busiest window 430 SECONDS in. A fixed window turns
+  "I did not look there" into a statement about the member. The scan is now
+  the ratified songlength x 1.1
+  (`feedback_subtune_frames_not_arbitrary`), and the `shared` count in
+  particular can only move DOWN or UP with more evidence, not stay
+  authoritative. The Rayden and standalone columns are less exposed (short
+  members) but were taken the same way.
+
   | verdict | paired (92) | Rayden (17) | standalone (39) |
   |---|---:|---:|---:|
   | `exclusive` — digi's writer PCs are disjoint from the music's | **74** | **16** | 0 |
