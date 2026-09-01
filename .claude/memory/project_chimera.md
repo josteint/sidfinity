@@ -1,6 +1,6 @@
 ---
 name: chimera-pipeline-state
-description: "Chimera — MIGRATED to USF, all 4 subtunes (2 music + 2 digi) through USF; music frame-exact via py65, digi cycle-strict via writelog."
+description: "Chimera — MIGRATED to USF, all 4 subtunes (2 music + 2 digi) through USF; music frame-exact, digi verified by a flattened (reg,val) writeset (NOT cycle-strict — see the digi line in the body)."
 metadata: 
   node_type: memory
   type: project
@@ -21,6 +21,14 @@ core + `pipelines/hubbard/chimera/extract/to_usf.py` adapter writing
 - Digi subtunes 2, 3: 108/108 + 138/138 writelog cycle-strict (when
   verified via the original RSID); writeset-match flatten via the
   PSID rebuild's slightly different dispatcher cycle count.
+  ⚠ MEASURED 2026-09-01 (backlog 38): the shipped verdict really is the
+  FLATTEN — orig is RSID play=$0000 self-driven, rebuild is PSID
+  play=$9FB9, so cycle equality is structurally impossible, not merely
+  unachieved. Audio consequence measured and it is benign: content
+  byte-identical (16801/16801, 12931/12931 writes), sample residual
+  -61.6 dB / -31.4 dB, but spectrally 0.00% different after the first
+  2 s = a pure time offset. Header flags identical (PAL/6581), renderer
+  bit-deterministic, so timing is the only variable.
 
 Commits 18cce55, 9df7877 (music codegen) + 7a40627, 26115f8, 922f59c
 (digi pipeline D1..D3c) + c931160, e3e9a0f, 8eac97b, 29bb548 (USF-only

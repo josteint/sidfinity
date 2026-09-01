@@ -178,6 +178,96 @@
     is the one that actually bit, and it bites families with no roster at
     all. Cheap: compare the store's key set against the batch's enumeration.
 
+38. MEASURE MODE-1 AUDIO FIDELITY — the canon's "inaudible" has never been
+    measured (opened 2026-09-01, owner-requested).
+
+    THE CLAIM UNDER TEST is the core tenet's Trap B: "within-frame cycle
+    position is observation, not signal … same writes in the same order at
+    different cycles within a frame are equivalent", justified by "a normal
+    player does all of its work in ONE burst per frame, so where inside that
+    burst a write lands is inaudible." The doctrine is sound and the boundary
+    is already documented (Techno-Rap, where work is deliberately spread
+    sub-frame). What does not exist is a MEASUREMENT behind the word
+    "inaudible" — the project has never rendered an original and a rebuild
+    and compared them. This is the project's most exposed claim: the harshest
+    fair criticism of SIDfinity is "your rebuild doesn't sound like the
+    original", and today we could not answer it with a number.
+
+    ==== WHAT IS ALREADY ESTABLISHED (2026-09-01, controlled) ====
+    Controls: `siddump --pcm` is bit-DETERMINISTIC (same file twice ⇒ residual
+    exactly 0); Chimera's orig/rebuild PSID header flags are identical
+    (PAL/6581), so chip model and clock are excluded as explanations.
+
+    * **Cycle-strict verification ⇒ bit-identical audio.** digi_organizer
+      (Heavy-Beat): 100.00% of samples identical, max difference 0, residual
+      −∞ dB. Where the project enforces exactness it demonstrably achieves
+      perfect fidelity. THIS IS THE STRONGEST FACT WE HAVE and it should be
+      quoted in any defence of the project's fidelity.
+    * **Chimera is NOT cycle-exact and it does not matter.** Its digi verdict
+      is a FLAT (reg,val) md5 that discards cycles (verify.py `_checksum_digi`
+      — "ignoring the per-write cycle and the per-frame boundary"), because
+      the ORIGINAL is RSID play=$0000 self-driven while the REBUILD is PSID
+      play=$9FB9: cycle equality is structurally impossible, not merely
+      unachieved. Measured: content byte-identical (16801/16801 and
+      12931/12931 writes), sample-level residual −61.6 dB (sub 2) / −31.4 dB
+      (sub 3), but spectrally 0.00% different after the first 2 s — a pure
+      time offset. ⚠ `project_chimera`'s BODY was already honest about this (it names
+      the flatten and the dispatcher cycle difference); only its frontmatter
+      `description` overstated it as "digi cycle-strict" — corrected
+      2026-09-01.
+    * **Commando (Mode 1) verifies FULL on all 19 subtunes** under current
+      code with the stored artifact. The OWNER listened to orig vs rebuild
+      (subtune 1) and could hear no difference — self-caveated as "bad ears
+      and bad music hardware", so it is a data point, not a verdict.
+
+    ==== ⛔ FOUR MEASUREMENT TRAPS — ALL HIT ON 2026-09-01, DO NOT REPEAT ====
+    Four numbers were produced and all four had to be withdrawn. The traps
+    are the transferable content of this item:
+
+    1. **Sample-level null testing is INVALID for time-shifted audio.** A
+       sub-millisecond shift decorrelates a 3 kHz component completely, so
+       the residual reports "totally different" for audio that is
+       perceptually identical. It is the right instrument for DIGI (where the
+       writes ARE the waveform) and the wrong one for tracker music.
+    2. **Global FFT alignment locks onto the wrong lag** when the play
+       streams are offset — and under the trichotomy they always are, because
+       our rebuild emits its OWN init. Commando's streams diverge at flat
+       position 1 for exactly this reason.
+    3. **Spectral-norm difference is not calibrated to perception.** Commando
+       measured ~20% at best alignment, and a pure-time-shift control gives
+       only 3.7% at the same lag — but that control tests the WRONG THING: a
+       time shift barely perturbs a magnitude spectrum, while what Mode 1
+       actually permits is a WAVEFORM change. SID square waves are
+       harmonically dense, so bin-by-bin magnitudes diverge easily between
+       two renders that sound the same. 20% spectral norm ≠ audible.
+    4. **`writelog` cycles are PER-FRAME RELATIVE.** They cannot be compared
+       across a flattened stream, and the init-length difference means frame
+       k of the original is not frame k of the rebuild.
+
+    ==== PROPOSED DESIGN (measure the physical quantity first) ====
+    Do NOT start with a perceptual metric. Start with the quantity Trap B is
+    actually about — the within-frame write-time delta:
+
+    (a) For a FULL Mode-1 member, align the PLAY streams (drop init; reuse
+        the trichotomy shift `verify_cycle._trichotomy_compare` already
+        recovers). For a FULL member the per-frame write SEQUENCE is
+        identical by construction, so write i of frame f corresponds
+        one-to-one. Histogram `cycle_orig(f,i) − cycle_rebuild(f,i)`.
+    (b) That distribution IS the claim. If deltas are tens of cycles, Trap B
+        is safe on physical grounds and no perceptual test is needed. If some
+        members show deltas of thousands of cycles (a write landing much
+        later in its frame), those are the exposed ones.
+    (c) RANK members by p99 delta and LISTEN to the worst — a targeted
+        listening test instead of a blind one. The owner's ear is the
+        project's stated final judge; consider a second listener given the
+        self-noted hardware caveat.
+    (d) Only if (c) is inconclusive, reach for a real perceptual metric
+        (PEAQ / bark-band loudness), never a hand-rolled spectral norm.
+
+    Related: `tools/oracle_fault_injection.py` is the same shape one layer
+    over (what the write-stream verdict cannot see); this is its audio
+    sibling and the two should probably merge eventually.
+
 10. E5 (Phase E) — ML-PROXY METRICS: token stats + engine-predictability of
     fields. "The eventual ground truth of the philosophy, not built now" —
     roadmap note only, never built. This is the LAST open box of Phase E
