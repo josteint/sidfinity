@@ -51,7 +51,15 @@ of a frame" is the unit the claim is stated in.
   counted, never silently half-measured.
 * Orig and rebuild are aligned by PLAY INDEX (entries since the first),
   not by siddump frame — the rebuild emits its own init (the trichotomy),
-  so frame k of one is not frame k of the other.
+  so frame k of one is not frame k of the other. The index offset itself is
+  RECOVERED, not assumed; see `_recover_shift`.
+* Every comparison is PER CHIP (ledger C28). Two SID chips are independent
+  hardware, so the order of a chip-1 write against a chip-2 write — and
+  equally the delay between them — is physically unobservable, the
+  multi-SID analogue of Trap B. Content is compared within a chip and
+  spread is measured against that chip's OWN burst start. Comparing the
+  merged stream instead reported 4-22% of plays as content mismatches on
+  every 2SID member measured, all of them cross-chip adjacency flips.
 
 The per-play regrouping is also a check the flat verdict structurally
 cannot make: it compares each play's write sequence INDIVIDUALLY, so a
@@ -224,6 +232,23 @@ def _pctl(xs: list, q: float) -> float:
     return float(s[i])
 
 
+def _by_chip(writes: list) -> dict:
+    """A play's writes grouped by chip (ledger C28: reg = chip*0x20 + r)."""
+    out: dict = {}
+    for w in writes:
+        out.setdefault(w[1] >> 5, []).append(w)
+    return out
+
+
+def _same_content(a: list, b: list) -> bool:
+    """Per-chip content equality — cross-chip ORDER is unobservable."""
+    ca, cb = _by_chip(a), _by_chip(b)
+    if set(ca) != set(cb):
+        return False
+    return all([(w[1], w[2]) for w in ca[k]] == [(w[1], w[2]) for w in cb[k]]
+               for k in ca)
+
+
 def _recover_shift(co: Capture, cr: Capture, window: int = 6) -> int:
     """The play-index offset that aligns the two runs.
 
@@ -252,8 +277,41 @@ def _recover_shift(co: Capture, cr: Capture, window: int = 6) -> int:
             a, b = co.plays[i], cr.plays[i + sh]
             if not (a.clean and b.clean and a.writes and b.writes):
                 continue
-            if [(w[1], w[2]) for w in a.writes] == \
-                    [(w[1], w[2]) for w in b.writes]:
+            if _same_content(a.writes, b.writes):
+                n += 1
+        if n > best_n:
+            best, best_n = sh, n
+    return best if best_n > 0 else 0
+
+
+def _chip_seq(cap: Capture) -> dict:
+    """chip -> list over play index of (clean, entry, [writes of that chip]).
+
+    A chip's substream is verified in its own right (C28), so it is also
+    ALIGNED in its own right: a multi-SID rebuild can be exact on both chips
+    and still bucket one of them differently, because the two chips' work is
+    emitted at very different points in the frame.
+    """
+    chips = {w[1] >> 5 for p in cap.plays for w in p.writes}
+    out = {}
+    for ch in sorted(chips):
+        out[ch] = [(p.clean, p.entry, [w for w in p.writes if w[1] >> 5 == ch])
+                   for p in cap.plays]
+    return out
+
+
+def _recover_chip_shift(a: list, b: list, window: int = 6) -> int:
+    """Play-index offset aligning one chip's substream. Same rule as
+    `_recover_shift`: |shift| order, strict improvement, fall back to 0."""
+    best, best_n = 0, -1
+    for sh in sorted(range(-window, window + 1), key=lambda k: (abs(k), k)):
+        n = 0
+        for i in range(max(0, -sh), min(len(a), len(b) - sh)):
+            ca, ea, wa = a[i]
+            cb, eb, wb = b[i + sh]
+            if not (ca and cb and wa and wb):
+                continue
+            if [(w[1], w[2]) for w in wa] == [(w[1], w[2]) for w in wb]:
                 n += 1
         if n > best_n:
             best, best_n = sh, n
@@ -262,50 +320,68 @@ def _recover_shift(co: Capture, cr: Capture, window: int = 6) -> int:
 
 def compare(orig_sid: str, rebuild_sid: str, subtune: int,
             duration: float) -> dict:
-    """Measure onset + spread deltas between an original and its rebuild."""
+    """Measure onset + spread deltas between an original and its rebuild.
+
+    Everything below is PER CHIP — content, alignment and both
+    distributions. Two SID chips are independent hardware (ledger C28), so
+    cross-chip order and cross-chip delay are physically unobservable, and a
+    merged comparison manufactures mismatches that are not defects: measured
+    on Bamse_Bert_2SID, chip 1's burst lands ~10,000 cycles after the play
+    entry in BOTH runs (p50; p90 16,600) while chip 0's lands at ~400, so a
+    60-cycle difference near the frame boundary decides which play() bucket
+    owns chip 1's burst and 22% of plays read as "content mismatch".
+    """
     co = capture_plays(orig_sid, subtune, duration)
     cr = capture_plays(rebuild_sid, subtune, duration)
-    shift = _recover_shift(co, cr)
+    so, sr = _chip_seq(co), _chip_seq(cr)
 
-    n = min(len(co.plays), len(cr.plays) - shift)
-    onset = []
-    spread = []
-    compared = 0
-    skipped_unclean = 0
-    content_mismatch = 0
-    empty = 0
+    onset, spread = [], []
+    compared = skipped_unclean = content_mismatch = empty = 0
+    shifts, onset_spread_o, onset_spread_r = {}, {}, {}
 
-    for i in range(max(0, -shift), n):
-        po, pr = co.plays[i], cr.plays[i + shift]
-        if not po.clean or not pr.clean:
-            skipped_unclean += 1
-            continue
-        if not po.writes or not pr.writes:
-            empty += 1
-            continue
-        if [(w[1], w[2]) for w in po.writes] != [(w[1], w[2]) for w in pr.writes]:
-            content_mismatch += 1
-            continue
-        compared += 1
-        onset.append((po.writes[0][0] - po.entry)
-                     - (pr.writes[0][0] - pr.entry))
-        o0, r0 = po.writes[0][0], pr.writes[0][0]
-        for j in range(1, len(po.writes)):
-            spread.append((po.writes[j][0] - o0) - (pr.writes[j][0] - r0))
+    for ch in sorted(set(so) & set(sr)):
+        a, b = so[ch], sr[ch]
+        sh = _recover_chip_shift(a, b)
+        shifts[ch] = sh
+        # Raw evidence of WHERE in the frame this chip works, both sides.
+        # A wide spread means the chip's burst is not tied to the play entry
+        # (a second interrupt does the work) — reported, never thresholded.
+        for src, dst in ((a, onset_spread_o), (b, onset_spread_r)):
+            offs = sorted(w[0][0] - e for cl, e, w in src if cl and w)
+            dst[ch] = (offs[len(offs) // 10] if offs else 0,
+                       offs[9 * len(offs) // 10] if offs else 0)
+        for i in range(max(0, -sh), min(len(a), len(b) - sh)):
+            ca, ea, wa = a[i]
+            cb, eb, wb = b[i + sh]
+            if not ca or not cb:
+                skipped_unclean += 1
+                continue
+            if not wa or not wb:
+                empty += 1
+                continue
+            if [(w[1], w[2]) for w in wa] != [(w[1], w[2]) for w in wb]:
+                content_mismatch += 1
+                continue
+            compared += 1
+            onset.append((wa[0][0] - ea) - (wb[0][0] - eb))
+            o0, r0 = wa[0][0], wb[0][0]
+            for j in range(1, len(wa)):
+                spread.append((wa[j][0] - o0) - (wb[j][0] - r0))
 
     abs_spread = [abs(x) for x in spread]
     onset_med = statistics.median(onset) if onset else 0.0
     # Jitter = onset delta with the constant (median) latency removed.
     jitter = [abs(x - onset_med) for x in onset]
 
-    # The explanatory variable behind any spread delta: how WIDE each
-    # side's per-play write burst is.  Trap B's justification is "a normal
-    # player does all of its work in ONE burst"; a rebuild whose burst is
-    # several times wider than the original's is where the claim strains.
-    def _widths(cap):
-        return [p.writes[-1][0] - p.writes[0][0]
-                for p in cap.plays if p.clean and len(p.writes) > 1]
-    wo, wr = _widths(co), _widths(cr)
+    # The explanatory variable behind any spread delta: how WIDE each side's
+    # per-play write burst is.  Trap B's justification is "a normal player
+    # does all of its work in ONE burst"; a rebuild whose burst is several
+    # times wider than the original's is where the claim strains.
+    def _widths(seq):
+        return [w[-1][0] - w[0][0]
+                for chs in seq.values() for cl, e, w in chs
+                if cl and len(w) > 1]
+    wo, wr = _widths(so), _widths(sr)
 
     return {
         'orig': os.path.relpath(orig_sid, ROOT),
@@ -314,7 +390,10 @@ def compare(orig_sid: str, rebuild_sid: str, subtune: int,
         'duration': duration,
         'plays_orig': len(co.plays),
         'plays_rebuild': len(cr.plays),
-        'play_shift': shift,
+        'n_chips': len(set(so) & set(sr)),
+        'play_shift': shifts.get(0, 0),
+        'chip_shifts': {str(k): v for k, v in shifts.items()},
+        # per-chip play units, so a 2SID member counts 2 per play()
         'plays_compared': compared,
         'plays_skipped_unclean': skipped_unclean,
         'plays_content_mismatch': content_mismatch,
@@ -322,6 +401,12 @@ def compare(orig_sid: str, rebuild_sid: str, subtune: int,
         'period_orig': round(co.period, 1),
         'period_rebuild': round(cr.period, 1),
         'writes_compared': len(spread) + compared,
+        # p10..p90 of each chip's burst onset after the play entry. A band
+        # far from 0, or a wide one, says the chip's work is NOT done by the
+        # play() call the entry marks (core tenet, Trap B's boundary).
+        'onset_band_orig': {str(k): list(v) for k, v in onset_spread_o.items()},
+        'onset_band_rebuild': {str(k): list(v)
+                               for k, v in onset_spread_r.items()},
         # --- the two distributions -------------------------------------
         'onset_median': onset_med,
         'onset_min': min(onset) if onset else 0,
