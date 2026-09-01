@@ -16,6 +16,17 @@ start.  That is the quantity the core tenet's Trap B declares inaudible.
     python3 tools/write_timing_sweep.py --sample 400
     python3 tools/write_timing_sweep.py            # the whole corpus
 
+⚠ THE 15-SECOND DEFAULT WINDOW IS A RANKING WINDOW, NOT A VERDICT WINDOW.
+It samples ~750 plays per member, which is plenty for a DISTRIBUTION, and it
+is what makes a 12,708-member sweep affordable at all. It is NOT the
+project's ratified songlength x 1.1, and a member whose timing only departs
+during a section past 0:15 will be ranked too low. The sibling tool
+`register_ownership` was bitten by exactly this on 2026-09-01 — its fixed
+25 s scan reported six members as having no digi when one of them starts its
+digi 430 seconds in. So: use this to RANK, then re-measure the top of the
+ranking at full songlength before quoting any member's numbers, and validate
+on a few members that the 15 s window is representative of the whole song.
+
 ⚠ Read-only.  Nothing here builds, writes an artifact, or touches a verdict
 store.
 """
